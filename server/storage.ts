@@ -54,7 +54,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createIdentityAsset(insertAsset: InsertIdentityAsset): Promise<IdentityAsset> {
-    const { socialChannels, monitorChannels, ...baseAsset } = insertAsset;
+    const { socialChannels, monitorChannels, likenessImages, ...baseAsset } = insertAsset;
     const [asset] = await db.insert(identityAssets).values({
       ...baseAsset,
       youtubeChannel: socialChannels?.youtube || null,
@@ -64,6 +64,7 @@ export class DatabaseStorage implements IStorage {
       linkedinUrl: socialChannels?.linkedin || null,
       spotifyUrl: socialChannels?.spotify || null,
       monitorChannels: monitorChannels ?? true,
+      likenessImages: likenessImages || null,
     }).returning();
     return asset;
   }

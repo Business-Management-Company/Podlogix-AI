@@ -21,7 +21,8 @@ import {
   LogOut,
   Settings,
   ExternalLink,
-  Shield
+  Shield,
+  Camera
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -326,15 +327,21 @@ export default function Dashboard() {
                   </p>
                   <div className="flex flex-wrap justify-center md:justify-start gap-2">
                     <Badge variant="outline" className="border-green-500/50 text-green-600">Voice Certification</Badge>
-                    <Badge variant="outline" className="border-green-500/50 text-green-600">Likeness Protection</Badge>
+                    <Badge variant="outline" className="border-purple-500/50 text-purple-600">Likeness Protection</Badge>
                     <Badge variant="outline" className="border-green-500/50 text-green-600">Impersonation Monitoring</Badge>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   <Button size="lg" className="bg-green-600 hover:bg-green-700" asChild data-testid="button-certify-voice">
                     <Link href="/dashboard/certify">
-                      <Shield className="h-4 w-4 mr-2" />
+                      <Mic className="h-4 w-4 mr-2" />
                       Certify Voice
+                    </Link>
+                  </Button>
+                  <Button size="lg" className="bg-purple-600 hover:bg-purple-700" asChild data-testid="button-certify-likeness">
+                    <Link href="/dashboard/certify-likeness">
+                      <Camera className="h-4 w-4 mr-2" />
+                      Certify Likeness
                     </Link>
                   </Button>
                   <Button size="sm" variant="outline" asChild data-testid="button-view-certificates">

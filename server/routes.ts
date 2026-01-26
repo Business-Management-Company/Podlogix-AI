@@ -151,6 +151,58 @@ export async function registerRoutes(
     }
   });
 
+  // Mint likeness certificate on Polygon blockchain
+  app.post("/api/identity/:id/mint-likeness", async (req, res) => {
+    try {
+      const { likenessHash } = req.body;
+      const id = req.params.id;
+
+      if (!likenessHash) {
+        return res.status(400).json({ message: 'Likeness hash is required' });
+      }
+
+      const asset = await storage.getIdentityAsset(id);
+      if (!asset) {
+        return res.status(404).json({ message: 'Asset not found' });
+      }
+
+      // Update status to minting
+      await storage.updateIdentityAsset(id, { 
+        certStatus: 'minting',
+        likenessHash 
+      });
+
+      // Mint on Polygon blockchain (using same function, different data)
+      const mintResult = await mintVoiceCertificate(
+        likenessHash,
+        asset.name,
+        asset.email
+      );
+
+      if (!mintResult.success) {
+        await storage.updateIdentityAsset(id, { certStatus: 'failed' });
+        return res.status(500).json({ 
+          message: mintResult.error || 'Blockchain minting failed' 
+        });
+      }
+
+      // Update with minted status
+      const updated = await storage.updateIdentityAsset(id, {
+        certStatus: 'minted',
+        certTxHash: mintResult.txHash,
+        certTokenId: mintResult.tokenId,
+        certExplorerUrl: mintResult.explorerUrl,
+        mintedAt: new Date(),
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Likeness minting error:", err);
+      await storage.updateIdentityAsset(req.params.id, { certStatus: 'failed' });
+      return res.status(500).json({ message: 'Minting failed' });
+    }
+  });
+
   // Blockchain status endpoint
   app.get("/api/blockchain/status", async (_req, res) => {
     const configured = isBlockchainConfigured();
