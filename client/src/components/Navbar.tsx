@@ -1,11 +1,14 @@
 import { Link } from "wouter";
-import { Mic } from "lucide-react";
+import { Mic, LogIn, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -41,14 +44,47 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
-          <Button 
-            variant="default" 
-            size="sm"
-            onClick={() => scrollToSection('footer')}
-            className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300"
-          >
-            Get Started
-          </Button>
+          {isLoading ? (
+            <div className="h-9 w-20 bg-muted animate-pulse rounded-md" />
+          ) : isAuthenticated ? (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm"
+                asChild
+                data-testid="button-dashboard"
+              >
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
+              <div className="flex items-center gap-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.profileImageUrl || undefined} />
+                  <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
+                </Avatar>
+              </div>
+            </>
+          ) : (
+            <>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={login}
+                data-testid="button-login"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Log In
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={login}
+                className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300"
+                data-testid="button-get-started"
+              >
+                Get Started
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </nav>
