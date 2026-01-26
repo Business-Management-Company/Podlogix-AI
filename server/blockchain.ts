@@ -1,7 +1,32 @@
 import { ethers } from "ethers";
 
-const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL;
+// Construct RPC URL - handle cases where URL might be incomplete
+function getPolygonRpcUrl(): string | null {
+  const configuredUrl = process.env.POLYGON_RPC_URL;
+  const infuraKey = process.env.INFURA_API_KEY;
+  
+  // If full URL is configured and looks valid, use it
+  if (configuredUrl && configuredUrl.startsWith('https://')) {
+    return configuredUrl;
+  }
+  
+  // If we have an Infura key, construct the URL
+  if (infuraKey) {
+    return `https://polygon-mainnet.infura.io/v3/${infuraKey}`;
+  }
+  
+  // If the configured URL looks like just the key, construct full URL
+  if (configuredUrl && !configuredUrl.startsWith('https://')) {
+    return `https://polygon-mainnet.infura.io/v3/${configuredUrl}`;
+  }
+  
+  return null;
+}
+
+const POLYGON_RPC_URL = getPolygonRpcUrl();
 const WALLET_PRIVATE_KEY = process.env.WALLET_PRIVATE_KEY;
+
+console.log("Polygon RPC URL configured:", POLYGON_RPC_URL ? "Yes" : "No");
 
 const VOICE_CERTIFICATE_ABI = [
   "function mint(address to, string memory voiceHash, string memory name, string memory email) public returns (uint256)",
