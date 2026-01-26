@@ -21,6 +21,10 @@ async function logout(): Promise<void> {
   window.location.href = "/api/logout";
 }
 
+function login(): void {
+  window.location.href = "/api/login";
+}
+
 export function useAuth() {
   const queryClient = useQueryClient();
   const { data: user, isLoading } = useQuery<User | null>({
@@ -41,6 +45,7 @@ export function useAuth() {
     user,
     isLoading,
     isAuthenticated: !!user,
+    login,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
   };
