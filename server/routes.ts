@@ -97,15 +97,52 @@ export async function registerRoutes(
     res.json(assets);
   });
 
+  // Update identity asset (protected - owner only)
+  app.patch("/api/identity/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = req.params.id;
+      const userEmail = req.user?.claims?.email;
+      
+      const asset = await storage.getIdentityAsset(id);
+      if (!asset) {
+        return res.status(404).json({ message: 'Asset not found' });
+      }
+
+      // Verify ownership - user can only update their own assets
+      if (asset.email !== userEmail) {
+        return res.status(403).json({ message: 'You can only update your own assets' });
+      }
+
+      const { likenessImages, ...otherUpdates } = req.body;
+      const updates: any = { ...otherUpdates };
+      
+      if (likenessImages) {
+        updates.likenessImages = likenessImages;
+      }
+
+      const updated = await storage.updateIdentityAsset(id, updates);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating identity asset:", err);
+      return res.status(500).json({ message: 'Failed to update asset' });
+    }
+  });
+
   // Mint voice certificate on Polygon blockchain
-  app.post(api.identity.mint.path, async (req, res) => {
+  app.post(api.identity.mint.path, isAuthenticated, async (req: any, res) => {
     try {
       const { voiceHash } = api.identity.mint.input.parse(req.body);
       const id = req.params.id;
+      const userEmail = req.user?.claims?.email;
 
       const asset = await storage.getIdentityAsset(id);
       if (!asset) {
         return res.status(404).json({ message: 'Asset not found' });
+      }
+
+      // Verify ownership - user can only mint their own assets
+      if (asset.email !== userEmail) {
+        return res.status(403).json({ message: 'You can only mint certificates for your own assets' });
       }
 
       // Update status to minting
@@ -152,10 +189,11 @@ export async function registerRoutes(
   });
 
   // Mint likeness certificate on Polygon blockchain
-  app.post("/api/identity/:id/mint-likeness", async (req, res) => {
+  app.post("/api/identity/:id/mint-likeness", isAuthenticated, async (req: any, res) => {
     try {
       const { likenessHash } = req.body;
       const id = req.params.id;
+      const userEmail = req.user?.claims?.email;
 
       if (!likenessHash) {
         return res.status(400).json({ message: 'Likeness hash is required' });
@@ -164,6 +202,11 @@ export async function registerRoutes(
       const asset = await storage.getIdentityAsset(id);
       if (!asset) {
         return res.status(404).json({ message: 'Asset not found' });
+      }
+
+      // Verify ownership - user can only mint their own assets
+      if (asset.email !== userEmail) {
+        return res.status(403).json({ message: 'You can only mint certificates for your own assets' });
       }
 
       // Update status to minting
