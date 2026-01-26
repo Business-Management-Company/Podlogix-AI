@@ -13,6 +13,7 @@ import ProfileEditor from "@/pages/ProfileEditor";
 import PublicProfile from "@/pages/PublicProfile";
 import RssManagement from "@/pages/RssManagement";
 import Distribution from "@/pages/Distribution";
+import AiAssistant from "@/pages/AiAssistant";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/dashboard/podcast" component={ProfileEditor} />
       <Route path="/dashboard/rss" component={RssManagement} />
       <Route path="/dashboard/distribution" component={Distribution} />
+      <Route path="/dashboard/ai" component={AiAssistant} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/identity" component={IdentityHub} />
       <Route path="/voice-certification" component={VoiceCertification} />

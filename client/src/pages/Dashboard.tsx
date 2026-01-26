@@ -337,9 +337,11 @@ export default function Dashboard() {
                     <Badge>SEO Optimization</Badge>
                   </div>
                 </div>
-                <Button size="lg" className="shrink-0" data-testid="button-ai-assistant">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Start AI Chat
+                <Button size="lg" className="shrink-0" asChild data-testid="button-ai-assistant">
+                  <Link href="/dashboard/ai">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Start AI Chat
+                  </Link>
                 </Button>
               </div>
             </CardContent>

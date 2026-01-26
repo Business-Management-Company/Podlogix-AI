@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { registerChatRoutes } from "./replit_integrations/chat";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -13,6 +14,9 @@ export async function registerRoutes(
   // Setup auth before other routes
   await setupAuth(app);
   registerAuthRoutes(app);
+  
+  // Register AI chat routes
+  registerChatRoutes(app);
 
   // Subscribers endpoint
   app.post(api.subscribers.create.path, async (req, res) => {
