@@ -265,6 +265,34 @@ export async function registerRoutes(
     });
   });
 
+  // Meta API status endpoint
+  app.get("/api/social/meta/status", async (_req, res) => {
+    try {
+      const status = await getMetaApiStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching Meta status:", error);
+      res.json({ configured: isMetaConfigured(), connected: false, instagramAccount: null, facebookPages: [] });
+    }
+  });
+
+  // Check for potential impersonators (protected)
+  app.post("/api/social/scan-impersonators", isAuthenticated, async (req: any, res) => {
+    try {
+      const { userName, userBio } = req.body;
+      
+      if (!userName) {
+        return res.status(400).json({ message: 'User name is required for scanning' });
+      }
+
+      const alerts = await checkForPotentialImpersonators(userName, userBio);
+      res.json({ alerts, scannedAt: new Date().toISOString() });
+    } catch (error) {
+      console.error("Error scanning for impersonators:", error);
+      res.status(500).json({ message: 'Failed to scan for impersonators' });
+    }
+  });
+
   // Dashboard endpoint (protected)
   app.get(api.dashboard.get.path, isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
@@ -322,7 +350,8 @@ export async function registerRoutes(
 
   // Public profile by slug
   app.get(api.profiles.getBySlug.path, async (req, res) => {
-    const profile = await storage.getProfileBySlug(req.params.slug);
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
+    const profile = await storage.getProfileBySlug(slug);
     if (!profile || !profile.isPublished) {
       return res.status(404).json({ message: 'Profile not found' });
     }
