@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,9 +24,14 @@ import {
   Settings,
   ExternalLink,
   Shield,
-  Camera
+  Camera,
+  Eye,
+  Search,
+  Instagram,
+  Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { SiFacebook } from "react-icons/si";
 
 interface DashboardData {
   profile: {
@@ -41,14 +48,59 @@ interface DashboardData {
   distributionStatus: Record<string, string>;
 }
 
+interface MetaStatus {
+  configured: boolean;
+  connected: boolean;
+  instagramAccount: { id: string; username: string } | null;
+  facebookPages: { id: string; name: string }[];
+}
+
+interface ImpersonatorAlert {
+  id: string;
+  platform: 'instagram' | 'facebook';
+  suspiciousAccountId: string;
+  suspiciousAccountName: string;
+  suspiciousAccountUrl?: string;
+  reason: string;
+  confidence: 'low' | 'medium' | 'high';
+  detectedAt: string;
+  mediaUrl?: string;
+}
+
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
+  const [impersonatorAlerts, setImpersonatorAlerts] = useState<ImpersonatorAlert[]>([]);
 
   const { data: dashboardData, isLoading: dataLoading } = useQuery<DashboardData>({
     queryKey: ['/api/dashboard'],
     enabled: isAuthenticated,
+  });
+
+  const { data: metaStatus } = useQuery<MetaStatus>({
+    queryKey: ['/api/social/meta/status'],
+  });
+
+  const scanMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/social/scan-impersonators', { 
+        userName: user?.firstName || 'Unknown', 
+        userBio: dashboardData?.profile?.displayName 
+      });
+      return res.json();
+    },
+    onSuccess: (data: { alerts: ImpersonatorAlert[] }) => {
+      setImpersonatorAlerts(data.alerts);
+      if (data.alerts.length > 0) {
+        toast({ title: "Potential issues found", description: `${data.alerts.length} potential impersonator(s) detected`, variant: "destructive" });
+      } else {
+        toast({ title: "Scan complete", description: "No potential impersonators detected" });
+      }
+    },
+    onError: () => {
+      toast({ title: "Scan failed", description: "Could not complete the impersonation scan", variant: "destructive" });
+    }
   });
 
   useEffect(() => {
@@ -349,6 +401,97 @@ export default function Dashboard() {
                       View Certificates
                     </Link>
                   </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Social Monitoring Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+        >
+          <Card className="bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-2 border-blue-500/20">
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row items-start gap-6">
+                <div className="w-20 h-20 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+                  <Eye className="h-10 w-10 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold mb-2">Social Media Monitoring</h3>
+                  <p className="text-muted-foreground mb-4">
+                    We monitor your connected social channels to detect potential AI impersonators and protect your identity.
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-lg border">
+                      <Instagram className="h-4 w-4" />
+                      <span className="text-sm">Instagram</span>
+                      {metaStatus?.configured ? (
+                        <Badge variant="outline" className="text-xs border-green-500/50 text-green-600">Connected</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs border-muted-foreground/50 text-muted-foreground">Not Connected</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-lg border">
+                      <SiFacebook className="h-4 w-4" />
+                      <span className="text-sm">Facebook</span>
+                      {metaStatus?.facebookPages && metaStatus.facebookPages.length > 0 ? (
+                        <Badge variant="outline" className="text-xs border-green-500/50 text-green-600">{metaStatus.facebookPages.length} Page(s)</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs border-muted-foreground/50 text-muted-foreground">Not Connected</Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {impersonatorAlerts.length > 0 && (
+                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      <p className="font-semibold text-red-600 mb-2 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        {impersonatorAlerts.length} Potential Issue(s) Detected
+                      </p>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {impersonatorAlerts.slice(0, 5).map((alert) => (
+                          <div key={alert.id} className="text-sm text-muted-foreground p-2 bg-card rounded border">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium capitalize">{alert.platform}</span>
+                              <Badge variant="outline" className={`text-xs ${alert.confidence === 'high' ? 'border-red-500 text-red-600' : alert.confidence === 'medium' ? 'border-yellow-500 text-yellow-600' : 'border-muted-foreground text-muted-foreground'}`}>
+                                {alert.confidence} confidence
+                              </Badge>
+                            </div>
+                            <p>Account: <span className="font-medium">{alert.suspiciousAccountName}</span></p>
+                            <p className="text-xs text-red-500 mt-1">Reason: {alert.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="shrink-0">
+                  <Button 
+                    size="lg" 
+                    className="bg-blue-600"
+                    onClick={() => scanMutation.mutate()}
+                    disabled={scanMutation.isPending || !metaStatus?.configured}
+                    data-testid="button-scan-impersonators"
+                  >
+                    {scanMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Scan Now
+                      </>
+                    )}
+                  </Button>
+                  {!metaStatus?.configured && (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">Connect social accounts to scan</p>
+                  )}
                 </div>
               </div>
             </CardContent>

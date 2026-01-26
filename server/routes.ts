@@ -265,8 +265,8 @@ export async function registerRoutes(
     });
   });
 
-  // Meta API status endpoint
-  app.get("/api/social/meta/status", async (_req, res) => {
+  // Meta API status endpoint (protected)
+  app.get("/api/social/meta/status", isAuthenticated, async (_req, res) => {
     try {
       const status = await getMetaApiStatus();
       res.json(status);
