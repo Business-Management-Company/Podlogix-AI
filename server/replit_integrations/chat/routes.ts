@@ -3,8 +3,7 @@ import OpenAI from "openai";
 import { chatStorage } from "./storage";
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const PODLOGIX_SYSTEM_PROMPT = `You are Podlogix AI, an expert podcast assistant. You help podcasters with:
