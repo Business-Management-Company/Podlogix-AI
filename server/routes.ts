@@ -6,6 +6,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
+import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -92,7 +93,7 @@ export async function registerRoutes(
     res.json(assets);
   });
 
-  // Mint voice certificate on Polygon (simulated for now - would integrate with actual blockchain)
+  // Mint voice certificate on Polygon blockchain
   app.post(api.identity.mint.path, async (req, res) => {
     try {
       const { voiceHash } = api.identity.mint.input.parse(req.body);
@@ -109,18 +110,26 @@ export async function registerRoutes(
         voiceHash 
       });
 
-      // Simulate blockchain minting (in production, this would call Polygon)
-      // Generate a mock transaction hash and token ID
-      const txHash = '0x' + crypto.randomBytes(32).toString('hex');
-      const tokenId = crypto.randomBytes(4).toString('hex');
-      const explorerUrl = `https://amoy.polygonscan.com/tx/${txHash}`;
+      // Mint on Polygon blockchain
+      const mintResult = await mintVoiceCertificate(
+        voiceHash,
+        asset.name,
+        asset.email
+      );
+
+      if (!mintResult.success) {
+        await storage.updateIdentityAsset(id, { certStatus: 'failed' });
+        return res.status(500).json({ 
+          message: mintResult.error || 'Blockchain minting failed' 
+        });
+      }
 
       // Update with minted status
       const updated = await storage.updateIdentityAsset(id, {
         certStatus: 'minted',
-        certTxHash: txHash,
-        certTokenId: tokenId,
-        certExplorerUrl: explorerUrl,
+        certTxHash: mintResult.txHash,
+        certTokenId: mintResult.tokenId,
+        certExplorerUrl: mintResult.explorerUrl,
         mintedAt: new Date(),
       });
 
@@ -132,10 +141,26 @@ export async function registerRoutes(
           field: err.errors[0].path.join('.'),
         });
       }
-      // Update status to failed if minting fails
+      console.error("Minting error:", err);
       await storage.updateIdentityAsset(req.params.id, { certStatus: 'failed' });
       return res.status(500).json({ message: 'Minting failed' });
     }
+  });
+
+  // Blockchain status endpoint
+  app.get("/api/blockchain/status", async (_req, res) => {
+    const configured = isBlockchainConfigured();
+    let balance = null;
+    
+    if (configured) {
+      balance = await getWalletBalance();
+    }
+    
+    res.json({
+      configured,
+      network: configured ? "Polygon Mainnet" : null,
+      walletBalance: balance ? `${balance} MATIC` : null,
+    });
   });
 
   // Dashboard endpoint (protected)

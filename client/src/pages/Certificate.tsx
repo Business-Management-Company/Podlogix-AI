@@ -167,7 +167,7 @@ export default function Certificate() {
                   <Button 
                     className="w-full" 
                     variant="outline"
-                    onClick={() => window.open(asset.certExplorerUrl || `https://amoy.polygonscan.com/tx/${asset.certTxHash}`, "_blank")}
+                    onClick={() => window.open(asset.certExplorerUrl || `https://polygonscan.com/tx/${asset.certTxHash}`, "_blank")}
                     data-testid="button-view-polygonscan"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
