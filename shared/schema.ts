@@ -25,8 +25,10 @@ export const identityAssets = pgTable("identity_assets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull(),
   name: text("name").notNull(),
-  type: text("type").notNull().default("voice_identity"), // voice_identity or face_identity
+  type: text("type").notNull().default("voice_identity"), // voice_identity or likeness_identity
   voiceHash: text("voice_hash"), // Hash of the voice recording
+  likenessImages: text("likeness_images").array(), // Array of object storage paths for likeness images
+  likenessHash: text("likeness_hash"), // Hash of combined likeness images
   certStatus: text("cert_status").notNull().default("pending"), // pending, minting, minted, failed
   certTxHash: text("cert_tx_hash"), // Polygon transaction hash
   certTokenId: text("cert_token_id"), // NFT token ID
@@ -66,6 +68,7 @@ export const insertIdentityAssetSchema = createInsertSchema(identityAssets).pick
     spotify: z.string().optional(),
   }).optional(),
   monitorChannels: z.boolean().optional(),
+  likenessImages: z.array(z.string()).optional(),
 });
 
 export type Subscriber = typeof subscribers.$inferSelect;

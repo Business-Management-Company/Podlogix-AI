@@ -6,6 +6,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 
 export async function registerRoutes(
@@ -23,6 +24,9 @@ export async function registerRoutes(
   
   // Register AI chat routes
   registerChatRoutes(app);
+  
+  // Register object storage routes for file uploads
+  registerObjectStorageRoutes(app);
 
   // Subscribers endpoint
   app.post(api.subscribers.create.path, async (req, res) => {
