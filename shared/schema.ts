@@ -1,7 +1,10 @@
-import { pgTable, text, serial, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
+
+// Re-export auth models
+export * from "./models/auth";
 
 export const subscribers = pgTable("subscribers", {
   id: serial("id").primaryKey(),
@@ -53,3 +56,124 @@ export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type IdentityAsset = typeof identityAssets.$inferSelect;
 export type InsertIdentityAsset = z.infer<typeof insertIdentityAssetSchema>;
+
+// Podcaster Profiles (public Linktree-style pages)
+export const profiles = pgTable("profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  slug: varchar("slug").notNull().unique(), // URL-friendly identifier
+  displayName: varchar("display_name").notNull(),
+  headline: text("headline"),
+  bio: text("bio"),
+  heroImageUrl: text("hero_image_url"),
+  avatarUrl: text("avatar_url"),
+  theme: varchar("theme").default("default"), // default, dark, vibrant, etc.
+  accentColor: varchar("accent_color").default("#6366f1"),
+  isPublished: boolean("is_published").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Profile Links (items on the profile page)
+export const profileLinks = pgTable("profile_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").notNull(),
+  title: varchar("title").notNull(),
+  url: text("url").notNull(),
+  icon: varchar("icon"), // lucide icon name or custom
+  order: integer("order").default(0),
+  isActive: boolean("is_active").default(true),
+  clickCount: integer("click_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Podcasts
+export const podcasts = pgTable("podcasts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  artworkUrl: text("artwork_url"),
+  language: varchar("language").default("en"),
+  category: varchar("category"),
+  isExplicit: boolean("is_explicit").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// RSS Feeds
+export const rssFeeds = pgTable("rss_feeds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  podcastId: varchar("podcast_id").notNull(),
+  feedUrl: text("feed_url").notNull(),
+  sourceType: varchar("source_type").notNull().default("existing"), // existing | podlogix
+  status: varchar("status").notNull().default("pending"), // pending, validated, invalid, active
+  lastValidatedAt: timestamp("last_validated_at"),
+  episodeCount: integer("episode_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Distribution Channels (catalog of available platforms)
+export const distributionChannels = pgTable("distribution_channels", {
+  id: varchar("id").primaryKey(),
+  name: varchar("name").notNull(),
+  icon: varchar("icon"),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+});
+
+// Channel Submissions (per podcast distribution status)
+export const channelSubmissions = pgTable("channel_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  podcastId: varchar("podcast_id").notNull(),
+  channelId: varchar("channel_id").notNull(),
+  status: varchar("status").notNull().default("not_submitted"), // not_submitted, pending, submitted, approved, rejected
+  externalUrl: text("external_url"), // URL on the platform once approved
+  submittedAt: timestamp("submitted_at"),
+  approvedAt: timestamp("approved_at"),
+  errorMessage: text("error_message"),
+});
+
+// Insert schemas
+export const insertProfileSchema = createInsertSchema(profiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProfileLinkSchema = createInsertSchema(profileLinks).omit({
+  id: true,
+  createdAt: true,
+  clickCount: true,
+});
+
+export const insertPodcastSchema = createInsertSchema(podcasts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRssFeedSchema = createInsertSchema(rssFeeds).omit({
+  id: true,
+  createdAt: true,
+  lastValidatedAt: true,
+});
+
+export const insertChannelSubmissionSchema = createInsertSchema(channelSubmissions).omit({
+  id: true,
+  submittedAt: true,
+  approvedAt: true,
+});
+
+// Types
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = z.infer<typeof insertProfileSchema>;
+export type ProfileLink = typeof profileLinks.$inferSelect;
+export type InsertProfileLink = z.infer<typeof insertProfileLinkSchema>;
+export type Podcast = typeof podcasts.$inferSelect;
+export type InsertPodcast = z.infer<typeof insertPodcastSchema>;
+export type RssFeed = typeof rssFeeds.$inferSelect;
+export type InsertRssFeed = z.infer<typeof insertRssFeedSchema>;
+export type DistributionChannel = typeof distributionChannels.$inferSelect;
+export type ChannelSubmission = typeof channelSubmissions.$inferSelect;
+export type InsertChannelSubmission = z.infer<typeof insertChannelSubmissionSchema>;

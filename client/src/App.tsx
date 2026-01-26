@@ -8,11 +8,22 @@ import Home from "@/pages/Home";
 import IdentityHub from "@/pages/IdentityHub";
 import VoiceCertification from "@/pages/VoiceCertification";
 import Certificate from "@/pages/Certificate";
+import Dashboard from "@/pages/Dashboard";
+import ProfileEditor from "@/pages/ProfileEditor";
+import PublicProfile from "@/pages/PublicProfile";
+import RssManagement from "@/pages/RssManagement";
+import Distribution from "@/pages/Distribution";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/dashboard/profile" component={ProfileEditor} />
+      <Route path="/dashboard/podcast" component={ProfileEditor} />
+      <Route path="/dashboard/rss" component={RssManagement} />
+      <Route path="/dashboard/distribution" component={Distribution} />
+      <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/identity" component={IdentityHub} />
       <Route path="/voice-certification" component={VoiceCertification} />
       <Route path="/certificate/:id" component={Certificate} />

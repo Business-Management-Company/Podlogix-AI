@@ -1,11 +1,23 @@
+import { useEffect } from "react";
+import { useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
 import { Features } from "@/components/Features";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2, Play, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Home() {
+  const [, navigate] = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isLoading, isAuthenticated, navigate]);
+
   const scrollToFooter = () => {
     document.getElementById('footer')?.scrollIntoView({ behavior: 'smooth' });
   };
