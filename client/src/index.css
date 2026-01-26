@@ -5,33 +5,33 @@
 @tailwind utilities;
 
 :root {
-  /* HSL Space-separated values */
-  --background: 224 71% 4%;
-  --foreground: 213 31% 91%;
+  /* HSL Space-separated values - Light Theme */
+  --background: 0 0% 100%;
+  --foreground: 224 71% 4%;
 
-  --card: 224 71% 6%;
-  --card-foreground: 213 31% 91%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
 
-  --popover: 224 71% 4%;
-  --popover-foreground: 213 31% 91%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71% 4%;
 
   --primary: 263 70% 50%;
   --primary-foreground: 210 40% 98%;
 
-  --secondary: 215 27% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 220 9% 46%;
 
-  --muted: 215 27% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
 
   --accent: 263 70% 50%;
   --accent-foreground: 210 40% 98%;
 
-  --destructive: 0 62% 30%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 215 27% 17%;
-  --input: 215 27% 17%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
   --ring: 263 70% 50%;
 
   --radius: 0.75rem;
@@ -48,8 +48,8 @@
   body {
     @apply bg-background text-foreground antialiased font-sans;
     background-image: 
-      radial-gradient(circle at 50% 0%, hsla(263, 70%, 50%, 0.15), transparent 40%),
-      radial-gradient(circle at 0% 50%, hsla(220, 70%, 50%, 0.1), transparent 30%);
+      radial-gradient(circle at 50% 0%, hsla(263, 70%, 50%, 0.08), transparent 40%),
+      radial-gradient(circle at 0% 50%, hsla(220, 70%, 50%, 0.05), transparent 30%);
     background-attachment: fixed;
   }
   
@@ -61,7 +61,7 @@
 
 @layer utilities {
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60;
   }
   
   .text-gradient-primary {
@@ -69,7 +69,7 @@
   }
   
   .glass-card {
-    @apply bg-card/50 backdrop-blur-md border border-white/10 shadow-xl;
+    @apply bg-card/80 backdrop-blur-md border border-border shadow-lg;
   }
 
   .glow {
