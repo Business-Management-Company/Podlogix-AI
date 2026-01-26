@@ -8,6 +8,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
+import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -84,7 +85,8 @@ export async function registerRoutes(
 
   // Get identity asset by ID
   app.get(api.identity.get.path, async (req, res) => {
-    const asset = await storage.getIdentityAsset(req.params.id);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const asset = await storage.getIdentityAsset(id);
     if (!asset) {
       return res.status(404).json({ message: 'Certificate not found' });
     }
@@ -93,7 +95,8 @@ export async function registerRoutes(
 
   // Get identity assets by email
   app.get(api.identity.getByEmail.path, async (req, res) => {
-    const assets = await storage.getIdentityAssetsByEmail(req.params.email);
+    const email = Array.isArray(req.params.email) ? req.params.email[0] : req.params.email;
+    const assets = await storage.getIdentityAssetsByEmail(email);
     res.json(assets);
   });
 
