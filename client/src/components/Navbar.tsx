@@ -40,7 +40,6 @@ export function Navbar() {
           <button onClick={() => scrollToSection('features')} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</button>
           <button onClick={() => scrollToSection('how-it-works')} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How it Works</button>
           <button onClick={() => scrollToSection('pricing')} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pricing</button>
-          <Link href="/identity" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Voice ID</Link>
         </div>
 
         <div className="flex items-center gap-4">

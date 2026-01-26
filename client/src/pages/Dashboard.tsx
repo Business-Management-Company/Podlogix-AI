@@ -108,12 +108,6 @@ export default function Dashboard() {
           </Link>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild data-testid="link-voice-id">
-              <Link href="/identity">
-                <Shield className="h-4 w-4 mr-2" />
-                Voice ID
-              </Link>
-            </Button>
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
@@ -312,11 +306,53 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
-        {/* AI Agent Section */}
+        {/* Voice Identity Protection Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
+        >
+          <Card className="bg-gradient-to-br from-green-500/5 to-emerald-500/5 border-2 border-green-500/20">
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <Shield className="h-10 w-10 text-green-600" />
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                  <h3 className="text-xl font-bold mb-2">Voice & Identity Protection</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Certify your voice and likeness on the Polygon blockchain. We monitor your connected 
+                    social channels to detect AI impersonators and protect your identity.
+                  </p>
+                  <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                    <Badge variant="outline" className="border-green-500/50 text-green-600">Voice Certification</Badge>
+                    <Badge variant="outline" className="border-green-500/50 text-green-600">Likeness Protection</Badge>
+                    <Badge variant="outline" className="border-green-500/50 text-green-600">Impersonation Monitoring</Badge>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 shrink-0">
+                  <Button size="lg" className="bg-green-600 hover:bg-green-700" asChild data-testid="button-certify-voice">
+                    <Link href="/dashboard/certify">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Certify Voice
+                    </Link>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild data-testid="button-view-certificates">
+                    <Link href="/identity">
+                      View Certificates
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* AI Agent Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
         >
           <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-2 border-primary/20">
             <CardContent className="pt-6">

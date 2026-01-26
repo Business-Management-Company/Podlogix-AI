@@ -14,6 +14,7 @@ import PublicProfile from "@/pages/PublicProfile";
 import RssManagement from "@/pages/RssManagement";
 import Distribution from "@/pages/Distribution";
 import AiAssistant from "@/pages/AiAssistant";
+import DashboardCertify from "@/pages/DashboardCertify";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/dashboard/rss" component={RssManagement} />
       <Route path="/dashboard/distribution" component={Distribution} />
       <Route path="/dashboard/ai" component={AiAssistant} />
+      <Route path="/dashboard/certify" component={DashboardCertify} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/identity" component={IdentityHub} />
       <Route path="/voice-certification" component={VoiceCertification} />

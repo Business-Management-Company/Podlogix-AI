@@ -31,6 +31,13 @@ export const identityAssets = pgTable("identity_assets", {
   certTxHash: text("cert_tx_hash"), // Polygon transaction hash
   certTokenId: text("cert_token_id"), // NFT token ID
   certExplorerUrl: text("cert_explorer_url"), // Polygonscan URL
+  youtubeChannel: text("youtube_channel"),
+  twitterHandle: text("twitter_handle"),
+  instagramHandle: text("instagram_handle"),
+  tiktokHandle: text("tiktok_handle"),
+  linkedinUrl: text("linkedin_url"),
+  spotifyUrl: text("spotify_url"),
+  monitorChannels: boolean("monitor_channels").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   mintedAt: timestamp("minted_at"),
 });
@@ -49,6 +56,16 @@ export const insertIdentityAssetSchema = createInsertSchema(identityAssets).pick
   email: true,
   name: true,
   type: true,
+}).extend({
+  socialChannels: z.object({
+    youtube: z.string().optional(),
+    twitter: z.string().optional(),
+    instagram: z.string().optional(),
+    tiktok: z.string().optional(),
+    linkedin: z.string().optional(),
+    spotify: z.string().optional(),
+  }).optional(),
+  monitorChannels: z.boolean().optional(),
 });
 
 export type Subscriber = typeof subscribers.$inferSelect;
