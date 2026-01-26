@@ -11,6 +11,11 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Health check endpoint for Cloud Run
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Setup auth before other routes
   await setupAuth(app);
   registerAuthRoutes(app);
