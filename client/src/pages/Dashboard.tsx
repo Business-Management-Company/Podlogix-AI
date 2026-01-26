@@ -80,6 +80,7 @@ export default function Dashboard() {
 
   const { data: metaStatus } = useQuery<MetaStatus>({
     queryKey: ['/api/social/meta/status'],
+    enabled: isAuthenticated,
   });
 
   const scanMutation = useMutation({
