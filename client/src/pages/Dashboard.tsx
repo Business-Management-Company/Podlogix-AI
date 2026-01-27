@@ -162,6 +162,12 @@ export default function Dashboard() {
           </Link>
 
           <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" asChild data-testid="link-listener-dashboard">
+              <Link href="/listener">
+                <Radio className="h-4 w-4 mr-2" />
+                Listener Mode
+              </Link>
+            </Button>
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
