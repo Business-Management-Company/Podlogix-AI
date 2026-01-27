@@ -28,15 +28,11 @@ import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisod
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
 import { syncAllSubscriptionsForUser, processAutoBriefingsForUser } from "./services/episodeSyncService";
 import { 
-  isPhylloConfigured, 
-  createPhylloUser, 
-  createSDKToken, 
-  getAccounts, 
-  getProfile, 
-  getEngagementMetrics,
-  getMockInfluencerResults
-} from "./services/phylloService";
-import { insertSavedInfluencerSchema, insertHashtagMonitorSchema } from "@shared/schema";
+  isModashConfigured, 
+  searchInfluencers, 
+  getInfluencerProfile 
+} from "./services/modashService";
+import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1141,93 +1137,54 @@ export async function registerRoutes(
     }
   });
 
-  // ==================== BRAND DASHBOARD ROUTES (PHYLLO) ====================
+  // ==================== BRAND DASHBOARD ROUTES (MODASH) ====================
 
-  // Check if Phyllo is configured
-  app.get('/api/brand/phyllo/status', isAuthenticated, async (req: any, res) => {
-    res.json({ configured: isPhylloConfigured() });
+  // Check if Modash is configured
+  app.get('/api/brand/modash/status', isAuthenticated, async (req: any, res) => {
+    res.json({ configured: isModashConfigured() });
   });
 
-  // Create a Phyllo user (needed for SDK token)
-  app.post('/api/brand/phyllo/user', isAuthenticated, async (req: any, res) => {
+  // Search influencers via Modash
+  app.post('/api/brand/influencers/search', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
-      const name = req.user?.claims?.first_name || 'User';
-      const user = await createPhylloUser(userId, name);
-      if (!user) {
-        return res.status(500).json({ message: 'Failed to create Phyllo user' });
+      const parseResult = modashSearchSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid search parameters', details: parseResult.error.issues });
       }
-      res.json(user);
+      
+      const { platform, minFollowers, maxFollowers, minEngagement, maxEngagement, location, keywords, hashtags, page } = parseResult.data;
+      
+      const results = await searchInfluencers({
+        platform,
+        minFollowers,
+        maxFollowers,
+        minEngagement,
+        maxEngagement,
+        location,
+        keywords,
+        hashtags,
+      }, page);
+      
+      res.json(results);
     } catch (error) {
-      console.error('Error creating Phyllo user:', error);
-      res.status(500).json({ message: 'Failed to create user' });
+      console.error('Error searching influencers:', error);
+      res.status(500).json({ message: 'Failed to search influencers' });
     }
   });
 
-  // Get SDK token for Phyllo Connect
-  app.post('/api/brand/phyllo/sdk-token', isAuthenticated, async (req: any, res) => {
+  // Get influencer profile
+  app.get('/api/brand/influencers/profile/:platform/:username', isAuthenticated, async (req: any, res) => {
     try {
-      const { phylloUserId } = req.body;
-      const token = await createSDKToken(phylloUserId);
-      if (!token) {
-        return res.status(500).json({ message: 'Failed to create SDK token' });
-      }
-      res.json(token);
-    } catch (error) {
-      console.error('Error creating SDK token:', error);
-      res.status(500).json({ message: 'Failed to create token' });
-    }
-  });
-
-  // Get connected accounts for a Phyllo user
-  app.get('/api/brand/phyllo/accounts/:userId', isAuthenticated, async (req: any, res) => {
-    try {
-      const accounts = await getAccounts(req.params.userId);
-      res.json(accounts);
-    } catch (error) {
-      console.error('Error fetching accounts:', error);
-      res.status(500).json({ message: 'Failed to fetch accounts' });
-    }
-  });
-
-  // Get profile for a connected account
-  app.get('/api/brand/phyllo/profile/:accountId', isAuthenticated, async (req: any, res) => {
-    try {
-      const profile = await getProfile(req.params.accountId);
+      const { platform, username } = req.params;
+      const profile = await getInfluencerProfile(platform, username);
       if (!profile) {
-        return res.status(404).json({ message: 'Profile not found' });
+        return res.status(404).json({ message: 'Influencer not found' });
       }
       res.json(profile);
     } catch (error) {
-      console.error('Error fetching profile:', error);
-      res.status(500).json({ message: 'Failed to fetch profile' });
+      console.error('Error getting influencer profile:', error);
+      res.status(500).json({ message: 'Failed to get influencer profile' });
     }
-  });
-
-  // Get engagement metrics for a connected account
-  app.get('/api/brand/phyllo/engagement/:accountId', isAuthenticated, async (req: any, res) => {
-    try {
-      const metrics = await getEngagementMetrics(req.params.accountId);
-      if (!metrics) {
-        return res.status(404).json({ message: 'Metrics not found' });
-      }
-      res.json(metrics);
-    } catch (error) {
-      console.error('Error fetching engagement:', error);
-      res.status(500).json({ message: 'Failed to fetch engagement' });
-    }
-  });
-
-  // Demo: Get mock influencer discovery results (for demo mode when Phyllo not configured)
-  app.get('/api/brand/influencers/demo', isAuthenticated, async (req: any, res) => {
-    const results = getMockInfluencerResults();
-    res.json({
-      influencers: results,
-      total: results.length,
-      page: 1,
-      hasMore: false,
-      isDemo: true,
-    });
   });
 
   // Get saved influencers

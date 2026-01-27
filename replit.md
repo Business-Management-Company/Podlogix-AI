@@ -100,22 +100,20 @@ The platform includes dual functionality for both podcasters (creators) and podc
 The platform includes a Brand Dashboard (/brand) for influencer discovery and hashtag monitoring.
 
 ### Brand Dashboard (/brand)
-- **Influencer Discovery**: Browse and save influencer profiles powered by Phyllo API
+- **Influencer Discovery**: Browse and save influencer profiles powered by Modash API
 - **Saved Influencers**: Manage a list of saved influencers with notes and status tracking
 - **Hashtag Monitoring**: Track hashtags across Instagram, TikTok, and YouTube
-- **Demo Mode**: Shows sample influencer data when PHYLLO_CLIENT_ID not configured
+- **Demo Mode**: Shows sample influencer data when MODASH_API_KEY not configured
 
-### Phyllo Integration
-Phyllo is a consent-based creator data API. Key features:
-- **OAuth-based**: Creators connect their own social accounts
-- **20+ Platforms**: Instagram, TikTok, YouTube, Twitter, and more
-- **Verified Data**: Real-time, accurate engagement metrics
-- **API Products**: Identity, Engagement, Income, Audience data
+### Modash Integration
+Modash provides influencer discovery and analytics from public social media data. Key features:
+- **Public Data**: No creator consent required - aggregates public profile data
+- **Search API**: Find influencers by followers, engagement, location, keywords
+- **Multi-Platform**: Instagram, TikTok, YouTube support
+- **Demo Mode**: Shows sample influencer data when API key not configured
 
 Required environment variables:
-- `PHYLLO_CLIENT_ID`: Your Phyllo client ID
-- `PHYLLO_SECRET`: Your Phyllo API secret
-- `PHYLLO_ENVIRONMENT`: "production" or "sandbox" (defaults to sandbox)
+- `MODASH_API_KEY`: Your Modash API key from https://modash.io
 
 ### Database Tables for Brand Features
 - `saved_influencers`: User's saved influencer profiles with notes and status

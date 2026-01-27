@@ -392,6 +392,19 @@ export const insertInfluencerSearchSchema = createInsertSchema(influencerSearche
   createdAt: true,
 });
 
+// Modash search request schema
+export const modashSearchSchema = z.object({
+  platform: z.enum(['instagram', 'tiktok', 'youtube']).default('instagram'),
+  minFollowers: z.number().optional(),
+  maxFollowers: z.number().optional(),
+  minEngagement: z.number().optional(),
+  maxEngagement: z.number().optional(),
+  location: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  hashtags: z.array(z.string()).optional(),
+  page: z.number().default(1),
+});
+
 // Types
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
