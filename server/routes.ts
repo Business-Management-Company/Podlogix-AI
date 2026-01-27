@@ -9,7 +9,16 @@ import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
-import { isSpotifyConnected, getUserSavedShows, searchPodcasts, getShowDetails } from "./services/spotifyService";
+import { 
+  getSpotifyAuthUrl, 
+  exchangeCodeForTokens, 
+  getSpotifyUserProfile, 
+  isSpotifyConnectedForUser, 
+  getUserSavedShowsForUser, 
+  searchPodcastsForUser, 
+  getShowDetailsForUser,
+  getRssFeedFromSpotify 
+} from "./services/spotifyService";
 import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssService";
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
@@ -518,22 +527,92 @@ export async function registerRoutes(
   // PODCAST LISTENER FEATURES
   // ===========================================
 
-  // Spotify integration status
+  // Spotify OAuth: Initiate login
+  app.get('/api/listener/spotify/auth', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/listener/spotify/callback`;
+      
+      const authUrl = getSpotifyAuthUrl(redirectUri, userId);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error('Error generating Spotify auth URL:', error);
+      res.status(500).json({ message: 'Failed to initiate Spotify login' });
+    }
+  });
+
+  // Spotify OAuth: Callback
+  app.get('/api/listener/spotify/callback', async (req: any, res) => {
+    try {
+      const { code, state } = req.query;
+      const userId = state as string;
+      
+      if (!code || !userId) {
+        return res.redirect('/listener?spotify_error=missing_params');
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/listener/spotify/callback`;
+
+      const tokens = await exchangeCodeForTokens(code as string, redirectUri);
+      const profile = await getSpotifyUserProfile(tokens.accessToken);
+      
+      const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+      
+      await storage.upsertSpotifyConnection({
+        userId,
+        spotifyUserId: profile.id,
+        displayName: profile.displayName,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt,
+        scope: tokens.scope,
+      });
+
+      res.redirect('/listener?spotify_connected=true');
+    } catch (error) {
+      console.error('Spotify callback error:', error);
+      res.redirect('/listener?spotify_error=auth_failed');
+    }
+  });
+
+  // Spotify integration status (per-user)
   app.get('/api/listener/spotify/status', isAuthenticated, async (req: any, res) => {
     try {
-      const connected = await isSpotifyConnected();
-      console.log('Spotify connection status:', connected);
-      res.json({ connected });
+      const userId = req.user?.claims?.sub;
+      const connected = await isSpotifyConnectedForUser(userId);
+      const connection = connected ? await storage.getSpotifyConnection(userId) : null;
+      res.json({ 
+        connected, 
+        displayName: connection?.displayName || null,
+        spotifyUserId: connection?.spotifyUserId || null
+      });
     } catch (error) {
       console.error('Spotify connection check error:', error);
       res.json({ connected: false });
     }
   });
 
-  // Get user's followed podcasts from Spotify
+  // Disconnect Spotify
+  app.delete('/api/listener/spotify/disconnect', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      await storage.deleteSpotifyConnection(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error disconnecting Spotify:', error);
+      res.status(500).json({ message: 'Failed to disconnect Spotify' });
+    }
+  });
+
+  // Get user's followed podcasts from Spotify (per-user)
   app.get('/api/listener/spotify/shows', isAuthenticated, async (req: any, res) => {
     try {
-      const shows = await getUserSavedShows();
+      const userId = req.user?.claims?.sub;
+      const shows = await getUserSavedShowsForUser(userId);
       res.json(shows);
     } catch (error) {
       console.error('Error fetching Spotify shows:', error);
@@ -541,14 +620,15 @@ export async function registerRoutes(
     }
   });
 
-  // Search podcasts on Spotify
+  // Search podcasts on Spotify (per-user)
   app.get('/api/listener/spotify/search', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user?.claims?.sub;
       const query = req.query.q as string;
       if (!query) {
         return res.status(400).json({ message: 'Search query required' });
       }
-      const shows = await searchPodcasts(query);
+      const shows = await searchPodcastsForUser(userId, query);
       res.json(shows);
     } catch (error) {
       console.error('Error searching Spotify:', error);
@@ -556,25 +636,26 @@ export async function registerRoutes(
     }
   });
 
-  // Import podcast from Spotify
+  // Import podcast from Spotify (per-user)
   app.post('/api/listener/spotify/import', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub;
       const { showId } = req.body;
       
-      const show = await getShowDetails(showId);
+      const show = await getShowDetailsForUser(userId, showId);
       if (!show) {
         return res.status(404).json({ message: 'Show not found' });
       }
+
+      const rssFeed = await getRssFeedFromSpotify(showId);
       
-      // Create subscription
       const subscription = await storage.createPodcastSubscription({
         userId,
         title: show.name,
         author: show.publisher,
         description: show.description,
         artworkUrl: show.imageUrl,
-        feedUrl: show.externalUrl, // Use Spotify URL as feed reference
+        feedUrl: rssFeed || show.externalUrl,
         spotifyShowId: show.id,
         isActive: true,
       });

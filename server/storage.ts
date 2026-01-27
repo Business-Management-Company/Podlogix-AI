@@ -1,13 +1,13 @@
 import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
-  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications,
+  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
   type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
-  type Notification, type InsertNotification
+  type Notification, type InsertNotification, type SpotifyConnection
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -73,6 +73,10 @@ export interface IStorage {
   getUnreadNotifications(userId: string): Promise<Notification[]>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  // Spotify Connections
+  getSpotifyConnection(userId: string): Promise<SpotifyConnection | undefined>;
+  upsertSpotifyConnection(connection: Omit<SpotifyConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<SpotifyConnection>;
+  deleteSpotifyConnection(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -322,6 +326,29 @@ export class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(userId: string): Promise<void> {
     await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
+  }
+
+  // Spotify Connections
+  async getSpotifyConnection(userId: string): Promise<SpotifyConnection | undefined> {
+    const [connection] = await db.select().from(spotifyConnections).where(eq(spotifyConnections.userId, userId));
+    return connection;
+  }
+
+  async upsertSpotifyConnection(connection: Omit<SpotifyConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<SpotifyConnection> {
+    const existing = await this.getSpotifyConnection(connection.userId);
+    if (existing) {
+      const [updated] = await db.update(spotifyConnections)
+        .set({ ...connection, updatedAt: new Date() })
+        .where(eq(spotifyConnections.userId, connection.userId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(spotifyConnections).values(connection).returning();
+    return created;
+  }
+
+  async deleteSpotifyConnection(userId: string): Promise<void> {
+    await db.delete(spotifyConnections).where(eq(spotifyConnections.userId, userId));
   }
 }
 
