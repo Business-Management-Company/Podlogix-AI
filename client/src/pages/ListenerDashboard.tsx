@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -144,7 +144,11 @@ export default function ListenerDashboard() {
     enabled: isAuthenticated,
   });
 
-  const { data: spotifyStatus } = useQuery<{ connected: boolean }>({
+  const { data: spotifyStatus, refetch: refetchSpotifyStatus } = useQuery<{ 
+    connected: boolean; 
+    displayName: string | null;
+    spotifyUserId: string | null;
+  }>({
     queryKey: ['/api/listener/spotify/status'],
     enabled: isAuthenticated,
   });
@@ -152,6 +156,33 @@ export default function ListenerDashboard() {
   const { data: spotifyShows = [], isLoading: spotifyLoading } = useQuery<SpotifyShow[]>({
     queryKey: ['/api/listener/spotify/shows'],
     enabled: isAuthenticated && spotifyStatus?.connected,
+  });
+
+  const connectSpotifyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('GET', '/api/listener/spotify/auth');
+      return res.json();
+    },
+    onSuccess: (data: { authUrl: string }) => {
+      window.location.href = data.authUrl;
+    },
+    onError: () => {
+      toast({ title: "Connection failed", description: "Could not connect to Spotify", variant: "destructive" });
+    },
+  });
+
+  const disconnectSpotifyMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('DELETE', '/api/listener/spotify/disconnect');
+    },
+    onSuccess: () => {
+      refetchSpotifyStatus();
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/spotify/shows'] });
+      toast({ title: "Disconnected", description: "Spotify account disconnected" });
+    },
+    onError: () => {
+      toast({ title: "Disconnect failed", description: "Could not disconnect Spotify", variant: "destructive" });
+    },
   });
 
   const searchSpotifyMutation = useMutation({
@@ -257,6 +288,23 @@ export default function ListenerDashboard() {
       queryClient.invalidateQueries({ queryKey: ['/api/listener/notifications'] });
     },
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('spotify_connected') === 'true') {
+      toast({ title: "Spotify connected!", description: "You can now import your followed podcasts" });
+      refetchSpotifyStatus();
+      window.history.replaceState({}, '', '/listener');
+    }
+    if (params.get('spotify_error')) {
+      const errorType = params.get('spotify_error');
+      const message = errorType === 'missing_params' 
+        ? 'Authorization parameters missing' 
+        : 'Failed to connect Spotify account';
+      toast({ title: "Spotify connection failed", description: message, variant: "destructive" });
+      window.history.replaceState({}, '', '/listener');
+    }
+  }, [toast, refetchSpotifyStatus]);
 
   if (authLoading) {
     return (
@@ -451,8 +499,15 @@ export default function ListenerDashboard() {
                         <div className="text-center py-8">
                           <SiSpotify className="h-12 w-12 mx-auto text-green-500 mb-4" />
                           <p className="text-muted-foreground mb-4">Connect your Spotify account to import podcasts</p>
-                          <Button variant="outline" asChild>
-                            <a href="/api/connect/spotify">Connect Spotify</a>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => connectSpotifyMutation.mutate()}
+                            disabled={connectSpotifyMutation.isPending}
+                            data-testid="button-connect-spotify"
+                          >
+                            {connectSpotifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            <SiSpotify className="h-4 w-4 mr-2" />
+                            Connect Spotify
                           </Button>
                         </div>
                       )}
@@ -792,6 +847,57 @@ export default function ListenerDashboard() {
                       ))}
                     </div>
                   </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <SiSpotify className="h-5 w-5 text-green-500" />
+                  Spotify
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {spotifyStatus?.connected ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Connected</p>
+                        {spotifyStatus.displayName && (
+                          <p className="text-xs text-muted-foreground">{spotifyStatus.displayName}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => disconnectSpotifyMutation.mutate()}
+                      disabled={disconnectSpotifyMutation.isPending}
+                      data-testid="button-disconnect-spotify"
+                    >
+                      {disconnectSpotifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Connect Spotify to import your followed podcasts
+                    </p>
+                    <Button 
+                      onClick={() => connectSpotifyMutation.mutate()}
+                      disabled={connectSpotifyMutation.isPending}
+                      className="w-full bg-green-500 hover:bg-green-600 text-white"
+                      data-testid="button-connect-spotify-sidebar"
+                    >
+                      {connectSpotifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      <SiSpotify className="h-4 w-4 mr-2" />
+                      Connect Spotify
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>

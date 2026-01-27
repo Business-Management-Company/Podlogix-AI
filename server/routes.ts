@@ -543,14 +543,23 @@ export async function registerRoutes(
     }
   });
 
-  // Spotify OAuth: Callback
+  // Spotify OAuth: Callback (validates state matches authenticated user)
   app.get('/api/listener/spotify/callback', async (req: any, res) => {
     try {
       const { code, state } = req.query;
-      const userId = state as string;
       
-      if (!code || !userId) {
+      if (!code || !state) {
         return res.redirect('/listener?spotify_error=missing_params');
+      }
+
+      const authenticatedUserId = req.user?.claims?.sub;
+      if (!authenticatedUserId) {
+        return res.redirect('/login?return_to=/listener&spotify_error=not_authenticated');
+      }
+
+      if (state !== authenticatedUserId) {
+        console.error('Spotify OAuth state mismatch - potential CSRF');
+        return res.redirect('/listener?spotify_error=auth_failed');
       }
 
       const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -563,7 +572,7 @@ export async function registerRoutes(
       const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
       
       await storage.upsertSpotifyConnection({
-        userId,
+        userId: authenticatedUserId,
         spotifyUserId: profile.id,
         displayName: profile.displayName,
         accessToken: tokens.accessToken,
