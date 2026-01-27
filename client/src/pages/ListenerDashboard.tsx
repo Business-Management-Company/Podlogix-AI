@@ -28,6 +28,7 @@ import {
   Bookmark,
   BookOpen,
   Bell,
+  BarChart3,
   Search,
   Play,
   FileText,
@@ -413,6 +414,16 @@ export default function ListenerDashboard() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Switch to podcast creator tools</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" asChild data-testid="link-analytics">
+                  <Link href="/listener/analytics">
+                    <BarChart3 className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Analytics</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
