@@ -26,6 +26,7 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import SocialMonitoring from "@/components/SocialMonitoring";
 
 const emailLookupSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -203,6 +204,15 @@ export default function IdentityHub() {
               </div>
             </CardContent>
           </Card>
+        </motion.div>
+
+        {/* Social Media Monitoring */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <SocialMonitoring />
         </motion.div>
 
         {/* Identity Promise */}

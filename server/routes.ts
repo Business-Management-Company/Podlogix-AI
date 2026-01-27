@@ -32,7 +32,16 @@ import {
   searchInfluencers, 
   getInfluencerProfile 
 } from "./services/modashService";
-import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema } from "@shared/schema";
+import { 
+  isPhylloConfigured,
+  getOrCreatePhylloUser,
+  createSDKToken,
+  getConnectedSocialAccounts,
+  disconnectAccount,
+  getPhylloStatus,
+  getSupportedPlatforms
+} from "./services/phylloService";
+import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -314,6 +323,148 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error scanning for impersonators:", error);
       res.status(500).json({ message: 'Failed to scan for impersonators' });
+    }
+  });
+
+  // Phyllo Social Monitoring API routes
+  
+  // Get Phyllo status and supported platforms
+  app.get("/api/social/phyllo/status", isAuthenticated, async (_req, res) => {
+    try {
+      const status = await getPhylloStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching Phyllo status:", error);
+      res.json({ configured: false, supportedPlatforms: getSupportedPlatforms() });
+    }
+  });
+
+  // Get SDK token for connecting a social account
+  app.post("/api/social/phyllo/sdk-token", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userName = `${req.user.claims.first_name || ''} ${req.user.claims.last_name || ''}`.trim() || req.user.claims.email;
+      
+      if (!isPhylloConfigured()) {
+        return res.status(503).json({ error: 'Social monitoring service not configured' });
+      }
+
+      const phylloUser = await getOrCreatePhylloUser(userId, userName);
+      if (!phylloUser) {
+        return res.status(500).json({ error: 'Failed to create monitoring user' });
+      }
+
+      const sdkToken = await createSDKToken(phylloUser.id, ['IDENTITY', 'ENGAGEMENT']);
+      if (!sdkToken) {
+        return res.status(500).json({ error: 'Failed to create SDK token' });
+      }
+
+      res.json({
+        sdkToken: sdkToken.sdk_token,
+        expiresAt: sdkToken.expires_at,
+        userId: phylloUser.id,
+      });
+    } catch (error) {
+      console.error("Error creating Phyllo SDK token:", error);
+      res.status(500).json({ error: 'Failed to initialize social connection' });
+    }
+  });
+
+  // Get connected social accounts for the current user
+  app.get("/api/social/phyllo/accounts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get from our database
+      const accounts = await storage.getConnectedSocialAccountsByUser(userId);
+      res.json(accounts);
+    } catch (error) {
+      console.error("Error fetching connected accounts:", error);
+      res.status(500).json({ error: 'Failed to fetch connected accounts' });
+    }
+  });
+
+  // Save a newly connected social account (called after Phyllo SDK success)
+  app.post("/api/social/phyllo/accounts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parseResult = insertConnectedSocialAccountSchema.safeParse({ ...req.body, userId });
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid account data', details: parseResult.error.issues });
+      }
+
+      const account = await storage.createConnectedSocialAccount(parseResult.data);
+      res.json(account);
+    } catch (error) {
+      console.error("Error saving connected account:", error);
+      res.status(500).json({ error: 'Failed to save connected account' });
+    }
+  });
+
+  // Disconnect a social account
+  app.delete("/api/social/phyllo/accounts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const account = await storage.getConnectedSocialAccount(id);
+      if (!account || account.userId !== userId) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+
+      // Disconnect from Phyllo if we have the account ID
+      if (account.phylloAccountId && isPhylloConfigured()) {
+        await disconnectAccount(account.phylloAccountId);
+      }
+
+      await storage.deleteConnectedSocialAccount(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error disconnecting account:", error);
+      res.status(500).json({ error: 'Failed to disconnect account' });
+    }
+  });
+
+  // Get monitoring alerts for the current user
+  app.get("/api/social/phyllo/alerts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const unresolvedOnly = req.query.unresolvedOnly === 'true';
+      
+      const alerts = unresolvedOnly 
+        ? await storage.getUnresolvedAlertsByUser(userId)
+        : await storage.getSocialMonitoringAlertsByUser(userId);
+      
+      res.json(alerts);
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+      res.status(500).json({ error: 'Failed to fetch alerts' });
+    }
+  });
+
+  // Resolve an alert
+  app.patch("/api/social/phyllo/alerts/:id/resolve", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const alerts = await storage.getSocialMonitoringAlertsByUser(userId);
+      const alert = alerts.find(a => a.id === id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+
+      const updated = await storage.updateSocialMonitoringAlert(id, {
+        isResolved: true,
+        resolvedAt: new Date(),
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error resolving alert:", error);
+      res.status(500).json({ error: 'Failed to resolve alert' });
     }
   });
 

@@ -48,6 +48,52 @@ export const insertSubscriberSchema = createInsertSchema(subscribers).pick({
   email: true,
 });
 
+// Connected social accounts via Phyllo for monitoring
+export const connectedSocialAccounts = pgTable("connected_social_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  phylloUserId: varchar("phyllo_user_id"),
+  phylloAccountId: varchar("phyllo_account_id"),
+  platform: varchar("platform").notNull(), // instagram, tiktok, youtube, twitter, linkedin, facebook
+  username: varchar("username").notNull(),
+  profileUrl: text("profile_url"),
+  profilePictureUrl: text("profile_picture_url"),
+  followerCount: integer("follower_count"),
+  isVerified: boolean("is_verified").default(false),
+  status: varchar("status").default("connected"), // connected, syncing, disconnected, error
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Social monitoring alerts (impersonation, brand safety, etc.)
+export const socialMonitoringAlerts = pgTable("social_monitoring_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  platform: varchar("platform").notNull(),
+  alertType: varchar("alert_type").notNull(), // impersonation, brand_safety, mention, content_flag
+  severity: varchar("severity").default("medium"), // low, medium, high
+  title: varchar("title").notNull(),
+  description: text("description"),
+  contentUrl: text("content_url"),
+  suspiciousAccountUsername: varchar("suspicious_account_username"),
+  isResolved: boolean("is_resolved").default(false),
+  resolvedAt: timestamp("resolved_at"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertConnectedSocialAccountSchema = createInsertSchema(connectedSocialAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSocialMonitoringAlertSchema = createInsertSchema(socialMonitoringAlerts).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertMessageSchema = createInsertSchema(messages).pick({
   name: true,
   email: true,
@@ -438,3 +484,7 @@ export type HashtagMonitor = typeof hashtagMonitors.$inferSelect;
 export type InsertHashtagMonitor = z.infer<typeof insertHashtagMonitorSchema>;
 export type InfluencerSearch = typeof influencerSearches.$inferSelect;
 export type InsertInfluencerSearch = z.infer<typeof insertInfluencerSearchSchema>;
+export type ConnectedSocialAccount = typeof connectedSocialAccounts.$inferSelect;
+export type InsertConnectedSocialAccount = z.infer<typeof insertConnectedSocialAccountSchema>;
+export type SocialMonitoringAlert = typeof socialMonitoringAlerts.$inferSelect;
+export type InsertSocialMonitoringAlert = z.infer<typeof insertSocialMonitoringAlertSchema>;

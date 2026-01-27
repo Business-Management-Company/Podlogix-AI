@@ -2,7 +2,7 @@ import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
-  savedInfluencers, hashtagMonitors, influencerSearches,
+  savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -10,7 +10,9 @@ import {
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
   type Notification, type InsertNotification, type SpotifyConnection,
   type SavedInfluencer, type InsertSavedInfluencer, type HashtagMonitor, type InsertHashtagMonitor,
-  type InfluencerSearch, type InsertInfluencerSearch
+  type InfluencerSearch, type InsertInfluencerSearch,
+  type ConnectedSocialAccount, type InsertConnectedSocialAccount,
+  type SocialMonitoringAlert, type InsertSocialMonitoringAlert
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -97,6 +99,17 @@ export interface IStorage {
   createInfluencerSearch(search: InsertInfluencerSearch): Promise<InfluencerSearch>;
   getInfluencerSearchesByUser(userId: string): Promise<InfluencerSearch[]>;
   deleteInfluencerSearch(id: string): Promise<void>;
+  // Connected Social Accounts
+  createConnectedSocialAccount(account: InsertConnectedSocialAccount): Promise<ConnectedSocialAccount>;
+  getConnectedSocialAccountsByUser(userId: string): Promise<ConnectedSocialAccount[]>;
+  getConnectedSocialAccount(id: string): Promise<ConnectedSocialAccount | undefined>;
+  updateConnectedSocialAccount(id: string, updates: Partial<ConnectedSocialAccount>): Promise<ConnectedSocialAccount | undefined>;
+  deleteConnectedSocialAccount(id: string): Promise<void>;
+  // Social Monitoring Alerts
+  createSocialMonitoringAlert(alert: InsertSocialMonitoringAlert): Promise<SocialMonitoringAlert>;
+  getSocialMonitoringAlertsByUser(userId: string): Promise<SocialMonitoringAlert[]>;
+  getUnresolvedAlertsByUser(userId: string): Promise<SocialMonitoringAlert[]>;
+  updateSocialMonitoringAlert(id: string, updates: Partial<SocialMonitoringAlert>): Promise<SocialMonitoringAlert | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -442,6 +455,65 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInfluencerSearch(id: string): Promise<void> {
     await db.delete(influencerSearches).where(eq(influencerSearches.id, id));
+  }
+
+  // Connected Social Accounts
+  async createConnectedSocialAccount(account: InsertConnectedSocialAccount): Promise<ConnectedSocialAccount> {
+    const [created] = await db.insert(connectedSocialAccounts).values(account).returning();
+    return created;
+  }
+
+  async getConnectedSocialAccountsByUser(userId: string): Promise<ConnectedSocialAccount[]> {
+    return await db.select().from(connectedSocialAccounts)
+      .where(eq(connectedSocialAccounts.userId, userId))
+      .orderBy(desc(connectedSocialAccounts.createdAt));
+  }
+
+  async getConnectedSocialAccount(id: string): Promise<ConnectedSocialAccount | undefined> {
+    const [account] = await db.select().from(connectedSocialAccounts)
+      .where(eq(connectedSocialAccounts.id, id));
+    return account;
+  }
+
+  async updateConnectedSocialAccount(id: string, updates: Partial<ConnectedSocialAccount>): Promise<ConnectedSocialAccount | undefined> {
+    const [updated] = await db.update(connectedSocialAccounts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(connectedSocialAccounts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteConnectedSocialAccount(id: string): Promise<void> {
+    await db.delete(connectedSocialAccounts).where(eq(connectedSocialAccounts.id, id));
+  }
+
+  // Social Monitoring Alerts
+  async createSocialMonitoringAlert(alert: InsertSocialMonitoringAlert): Promise<SocialMonitoringAlert> {
+    const [created] = await db.insert(socialMonitoringAlerts).values(alert).returning();
+    return created;
+  }
+
+  async getSocialMonitoringAlertsByUser(userId: string): Promise<SocialMonitoringAlert[]> {
+    return await db.select().from(socialMonitoringAlerts)
+      .where(eq(socialMonitoringAlerts.userId, userId))
+      .orderBy(desc(socialMonitoringAlerts.detectedAt));
+  }
+
+  async getUnresolvedAlertsByUser(userId: string): Promise<SocialMonitoringAlert[]> {
+    return await db.select().from(socialMonitoringAlerts)
+      .where(and(
+        eq(socialMonitoringAlerts.userId, userId),
+        eq(socialMonitoringAlerts.isResolved, false)
+      ))
+      .orderBy(desc(socialMonitoringAlerts.detectedAt));
+  }
+
+  async updateSocialMonitoringAlert(id: string, updates: Partial<SocialMonitoringAlert>): Promise<SocialMonitoringAlert | undefined> {
+    const [updated] = await db.update(socialMonitoringAlerts)
+      .set(updates)
+      .where(eq(socialMonitoringAlerts.id, id))
+      .returning();
+    return updated;
   }
 }
 

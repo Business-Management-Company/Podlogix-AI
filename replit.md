@@ -105,6 +105,21 @@ The platform includes a Brand Dashboard (/brand) for influencer discovery and ha
 - **Hashtag Monitoring**: Track hashtags across Instagram, TikTok, and YouTube
 - **Demo Mode**: Shows sample influencer data when MODASH_API_KEY not configured
 
+### Phyllo Integration (Social Monitoring)
+Phyllo provides social media monitoring for voice identity protection. Key features:
+- **Multi-Platform Support**: Instagram, TikTok, YouTube, X (Twitter), LinkedIn, Facebook
+- **SDK Integration**: Phyllo Connect SDK for secure account connections
+- **Impersonation Detection**: Monitor connected accounts for potential impersonation alerts
+- **Brand Safety**: Real-time screening for content flags and mentions
+
+Required environment variables:
+- `PHYLLO_CLIENT_ID`: Your Phyllo client ID
+- `PHYLLO_SECRET`: Your Phyllo API secret
+
+### Database Tables for Social Monitoring
+- `connected_social_accounts`: User's connected social accounts via Phyllo
+- `social_monitoring_alerts`: Impersonation and brand safety alerts
+
 ### Modash Integration
 Modash provides influencer discovery and analytics from public social media data. Key features:
 - **Public Data**: No creator consent required - aggregates public profile data
