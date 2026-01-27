@@ -94,3 +94,30 @@ The platform includes dual functionality for both podcasters (creators) and podc
 - `user_interests`: Topics and keywords user wants to track
 - `episode_briefings`: AI-generated personalized briefings
 - `notifications`: Dashboard and email notification queue
+
+## Brand Dashboard Features
+
+The platform includes a Brand Dashboard (/brand) for influencer discovery and hashtag monitoring.
+
+### Brand Dashboard (/brand)
+- **Influencer Discovery**: Browse and save influencer profiles powered by Phyllo API
+- **Saved Influencers**: Manage a list of saved influencers with notes and status tracking
+- **Hashtag Monitoring**: Track hashtags across Instagram, TikTok, and YouTube
+- **Demo Mode**: Shows sample influencer data when PHYLLO_CLIENT_ID not configured
+
+### Phyllo Integration
+Phyllo is a consent-based creator data API. Key features:
+- **OAuth-based**: Creators connect their own social accounts
+- **20+ Platforms**: Instagram, TikTok, YouTube, Twitter, and more
+- **Verified Data**: Real-time, accurate engagement metrics
+- **API Products**: Identity, Engagement, Income, Audience data
+
+Required environment variables:
+- `PHYLLO_CLIENT_ID`: Your Phyllo client ID
+- `PHYLLO_SECRET`: Your Phyllo API secret
+- `PHYLLO_ENVIRONMENT`: "production" or "sandbox" (defaults to sandbox)
+
+### Database Tables for Brand Features
+- `saved_influencers`: User's saved influencer profiles with notes and status
+- `hashtag_monitors`: Tracked hashtags per platform
+- `influencer_searches`: Saved search queries

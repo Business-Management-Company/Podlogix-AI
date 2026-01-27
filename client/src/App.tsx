@@ -35,6 +35,7 @@ function Router() {
       <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
       <Route path="/listener" component={ListenerDashboard} />
       <Route path="/listener/analytics" component={ListenerAnalytics} />
+      <Route path="/brand" component={BrandDashboard} />
       <Route path="/help" component={KnowledgeBase} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/identity" component={IdentityHub} />
