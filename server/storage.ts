@@ -150,6 +150,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(identityAssets).where(eq(identityAssets.email, email));
   }
 
+  async getAllIdentityAssets(): Promise<IdentityAsset[]> {
+    return await db.select().from(identityAssets).orderBy(desc(identityAssets.createdAt));
+  }
+
   async updateIdentityAsset(id: string, updates: Partial<IdentityAsset>): Promise<IdentityAsset | undefined> {
     const [updated] = await db.update(identityAssets).set(updates).where(eq(identityAssets.id, id)).returning();
     return updated;
@@ -257,6 +261,10 @@ export class DatabaseStorage implements IStorage {
 
   async getPodcastSubscriptionsByUserId(userId: string): Promise<PodcastSubscription[]> {
     return await db.select().from(podcastSubscriptions).where(eq(podcastSubscriptions.userId, userId)).orderBy(desc(podcastSubscriptions.createdAt));
+  }
+
+  async getAllPodcastSubscriptions(): Promise<PodcastSubscription[]> {
+    return await db.select().from(podcastSubscriptions).orderBy(desc(podcastSubscriptions.createdAt));
   }
 
   async getPodcastSubscription(id: string): Promise<PodcastSubscription | undefined> {
