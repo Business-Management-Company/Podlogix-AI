@@ -32,6 +32,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+import kbSubscriptionsImg from "@/assets/images/kb-subscriptions.png";
+import kbBriefingsImg from "@/assets/images/kb-briefings.png";
+import kbVoiceCertImg from "@/assets/images/kb-voice-cert.png";
+import kbInterestsImg from "@/assets/images/kb-interests.png";
+
 interface Article {
   id: string;
   title: string;
@@ -40,6 +45,7 @@ interface Article {
   category: string;
   icon: React.ReactNode;
   tags: string[];
+  image?: string;
 }
 
 const articles: Article[] = [
@@ -50,6 +56,7 @@ const articles: Article[] = [
     category: "Identity Protection",
     icon: <Shield className="h-5 w-5" />,
     tags: ["blockchain", "voice", "NFT", "polygon"],
+    image: kbVoiceCertImg,
     content: [
       "Voice Identity Protection uses blockchain technology to create a verifiable certificate of your unique voice.",
       "How it works:",
@@ -91,6 +98,7 @@ const articles: Article[] = [
     category: "Listener Features",
     icon: <Radio className="h-5 w-5" />,
     tags: ["podcasts", "RSS", "Spotify", "subscriptions"],
+    image: kbSubscriptionsImg,
     content: [
       "Stay updated with your favorite podcasts using our subscription system.",
       "Two ways to subscribe:",
@@ -110,6 +118,7 @@ const articles: Article[] = [
     category: "Listener Features",
     icon: <Sparkles className="h-5 w-5" />,
     tags: ["AI", "summaries", "personalization", "OpenAI"],
+    image: kbBriefingsImg,
     content: [
       "AI Briefings transform long podcast episodes into personalized, actionable summaries.",
       "What you get:",
@@ -132,6 +141,7 @@ const articles: Article[] = [
     category: "Listener Features",
     icon: <Zap className="h-5 w-5" />,
     tags: ["interests", "personalization", "keywords", "topics"],
+    image: kbInterestsImg,
     content: [
       "Your interest profile helps AI understand what matters most to you.",
       "Setting up interests:",
@@ -395,6 +405,16 @@ export default function KnowledgeBase() {
                           transition={{ duration: 0.2 }}
                         >
                           <CardContent className="pt-2 border-t mt-2">
+                            {article.image && (
+                              <div className="mb-4 rounded-lg overflow-hidden border">
+                                <img
+                                  src={article.image}
+                                  alt={`${article.title} screenshot`}
+                                  className="w-full h-auto"
+                                  data-testid={`img-article-${article.id}`}
+                                />
+                              </div>
+                            )}
                             <div className="space-y-2 text-sm text-muted-foreground">
                               {article.content.map((line, index) => (
                                 <p

@@ -17,6 +17,7 @@ import AiAssistant from "@/pages/AiAssistant";
 import DashboardCertify from "@/pages/DashboardCertify";
 import DashboardCertifyLikeness from "@/pages/DashboardCertifyLikeness";
 import ListenerDashboard from "@/pages/ListenerDashboard";
+import KnowledgeBase from "@/pages/KnowledgeBase";
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/dashboard/certify" component={DashboardCertify} />
       <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
       <Route path="/listener" component={ListenerDashboard} />
+      <Route path="/help" component={KnowledgeBase} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/identity" component={IdentityHub} />
       <Route path="/voice-certification" component={VoiceCertification} />

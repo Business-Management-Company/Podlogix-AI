@@ -37,8 +37,10 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  HelpCircle
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
 import { SiSpotify } from "react-icons/si";
 
@@ -287,27 +289,52 @@ export default function ListenerDashboard() {
           </Link>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild data-testid="link-creator-dashboard">
-              <Link href="/dashboard">
-                <Mic className="h-4 w-4 mr-2" />
-                Creator Mode
-              </Link>
-            </Button>
-            <div className="relative">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              {unreadNotifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  {unreadNotifications.length}
-                </span>
-              )}
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" asChild data-testid="link-creator-dashboard">
+                  <Link href="/dashboard">
+                    <Mic className="h-4 w-4 mr-2" />
+                    Creator Mode
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Switch to podcast creator tools</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" asChild data-testid="link-help">
+                  <Link href="/help">
+                    <HelpCircle className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Help & Knowledge Base</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="relative cursor-pointer">
+                  <Bell className="h-5 w-5 text-muted-foreground" />
+                  {unreadNotifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {unreadNotifications.length}
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Notifications</TooltipContent>
+            </Tooltip>
             <Avatar className="h-8 w-8">
               <AvatarImage src={user?.profileImageUrl || undefined} />
               <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
             </Avatar>
-            <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sign out</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -624,11 +651,16 @@ export default function ListenerDashboard() {
                     Your Interests
                   </CardTitle>
                   <Dialog open={isAddInterestOpen} onOpenChange={setIsAddInterestOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" data-testid="button-add-interest">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" data-testid="button-add-interest">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Add a new topic for AI to track</TooltipContent>
+                    </Tooltip>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Add Interest</DialogTitle>

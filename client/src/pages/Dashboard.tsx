@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Mic, 
   User, 
@@ -28,7 +29,8 @@ import {
   Eye,
   Search,
   Instagram,
-  Loader2
+  Loader2,
+  HelpCircle
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { SiFacebook } from "react-icons/si";
@@ -162,12 +164,27 @@ export default function Dashboard() {
           </Link>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" asChild data-testid="link-listener-dashboard">
-              <Link href="/listener">
-                <Radio className="h-4 w-4 mr-2" />
-                Listener Mode
-              </Link>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" asChild data-testid="link-listener-dashboard">
+                  <Link href="/listener">
+                    <Radio className="h-4 w-4 mr-2" />
+                    Listener Mode
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Browse and listen to podcasts with AI briefings</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" asChild data-testid="link-help">
+                  <Link href="/help">
+                    <HelpCircle className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Help & Knowledge Base</TooltipContent>
+            </Tooltip>
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
@@ -177,9 +194,14 @@ export default function Dashboard() {
                 {user?.firstName || 'User'}
               </span>
             </div>
-            <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sign out</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -391,23 +413,38 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
-                  <Button size="lg" className="bg-green-600 hover:bg-green-700" asChild data-testid="button-certify-voice">
-                    <Link href="/dashboard/certify">
-                      <Mic className="h-4 w-4 mr-2" />
-                      Certify Voice
-                    </Link>
-                  </Button>
-                  <Button size="lg" className="bg-purple-600 hover:bg-purple-700" asChild data-testid="button-certify-likeness">
-                    <Link href="/dashboard/certify-likeness">
-                      <Camera className="h-4 w-4 mr-2" />
-                      Certify Likeness
-                    </Link>
-                  </Button>
-                  <Button size="sm" variant="outline" asChild data-testid="button-view-certificates">
-                    <Link href="/identity">
-                      View Certificates
-                    </Link>
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="lg" className="bg-green-600 hover:bg-green-700" asChild data-testid="button-certify-voice">
+                        <Link href="/dashboard/certify">
+                          <Mic className="h-4 w-4 mr-2" />
+                          Certify Voice
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Record and certify your voice on the blockchain</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="lg" className="bg-purple-600 hover:bg-purple-700" asChild data-testid="button-certify-likeness">
+                        <Link href="/dashboard/certify-likeness">
+                          <Camera className="h-4 w-4 mr-2" />
+                          Certify Likeness
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Protect your image and likeness from AI impersonation</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="sm" variant="outline" asChild data-testid="button-view-certificates">
+                        <Link href="/identity">
+                          View Certificates
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View your blockchain-verified certificates</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             </CardContent>
