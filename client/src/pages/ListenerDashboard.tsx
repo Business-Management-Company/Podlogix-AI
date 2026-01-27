@@ -289,6 +289,72 @@ export default function ListenerDashboard() {
     },
   });
 
+  const syncEpisodesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/listener/sync');
+      return res.json();
+    },
+    onSuccess: (data: { synced: number; newEpisodes: number }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/subscriptions'] });
+      toast({ 
+        title: "Sync complete", 
+        description: `Found ${data.newEpisodes} new episodes from ${data.synced} podcasts` 
+      });
+    },
+    onError: () => {
+      toast({ title: "Sync failed", variant: "destructive" });
+    },
+  });
+
+  const autoBriefingsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/listener/auto-briefings', { maxEpisodes: 3 });
+      return res.json();
+    },
+    onSuccess: (data: { processed: number; briefings: number }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/briefings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/notifications'] });
+      toast({ 
+        title: "Auto-briefings complete", 
+        description: `Generated ${data.briefings} briefings from ${data.processed} episodes` 
+      });
+    },
+    onError: () => {
+      toast({ title: "Auto-briefings failed", variant: "destructive" });
+    },
+  });
+
+  const createPlaylistMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/listener/spotify/playlist');
+      return res.json();
+    },
+    onSuccess: (data: { externalUrl: string }) => {
+      toast({ 
+        title: "Playlist created!", 
+        description: "Podlogix Recommendations playlist is ready in Spotify" 
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to create playlist", variant: "destructive" });
+    },
+  });
+
+  const addToPlaylistMutation = useMutation({
+    mutationFn: async ({ episodeId, podcastName, episodeTitle }: { episodeId: string; podcastName: string; episodeTitle: string }) => {
+      const res = await apiRequest('POST', '/api/listener/spotify/playlist/add', { episodeId, podcastName, episodeTitle });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Added to playlist!", description: "Episode added to Podlogix Recommendations" });
+    },
+    onError: () => {
+      toast({ title: "Failed to add to playlist", description: "Episode may not be available on Spotify", variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('spotify_connected') === 'true') {
@@ -402,7 +468,47 @@ export default function ListenerDashboard() {
                 AI-powered insights from {subscriptions.length} podcast{subscriptions.length !== 1 ? 's' : ''} you follow
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => syncEpisodesMutation.mutate()}
+                    disabled={syncEpisodesMutation.isPending}
+                    data-testid="button-sync"
+                  >
+                    {syncEpisodesMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Sync Episodes
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Check all podcasts for new episodes</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    onClick={() => autoBriefingsMutation.mutate()}
+                    disabled={autoBriefingsMutation.isPending || interests.length === 0}
+                    data-testid="button-auto-briefings"
+                  >
+                    {autoBriefingsMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    Auto Briefings
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {interests.length === 0 
+                    ? "Add interests first to generate briefings" 
+                    : "Automatically transcribe and generate briefings for new episodes"}
+                </TooltipContent>
+              </Tooltip>
               <Dialog open={isAddPodcastOpen} onOpenChange={setIsAddPodcastOpen}>
                 <DialogTrigger asChild>
                   <Button data-testid="button-add-podcast">
@@ -616,14 +722,39 @@ export default function ListenerDashboard() {
                     <p className="text-muted-foreground text-sm">Generate your first AI-powered briefing from an episode</p>
                   </Card>
                 ) : (
-                  briefings.map((briefing) => (
+                  briefings.map((briefing) => {
+                    const episode = episodes.find(e => e.id === briefing.episodeId);
+                    const subscription = subscriptions.find(s => s.id === episode?.subscriptionId);
+                    return (
                     <Card key={briefing.id} className="hover-elevate">
                       <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <Badge variant={briefing.relevanceScore >= 70 ? 'default' : 'secondary'}>
-                            {briefing.relevanceScore}% Relevant
-                          </Badge>
-                          {briefing.isBookmarked && <Bookmark className="h-4 w-4 text-primary fill-primary" />}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={briefing.relevanceScore >= 70 ? 'default' : 'secondary'}>
+                              {briefing.relevanceScore}% Relevant
+                            </Badge>
+                            {briefing.isBookmarked && <Bookmark className="h-4 w-4 text-primary fill-primary" />}
+                          </div>
+                          {spotifyStatus?.connected && briefing.relevanceScore >= 70 && episode && subscription && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => addToPlaylistMutation.mutate({
+                                episodeId: episode.id,
+                                podcastName: subscription.title,
+                                episodeTitle: episode.title
+                              })}
+                              disabled={addToPlaylistMutation.isPending}
+                              data-testid={`button-add-playlist-${briefing.id}`}
+                            >
+                              {addToPlaylistMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <SiSpotify className="h-4 w-4 mr-1" />
+                              )}
+                              Add to Playlist
+                            </Button>
+                          )}
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -640,7 +771,7 @@ export default function ListenerDashboard() {
                         )}
                       </CardContent>
                     </Card>
-                  ))
+                  )})
                 )}
               </TabsContent>
 
@@ -871,6 +1002,21 @@ export default function ListenerDashboard() {
                       </div>
                     </div>
                     <Button 
+                      variant="default"
+                      size="sm" 
+                      className="w-full bg-green-500 text-white"
+                      onClick={() => createPlaylistMutation.mutate()}
+                      disabled={createPlaylistMutation.isPending}
+                      data-testid="button-create-playlist"
+                    >
+                      {createPlaylistMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <SiSpotify className="h-4 w-4 mr-2" />
+                      )}
+                      Create Playlist
+                    </Button>
+                    <Button 
                       variant="outline" 
                       size="sm" 
                       className="w-full"
@@ -890,7 +1036,7 @@ export default function ListenerDashboard() {
                     <Button 
                       onClick={() => connectSpotifyMutation.mutate()}
                       disabled={connectSpotifyMutation.isPending}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white"
+                      className="w-full bg-green-500 text-white"
                       data-testid="button-connect-spotify-sidebar"
                     >
                       {connectSpotifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

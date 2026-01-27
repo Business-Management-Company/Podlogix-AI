@@ -74,11 +74,19 @@ The platform includes dual functionality for both podcasters (creators) and podc
 - **User Interests**: Define topics/keywords for AI to track across podcasts
 - **AI Briefings**: Personalized summaries with quotes, takeaways, and insights (no timestamps)
 - **Notifications**: Dashboard and email alerts for new episodes and briefings
+- **Sync Episodes**: Manual button to fetch new episodes from all RSS feeds
+- **Auto Briefings**: Automatically transcribe and generate briefings for new episodes (max 3 at a time)
+- **Spotify Playlist**: Create "Podlogix Recommendations" playlist and add high-relevance episodes
 
 ### AI Processing Pipeline
 1. **Transcription**: OpenAI Whisper converts audio to text
 2. **Briefing Generation**: GPT-4o creates personalized summaries based on user interests
 3. **Relevance Scoring**: 0-100 score indicating how relevant episode is to user's interests
+
+### Automation Services
+- **episodeSyncService**: Handles RSS polling and orchestrates auto-briefing generation
+- **syncAllSubscriptionsForUser**: Fetches latest episodes from all user subscriptions
+- **processAutoBriefingsForUser**: Transcribes and generates briefings for pending episodes
 
 ### Database Tables for Listener Features
 - `podcast_subscriptions`: User's followed podcasts (RSS or Spotify)

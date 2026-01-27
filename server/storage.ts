@@ -77,6 +77,8 @@ export interface IStorage {
   getSpotifyConnection(userId: string): Promise<SpotifyConnection | undefined>;
   upsertSpotifyConnection(connection: Omit<SpotifyConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<SpotifyConnection>;
   deleteSpotifyConnection(userId: string): Promise<void>;
+  // All subscriptions (for background jobs)
+  getAllActiveSubscriptions(): Promise<PodcastSubscription[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -349,6 +351,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSpotifyConnection(userId: string): Promise<void> {
     await db.delete(spotifyConnections).where(eq(spotifyConnections.userId, userId));
+  }
+
+  async getAllActiveSubscriptions(): Promise<PodcastSubscription[]> {
+    return await db.select().from(podcastSubscriptions).where(eq(podcastSubscriptions.isActive, true));
   }
 }
 

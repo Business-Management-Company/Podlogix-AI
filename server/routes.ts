@@ -17,11 +17,16 @@ import {
   getUserSavedShowsForUser, 
   searchPodcastsForUser, 
   getShowDetailsForUser,
-  getRssFeedFromSpotify 
+  getRssFeedFromSpotify,
+  getPlaylistForUser,
+  createOrGetBriefingsPlaylist,
+  searchSpotifyEpisode,
+  addEpisodeToPlaylist
 } from "./services/spotifyService";
 import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssService";
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
+import { syncAllSubscriptionsForUser, processAutoBriefingsForUser } from "./services/episodeSyncService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -673,6 +678,86 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error importing Spotify show:', error);
       res.status(500).json({ message: 'Failed to import podcast' });
+    }
+  });
+
+  // Sync episodes from all subscriptions
+  app.post('/api/listener/sync', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const result = await syncAllSubscriptionsForUser(userId);
+      res.json(result);
+    } catch (error) {
+      console.error('Error syncing episodes:', error);
+      res.status(500).json({ message: 'Failed to sync episodes' });
+    }
+  });
+
+  // Run auto-briefings for pending episodes
+  app.post('/api/listener/auto-briefings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const maxEpisodes = req.body.maxEpisodes || 3;
+      const result = await processAutoBriefingsForUser(userId, maxEpisodes);
+      res.json(result);
+    } catch (error) {
+      console.error('Error processing auto-briefings:', error);
+      res.status(500).json({ message: 'Failed to process briefings' });
+    }
+  });
+
+  // Get or create Spotify playlist
+  app.get('/api/listener/spotify/playlist', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const playlist = await getPlaylistForUser(userId);
+      res.json(playlist || { exists: false });
+    } catch (error) {
+      console.error('Error getting playlist:', error);
+      res.status(500).json({ message: 'Failed to get playlist' });
+    }
+  });
+
+  // Create Spotify playlist
+  app.post('/api/listener/spotify/playlist', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const playlist = await createOrGetBriefingsPlaylist(userId);
+      if (!playlist) {
+        return res.status(500).json({ message: 'Failed to create playlist' });
+      }
+      res.json(playlist);
+    } catch (error) {
+      console.error('Error creating playlist:', error);
+      res.status(500).json({ message: 'Failed to create playlist' });
+    }
+  });
+
+  // Add episode to Spotify playlist
+  app.post('/api/listener/spotify/playlist/add', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { episodeId, podcastName, episodeTitle } = req.body;
+      
+      const playlist = await createOrGetBriefingsPlaylist(userId);
+      if (!playlist) {
+        return res.status(400).json({ message: 'No Spotify playlist found. Connect Spotify first.' });
+      }
+
+      const episodeUri = await searchSpotifyEpisode(userId, podcastName, episodeTitle);
+      if (!episodeUri) {
+        return res.status(404).json({ message: 'Episode not found on Spotify' });
+      }
+
+      const added = await addEpisodeToPlaylist(userId, playlist.id, episodeUri);
+      if (!added) {
+        return res.status(500).json({ message: 'Failed to add episode to playlist' });
+      }
+
+      res.json({ success: true, playlistUrl: playlist.externalUrl });
+    } catch (error) {
+      console.error('Error adding to playlist:', error);
+      res.status(500).json({ message: 'Failed to add to playlist' });
     }
   });
 

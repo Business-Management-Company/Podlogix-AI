@@ -10,6 +10,8 @@ const SPOTIFY_SCOPES = [
   'user-library-read',
   'playlist-read-private',
   'playlist-read-collaborative',
+  'playlist-modify-public',
+  'playlist-modify-private',
 ].join(' ');
 
 export function getSpotifyAuthUrl(redirectUri: string, state: string): string {
@@ -269,4 +271,126 @@ export async function getRssFeedFromSpotify(showId: string): Promise<string | nu
     console.error('Error getting RSS feed from Spotify:', error);
     return null;
   }
+}
+
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  tracksTotal: number;
+  externalUrl: string;
+}
+
+export async function createOrGetBriefingsPlaylist(userId: string): Promise<SpotifyPlaylist | null> {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) return null;
+
+  try {
+    const existingPlaylists = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    
+    if (!existingPlaylists.ok) return null;
+    
+    const playlistsData = await existingPlaylists.json();
+    const podlogixPlaylist = playlistsData.items?.find((p: any) => p.name === 'Podlogix Recommendations');
+    
+    if (podlogixPlaylist) {
+      return {
+        id: podlogixPlaylist.id,
+        name: podlogixPlaylist.name,
+        description: podlogixPlaylist.description,
+        imageUrl: podlogixPlaylist.images?.[0]?.url || null,
+        tracksTotal: podlogixPlaylist.tracks?.total || 0,
+        externalUrl: podlogixPlaylist.external_urls?.spotify,
+      };
+    }
+
+    const connection = await storage.getSpotifyConnection(userId);
+    if (!connection?.spotifyUserId) return null;
+
+    const createResponse = await fetch(`https://api.spotify.com/v1/users/${connection.spotifyUserId}/playlists`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'Podlogix Recommendations',
+        description: 'Episodes recommended by Podlogix based on your interests',
+        public: false,
+      }),
+    });
+
+    if (!createResponse.ok) {
+      console.error('Failed to create playlist:', await createResponse.text());
+      return null;
+    }
+
+    const newPlaylist = await createResponse.json();
+    return {
+      id: newPlaylist.id,
+      name: newPlaylist.name,
+      description: newPlaylist.description,
+      imageUrl: newPlaylist.images?.[0]?.url || null,
+      tracksTotal: 0,
+      externalUrl: newPlaylist.external_urls?.spotify,
+    };
+  } catch (error) {
+    console.error('Error creating/getting playlist:', error);
+    return null;
+  }
+}
+
+export async function searchSpotifyEpisode(userId: string, podcastName: string, episodeTitle: string): Promise<string | null> {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) return null;
+
+  try {
+    const query = encodeURIComponent(`${episodeTitle} ${podcastName}`);
+    const response = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=episode&limit=5`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const episodes = data.episodes?.items || [];
+    
+    const match = episodes.find((ep: any) => 
+      ep.name.toLowerCase().includes(episodeTitle.toLowerCase().slice(0, 30)) ||
+      episodeTitle.toLowerCase().includes(ep.name.toLowerCase().slice(0, 30))
+    );
+
+    return match?.uri || episodes[0]?.uri || null;
+  } catch (error) {
+    console.error('Error searching Spotify episode:', error);
+    return null;
+  }
+}
+
+export async function addEpisodeToPlaylist(userId: string, playlistId: string, episodeUri: string): Promise<boolean> {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) return false;
+
+  try {
+    const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ uris: [episodeUri] }),
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('Error adding episode to playlist:', error);
+    return false;
+  }
+}
+
+export async function getPlaylistForUser(userId: string): Promise<SpotifyPlaylist | null> {
+  return createOrGetBriefingsPlaylist(userId);
 }
