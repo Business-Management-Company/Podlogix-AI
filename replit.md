@@ -51,7 +51,7 @@ Preferred communication style: Simple, everyday language.
 - **Polygon Blockchain**: Referenced for NFT minting of voice identity certificates (certTxHash, certTokenId fields in schema)
 - **Spotify API**: Connected via Replit Connectors for importing followed podcasts
 - **Meta API**: Instagram/Facebook monitoring for voice impersonation detection
-- **SendGrid** (PENDING SETUP): Email notification service for briefing alerts. Requires SENDGRID_API_KEY and SENDGRID_FROM_EMAIL secrets. Service is ready in server/services/emailService.ts but won't send emails until configured.
+- **Resend**: Email notification service for briefing alerts. Connected via Replit Connectors for sending transactional emails (new episode alerts, briefing ready notifications).
 
 ### Key NPM Packages
 - **@tanstack/react-query**: Server state management and caching

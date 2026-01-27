@@ -1,7 +1,43 @@
-import { storage } from '../storage';
+// Email service using Resend integration (connection:conn_resend_01KFE51C5FCFKKVDNWAZ87Q7TS)
+import { Resend } from 'resend';
 
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'notifications@podlogix.app';
+let connectionSettings: any;
+
+async function getCredentials() {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY 
+    ? 'repl ' + process.env.REPL_IDENTITY 
+    : process.env.WEB_REPL_RENEWAL 
+    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+    : null;
+
+  if (!xReplitToken) {
+    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+  }
+
+  connectionSettings = await fetch(
+    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
+    {
+      headers: {
+        'Accept': 'application/json',
+        'X_REPLIT_TOKEN': xReplitToken
+      }
+    }
+  ).then(res => res.json()).then(data => data.items?.[0]);
+
+  if (!connectionSettings || (!connectionSettings.settings.api_key)) {
+    throw new Error('Resend not connected');
+  }
+  return { apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email };
+}
+
+async function getResendClient() {
+  const { apiKey, fromEmail } = await getCredentials();
+  return {
+    client: new Resend(apiKey),
+    fromEmail
+  };
+}
 
 interface EmailData {
   to: string;
@@ -11,37 +47,24 @@ interface EmailData {
 }
 
 export async function sendEmail(data: EmailData): Promise<boolean> {
-  if (!SENDGRID_API_KEY) {
-    console.log('Email skipped (SendGrid not configured):', data.subject);
-    return false;
-  }
-
   try {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: data.to }] }],
-        from: { email: FROM_EMAIL },
-        subject: data.subject,
-        content: [
-          { type: 'text/plain', value: data.text },
-          ...(data.html ? [{ type: 'text/html', value: data.html }] : []),
-        ],
-      }),
+    const { client, fromEmail } = await getResendClient();
+    
+    const result = await client.emails.send({
+      from: fromEmail || 'Podlogix <notifications@podlogix.app>',
+      to: data.to,
+      subject: data.subject,
+      text: data.text,
+      html: data.html,
     });
 
-    if (response.ok || response.status === 202) {
-      console.log('Email sent successfully:', data.subject);
-      return true;
-    } else {
-      const errorText = await response.text();
-      console.error('SendGrid error:', response.status, errorText);
+    if (result.error) {
+      console.error('Resend error:', result.error);
       return false;
     }
+
+    console.log('Email sent successfully:', data.subject);
+    return true;
   } catch (error) {
     console.error('Failed to send email:', error);
     return false;
@@ -56,7 +79,7 @@ export async function sendNotificationEmail(
   const subject = notification.title;
   const text = notification.message || notification.title;
   
-  let html = `
+  const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #6366f1;">${notification.title}</h2>
       <p>${notification.message || ''}</p>
@@ -146,6 +169,11 @@ export async function sendNewEpisodeEmail(
   });
 }
 
-export function isEmailConfigured(): boolean {
-  return !!SENDGRID_API_KEY;
+export async function isEmailConfigured(): Promise<boolean> {
+  try {
+    await getCredentials();
+    return true;
+  } catch {
+    return false;
+  }
 }
