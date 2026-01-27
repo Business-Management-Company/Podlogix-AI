@@ -328,8 +328,8 @@ export async function registerRoutes(
 
   // Phyllo Social Monitoring API routes
   
-  // Get Phyllo status and supported platforms
-  app.get("/api/social/phyllo/status", isAuthenticated, async (_req, res) => {
+  // Get Phyllo status and supported platforms (public endpoint - just returns config status)
+  app.get("/api/social/phyllo/status", async (_req, res) => {
     try {
       const status = await getPhylloStatus();
       res.json(status);
