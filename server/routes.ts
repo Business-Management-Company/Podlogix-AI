@@ -522,8 +522,10 @@ export async function registerRoutes(
   app.get('/api/listener/spotify/status', isAuthenticated, async (req: any, res) => {
     try {
       const connected = await isSpotifyConnected();
+      console.log('Spotify connection status:', connected);
       res.json({ connected });
     } catch (error) {
+      console.error('Spotify connection check error:', error);
       res.json({ connected: false });
     }
   });
