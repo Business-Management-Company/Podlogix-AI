@@ -24,6 +24,7 @@ export interface IStorage {
   createIdentityAsset(asset: InsertIdentityAsset): Promise<IdentityAsset>;
   getIdentityAsset(id: string): Promise<IdentityAsset | undefined>;
   getIdentityAssetsByEmail(email: string): Promise<IdentityAsset[]>;
+  getAllIdentityAssets(): Promise<IdentityAsset[]>;
   updateIdentityAsset(id: string, updates: Partial<IdentityAsset>): Promise<IdentityAsset | undefined>;
   // Profiles
   createProfile(profile: InsertProfile): Promise<Profile>;
@@ -52,6 +53,7 @@ export interface IStorage {
   // Podcast Subscriptions (listener side)
   createPodcastSubscription(subscription: InsertPodcastSubscription): Promise<PodcastSubscription>;
   getPodcastSubscriptionsByUserId(userId: string): Promise<PodcastSubscription[]>;
+  getAllPodcastSubscriptions(): Promise<PodcastSubscription[]>;
   getPodcastSubscription(id: string): Promise<PodcastSubscription | undefined>;
   updatePodcastSubscription(id: string, updates: Partial<PodcastSubscription>): Promise<PodcastSubscription | undefined>;
   deletePodcastSubscription(id: string): Promise<void>;

@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
@@ -1419,6 +1419,107 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error deleting hashtag monitor:', error);
       res.status(500).json({ message: 'Failed to delete monitor' });
+    }
+  });
+
+  // ============ ADMIN ROUTES ============
+
+  // Check if current user is admin
+  app.get('/api/admin/check', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const user = await authStorage.getUser(userId);
+      res.json({ 
+        isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+        isSuperAdmin: user?.role === 'superadmin',
+        role: user?.role || 'user'
+      });
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      res.status(500).json({ message: 'Failed to check admin status' });
+    }
+  });
+
+  // Get all users (admin only)
+  app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const users = await authStorage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error('Error getting users:', error);
+      res.status(500).json({ message: 'Failed to get users' });
+    }
+  });
+
+  // Update user role (superadmin only)
+  app.patch('/api/admin/users/:id/role', isAuthenticated, isSuperAdmin, async (req: any, res) => {
+    try {
+      const { role } = req.body;
+      if (!['user', 'admin', 'superadmin'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role' });
+      }
+      const user = await authStorage.updateUserRole(req.params.id, role);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      res.status(500).json({ message: 'Failed to update role' });
+    }
+  });
+
+  // Update user status (admin only - suspend/activate)
+  app.patch('/api/admin/users/:id/status', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { isActive } = req.body;
+      if (!['true', 'false'].includes(isActive)) {
+        return res.status(400).json({ message: 'Invalid status' });
+      }
+      const user = await authStorage.updateUserStatus(req.params.id, isActive);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      res.status(500).json({ message: 'Failed to update status' });
+    }
+  });
+
+  // Delete user (superadmin only)
+  app.delete('/api/admin/users/:id', isAuthenticated, isSuperAdmin, async (req: any, res) => {
+    try {
+      const requestingUserId = req.user?.claims?.sub;
+      if (req.params.id === requestingUserId) {
+        return res.status(400).json({ message: 'Cannot delete your own account' });
+      }
+      await authStorage.deleteUser(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ message: 'Failed to delete user' });
+    }
+  });
+
+  // Get platform stats (admin only)
+  app.get('/api/admin/stats', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const users = await authStorage.getAllUsers();
+      const identityAssets = await storage.getAllIdentityAssets();
+      const subscriptions = await storage.getAllPodcastSubscriptions();
+      
+      res.json({
+        totalUsers: users.length,
+        activeUsers: users.filter(u => u.isActive === 'true').length,
+        adminCount: users.filter(u => u.role === 'admin' || u.role === 'superadmin').length,
+        totalIdentityAssets: identityAssets.length,
+        verifiedIdentities: identityAssets.filter(a => a.certStatus === 'minted').length,
+        totalSubscriptions: subscriptions.length
+      });
+    } catch (error) {
+      console.error('Error getting platform stats:', error);
+      res.status(500).json({ message: 'Failed to get stats' });
     }
   });
 
