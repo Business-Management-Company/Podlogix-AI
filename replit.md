@@ -49,6 +49,9 @@ Preferred communication style: Simple, everyday language.
 ### Third-Party Integrations
 - **GitHub API**: Connected via Replit Connectors using @octokit/rest for repository operations
 - **Polygon Blockchain**: Referenced for NFT minting of voice identity certificates (certTxHash, certTokenId fields in schema)
+- **Spotify API**: Connected via Replit Connectors for importing followed podcasts
+- **Meta API**: Instagram/Facebook monitoring for voice impersonation detection
+- **SendGrid** (PENDING SETUP): Email notification service for briefing alerts. Requires SENDGRID_API_KEY and SENDGRID_FROM_EMAIL secrets. Service is ready in server/services/emailService.ts but won't send emails until configured.
 
 ### Key NPM Packages
 - **@tanstack/react-query**: Server state management and caching
@@ -57,3 +60,29 @@ Preferred communication style: Simple, everyday language.
 - **zod**: Schema validation for API inputs/outputs
 - **date-fns**: Date formatting utilities
 - **wouter**: Lightweight client-side routing
+- **rss-parser**: Parse RSS/Atom feeds for podcast subscriptions
+- **@spotify/web-api-ts-sdk**: Spotify API SDK for podcast imports
+- **openai**: OpenAI SDK for Whisper transcription and GPT-4o briefing generation
+
+## Podcast Listener Features
+
+The platform includes dual functionality for both podcasters (creators) and podcast listeners.
+
+### Listener Dashboard (/listener)
+- **Podcast Subscriptions**: Subscribe via RSS feed or import from Spotify
+- **Episode Management**: View and manage episodes from subscribed podcasts
+- **User Interests**: Define topics/keywords for AI to track across podcasts
+- **AI Briefings**: Personalized summaries with quotes, takeaways, and insights (no timestamps)
+- **Notifications**: Dashboard and email alerts for new episodes and briefings
+
+### AI Processing Pipeline
+1. **Transcription**: OpenAI Whisper converts audio to text
+2. **Briefing Generation**: GPT-4o creates personalized summaries based on user interests
+3. **Relevance Scoring**: 0-100 score indicating how relevant episode is to user's interests
+
+### Database Tables for Listener Features
+- `podcast_subscriptions`: User's followed podcasts (RSS or Spotify)
+- `subscription_episodes`: Episodes from subscribed podcasts
+- `user_interests`: Topics and keywords user wants to track
+- `episode_briefings`: AI-generated personalized briefings
+- `notifications`: Dashboard and email notification queue
