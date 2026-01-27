@@ -2,12 +2,15 @@ import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
+  savedInfluencers, hashtagMonitors, influencerSearches,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
   type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
-  type Notification, type InsertNotification, type SpotifyConnection
+  type Notification, type InsertNotification, type SpotifyConnection,
+  type SavedInfluencer, type InsertSavedInfluencer, type HashtagMonitor, type InsertHashtagMonitor,
+  type InfluencerSearch, type InsertInfluencerSearch
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -79,6 +82,21 @@ export interface IStorage {
   deleteSpotifyConnection(userId: string): Promise<void>;
   // All subscriptions (for background jobs)
   getAllActiveSubscriptions(): Promise<PodcastSubscription[]>;
+  // Saved Influencers
+  createSavedInfluencer(influencer: InsertSavedInfluencer): Promise<SavedInfluencer>;
+  getSavedInfluencersByUser(userId: string): Promise<SavedInfluencer[]>;
+  getSavedInfluencer(id: string): Promise<SavedInfluencer | undefined>;
+  updateSavedInfluencer(id: string, updates: Partial<SavedInfluencer>): Promise<SavedInfluencer | undefined>;
+  deleteSavedInfluencer(id: string): Promise<void>;
+  // Hashtag Monitors
+  createHashtagMonitor(monitor: InsertHashtagMonitor): Promise<HashtagMonitor>;
+  getHashtagMonitorsByUser(userId: string): Promise<HashtagMonitor[]>;
+  updateHashtagMonitor(id: string, updates: Partial<HashtagMonitor>): Promise<HashtagMonitor | undefined>;
+  deleteHashtagMonitor(id: string): Promise<void>;
+  // Influencer Searches
+  createInfluencerSearch(search: InsertInfluencerSearch): Promise<InfluencerSearch>;
+  getInfluencerSearchesByUser(userId: string): Promise<InfluencerSearch[]>;
+  deleteInfluencerSearch(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -355,6 +373,75 @@ export class DatabaseStorage implements IStorage {
 
   async getAllActiveSubscriptions(): Promise<PodcastSubscription[]> {
     return await db.select().from(podcastSubscriptions).where(eq(podcastSubscriptions.isActive, true));
+  }
+
+  // Saved Influencers
+  async createSavedInfluencer(influencer: InsertSavedInfluencer): Promise<SavedInfluencer> {
+    const [saved] = await db.insert(savedInfluencers).values(influencer).returning();
+    return saved;
+  }
+
+  async getSavedInfluencersByUser(userId: string): Promise<SavedInfluencer[]> {
+    return await db.select().from(savedInfluencers)
+      .where(eq(savedInfluencers.userId, userId))
+      .orderBy(desc(savedInfluencers.createdAt));
+  }
+
+  async getSavedInfluencer(id: string): Promise<SavedInfluencer | undefined> {
+    const [influencer] = await db.select().from(savedInfluencers).where(eq(savedInfluencers.id, id));
+    return influencer;
+  }
+
+  async updateSavedInfluencer(id: string, updates: Partial<SavedInfluencer>): Promise<SavedInfluencer | undefined> {
+    const [updated] = await db.update(savedInfluencers)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(savedInfluencers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSavedInfluencer(id: string): Promise<void> {
+    await db.delete(savedInfluencers).where(eq(savedInfluencers.id, id));
+  }
+
+  // Hashtag Monitors
+  async createHashtagMonitor(monitor: InsertHashtagMonitor): Promise<HashtagMonitor> {
+    const [created] = await db.insert(hashtagMonitors).values(monitor).returning();
+    return created;
+  }
+
+  async getHashtagMonitorsByUser(userId: string): Promise<HashtagMonitor[]> {
+    return await db.select().from(hashtagMonitors)
+      .where(eq(hashtagMonitors.userId, userId))
+      .orderBy(desc(hashtagMonitors.createdAt));
+  }
+
+  async updateHashtagMonitor(id: string, updates: Partial<HashtagMonitor>): Promise<HashtagMonitor | undefined> {
+    const [updated] = await db.update(hashtagMonitors)
+      .set(updates)
+      .where(eq(hashtagMonitors.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteHashtagMonitor(id: string): Promise<void> {
+    await db.delete(hashtagMonitors).where(eq(hashtagMonitors.id, id));
+  }
+
+  // Influencer Searches
+  async createInfluencerSearch(search: InsertInfluencerSearch): Promise<InfluencerSearch> {
+    const [created] = await db.insert(influencerSearches).values(search).returning();
+    return created;
+  }
+
+  async getInfluencerSearchesByUser(userId: string): Promise<InfluencerSearch[]> {
+    return await db.select().from(influencerSearches)
+      .where(and(eq(influencerSearches.userId, userId), eq(influencerSearches.isSaved, true)))
+      .orderBy(desc(influencerSearches.createdAt));
+  }
+
+  async deleteInfluencerSearch(id: string): Promise<void> {
+    await db.delete(influencerSearches).where(eq(influencerSearches.id, id));
   }
 }
 

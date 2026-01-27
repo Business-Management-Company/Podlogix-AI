@@ -328,6 +328,70 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
 });
 
+// Brand Influencer Discovery Tables
+
+// Saved influencers from Modash discovery
+export const savedInfluencers = pgTable("saved_influencers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  platform: varchar("platform").notNull(), // instagram, tiktok, youtube
+  platformUserId: varchar("platform_user_id").notNull(),
+  username: varchar("username").notNull(),
+  fullName: varchar("full_name"),
+  profilePicUrl: text("profile_pic_url"),
+  bio: text("bio"),
+  followerCount: integer("follower_count"),
+  followingCount: integer("following_count"),
+  engagementRate: integer("engagement_rate"), // Stored as percentage * 100 (e.g., 1.5% = 150)
+  avgLikes: integer("avg_likes"),
+  avgComments: integer("avg_comments"),
+  location: varchar("location"),
+  categories: text("categories").array(),
+  notes: text("notes"),
+  status: varchar("status").default("saved"), // saved, contacted, negotiating, partnered, rejected
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Hashtag/keyword monitors for brands
+export const hashtagMonitors = pgTable("hashtag_monitors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  hashtag: varchar("hashtag").notNull(),
+  platform: varchar("platform").default("instagram"), // instagram, tiktok, youtube
+  isActive: boolean("is_active").default(true),
+  lastCheckedAt: timestamp("last_checked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Saved influencer searches
+export const influencerSearches = pgTable("influencer_searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: varchar("name"),
+  filters: text("filters"), // JSON stringified search filters
+  resultCount: integer("result_count"),
+  isSaved: boolean("is_saved").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSavedInfluencerSchema = createInsertSchema(savedInfluencers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertHashtagMonitorSchema = createInsertSchema(hashtagMonitors).omit({
+  id: true,
+  lastCheckedAt: true,
+  createdAt: true,
+});
+
+export const insertInfluencerSearchSchema = createInsertSchema(influencerSearches).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
@@ -355,3 +419,9 @@ export type InsertEpisodeBriefing = z.infer<typeof insertEpisodeBriefingSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type SpotifyConnection = typeof spotifyConnections.$inferSelect;
+export type SavedInfluencer = typeof savedInfluencers.$inferSelect;
+export type InsertSavedInfluencer = z.infer<typeof insertSavedInfluencerSchema>;
+export type HashtagMonitor = typeof hashtagMonitors.$inferSelect;
+export type InsertHashtagMonitor = z.infer<typeof insertHashtagMonitorSchema>;
+export type InfluencerSearch = typeof influencerSearches.$inferSelect;
+export type InsertInfluencerSearch = z.infer<typeof insertInfluencerSearchSchema>;

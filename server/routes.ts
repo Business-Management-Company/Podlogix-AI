@@ -27,6 +27,8 @@ import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssServic
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
 import { syncAllSubscriptionsForUser, processAutoBriefingsForUser } from "./services/episodeSyncService";
+import { searchInfluencers, getInfluencerProfile, isModashConfigured } from "./services/modashService";
+import { insertSavedInfluencerSchema, insertHashtagMonitorSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1128,6 +1130,135 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error marking all notifications read:', error);
       res.status(500).json({ message: 'Failed to update notifications' });
+    }
+  });
+
+  // ==================== BRAND DASHBOARD ROUTES ====================
+
+  // Check if Modash is configured
+  app.get('/api/brand/modash/status', isAuthenticated, async (req: any, res) => {
+    res.json({ configured: isModashConfigured() });
+  });
+
+  // Search influencers via Modash
+  app.post('/api/brand/influencers/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const { platform = 'instagram', minFollowers, maxFollowers, minEngagement, maxEngagement, location, keywords, hashtags, page = 1 } = req.body;
+      
+      const results = await searchInfluencers({
+        platform,
+        minFollowers,
+        maxFollowers,
+        minEngagement,
+        maxEngagement,
+        location,
+        keywords,
+        hashtags,
+      }, page);
+      
+      res.json(results);
+    } catch (error) {
+      console.error('Error searching influencers:', error);
+      res.status(500).json({ message: 'Failed to search influencers' });
+    }
+  });
+
+  // Get influencer profile
+  app.get('/api/brand/influencers/profile/:platform/:username', isAuthenticated, async (req: any, res) => {
+    try {
+      const { platform, username } = req.params;
+      const profile = await getInfluencerProfile(platform, username);
+      if (!profile) {
+        return res.status(404).json({ message: 'Influencer not found' });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error('Error getting influencer profile:', error);
+      res.status(500).json({ message: 'Failed to get influencer profile' });
+    }
+  });
+
+  // Get saved influencers
+  app.get('/api/brand/saved-influencers', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const influencers = await storage.getSavedInfluencersByUser(userId);
+      res.json(influencers);
+    } catch (error) {
+      console.error('Error getting saved influencers:', error);
+      res.status(500).json({ message: 'Failed to get saved influencers' });
+    }
+  });
+
+  // Save an influencer
+  app.post('/api/brand/saved-influencers', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const data = insertSavedInfluencerSchema.parse({ ...req.body, userId });
+      const influencer = await storage.createSavedInfluencer(data);
+      res.status(201).json(influencer);
+    } catch (error) {
+      console.error('Error saving influencer:', error);
+      res.status(500).json({ message: 'Failed to save influencer' });
+    }
+  });
+
+  // Update saved influencer
+  app.patch('/api/brand/saved-influencers/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const influencer = await storage.updateSavedInfluencer(id, req.body);
+      res.json(influencer);
+    } catch (error) {
+      console.error('Error updating saved influencer:', error);
+      res.status(500).json({ message: 'Failed to update influencer' });
+    }
+  });
+
+  // Delete saved influencer
+  app.delete('/api/brand/saved-influencers/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteSavedInfluencer(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting saved influencer:', error);
+      res.status(500).json({ message: 'Failed to delete influencer' });
+    }
+  });
+
+  // Get hashtag monitors
+  app.get('/api/brand/hashtag-monitors', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const monitors = await storage.getHashtagMonitorsByUser(userId);
+      res.json(monitors);
+    } catch (error) {
+      console.error('Error getting hashtag monitors:', error);
+      res.status(500).json({ message: 'Failed to get monitors' });
+    }
+  });
+
+  // Create hashtag monitor
+  app.post('/api/brand/hashtag-monitors', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const data = insertHashtagMonitorSchema.parse({ ...req.body, userId });
+      const monitor = await storage.createHashtagMonitor(data);
+      res.status(201).json(monitor);
+    } catch (error) {
+      console.error('Error creating hashtag monitor:', error);
+      res.status(500).json({ message: 'Failed to create monitor' });
+    }
+  });
+
+  // Delete hashtag monitor
+  app.delete('/api/brand/hashtag-monitors/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteHashtagMonitor(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting hashtag monitor:', error);
+      res.status(500).json({ message: 'Failed to delete monitor' });
     }
   });
 

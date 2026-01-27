@@ -19,6 +19,7 @@ import DashboardCertifyLikeness from "@/pages/DashboardCertifyLikeness";
 import ListenerDashboard from "@/pages/ListenerDashboard";
 import ListenerAnalytics from "@/pages/ListenerAnalytics";
 import KnowledgeBase from "@/pages/KnowledgeBase";
+import BrandDashboard from "@/pages/BrandDashboard";
 
 function Router() {
   return (
