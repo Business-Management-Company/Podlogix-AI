@@ -212,6 +212,108 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   createdAt: true,
 });
 
+// Podcast Subscriptions (listener-side - podcasts user follows)
+export const podcastSubscriptions = pgTable("podcast_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: varchar("title").notNull(),
+  author: varchar("author"),
+  description: text("description"),
+  artworkUrl: text("artwork_url"),
+  feedUrl: text("feed_url").notNull(),
+  spotifyShowId: varchar("spotify_show_id"), // If imported from Spotify
+  lastCheckedAt: timestamp("last_checked_at"),
+  latestEpisodeAt: timestamp("latest_episode_at"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Episodes from subscribed podcasts
+export const subscriptionEpisodes = pgTable("subscription_episodes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  audioUrl: text("audio_url"),
+  duration: integer("duration"), // In seconds
+  publishedAt: timestamp("published_at"),
+  guid: varchar("guid"), // RSS GUID for deduplication
+  transcriptStatus: varchar("transcript_status").default("pending"), // pending, processing, completed, failed
+  transcript: text("transcript"),
+  briefingStatus: varchar("briefing_status").default("pending"), // pending, processing, completed, failed
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// User interests (topics to track in podcasts)
+export const userInterests = pgTable("user_interests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  topic: varchar("topic").notNull(), // e.g., "AI trends", "startup funding"
+  keywords: text("keywords").array(), // Related keywords to search for
+  priority: varchar("priority").default("medium"), // high, medium, low
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Episode briefings (AI-generated summaries personalized to user interests)
+export const episodeBriefings = pgTable("episode_briefings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  episodeId: varchar("episode_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  summary: text("summary").notNull(), // Overall episode summary
+  keyTakeaways: text("key_takeaways").array(), // Bullet points
+  relevantQuotes: text("relevant_quotes").array(), // Notable quotes
+  personalInsights: text("personal_insights").array(), // Insights matching user interests
+  matchedInterests: text("matched_interests").array(), // Which user interests were matched
+  relevanceScore: integer("relevance_score").default(0), // 0-100 how relevant to user
+  isBookmarked: boolean("is_bookmarked").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Notifications (for dashboard and email alerts)
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  type: varchar("type").notNull(), // new_episode, briefing_ready, impersonator_alert
+  title: varchar("title").notNull(),
+  message: text("message"),
+  resourceType: varchar("resource_type"), // episode, briefing, etc.
+  resourceId: varchar("resource_id"),
+  isRead: boolean("is_read").default(false),
+  emailSent: boolean("email_sent").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Insert schemas for new tables
+export const insertPodcastSubscriptionSchema = createInsertSchema(podcastSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  lastCheckedAt: true,
+  latestEpisodeAt: true,
+});
+
+export const insertSubscriptionEpisodeSchema = createInsertSchema(subscriptionEpisodes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserInterestSchema = createInsertSchema(userInterests).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEpisodeBriefingSchema = createInsertSchema(episodeBriefings).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
@@ -228,3 +330,13 @@ export type InsertRssFeed = z.infer<typeof insertRssFeedSchema>;
 export type DistributionChannel = typeof distributionChannels.$inferSelect;
 export type ChannelSubmission = typeof channelSubmissions.$inferSelect;
 export type InsertChannelSubmission = z.infer<typeof insertChannelSubmissionSchema>;
+export type PodcastSubscription = typeof podcastSubscriptions.$inferSelect;
+export type InsertPodcastSubscription = z.infer<typeof insertPodcastSubscriptionSchema>;
+export type SubscriptionEpisode = typeof subscriptionEpisodes.$inferSelect;
+export type InsertSubscriptionEpisode = z.infer<typeof insertSubscriptionEpisodeSchema>;
+export type UserInterest = typeof userInterests.$inferSelect;
+export type InsertUserInterest = z.infer<typeof insertUserInterestSchema>;
+export type EpisodeBriefing = typeof episodeBriefings.$inferSelect;
+export type InsertEpisodeBriefing = z.infer<typeof insertEpisodeBriefingSchema>;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;

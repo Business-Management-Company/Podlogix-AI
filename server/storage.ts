@@ -1,11 +1,15 @@
 import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
+  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
-  type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission
+  type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
+  type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
+  type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
+  type Notification, type InsertNotification
 } from "@shared/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // Subscribers & Messages
@@ -40,6 +44,35 @@ export interface IStorage {
   getChannelSubmissions(podcastId: string): Promise<ChannelSubmission[]>;
   createChannelSubmission(submission: InsertChannelSubmission): Promise<ChannelSubmission>;
   updateChannelSubmission(id: string, updates: Partial<ChannelSubmission>): Promise<ChannelSubmission | undefined>;
+  // Podcast Subscriptions (listener side)
+  createPodcastSubscription(subscription: InsertPodcastSubscription): Promise<PodcastSubscription>;
+  getPodcastSubscriptionsByUserId(userId: string): Promise<PodcastSubscription[]>;
+  getPodcastSubscription(id: string): Promise<PodcastSubscription | undefined>;
+  updatePodcastSubscription(id: string, updates: Partial<PodcastSubscription>): Promise<PodcastSubscription | undefined>;
+  deletePodcastSubscription(id: string): Promise<void>;
+  // Subscription Episodes
+  createSubscriptionEpisode(episode: InsertSubscriptionEpisode): Promise<SubscriptionEpisode>;
+  getSubscriptionEpisodesByUser(userId: string): Promise<SubscriptionEpisode[]>;
+  getSubscriptionEpisodesBySubscription(subscriptionId: string): Promise<SubscriptionEpisode[]>;
+  getSubscriptionEpisode(id: string): Promise<SubscriptionEpisode | undefined>;
+  updateSubscriptionEpisode(id: string, updates: Partial<SubscriptionEpisode>): Promise<SubscriptionEpisode | undefined>;
+  // User Interests
+  createUserInterest(interest: InsertUserInterest): Promise<UserInterest>;
+  getUserInterests(userId: string): Promise<UserInterest[]>;
+  updateUserInterest(id: string, updates: Partial<UserInterest>): Promise<UserInterest | undefined>;
+  deleteUserInterest(id: string): Promise<void>;
+  // Episode Briefings
+  createEpisodeBriefing(briefing: InsertEpisodeBriefing): Promise<EpisodeBriefing>;
+  getEpisodeBriefingsByUser(userId: string): Promise<EpisodeBriefing[]>;
+  getEpisodeBriefing(id: string): Promise<EpisodeBriefing | undefined>;
+  getEpisodeBriefingByEpisode(episodeId: string): Promise<EpisodeBriefing | undefined>;
+  updateEpisodeBriefing(id: string, updates: Partial<EpisodeBriefing>): Promise<EpisodeBriefing | undefined>;
+  // Notifications
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotificationsByUser(userId: string): Promise<Notification[]>;
+  getUnreadNotifications(userId: string): Promise<Notification[]>;
+  markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -175,6 +208,120 @@ export class DatabaseStorage implements IStorage {
   async updateChannelSubmission(id: string, updates: Partial<ChannelSubmission>): Promise<ChannelSubmission | undefined> {
     const [updated] = await db.update(channelSubmissions).set(updates).where(eq(channelSubmissions.id, id)).returning();
     return updated;
+  }
+
+  // Podcast Subscriptions (listener side)
+  async createPodcastSubscription(insertSub: InsertPodcastSubscription): Promise<PodcastSubscription> {
+    const [sub] = await db.insert(podcastSubscriptions).values(insertSub).returning();
+    return sub;
+  }
+
+  async getPodcastSubscriptionsByUserId(userId: string): Promise<PodcastSubscription[]> {
+    return await db.select().from(podcastSubscriptions).where(eq(podcastSubscriptions.userId, userId)).orderBy(desc(podcastSubscriptions.createdAt));
+  }
+
+  async getPodcastSubscription(id: string): Promise<PodcastSubscription | undefined> {
+    const [sub] = await db.select().from(podcastSubscriptions).where(eq(podcastSubscriptions.id, id));
+    return sub;
+  }
+
+  async updatePodcastSubscription(id: string, updates: Partial<PodcastSubscription>): Promise<PodcastSubscription | undefined> {
+    const [updated] = await db.update(podcastSubscriptions).set(updates).where(eq(podcastSubscriptions.id, id)).returning();
+    return updated;
+  }
+
+  async deletePodcastSubscription(id: string): Promise<void> {
+    await db.delete(podcastSubscriptions).where(eq(podcastSubscriptions.id, id));
+  }
+
+  // Subscription Episodes
+  async createSubscriptionEpisode(insertEp: InsertSubscriptionEpisode): Promise<SubscriptionEpisode> {
+    const [ep] = await db.insert(subscriptionEpisodes).values(insertEp).returning();
+    return ep;
+  }
+
+  async getSubscriptionEpisodesByUser(userId: string): Promise<SubscriptionEpisode[]> {
+    return await db.select().from(subscriptionEpisodes).where(eq(subscriptionEpisodes.userId, userId)).orderBy(desc(subscriptionEpisodes.publishedAt));
+  }
+
+  async getSubscriptionEpisodesBySubscription(subscriptionId: string): Promise<SubscriptionEpisode[]> {
+    return await db.select().from(subscriptionEpisodes).where(eq(subscriptionEpisodes.subscriptionId, subscriptionId)).orderBy(desc(subscriptionEpisodes.publishedAt));
+  }
+
+  async getSubscriptionEpisode(id: string): Promise<SubscriptionEpisode | undefined> {
+    const [ep] = await db.select().from(subscriptionEpisodes).where(eq(subscriptionEpisodes.id, id));
+    return ep;
+  }
+
+  async updateSubscriptionEpisode(id: string, updates: Partial<SubscriptionEpisode>): Promise<SubscriptionEpisode | undefined> {
+    const [updated] = await db.update(subscriptionEpisodes).set(updates).where(eq(subscriptionEpisodes.id, id)).returning();
+    return updated;
+  }
+
+  // User Interests
+  async createUserInterest(insertInterest: InsertUserInterest): Promise<UserInterest> {
+    const [interest] = await db.insert(userInterests).values(insertInterest).returning();
+    return interest;
+  }
+
+  async getUserInterests(userId: string): Promise<UserInterest[]> {
+    return await db.select().from(userInterests).where(eq(userInterests.userId, userId));
+  }
+
+  async updateUserInterest(id: string, updates: Partial<UserInterest>): Promise<UserInterest | undefined> {
+    const [updated] = await db.update(userInterests).set(updates).where(eq(userInterests.id, id)).returning();
+    return updated;
+  }
+
+  async deleteUserInterest(id: string): Promise<void> {
+    await db.delete(userInterests).where(eq(userInterests.id, id));
+  }
+
+  // Episode Briefings
+  async createEpisodeBriefing(insertBriefing: InsertEpisodeBriefing): Promise<EpisodeBriefing> {
+    const [briefing] = await db.insert(episodeBriefings).values(insertBriefing).returning();
+    return briefing;
+  }
+
+  async getEpisodeBriefingsByUser(userId: string): Promise<EpisodeBriefing[]> {
+    return await db.select().from(episodeBriefings).where(eq(episodeBriefings.userId, userId)).orderBy(desc(episodeBriefings.createdAt));
+  }
+
+  async getEpisodeBriefing(id: string): Promise<EpisodeBriefing | undefined> {
+    const [briefing] = await db.select().from(episodeBriefings).where(eq(episodeBriefings.id, id));
+    return briefing;
+  }
+
+  async getEpisodeBriefingByEpisode(episodeId: string): Promise<EpisodeBriefing | undefined> {
+    const [briefing] = await db.select().from(episodeBriefings).where(eq(episodeBriefings.episodeId, episodeId));
+    return briefing;
+  }
+
+  async updateEpisodeBriefing(id: string, updates: Partial<EpisodeBriefing>): Promise<EpisodeBriefing | undefined> {
+    const [updated] = await db.update(episodeBriefings).set(updates).where(eq(episodeBriefings.id, id)).returning();
+    return updated;
+  }
+
+  // Notifications
+  async createNotification(insertNotif: InsertNotification): Promise<Notification> {
+    const [notif] = await db.insert(notifications).values(insertNotif).returning();
+    return notif;
+  }
+
+  async getNotificationsByUser(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(and(eq(notifications.userId, userId), eq(notifications.isRead, false))).orderBy(desc(notifications.createdAt));
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
   }
 }
 
