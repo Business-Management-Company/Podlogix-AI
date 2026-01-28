@@ -503,6 +503,13 @@ export const creatorSocialProfiles = pgTable("creator_social_profiles", {
   subscriberCount: integer("subscriber_count"),
   videoCount: integer("video_count"),
   viewCount: integer("view_count"),
+  // Instagram-specific fields (populated via Instagram Graph API OAuth)
+  instagramAccountId: varchar("instagram_account_id"),
+  instagramAccessToken: text("instagram_access_token"),
+  instagramTokenExpiresAt: timestamp("instagram_token_expires_at"),
+  followersCount: integer("followers_count"),
+  followingCount: integer("following_count"),
+  mediaCount: integer("media_count"),
   // Verification status
   verified: boolean("verified").default(false),
   lastSyncedAt: timestamp("last_synced_at"),

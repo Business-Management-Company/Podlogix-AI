@@ -48,6 +48,14 @@ import {
   getChannelVideos,
   calculateEngagementRate
 } from "./services/youtubeService";
+import {
+  isInstagramOAuthConfigured,
+  getInstagramAuthUrl,
+  exchangeCodeForToken,
+  getLongLivedToken,
+  getInstagramBusinessAccount,
+  refreshInstagramAnalytics
+} from "./services/instagramOAuth";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 
 export async function registerRoutes(
@@ -595,6 +603,153 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting social profile:", error);
       res.status(500).json({ error: 'Failed to delete social profile' });
+    }
+  });
+
+  // Instagram OAuth routes for creator profiles
+  app.get("/api/creator/instagram/status", async (req, res) => {
+    res.json({
+      configured: isInstagramOAuthConfigured(),
+    });
+  });
+
+  app.get("/api/creator/instagram/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isInstagramOAuthConfigured()) {
+        return res.status(400).json({ error: 'Instagram OAuth not configured' });
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/creator/instagram/callback`;
+      
+      const userId = req.user.claims.sub;
+      const state = Buffer.from(JSON.stringify({ userId })).toString('base64');
+      
+      const authUrl = getInstagramAuthUrl(redirectUri, state);
+      res.json({ url: authUrl });
+    } catch (error) {
+      console.error("Error generating Instagram auth URL:", error);
+      res.status(500).json({ error: 'Failed to generate auth URL' });
+    }
+  });
+
+  app.get("/api/creator/instagram/callback", async (req, res) => {
+    try {
+      const { code, state, error: authError } = req.query;
+
+      if (authError) {
+        console.error("Instagram auth error:", authError);
+        return res.redirect('/connectors?instagram_error=auth_denied');
+      }
+
+      if (!code || !state) {
+        return res.redirect('/connectors?instagram_error=missing_params');
+      }
+
+      let userId: string;
+      try {
+        const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
+        userId = decoded.userId;
+      } catch (e) {
+        return res.redirect('/connectors?instagram_error=invalid_state');
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/creator/instagram/callback`;
+
+      const tokens = await exchangeCodeForToken(code as string, redirectUri);
+      if (!tokens) {
+        return res.redirect('/connectors?instagram_error=token_exchange_failed');
+      }
+
+      const longLivedTokens = await getLongLivedToken(tokens.accessToken);
+      const accessToken = longLivedTokens?.accessToken || tokens.accessToken;
+      const expiresAt = longLivedTokens?.expiresAt || tokens.expiresAt;
+
+      const instagramAccount = await getInstagramBusinessAccount(accessToken);
+      if (!instagramAccount) {
+        return res.redirect('/connectors?instagram_error=no_business_account');
+      }
+
+      const existingProfiles = await storage.getCreatorSocialProfilesByUser(userId);
+      const existingInstagram = existingProfiles.find(p => p.platform === 'instagram');
+      
+      if (existingInstagram) {
+        await storage.updateCreatorSocialProfile(existingInstagram.id, {
+          username: instagramAccount.username,
+          displayName: instagramAccount.name || instagramAccount.username,
+          profilePictureUrl: instagramAccount.profilePictureUrl,
+          instagramAccountId: instagramAccount.id,
+          instagramAccessToken: accessToken,
+          instagramTokenExpiresAt: expiresAt,
+          followersCount: instagramAccount.followersCount,
+          followingCount: instagramAccount.followingCount,
+          mediaCount: instagramAccount.mediaCount,
+          verified: true,
+          lastSyncedAt: new Date(),
+        });
+      } else {
+        await storage.createCreatorSocialProfile({
+          userId,
+          platform: 'instagram',
+          profileUrl: `https://instagram.com/${instagramAccount.username}`,
+          username: instagramAccount.username,
+          displayName: instagramAccount.name || instagramAccount.username,
+          profilePictureUrl: instagramAccount.profilePictureUrl,
+          instagramAccountId: instagramAccount.id,
+          instagramAccessToken: accessToken,
+          instagramTokenExpiresAt: expiresAt,
+          followersCount: instagramAccount.followersCount,
+          followingCount: instagramAccount.followingCount,
+          mediaCount: instagramAccount.mediaCount,
+          verified: true,
+          lastSyncedAt: new Date(),
+        });
+      }
+
+      res.redirect('/connectors?instagram_connected=true');
+    } catch (error) {
+      console.error("Instagram callback error:", error);
+      res.redirect('/connectors?instagram_error=callback_failed');
+    }
+  });
+
+  app.post("/api/creator/instagram/sync/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const profile = await storage.getCreatorSocialProfile(id);
+      if (!profile || profile.userId !== userId) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      if (profile.platform !== 'instagram' || !profile.instagramAccessToken || !profile.instagramAccountId) {
+        return res.status(400).json({ error: 'Not an OAuth-connected Instagram profile' });
+      }
+
+      const analytics = await refreshInstagramAnalytics(
+        profile.instagramAccessToken,
+        profile.instagramAccountId
+      );
+
+      if (!analytics) {
+        return res.status(500).json({ error: 'Failed to refresh analytics' });
+      }
+
+      const updated = await storage.updateCreatorSocialProfile(id, {
+        followersCount: analytics.followersCount,
+        followingCount: analytics.followingCount,
+        mediaCount: analytics.mediaCount,
+        lastSyncedAt: new Date(),
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error syncing Instagram profile:", error);
+      res.status(500).json({ error: 'Failed to sync profile' });
     }
   });
 
