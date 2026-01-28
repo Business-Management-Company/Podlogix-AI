@@ -134,3 +134,27 @@ Required environment variables:
 - `saved_influencers`: User's saved influencer profiles with notes and status
 - `hashtag_monitors`: Tracked hashtags per platform
 - `influencer_searches`: Saved search queries
+
+## Creator Social Profiles
+
+Creators can connect their social media profiles to showcase on their public profile pages. This uses free APIs (YouTube Data API v3) instead of paid services.
+
+### Features
+- **Multi-Platform Support**: YouTube, Instagram, TikTok, X, LinkedIn
+- **YouTube Analytics**: Automatically fetches subscriber count, video count, and total views using YouTube Data API v3
+- **Flexible URL Resolution**: Accepts YouTube channel URLs, handles (@username), or full URLs
+- **Public Display**: Connected profiles appear on creator's public profile page with analytics badges
+
+### API Endpoints
+- `GET /api/creator/social-profiles`: List current user's social profiles
+- `POST /api/creator/social-profiles`: Add a new social profile (auto-fetches YouTube stats)
+- `POST /api/creator/social-profiles/:id/sync`: Refresh YouTube analytics
+- `DELETE /api/creator/social-profiles/:id`: Remove a social profile
+
+### Database Table
+- `creator_social_profiles`: Stores connected social profiles with YouTube analytics fields (subscriberCount, videoCount, viewCount)
+
+### YouTube API Integration
+- Uses `YOUTUBE_API_KEY` environment variable
+- Resolves channel handles (@username) and URLs to channel IDs
+- Fetches channel statistics via YouTube Data API v3 (free tier: 10,000 units/day)
