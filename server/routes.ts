@@ -624,7 +624,12 @@ export async function registerRoutes(
       const redirectUri = `${protocol}://${host}/api/creator/instagram/callback`;
       
       const userId = req.user.claims.sub;
-      const state = Buffer.from(JSON.stringify({ userId })).toString('base64');
+      const timestamp = Date.now();
+      const stateData = JSON.stringify({ userId, timestamp });
+      const signature = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'instagram-oauth-secret')
+        .update(stateData)
+        .digest('hex');
+      const state = Buffer.from(JSON.stringify({ data: stateData, sig: signature })).toString('base64');
       
       const authUrl = getInstagramAuthUrl(redirectUri, state);
       res.json({ url: authUrl });
@@ -636,10 +641,10 @@ export async function registerRoutes(
 
   app.get("/api/creator/instagram/callback", async (req, res) => {
     try {
-      const { code, state, error: authError } = req.query;
+      const { code, state, error: authError, error_description } = req.query;
 
       if (authError) {
-        console.error("Instagram auth error:", authError);
+        console.error("Instagram auth error:", authError, error_description);
         return res.redirect('/connectors?instagram_error=auth_denied');
       }
 
@@ -649,9 +654,27 @@ export async function registerRoutes(
 
       let userId: string;
       try {
-        const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
-        userId = decoded.userId;
+        const stateObj = JSON.parse(Buffer.from(state as string, 'base64').toString());
+        const { data: stateData, sig } = stateObj;
+        
+        const expectedSig = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'instagram-oauth-secret')
+          .update(stateData)
+          .digest('hex');
+        
+        if (sig !== expectedSig) {
+          console.error("Instagram OAuth state signature mismatch");
+          return res.redirect('/connectors?instagram_error=invalid_state');
+        }
+        
+        const parsed = JSON.parse(stateData);
+        userId = parsed.userId;
+        
+        const stateAge = Date.now() - parsed.timestamp;
+        if (stateAge > 10 * 60 * 1000) {
+          return res.redirect('/connectors?instagram_error=state_expired');
+        }
       } catch (e) {
+        console.error("Instagram OAuth state parsing error:", e);
         return res.redirect('/connectors?instagram_error=invalid_state');
       }
 

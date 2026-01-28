@@ -62,8 +62,16 @@ interface CreatorSocialProfile {
   subscriberCount?: number;
   videoCount?: number;
   viewCount?: number;
+  instagramAccountId?: string;
+  followersCount?: number;
+  followingCount?: number;
+  mediaCount?: number;
   verified: boolean;
   lastSyncedAt?: string;
+}
+
+interface InstagramStatus {
+  configured: boolean;
 }
 
 interface AdminCheck {
@@ -125,11 +133,16 @@ export default function Connectors() {
     queryKey: ["/api/social/phyllo/status"],
   });
 
+  const { data: instagramStatus } = useQuery<InstagramStatus>({
+    queryKey: ["/api/creator/instagram/status"],
+  });
+
   const { data: creatorProfiles = [], isLoading: profilesLoading } = useQuery<CreatorSocialProfile[]>({
     queryKey: ["/api/creator/social-profiles"],
   });
 
   const isSuperAdmin = adminCheck?.isSuperAdmin === true;
+  const hasInstagramConnected = creatorProfiles.some(p => p.platform === 'instagram' && p.instagramAccountId);
 
   const connectSpotifyMutation = useMutation({
     mutationFn: async () => {
@@ -152,6 +165,34 @@ export default function Connectors() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/listener/spotify/status"] });
       toast({ title: "Disconnected", description: "Spotify has been disconnected" });
+    },
+  });
+
+  const connectInstagramMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/creator/instagram/auth");
+      const data = await res.json();
+      return data.url;
+    },
+    onSuccess: (url) => {
+      window.location.href = url;
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to connect to Instagram", variant: "destructive" });
+    },
+  });
+
+  const syncInstagramMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/creator/instagram/sync/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      toast({ title: "Synced", description: "Instagram analytics updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to sync Instagram", variant: "destructive" });
     },
   });
 
@@ -204,7 +245,9 @@ export default function Connectors() {
   });
 
   const connectedPlatforms = creatorProfiles.map((p) => p.platform);
-  const availablePlatforms = Object.keys(platformNames).filter((p) => !connectedPlatforms.includes(p));
+  // Instagram uses OAuth, so exclude it from URL-based platforms
+  const urlBasedPlatforms = ['youtube', 'tiktok', 'twitter', 'linkedin'];
+  const availablePlatforms = urlBasedPlatforms.filter((p) => !connectedPlatforms.includes(p));
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -292,6 +335,44 @@ export default function Connectors() {
           <Users className="h-5 w-5 text-primary" />
           <h2 className="text-xl font-semibold">Your Social Profiles</h2>
         </div>
+
+        {instagramStatus?.configured && !hasInstagramConnected && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <Instagram className="h-6 w-6 text-pink-500" />
+                    <div>
+                      <CardTitle>Instagram</CardTitle>
+                      <CardDescription>Connect your Instagram Business account to display follower count and analytics</CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Requires an Instagram Business or Creator account linked to a Facebook Page.
+                  </p>
+                  <Button
+                    onClick={() => connectInstagramMutation.mutate()}
+                    disabled={connectInstagramMutation.isPending}
+                    className="gap-2"
+                    data-testid="button-connect-instagram"
+                  >
+                    {connectInstagramMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Instagram className="h-4 w-4" />
+                    )}
+                    Connect Instagram
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {availablePlatforms.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -451,8 +532,25 @@ export default function Connectors() {
                               </span>
                             </div>
                           )}
+
+                          {profile.platform === "instagram" && profile.followersCount !== undefined && (
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {formatNumber(profile.followersCount)} followers
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Video className="h-3 w-3" />
+                                {formatNumber(profile.mediaCount)} posts
+                              </span>
+                            </div>
+                          )}
                           
-                          {profile.username && (
+                          {profile.username && profile.platform !== "youtube" && profile.platform !== "instagram" && (
+                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                          )}
+                          
+                          {(profile.platform === "youtube" || profile.platform === "instagram") && profile.username && (
                             <p className="text-sm text-muted-foreground">@{profile.username}</p>
                           )}
                           
@@ -482,6 +580,17 @@ export default function Connectors() {
                             data-testid={`button-sync-${profile.platform}`}
                           >
                             <RefreshCw className={`h-4 w-4 ${syncProfileMutation.isPending ? "animate-spin" : ""}`} />
+                          </Button>
+                        )}
+                        {profile.platform === "instagram" && profile.instagramAccountId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => syncInstagramMutation.mutate(profile.id)}
+                            disabled={syncInstagramMutation.isPending}
+                            data-testid={`button-sync-instagram`}
+                          >
+                            <RefreshCw className={`h-4 w-4 ${syncInstagramMutation.isPending ? "animate-spin" : ""}`} />
                           </Button>
                         )}
                         <Button

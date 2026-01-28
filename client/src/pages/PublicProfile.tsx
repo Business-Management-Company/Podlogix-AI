@@ -20,6 +20,9 @@ interface SocialProfile {
   subscriberCount?: number;
   videoCount?: number;
   viewCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  mediaCount?: number;
   verified: boolean;
 }
 
@@ -188,6 +191,17 @@ export default function PublicProfile() {
                               <span className="flex items-center gap-1">
                                 <Eye className="h-3 w-3" />
                                 {formatNumber(sp.viewCount)}
+                              </span>
+                            </div>
+                          ) : sp.platform === "instagram" && sp.followersCount !== undefined ? (
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {formatNumber(sp.followersCount)} followers
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Video className="h-3 w-3" />
+                                {formatNumber(sp.mediaCount)} posts
                               </span>
                             </div>
                           ) : sp.username ? (
