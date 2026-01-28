@@ -99,10 +99,21 @@ interface YouTubeInfluencer extends Influencer {
   channelUrl?: string;
 }
 
+interface InstagramInfluencer extends Influencer {
+  mediaCount?: number;
+  profileUrl?: string;
+}
+
 interface YouTubeSearchResult {
   influencers: YouTubeInfluencer[];
   total: number;
   nextPageToken: string | null;
+  hasMore: boolean;
+}
+
+interface InstagramSearchResult {
+  influencers: InstagramInfluencer[];
+  total: number;
   hasMore: boolean;
 }
 
@@ -121,6 +132,7 @@ export default function BrandDashboard() {
   const [newHashtag, setNewHashtag] = useState('');
   const [hashtagPlatform, setHashtagPlatform] = useState('instagram');
   const [youtubeQuery, setYoutubeQuery] = useState('');
+  const [instagramUsername, setInstagramUsername] = useState('');
 
   const { data: modashStatus } = useQuery<{ configured: boolean }>({
     queryKey: ['/api/brand/modash/status'],
@@ -129,6 +141,11 @@ export default function BrandDashboard() {
 
   const { data: youtubeStatus } = useQuery<{ configured: boolean }>({
     queryKey: ['/api/brand/youtube/status'],
+    enabled: !!user,
+  });
+
+  const { data: instagramStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ['/api/brand/instagram/status'],
     enabled: !!user,
   });
 
@@ -245,6 +262,44 @@ export default function BrandDashboard() {
     },
   });
 
+  const instagramLookupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/brand/instagram/lookup', {
+        username: instagramUsername,
+      });
+      return res.json() as Promise<InstagramSearchResult>;
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Profile not found",
+        description: "Could not find this Instagram profile. Note: Only public business/creator accounts can be looked up.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const saveInstagramInfluencerMutation = useMutation({
+    mutationFn: async (influencer: InstagramInfluencer) => {
+      const res = await apiRequest('POST', '/api/brand/saved-influencers', {
+        platform: 'instagram',
+        platformUserId: influencer.userId,
+        username: influencer.username,
+        fullName: influencer.fullName,
+        profilePicUrl: influencer.profilePicUrl,
+        bio: influencer.bio,
+        followerCount: influencer.followerCount,
+        engagementRate: 0,
+        location: null,
+        categories: [],
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand/saved-influencers'] });
+      toast({ title: "Instagram profile saved!" });
+    },
+  });
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -328,10 +383,14 @@ export default function BrandDashboard() {
         </motion.div>
 
         <Tabs defaultValue="youtube" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
             <TabsTrigger value="youtube" data-testid="tab-youtube">
               <SiYoutube className="h-4 w-4 mr-2" />
-              Discover
+              YouTube
+            </TabsTrigger>
+            <TabsTrigger value="instagram" data-testid="tab-instagram">
+              <SiInstagram className="h-4 w-4 mr-2" />
+              Instagram
             </TabsTrigger>
             <TabsTrigger value="saved" data-testid="tab-saved">
               <Bookmark className="h-4 w-4 mr-2" />
@@ -498,6 +557,168 @@ export default function BrandDashboard() {
                     </Button>
                   ))}
                 </div>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="instagram" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <SiInstagram className="h-5 w-5 text-pink-500" />
+                      Instagram Profile Lookup
+                      <Badge variant="default" className="ml-2">Free</Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Look up Instagram business/creator accounts by username to see follower counts and post stats
+                    </CardDescription>
+                  </div>
+                  {!instagramStatus?.configured && (
+                    <Badge variant="outline">Not Configured - Requires META_ACCESS_TOKEN</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter Instagram username (e.g., @nike or nike)"
+                    value={instagramUsername}
+                    onChange={(e) => setInstagramUsername(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-instagram-username"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && instagramUsername.trim()) {
+                        instagramLookupMutation.mutate();
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={() => instagramLookupMutation.mutate()} 
+                    disabled={instagramLookupMutation.isPending || !instagramUsername.trim() || !instagramStatus?.configured}
+                    data-testid="button-instagram-lookup"
+                  >
+                    {instagramLookupMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Note: Only public Instagram Business or Creator accounts can be looked up.
+                </p>
+              </CardContent>
+            </Card>
+
+            {instagramLookupMutation.data && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Found {instagramLookupMutation.data.total} Instagram profile
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {instagramLookupMutation.data.influencers.map((profile) => (
+                    <Card key={profile.userId} className="hover-elevate overflow-visible">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-14 w-14">
+                            <AvatarImage src={profile.profilePicUrl || undefined} />
+                            <AvatarFallback>
+                              <SiInstagram className="h-6 w-6 text-pink-500" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold truncate">{profile.fullName || profile.username}</h3>
+                              <SiInstagram className="h-4 w-4 text-pink-500 shrink-0" />
+                            </div>
+                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                          {profile.bio || 'No bio available'}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-sm font-semibold">{formatFollowers(profile.followerCount)}</p>
+                            <p className="text-xs text-muted-foreground">Followers</p>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-sm font-semibold">{formatFollowers(profile.followingCount)}</p>
+                            <p className="text-xs text-muted-foreground">Following</p>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-sm font-semibold">{profile.mediaCount || 0}</p>
+                            <p className="text-xs text-muted-foreground">Posts</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            disabled={isInfluencerSaved(profile.userId) || saveInstagramInfluencerMutation.isPending}
+                            onClick={() => saveInstagramInfluencerMutation.mutate(profile)}
+                            data-testid={`button-save-ig-${profile.userId}`}
+                          >
+                            {isInfluencerSaved(profile.userId) ? (
+                              <>Saved</>
+                            ) : saveInstagramInfluencerMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Bookmark className="h-4 w-4 mr-1" />
+                                Save
+                              </>
+                            )}
+                          </Button>
+                          <Button size="sm" variant="outline" asChild>
+                            <a 
+                              href={profile.profileUrl || `https://instagram.com/${profile.username}`}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!instagramLookupMutation.data && !instagramLookupMutation.isPending && (
+              <Card className="p-8 text-center">
+                <SiInstagram className="h-12 w-12 mx-auto text-pink-500 mb-4" />
+                <h3 className="font-semibold mb-2">Look Up Instagram Profiles</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Enter an Instagram username to see their follower count, post count, and bio - completely free!
+                </p>
+                {instagramStatus?.configured ? (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {['nike', 'natgeo', 'nasa', 'spotify', 'airbnb'].map((username) => (
+                      <Button 
+                        key={username} 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setInstagramUsername(username);
+                          setTimeout(() => instagramLookupMutation.mutate(), 100);
+                        }}
+                      >
+                        @{username}
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <Badge variant="secondary">
+                    Configure META_ACCESS_TOKEN to enable Instagram lookup
+                  </Badge>
+                )}
               </Card>
             )}
           </TabsContent>

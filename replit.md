@@ -100,10 +100,23 @@ The platform includes dual functionality for both podcasters (creators) and podc
 The platform includes a Brand Dashboard (/brand) for influencer discovery and hashtag monitoring.
 
 ### Brand Dashboard (/brand)
-- **Influencer Discovery**: Browse and save influencer profiles powered by Modash API
+- **YouTube Discovery**: Search YouTube channels with real subscriber counts, views, and video stats using YouTube Data API v3 (free)
+- **Instagram Lookup**: Look up Instagram business/creator accounts by username using Facebook Graph API Business Discovery (free)
 - **Saved Influencers**: Manage a list of saved influencers with notes and status tracking
 - **Hashtag Monitoring**: Track hashtags across Instagram, TikTok, and YouTube
-- **Demo Mode**: Shows sample influencer data when MODASH_API_KEY not configured
+
+### Instagram Lookup Integration
+Uses Facebook Graph API Business Discovery to look up public Instagram business/creator accounts. Features:
+- **Username Lookup**: Enter any Instagram username to fetch follower count, post count, and bio
+- **Business Discovery**: Uses page access token to query public business account data
+- **Free API**: No Modash or paid service required
+
+Required environment variables:
+- `META_APP_ID`: Your Facebook app ID
+- `META_APP_SECRET`: Your Facebook app secret
+- `META_ACCESS_TOKEN`: User access token with pages_show_list and instagram_basic permissions
+
+Note: Only Instagram Business or Creator accounts linked to a Facebook Page can be looked up.
 
 ### Phyllo Integration (Social Monitoring)
 Phyllo provides social media monitoring for voice identity protection. Key features:

@@ -56,6 +56,11 @@ import {
   getInstagramBusinessAccount,
   refreshInstagramAnalytics
 } from "./services/instagramOAuth";
+import {
+  isInstagramLookupConfigured,
+  lookupInstagramProfile,
+  searchInstagramInfluencers
+} from "./services/instagramLookupService";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 
 export async function registerRoutes(
@@ -1701,6 +1706,86 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error getting YouTube channel:', error);
       res.status(500).json({ message: 'Failed to get channel details' });
+    }
+  });
+
+  // ==================== INSTAGRAM INFLUENCER DISCOVERY (FREE API) ====================
+
+  // Check if Instagram lookup is configured
+  app.get('/api/brand/instagram/status', isAuthenticated, async (req: any, res) => {
+    res.json({ configured: isInstagramLookupConfigured() });
+  });
+
+  // Lookup Instagram profile by username
+  app.post('/api/brand/instagram/lookup', isAuthenticated, async (req: any, res) => {
+    try {
+      const usernameSchema = z.object({
+        username: z.string().min(1, 'Username is required').max(30, 'Username too long'),
+      });
+      
+      const parseResult = usernameSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid username', details: parseResult.error.issues });
+      }
+      
+      const { username } = parseResult.data;
+
+      if (!isInstagramLookupConfigured()) {
+        return res.status(503).json({ 
+          error: 'Instagram lookup not configured',
+          message: 'Please configure META_ACCESS_TOKEN, META_APP_ID, and META_APP_SECRET'
+        });
+      }
+
+      const result = await lookupInstagramProfile(username);
+      
+      if (!result.profile) {
+        let statusCode: number;
+        switch (result.error?.type) {
+          case 'not_configured':
+          case 'no_ig_account':
+            statusCode = 503;
+            break;
+          case 'api_error':
+            statusCode = 500;
+            break;
+          case 'profile_not_found':
+          default:
+            statusCode = 404;
+            break;
+        }
+        return res.status(statusCode).json({ 
+          error: result.error?.type || 'profile_not_found',
+          message: result.error?.message || 'Could not find Instagram profile.'
+        });
+      }
+
+      const profile = result.profile;
+
+      res.json({
+        influencers: [{
+          userId: profile.userId,
+          username: profile.username,
+          fullName: profile.fullName,
+          profilePicUrl: profile.profilePicUrl,
+          bio: profile.bio,
+          followerCount: profile.followerCount,
+          followingCount: profile.followingCount,
+          engagementRate: 0,
+          avgLikes: 0,
+          avgComments: 0,
+          mediaCount: profile.mediaCount,
+          location: null,
+          categories: [],
+          platform: 'instagram',
+          profileUrl: `https://instagram.com/${profile.username}`,
+        }],
+        total: 1,
+        hasMore: false,
+      });
+    } catch (error) {
+      console.error('Error looking up Instagram profile:', error);
+      res.status(500).json({ message: 'Failed to lookup Instagram profile' });
     }
   });
 
