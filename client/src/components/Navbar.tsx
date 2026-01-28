@@ -126,7 +126,7 @@ export function Navbar() {
                     </>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
                     Log Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
