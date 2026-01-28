@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,14 @@ const STEPS = [
   { label: "Complete", description: "Certificate created" },
 ];
 
+interface ConnectedAccount {
+  id: string;
+  platform: string;
+  username: string;
+  profileUrl?: string;
+  status: string;
+}
+
 export default function DashboardCertifyLikeness() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -67,6 +75,10 @@ export default function DashboardCertifyLikeness() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [assetId, setAssetId] = useState<string | null>(null);
   const [likenessName, setLikenessName] = useState("");
+
+  const { data: connectedAccounts = [] } = useQuery<ConnectedAccount[]>({
+    queryKey: ["/api/social/phyllo/accounts"],
+  });
 
   const form = useForm<z.infer<typeof certificationSchema>>({
     resolver: zodResolver(certificationSchema),
@@ -81,6 +93,26 @@ export default function DashboardCertifyLikeness() {
       monitorChannels: true,
     },
   });
+
+  useEffect(() => {
+    if (connectedAccounts.length > 0) {
+      connectedAccounts.forEach((account) => {
+        const platform = account.platform.toLowerCase();
+        const value = account.profileUrl || `@${account.username}`;
+        if (platform === 'youtube' && !form.getValues('youtube')) {
+          form.setValue('youtube', value);
+        } else if (platform === 'twitter' && !form.getValues('twitter')) {
+          form.setValue('twitter', value);
+        } else if (platform === 'instagram' && !form.getValues('instagram')) {
+          form.setValue('instagram', value);
+        } else if (platform === 'tiktok' && !form.getValues('tiktok')) {
+          form.setValue('tiktok', value);
+        } else if (platform === 'linkedin' && !form.getValues('linkedin')) {
+          form.setValue('linkedin', value);
+        }
+      });
+    }
+  }, [connectedAccounts, form]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
