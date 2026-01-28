@@ -1,14 +1,27 @@
 import { Link } from "wouter";
-import { Mic, LogIn, User } from "lucide-react";
+import { Mic, LogIn, User, Headphones, Shield, Fingerprint, ShieldCheck, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useQuery } from "@tanstack/react-query";
+
+interface AdminCheck {
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  role: string;
+}
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const { user, isAuthenticated, isLoading, login, logout } = useAuth();
+  
+  const { data: adminCheck } = useQuery<AdminCheck>({
+    queryKey: ["/api/admin/check"],
+    enabled: isAuthenticated,
+  });
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -47,20 +60,77 @@ export function Navbar() {
             <div className="h-9 w-20 bg-muted animate-pulse rounded-md" />
           ) : isAuthenticated ? (
             <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                asChild
-                data-testid="button-dashboard"
-              >
+              <div className="hidden md:flex items-center gap-2">
+                <Button variant="ghost" size="sm" asChild data-testid="nav-listener">
+                  <Link href="/listener">
+                    <Headphones className="h-4 w-4 mr-1" />
+                    Listener
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" asChild data-testid="nav-identity">
+                  <Link href="/identity">
+                    <Fingerprint className="h-4 w-4 mr-1" />
+                    Identity
+                  </Link>
+                </Button>
+                {adminCheck?.isAdmin && (
+                  <Button variant="ghost" size="sm" asChild data-testid="nav-admin">
+                    <Link href="/admin">
+                      <ShieldCheck className="h-4 w-4 mr-1" />
+                      Admin
+                    </Link>
+                  </Button>
+                )}
+              </div>
+              <Button variant="outline" size="sm" asChild data-testid="button-dashboard">
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
-              <div className="flex items-center gap-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.profileImageUrl || undefined} />
-                  <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
-                </Avatar>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={user?.profileImageUrl || undefined} />
+                      <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href="/listener" className="flex items-center gap-2 cursor-pointer">
+                      <Headphones className="h-4 w-4" />
+                      Listener Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/identity" className="flex items-center gap-2 cursor-pointer">
+                      <Fingerprint className="h-4 w-4" />
+                      Identity Hub
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/brand" className="flex items-center gap-2 cursor-pointer">
+                      <Shield className="h-4 w-4" />
+                      Brand Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  {adminCheck?.isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="flex items-center gap-2 cursor-pointer">
+                          <ShieldCheck className="h-4 w-4" />
+                          Admin Panel
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout} className="cursor-pointer">
+                    Log Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
