@@ -348,16 +348,22 @@ export async function registerRoutes(
 
   // Get SDK token for connecting a social account
   app.post("/api/social/phyllo/sdk-token", isAuthenticated, async (req: any, res) => {
+    console.log("=== Phyllo SDK Token Request ===");
     try {
       const userId = req.user.claims.sub;
       const userName = `${req.user.claims.first_name || ''} ${req.user.claims.last_name || ''}`.trim() || req.user.claims.email;
+      console.log(`Phyllo request for user: ${userId}, name: ${userName}`);
       
       if (!isPhylloConfigured()) {
+        console.log("Phyllo not configured");
         return res.status(503).json({ error: 'Social monitoring service not configured' });
       }
+      console.log("Phyllo is configured, creating user...");
 
       const phylloUser = await getOrCreatePhylloUser(userId, userName);
+      console.log("Phyllo user result:", phylloUser);
       if (!phylloUser) {
+        console.log("Failed to create Phyllo user");
         return res.status(500).json({ error: 'Failed to create monitoring user' });
       }
 
