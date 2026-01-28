@@ -488,3 +488,33 @@ export type ConnectedSocialAccount = typeof connectedSocialAccounts.$inferSelect
 export type InsertConnectedSocialAccount = z.infer<typeof insertConnectedSocialAccountSchema>;
 export type SocialMonitoringAlert = typeof socialMonitoringAlerts.$inferSelect;
 export type InsertSocialMonitoringAlert = z.infer<typeof insertSocialMonitoringAlertSchema>;
+
+// Creator Social Profiles (native API integration for influencers)
+export const creatorSocialProfiles = pgTable("creator_social_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  platform: varchar("platform").notNull(), // youtube, instagram, tiktok, twitter, linkedin
+  profileUrl: text("profile_url").notNull(),
+  username: varchar("username"),
+  displayName: varchar("display_name"),
+  profilePictureUrl: text("profile_picture_url"),
+  // YouTube-specific analytics (populated via YouTube Data API)
+  youtubeChannelId: varchar("youtube_channel_id"),
+  subscriberCount: integer("subscriber_count"),
+  videoCount: integer("video_count"),
+  viewCount: integer("view_count"),
+  // Verification status
+  verified: boolean("verified").default(false),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCreatorSocialProfileSchema = createInsertSchema(creatorSocialProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CreatorSocialProfile = typeof creatorSocialProfiles.$inferSelect;
+export type InsertCreatorSocialProfile = z.infer<typeof insertCreatorSocialProfileSchema>;

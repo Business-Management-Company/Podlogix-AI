@@ -2,7 +2,7 @@ import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
-  savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts,
+  savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -12,7 +12,8 @@ import {
   type SavedInfluencer, type InsertSavedInfluencer, type HashtagMonitor, type InsertHashtagMonitor,
   type InfluencerSearch, type InsertInfluencerSearch,
   type ConnectedSocialAccount, type InsertConnectedSocialAccount,
-  type SocialMonitoringAlert, type InsertSocialMonitoringAlert
+  type SocialMonitoringAlert, type InsertSocialMonitoringAlert,
+  type CreatorSocialProfile, type InsertCreatorSocialProfile
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -112,6 +113,13 @@ export interface IStorage {
   getSocialMonitoringAlertsByUser(userId: string): Promise<SocialMonitoringAlert[]>;
   getUnresolvedAlertsByUser(userId: string): Promise<SocialMonitoringAlert[]>;
   updateSocialMonitoringAlert(id: string, updates: Partial<SocialMonitoringAlert>): Promise<SocialMonitoringAlert | undefined>;
+  // Creator Social Profiles
+  createCreatorSocialProfile(profile: InsertCreatorSocialProfile): Promise<CreatorSocialProfile>;
+  getCreatorSocialProfilesByUser(userId: string): Promise<CreatorSocialProfile[]>;
+  getCreatorSocialProfile(id: string): Promise<CreatorSocialProfile | undefined>;
+  getCreatorSocialProfileByPlatform(userId: string, platform: string): Promise<CreatorSocialProfile | undefined>;
+  updateCreatorSocialProfile(id: string, updates: Partial<CreatorSocialProfile>): Promise<CreatorSocialProfile | undefined>;
+  deleteCreatorSocialProfile(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -524,6 +532,44 @@ export class DatabaseStorage implements IStorage {
       .where(eq(socialMonitoringAlerts.id, id))
       .returning();
     return updated;
+  }
+
+  // Creator Social Profiles
+  async createCreatorSocialProfile(profile: InsertCreatorSocialProfile): Promise<CreatorSocialProfile> {
+    const [created] = await db.insert(creatorSocialProfiles).values(profile).returning();
+    return created;
+  }
+
+  async getCreatorSocialProfilesByUser(userId: string): Promise<CreatorSocialProfile[]> {
+    return await db.select().from(creatorSocialProfiles)
+      .where(eq(creatorSocialProfiles.userId, userId))
+      .orderBy(asc(creatorSocialProfiles.platform));
+  }
+
+  async getCreatorSocialProfile(id: string): Promise<CreatorSocialProfile | undefined> {
+    const [profile] = await db.select().from(creatorSocialProfiles).where(eq(creatorSocialProfiles.id, id));
+    return profile;
+  }
+
+  async getCreatorSocialProfileByPlatform(userId: string, platform: string): Promise<CreatorSocialProfile | undefined> {
+    const [profile] = await db.select().from(creatorSocialProfiles)
+      .where(and(
+        eq(creatorSocialProfiles.userId, userId),
+        eq(creatorSocialProfiles.platform, platform)
+      ));
+    return profile;
+  }
+
+  async updateCreatorSocialProfile(id: string, updates: Partial<CreatorSocialProfile>): Promise<CreatorSocialProfile | undefined> {
+    const [updated] = await db.update(creatorSocialProfiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(creatorSocialProfiles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCreatorSocialProfile(id: string): Promise<void> {
+    await db.delete(creatorSocialProfiles).where(eq(creatorSocialProfiles.id, id));
   }
 }
 
