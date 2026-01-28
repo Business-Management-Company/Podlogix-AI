@@ -164,14 +164,15 @@ export function Footer() {
                     </DialogContent>
                   </Dialog>
                 </li>
-                <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Privacy Policy</a></li>
+                <li><a href="/privacy" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-privacy">Privacy Policy</a></li>
+                <li><a href="/terms" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-terms">Terms & Conditions</a></li>
               </ul>
             </div>
           </div>
         </div>
 
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">© 2025 Podlogix Inc. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© 2026 Podlogix Inc. All rights reserved.</p>
           <div className="flex gap-4">
             <a href="#" className="text-muted-foreground hover:text-white transition-colors"><Twitter className="w-5 h-5" /></a>
             <a href="#" className="text-muted-foreground hover:text-white transition-colors"><Linkedin className="w-5 h-5" /></a>

@@ -24,6 +24,8 @@ import KnowledgeBase from "@/pages/KnowledgeBase";
 import BrandDashboard from "@/pages/BrandDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Connectors from "@/pages/Connectors";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 
 function AuthenticatedRoutes() {
   return (
@@ -57,6 +59,8 @@ function PublicRoutes() {
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/voice-certification" component={VoiceCertification} />
       <Route path="/certificate/:id" component={Certificate} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
   );
