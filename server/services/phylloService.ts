@@ -102,6 +102,7 @@ export async function createPhylloUser(externalId: string, name: string): Promis
 
   try {
     console.log(`Creating Phyllo user with external_id: ${externalId}, using ${PHYLLO_ENVIRONMENT} environment`);
+    console.log(`Phyllo base URL: ${PHYLLO_BASE_URL}`);
     const response = await fetch(`${PHYLLO_BASE_URL}/users`, {
       method: 'POST',
       headers: {
@@ -114,13 +115,20 @@ export async function createPhylloUser(externalId: string, name: string): Promis
       }),
     });
 
+    const responseText = await response.text();
+    console.log(`Phyllo create user response: ${response.status} - ${responseText}`);
+
     if (!response.ok) {
-      const error = await response.json();
-      console.error('Phyllo create user error:', response.status, error);
+      try {
+        const error = JSON.parse(responseText);
+        console.error('Phyllo create user error:', response.status, error);
+      } catch {
+        console.error('Phyllo create user error (raw):', response.status, responseText);
+      }
       return null;
     }
 
-    const user = await response.json();
+    const user = JSON.parse(responseText);
     console.log('Phyllo user created successfully:', user.id);
     return user;
   } catch (error) {
