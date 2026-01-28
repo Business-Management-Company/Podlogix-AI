@@ -4,13 +4,52 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ExternalLink, Mic } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink, Mic, Users, Eye, Video, Instagram, Youtube, Linkedin, CheckCircle } from "lucide-react";
+import { SiTiktok } from "react-icons/si";
 import { motion } from "framer-motion";
 import type { Profile, ProfileLink } from "@shared/schema";
+
+interface SocialProfile {
+  id: string;
+  platform: string;
+  profileUrl: string;
+  username?: string;
+  displayName?: string;
+  profilePictureUrl?: string;
+  subscriberCount?: number;
+  videoCount?: number;
+  viewCount?: number;
+  verified: boolean;
+}
 
 interface ProfileData {
   profile: Profile;
   links: ProfileLink[];
+  socialProfiles?: SocialProfile[];
+}
+
+const platformIcons: Record<string, React.ReactNode> = {
+  instagram: <Instagram className="h-5 w-5 text-pink-500" />,
+  tiktok: <SiTiktok className="h-5 w-5" />,
+  youtube: <Youtube className="h-5 w-5 text-red-500" />,
+  twitter: <span className="font-bold">𝕏</span>,
+  linkedin: <Linkedin className="h-5 w-5 text-blue-600" />,
+};
+
+const platformNames: Record<string, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  twitter: "X",
+  linkedin: "LinkedIn",
+};
+
+function formatNumber(num: number | undefined): string {
+  if (!num) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
 }
 
 export default function PublicProfile() {
@@ -59,7 +98,7 @@ export default function PublicProfile() {
     );
   }
 
-  const { profile, links } = data;
+  const { profile, links, socialProfiles = [] } = data;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10">
@@ -90,13 +129,88 @@ export default function PublicProfile() {
           )}
         </motion.div>
 
+        {socialProfiles.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8"
+          >
+            <div className="grid gap-3">
+              {socialProfiles.map((sp, index) => (
+                <motion.div
+                  key={sp.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + index * 0.05 }}
+                >
+                  <Card 
+                    className="overflow-hidden cursor-pointer hover-elevate"
+                    onClick={() => window.open(sp.profileUrl, '_blank')}
+                    data-testid={`social-${sp.platform}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-4">
+                        {sp.profilePictureUrl ? (
+                          <img
+                            src={sp.profilePictureUrl}
+                            alt={sp.displayName || sp.username || "Profile"}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                            {platformIcons[sp.platform]}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {platformIcons[sp.platform]}
+                            <span className="font-medium truncate">
+                              {sp.displayName || sp.username || platformNames[sp.platform]}
+                            </span>
+                            {sp.verified && (
+                              <Badge variant="secondary" className="gap-1 text-xs shrink-0">
+                                <CheckCircle className="h-3 w-3" />
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {sp.platform === "youtube" && sp.subscriberCount !== undefined ? (
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {formatNumber(sp.subscriberCount)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Video className="h-3 w-3" />
+                                {formatNumber(sp.videoCount)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Eye className="h-3 w-3" />
+                                {formatNumber(sp.viewCount)}
+                              </span>
+                            </div>
+                          ) : sp.username ? (
+                            <p className="text-xs text-muted-foreground mt-1">@{sp.username}</p>
+                          ) : null}
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <div className="space-y-3">
           {links.filter(link => link.isActive).map((link, index) => (
             <motion.div
               key={link.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: (socialProfiles.length * 0.05) + 0.2 + index * 0.1 }}
             >
               <Button
                 variant="outline"
@@ -111,7 +225,6 @@ export default function PublicProfile() {
           ))}
         </div>
 
-        {/* Powered by Podlogix */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

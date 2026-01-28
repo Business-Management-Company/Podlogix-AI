@@ -481,6 +481,123 @@ export async function registerRoutes(
     }
   });
 
+  // Creator Social Profiles (native API integration)
+  app.get("/api/creator/social-profiles", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profiles = await storage.getCreatorSocialProfilesByUser(userId);
+      res.json(profiles);
+    } catch (error) {
+      console.error("Error fetching social profiles:", error);
+      res.status(500).json({ error: 'Failed to fetch social profiles' });
+    }
+  });
+
+  app.post("/api/creator/social-profiles", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { platform, profileUrl } = req.body;
+
+      if (!platform || !profileUrl) {
+        return res.status(400).json({ error: 'Platform and profile URL are required' });
+      }
+
+      const existing = await storage.getCreatorSocialProfileByPlatform(userId, platform);
+      if (existing) {
+        return res.status(400).json({ error: `You already have a ${platform} profile connected` });
+      }
+
+      let profileData: any = {
+        userId,
+        platform,
+        profileUrl,
+        verified: false,
+      };
+
+      if (platform === 'youtube') {
+        const { resolveChannelFromUrl } = await import('./services/youtubeService');
+        const channel = await resolveChannelFromUrl(profileUrl);
+        
+        if (channel) {
+          profileData = {
+            ...profileData,
+            username: channel.customUrl || channel.title,
+            displayName: channel.title,
+            profilePictureUrl: channel.thumbnailUrl,
+            youtubeChannelId: channel.channelId,
+            subscriberCount: channel.subscriberCount,
+            videoCount: channel.videoCount,
+            viewCount: channel.viewCount,
+            verified: true,
+            lastSyncedAt: new Date(),
+          };
+        }
+      } else {
+        const urlMatch = profileUrl.match(/(?:@|\/)?([a-zA-Z0-9_.-]+)\/?$/);
+        profileData.username = urlMatch?.[1] || profileUrl;
+        profileData.verified = true;
+      }
+
+      const created = await storage.createCreatorSocialProfile(profileData);
+      res.json(created);
+    } catch (error) {
+      console.error("Error adding social profile:", error);
+      res.status(500).json({ error: 'Failed to add social profile' });
+    }
+  });
+
+  app.post("/api/creator/social-profiles/:id/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const profile = await storage.getCreatorSocialProfile(id);
+      if (!profile || profile.userId !== userId) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      if (profile.platform === 'youtube' && profile.youtubeChannelId) {
+        const { getChannelDetails } = await import('./services/youtubeService');
+        const channel = await getChannelDetails(profile.youtubeChannelId);
+        
+        if (channel) {
+          const updated = await storage.updateCreatorSocialProfile(id, {
+            displayName: channel.title,
+            profilePictureUrl: channel.thumbnailUrl,
+            subscriberCount: channel.subscriberCount,
+            videoCount: channel.videoCount,
+            viewCount: channel.viewCount,
+            lastSyncedAt: new Date(),
+          });
+          return res.json(updated);
+        }
+      }
+
+      res.json(profile);
+    } catch (error) {
+      console.error("Error syncing social profile:", error);
+      res.status(500).json({ error: 'Failed to sync social profile' });
+    }
+  });
+
+  app.delete("/api/creator/social-profiles/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const profile = await storage.getCreatorSocialProfile(id);
+      if (!profile || profile.userId !== userId) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      await storage.deleteCreatorSocialProfile(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting social profile:", error);
+      res.status(500).json({ error: 'Failed to delete social profile' });
+    }
+  });
+
   // Dashboard endpoint (protected)
   app.get(api.dashboard.get.path, isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
@@ -544,7 +661,8 @@ export async function registerRoutes(
       return res.status(404).json({ message: 'Profile not found' });
     }
     const links = await storage.getProfileLinks(profile.id);
-    res.json({ profile, links });
+    const socialProfiles = await storage.getCreatorSocialProfilesByUser(profile.userId);
+    res.json({ profile, links, socialProfiles });
   });
 
   // Profile Links endpoints (protected)

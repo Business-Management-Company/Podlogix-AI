@@ -376,3 +376,91 @@ function getMockVideos(): YouTubeVideo[] {
     },
   ];
 }
+
+export async function resolveChannelFromUrl(url: string): Promise<YouTubeChannel | null> {
+  if (!isYouTubeConfigured()) {
+    return getMockChannelDetails('UC_demo_1');
+  }
+
+  try {
+    let channelId: string | null = null;
+    let handle: string | null = null;
+    
+    const cleanUrl = url.trim();
+    
+    if (cleanUrl.includes('youtube.com/channel/')) {
+      const match = cleanUrl.match(/youtube\.com\/channel\/([^\/\?]+)/);
+      channelId = match?.[1] || null;
+    } else if (cleanUrl.includes('youtube.com/@')) {
+      const match = cleanUrl.match(/youtube\.com\/@([^\/\?]+)/);
+      handle = match?.[1] || null;
+    } else if (cleanUrl.includes('youtube.com/c/')) {
+      const match = cleanUrl.match(/youtube\.com\/c\/([^\/\?]+)/);
+      handle = match?.[1] || null;
+    } else if (cleanUrl.startsWith('@')) {
+      handle = cleanUrl.substring(1);
+    } else if (cleanUrl.startsWith('UC') && cleanUrl.length >= 20) {
+      channelId = cleanUrl;
+    } else {
+      handle = cleanUrl;
+    }
+
+    if (channelId) {
+      return await getChannelDetails(channelId);
+    }
+
+    if (handle) {
+      const params = new URLSearchParams({
+        part: 'snippet,statistics,brandingSettings',
+        forHandle: handle,
+        key: YOUTUBE_API_KEY!,
+      });
+
+      const response = await fetch(`${YOUTUBE_API_BASE}/channels?${params}`);
+
+      if (!response.ok) {
+        const searchParams = new URLSearchParams({
+          part: 'snippet',
+          type: 'channel',
+          q: handle,
+          maxResults: '1',
+          key: YOUTUBE_API_KEY!,
+        });
+
+        const searchResponse = await fetch(`${YOUTUBE_API_BASE}/search?${searchParams}`);
+        if (!searchResponse.ok) return null;
+
+        const searchData = await searchResponse.json();
+        const foundChannelId = searchData.items?.[0]?.snippet?.channelId;
+        if (foundChannelId) {
+          return await getChannelDetails(foundChannelId);
+        }
+        return null;
+      }
+
+      const data = await response.json();
+      const channel = data.items?.[0];
+
+      if (!channel) return null;
+
+      return {
+        channelId: channel.id,
+        title: channel.snippet?.title || '',
+        description: channel.snippet?.description || '',
+        thumbnailUrl: channel.snippet?.thumbnails?.medium?.url || 
+                      channel.snippet?.thumbnails?.default?.url || '',
+        subscriberCount: parseInt(channel.statistics?.subscriberCount || '0', 10),
+        viewCount: parseInt(channel.statistics?.viewCount || '0', 10),
+        videoCount: parseInt(channel.statistics?.videoCount || '0', 10),
+        country: channel.snippet?.country || channel.brandingSettings?.channel?.country || null,
+        customUrl: channel.snippet?.customUrl || null,
+        publishedAt: channel.snippet?.publishedAt || '',
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error resolving YouTube channel:', error);
+    return null;
+  }
+}

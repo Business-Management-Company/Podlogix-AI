@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { motion } from "framer-motion";
@@ -10,16 +13,36 @@ import {
   Instagram,
   Youtube,
   Linkedin,
-  Facebook,
   CheckCircle,
   XCircle,
   Loader2,
   AlertCircle,
-  Shield,
+  Users,
   Settings,
   Headphones,
+  Plus,
+  Trash2,
+  RefreshCw,
+  Eye,
+  Video,
+  ExternalLink,
 } from "lucide-react";
 import { SiTiktok, SiSpotify } from "react-icons/si";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SpotifyConnection {
   connected: boolean;
@@ -27,17 +50,20 @@ interface SpotifyConnection {
   spotifyUserId?: string;
 }
 
-interface PhylloStatus {
-  configured: boolean;
-  supportedPlatforms: string[];
-}
-
-interface ConnectedAccount {
+interface CreatorSocialProfile {
   id: string;
+  userId: string;
   platform: string;
-  username: string;
-  status: string;
-  profileUrl?: string;
+  profileUrl: string;
+  username?: string;
+  displayName?: string;
+  profilePictureUrl?: string;
+  youtubeChannelId?: string;
+  subscriberCount?: number;
+  videoCount?: number;
+  viewCount?: number;
+  verified: boolean;
+  lastSyncedAt?: string;
 }
 
 interface AdminCheck {
@@ -46,13 +72,16 @@ interface AdminCheck {
   role: string;
 }
 
+interface PhylloStatus {
+  configured: boolean;
+}
+
 const platformIcons: Record<string, React.ReactNode> = {
   instagram: <Instagram className="h-5 w-5 text-pink-500" />,
   tiktok: <SiTiktok className="h-5 w-5" />,
   youtube: <Youtube className="h-5 w-5 text-red-500" />,
   twitter: <span className="font-bold text-lg">𝕏</span>,
   linkedin: <Linkedin className="h-5 w-5 text-blue-600" />,
-  facebook: <Facebook className="h-5 w-5 text-blue-500" />,
 };
 
 const platformNames: Record<string, string> = {
@@ -61,11 +90,28 @@ const platformNames: Record<string, string> = {
   youtube: "YouTube",
   twitter: "X (Twitter)",
   linkedin: "LinkedIn",
-  facebook: "Facebook",
 };
+
+const platformPlaceholders: Record<string, string> = {
+  youtube: "https://youtube.com/@yourchannel or channel URL",
+  instagram: "https://instagram.com/yourusername",
+  tiktok: "https://tiktok.com/@yourusername",
+  twitter: "https://twitter.com/yourusername",
+  linkedin: "https://linkedin.com/in/yourusername",
+};
+
+function formatNumber(num: number | undefined): string {
+  if (!num) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+}
 
 export default function Connectors() {
   const { toast } = useToast();
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
+  const [profileUrl, setProfileUrl] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: adminCheck } = useQuery<AdminCheck>({
     queryKey: ["/api/admin/check"],
@@ -75,12 +121,12 @@ export default function Connectors() {
     queryKey: ["/api/listener/spotify/status"],
   });
 
-  const { data: phylloStatus, isLoading: phylloLoading } = useQuery<PhylloStatus>({
+  const { data: phylloStatus } = useQuery<PhylloStatus>({
     queryKey: ["/api/social/phyllo/status"],
   });
 
-  const { data: connectedAccounts = [], isLoading: accountsLoading } = useQuery<ConnectedAccount[]>({
-    queryKey: ["/api/social/phyllo/accounts"],
+  const { data: creatorProfiles = [], isLoading: profilesLoading } = useQuery<CreatorSocialProfile[]>({
+    queryKey: ["/api/creator/social-profiles"],
   });
 
   const isSuperAdmin = adminCheck?.isSuperAdmin === true;
@@ -109,49 +155,56 @@ export default function Connectors() {
     },
   });
 
-  const connectSocialMutation = useMutation({
-    mutationFn: async (platform: string) => {
-      const tokenRes = await apiRequest("POST", "/api/social/phyllo/sdk-token");
-      const tokenData = await tokenRes.json();
-      if (tokenData.error) throw new Error(tokenData.error);
-      const res = await apiRequest("POST", "/api/social/phyllo/accounts", {
-        platform,
-        username: `${platform}_user`,
-        status: "connected",
-        phylloUserId: tokenData.userId,
-      });
+  const addProfileMutation = useMutation({
+    mutationFn: async ({ platform, profileUrl }: { platform: string; profileUrl: string }) => {
+      const res = await apiRequest("POST", "/api/creator/social-profiles", { platform, profileUrl });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add profile");
+      }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/social/phyllo/accounts"] });
-      toast({
-        title: "Account connected",
-        description: "Social account is now being monitored.",
-      });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      setDialogOpen(false);
+      setSelectedPlatform("");
+      setProfileUrl("");
+      toast({ title: "Profile Added", description: "Your social profile has been added successfully." });
     },
     onError: (error: Error) => {
-      toast({ 
-        title: "Connection failed", 
-        description: "Phyllo social monitoring requires a production API key. Sandbox mode has limitations.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const disconnectSocialMutation = useMutation({
-    mutationFn: async (accountId: string) => {
-      await apiRequest("DELETE", `/api/social/phyllo/accounts/${accountId}`);
+  const syncProfileMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/creator/social-profiles/${id}/sync`);
+      return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/social/phyllo/accounts"] });
-      toast({ title: "Disconnected", description: "Social account disconnected" });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      toast({ title: "Synced", description: "Profile analytics updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to sync profile", variant: "destructive" });
     },
   });
 
-  const connectedPlatforms = connectedAccounts.map((a) => a.platform);
-  const availablePlatforms = ["instagram", "tiktok", "youtube", "twitter", "linkedin", "facebook"].filter(
-    (p) => !connectedPlatforms.includes(p)
-  );
+  const deleteProfileMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/creator/social-profiles/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      toast({ title: "Removed", description: "Social profile has been removed." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to remove profile", variant: "destructive" });
+    },
+  });
+
+  const connectedPlatforms = creatorProfiles.map((p) => p.platform);
+  const availablePlatforms = Object.keys(platformNames).filter((p) => !connectedPlatforms.includes(p));
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -161,7 +214,7 @@ export default function Connectors() {
           Connectors
         </h1>
         <p className="text-muted-foreground mt-1">
-          Connect your accounts to enable podcast imports, social monitoring, and more.
+          Connect your accounts to enable podcast imports, showcase your social profiles, and more.
         </p>
       </div>
 
@@ -235,105 +288,195 @@ export default function Connectors() {
       </div>
 
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-semibold">Voice Identity Protection</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-semibold">Your Social Profiles</h2>
+          </div>
+          
+          {availablePlatforms.length > 0 && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2" data-testid="button-add-social-profile">
+                  <Plus className="h-4 w-4" />
+                  Add Profile
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Social Profile</DialogTitle>
+                  <DialogDescription>
+                    Add your social media profile to showcase on your creator page. YouTube profiles will automatically fetch your channel stats.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Platform</Label>
+                    <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+                      <SelectTrigger data-testid="select-platform">
+                        <SelectValue placeholder="Select a platform" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePlatforms.map((platform) => (
+                          <SelectItem key={platform} value={platform}>
+                            <div className="flex items-center gap-2">
+                              {platformIcons[platform]}
+                              {platformNames[platform]}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {selectedPlatform && (
+                    <div className="space-y-2">
+                      <Label>Profile URL</Label>
+                      <Input
+                        placeholder={platformPlaceholders[selectedPlatform]}
+                        value={profileUrl}
+                        onChange={(e) => setProfileUrl(e.target.value)}
+                        data-testid="input-profile-url"
+                      />
+                      {selectedPlatform === "youtube" && (
+                        <p className="text-xs text-muted-foreground">
+                          We'll automatically fetch your subscriber count, views, and video count using the YouTube API.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  <Button
+                    className="w-full"
+                    onClick={() => addProfileMutation.mutate({ platform: selectedPlatform, profileUrl })}
+                    disabled={!selectedPlatform || !profileUrl || addProfileMutation.isPending}
+                    data-testid="button-submit-profile"
+                  >
+                    {addProfileMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    Add Profile
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
         
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    Social Media Monitoring
-                    {!phylloStatus?.configured && (
-                      <Badge variant="secondary" className="text-xs">Requires API Key</Badge>
-                    )}
-                  </CardTitle>
-                  <CardDescription>
-                    Connect social accounts for voice identity protection and impersonation monitoring.
-                  </CardDescription>
-                </div>
-              </div>
+              <CardTitle>Connected Social Profiles</CardTitle>
+              <CardDescription>
+                Showcase your social media presence on your creator page. YouTube profiles include real-time analytics.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!phylloStatus?.configured && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-medium text-amber-500">Phyllo API Required</p>
-                      <p className="text-muted-foreground mt-1">
-                        Social media monitoring requires a Phyllo API key. Contact your administrator to enable this feature.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {accountsLoading ? (
-                <div className="flex items-center justify-center py-4">
+              {profilesLoading ? (
+                <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              ) : connectedAccounts.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-muted-foreground">Connected Accounts</p>
-                  {connectedAccounts.map((account) => (
+              ) : creatorProfiles.length > 0 ? (
+                <div className="space-y-4">
+                  {creatorProfiles.map((profile) => (
                     <div
-                      key={account.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                      data-testid={`account-${account.platform}`}
+                      key={profile.id}
+                      className="flex items-start justify-between p-4 border rounded-lg"
+                      data-testid={`profile-${profile.platform}`}
                     >
-                      <div className="flex items-center gap-3">
-                        {platformIcons[account.platform]}
-                        <div>
-                          <p className="font-medium">{platformNames[account.platform]}</p>
-                          <p className="text-sm text-muted-foreground">@{account.username}</p>
+                      <div className="flex items-start gap-4">
+                        {profile.profilePictureUrl ? (
+                          <img
+                            src={profile.profilePictureUrl}
+                            alt={profile.displayName || profile.username || "Profile"}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                            {platformIcons[profile.platform]}
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            {platformIcons[profile.platform]}
+                            <span className="font-medium">
+                              {profile.displayName || profile.username || platformNames[profile.platform]}
+                            </span>
+                            {profile.verified && (
+                              <Badge variant="default" className="gap-1 text-xs">
+                                <CheckCircle className="h-3 w-3" />
+                                Verified
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {profile.platform === "youtube" && profile.subscriberCount !== undefined && (
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {formatNumber(profile.subscriberCount)} subscribers
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Video className="h-3 w-3" />
+                                {formatNumber(profile.videoCount)} videos
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Eye className="h-3 w-3" />
+                                {formatNumber(profile.viewCount)} views
+                              </span>
+                            </div>
+                          )}
+                          
+                          {profile.username && (
+                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                          )}
+                          
+                          {profile.lastSyncedAt && (
+                            <p className="text-xs text-muted-foreground">
+                              Last synced: {new Date(profile.lastSyncedAt).toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
                       </div>
+                      
                       <div className="flex items-center gap-2">
-                        <Badge variant={account.status === "connected" ? "default" : "secondary"}>
-                          {account.status}
-                        </Badge>
                         <Button
                           variant="ghost"
-                          size="sm"
-                          onClick={() => disconnectSocialMutation.mutate(account.id)}
-                          disabled={disconnectSocialMutation.isPending}
-                          data-testid={`button-disconnect-${account.platform}`}
+                          size="icon"
+                          onClick={() => window.open(profile.profileUrl, "_blank")}
+                          data-testid={`button-view-${profile.platform}`}
                         >
-                          Disconnect
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        {profile.platform === "youtube" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => syncProfileMutation.mutate(profile.id)}
+                            disabled={syncProfileMutation.isPending}
+                            data-testid={`button-sync-${profile.platform}`}
+                          >
+                            <RefreshCw className={`h-4 w-4 ${syncProfileMutation.isPending ? "animate-spin" : ""}`} />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteProfileMutation.mutate(profile.id)}
+                          disabled={deleteProfileMutation.isPending}
+                          data-testid={`button-delete-${profile.platform}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No social accounts connected yet.</p>
-                </div>
-              )}
-
-              {availablePlatforms.length > 0 && phylloStatus?.configured && (
-                <div className="space-y-3 pt-4 border-t">
-                  <p className="text-sm font-medium text-muted-foreground">Add Account</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {availablePlatforms.map((platform) => (
-                      <Button
-                        key={platform}
-                        variant="outline"
-                        className="gap-2 justify-start"
-                        onClick={() => connectSocialMutation.mutate(platform)}
-                        disabled={connectSocialMutation.isPending}
-                        data-testid={`button-connect-${platform}`}
-                      >
-                        {platformIcons[platform]}
-                        {platformNames[platform]}
-                      </Button>
-                    ))}
-                  </div>
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                  <p className="font-medium">No social profiles added yet</p>
+                  <p className="text-sm mt-1">Add your YouTube, Instagram, TikTok and other social profiles to showcase on your creator page.</p>
                 </div>
               )}
             </CardContent>
@@ -366,19 +509,19 @@ export default function Connectors() {
                   </div>
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
+                      <Youtube className="h-5 w-5 text-red-500" />
+                      <span>YouTube Data API</span>
+                    </div>
+                    <Badge variant="default">Configured</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
                       <Link2 className="h-5 w-5 text-primary" />
                       <span>Phyllo Social Monitoring</span>
                     </div>
                     <Badge variant={phylloStatus?.configured ? "default" : "secondary"}>
                       {phylloStatus?.configured ? "Configured" : "Not Configured"}
                     </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Youtube className="h-5 w-5 text-red-500" />
-                      <span>YouTube Data API</span>
-                    </div>
-                    <Badge variant="default">Configured</Badge>
                   </div>
                 </div>
               </CardContent>
