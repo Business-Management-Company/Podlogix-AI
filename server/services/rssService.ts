@@ -79,6 +79,42 @@ export async function validateFeed(feedUrl: string): Promise<boolean> {
   }
 }
 
+export async function searchRssFeedByName(podcastName: string): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(podcastName);
+    const response = await fetch(
+      `https://itunes.apple.com/search?term=${query}&media=podcast&entity=podcast&limit=5`
+    );
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data.results && data.results.length > 0) {
+      const match = data.results.find((result: any) => 
+        result.collectionName?.toLowerCase().includes(podcastName.toLowerCase()) ||
+        podcastName.toLowerCase().includes(result.collectionName?.toLowerCase())
+      );
+      
+      const podcast = match || data.results[0];
+      
+      if (podcast.feedUrl) {
+        const isValid = await validateFeed(podcast.feedUrl);
+        if (isValid) {
+          return podcast.feedUrl;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error searching for RSS feed:', error);
+    return null;
+  }
+}
+
 export async function getLatestEpisodes(feedUrl: string, limit = 10): Promise<RssEpisode[]> {
   try {
     const { episodes } = await parseFeed(feedUrl);

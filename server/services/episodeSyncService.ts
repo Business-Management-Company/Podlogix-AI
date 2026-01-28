@@ -1,15 +1,28 @@
 import { storage } from "../storage";
-import { parseFeed } from "./rssService";
+import { parseFeed, searchRssFeedByName } from "./rssService";
 import { transcribeEpisode, processEpisodeBriefing } from "./briefingService";
 import type { PodcastSubscription, SubscriptionEpisode } from "@shared/schema";
 
 export async function syncEpisodesForSubscription(subscription: PodcastSubscription): Promise<number> {
-  if (!subscription.feedUrl || subscription.feedUrl.startsWith('https://open.spotify.com')) {
-    return 0;
+  let feedUrl = subscription.feedUrl;
+  
+  // If no feed URL or it's a Spotify link, try to find the RSS feed
+  if (!feedUrl || feedUrl.startsWith('https://open.spotify.com')) {
+    console.log(`Looking up RSS feed for "${subscription.title}"...`);
+    const discoveredFeed = await searchRssFeedByName(subscription.title);
+    if (discoveredFeed) {
+      feedUrl = discoveredFeed;
+      // Update the subscription with the discovered feed URL
+      await storage.updatePodcastSubscription(subscription.id, { feedUrl: discoveredFeed });
+      console.log(`Found RSS feed for "${subscription.title}": ${discoveredFeed}`);
+    } else {
+      console.log(`Could not find RSS feed for "${subscription.title}"`);
+      return 0;
+    }
   }
 
   try {
-    const feed = await parseFeed(subscription.feedUrl);
+    const feed = await parseFeed(feedUrl);
     const existingEpisodes = await storage.getSubscriptionEpisodesBySubscription(subscription.id);
     const existingGuids = new Set(existingEpisodes.map((e: SubscriptionEpisode) => e.guid));
     
