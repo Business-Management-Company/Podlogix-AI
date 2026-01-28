@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -31,6 +31,8 @@ import {
   BarChart3,
   Search,
   Play,
+  Pause,
+  Volume2,
   FileText,
   Zap,
   Settings,
@@ -119,6 +121,8 @@ export default function ListenerDashboard() {
   const [isAddInterestOpen, setIsAddInterestOpen] = useState(false);
   const [newInterest, setNewInterest] = useState({ topic: "", keywords: "", priority: "medium" });
   const [selectedEpisode, setSelectedEpisode] = useState<SubscriptionEpisode | null>(null);
+  const [playingEpisodeId, setPlayingEpisodeId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { data: subscriptions = [], isLoading: subsLoading } = useQuery<PodcastSubscription[]>({
     queryKey: ['/api/listener/subscriptions'],
@@ -390,6 +394,26 @@ export default function ListenerDashboard() {
     if (mins < 60) return `${mins} min`;
     const hours = Math.floor(mins / 60);
     return `${hours}h ${mins % 60}m`;
+  };
+
+  const togglePlayEpisode = (episode: SubscriptionEpisode) => {
+    if (!episode.audioUrl) return;
+    
+    if (playingEpisodeId === episode.id) {
+      audioRef.current?.pause();
+      setPlayingEpisodeId(null);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.src = episode.audioUrl;
+        audioRef.current.play();
+      }
+      setPlayingEpisodeId(episode.id);
+    }
+  };
+
+  const getPodcastName = (subscriptionId: string) => {
+    const sub = subscriptions.find(s => s.id === subscriptionId);
+    return sub?.title || 'Unknown Podcast';
   };
 
   return (
@@ -670,9 +694,18 @@ export default function ListenerDashboard() {
                     <Card key={episode.id} className={`hover-elevate ${!episode.isRead ? 'border-primary/30' : ''}`}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0 w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
-                            <Play className="h-6 w-6 text-muted-foreground" />
-                          </div>
+                          <button 
+                            onClick={() => togglePlayEpisode(episode)}
+                            disabled={!episode.audioUrl}
+                            className="flex-shrink-0 w-16 h-16 bg-muted rounded-lg flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            data-testid={`button-play-${episode.id}`}
+                          >
+                            {playingEpisodeId === episode.id ? (
+                              <Pause className="h-6 w-6 text-primary" />
+                            ) : (
+                              <Play className="h-6 w-6 text-muted-foreground" />
+                            )}
+                          </button>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               {!episode.isRead && <Badge className="text-xs">New</Badge>}
@@ -680,6 +713,9 @@ export default function ListenerDashboard() {
                                 <span className="text-xs text-muted-foreground">{formatDuration(episode.duration)}</span>
                               )}
                             </div>
+                            <p className="text-xs text-primary font-medium truncate" data-testid={`text-podcast-name-${episode.id}`}>
+                              {getPodcastName(episode.subscriptionId)}
+                            </p>
                             <h3 className="font-semibold truncate" data-testid={`text-episode-title-${episode.id}`}>
                               {episode.title}
                             </h3>
@@ -1169,6 +1205,14 @@ export default function ListenerDashboard() {
           </Dialog>
         )}
       </main>
+      
+      {/* Hidden audio element for playback */}
+      <audio 
+        ref={audioRef} 
+        onEnded={() => setPlayingEpisodeId(null)}
+        onPause={() => setPlayingEpisodeId(null)}
+        className="hidden"
+      />
     </div>
   );
 }
