@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,6 +35,9 @@ import {
   Pause,
   Volume2,
   FileText,
+  Filter,
+  ArrowUpDown,
+  CheckSquare,
   Zap,
   Settings,
   Tag,
@@ -123,6 +127,9 @@ export default function ListenerDashboard() {
   const [selectedEpisode, setSelectedEpisode] = useState<SubscriptionEpisode | null>(null);
   const [playingEpisodeId, setPlayingEpisodeId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [episodeSort, setEpisodeSort] = useState<'newest' | 'oldest' | 'unread'>('newest');
+  const [episodeFilter, setEpisodeFilter] = useState<string>('all');
+  const [selectedEpisodeIds, setSelectedEpisodeIds] = useState<Set<string>>(new Set());
 
   const { data: subscriptions = [], isLoading: subsLoading } = useQuery<PodcastSubscription[]>({
     queryKey: ['/api/listener/subscriptions'],
@@ -360,6 +367,23 @@ export default function ListenerDashboard() {
     },
   });
 
+  const toggleBookmarkMutation = useMutation({
+    mutationFn: async (briefingId: string) => {
+      const res = await apiRequest('PATCH', `/api/listener/briefings/${briefingId}/bookmark`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/briefings'] });
+      toast({ 
+        title: data.isBookmarked ? "Briefing saved!" : "Briefing unsaved",
+        description: data.isBookmarked ? "Added to your saved briefings" : "Removed from saved briefings"
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to save briefing", variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('spotify_connected') === 'true') {
@@ -415,6 +439,56 @@ export default function ListenerDashboard() {
     const sub = subscriptions.find(s => s.id === subscriptionId);
     return sub?.title || 'Unknown Podcast';
   };
+
+  const toggleEpisodeSelection = (episodeId: string) => {
+    setSelectedEpisodeIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(episodeId)) {
+        newSet.delete(episodeId);
+      } else {
+        newSet.add(episodeId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllEpisodes = () => {
+    if (selectedEpisodeIds.size === filteredEpisodes.length) {
+      setSelectedEpisodeIds(new Set());
+    } else {
+      setSelectedEpisodeIds(new Set(filteredEpisodes.map(e => e.id)));
+    }
+  };
+
+  const filteredEpisodes = episodes
+    .filter(ep => episodeFilter === 'all' || ep.subscriptionId === episodeFilter)
+    .sort((a, b) => {
+      if (episodeSort === 'unread') {
+        if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+      }
+      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return episodeSort === 'oldest' ? dateA - dateB : dateB - dateA;
+    });
+
+  const batchBriefingMutation = useMutation({
+    mutationFn: async (episodeIds: string[]) => {
+      const results = [];
+      for (const id of episodeIds) {
+        const res = await apiRequest('POST', `/api/listener/episodes/${id}/transcribe`);
+        results.push(await res.json());
+      }
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
+      setSelectedEpisodeIds(new Set());
+      toast({ title: "Processing started", description: `Transcribing ${selectedEpisodeIds.size} episodes for briefings` });
+    },
+    onError: () => {
+      toast({ title: "Failed to start batch processing", variant: "destructive" });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -679,33 +753,93 @@ export default function ListenerDashboard() {
               </TabsList>
 
               <TabsContent value="episodes" className="mt-6 space-y-4">
+                {/* Sort, Filter, and Batch Actions */}
+                <div className="flex flex-wrap items-center gap-3 pb-2">
+                  <Select value={episodeSort} onValueChange={(v) => setEpisodeSort(v as 'newest' | 'oldest' | 'unread')}>
+                    <SelectTrigger className="w-[140px]" data-testid="select-sort">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                      <SelectItem value="unread">Unread First</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={episodeFilter} onValueChange={setEpisodeFilter}>
+                    <SelectTrigger className="w-[180px]" data-testid="select-filter">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Podcasts</SelectItem>
+                      {subscriptions.map(sub => (
+                        <SelectItem key={sub.id} value={sub.id}>{sub.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={selectAllEpisodes}
+                    data-testid="button-select-all"
+                  >
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    {selectedEpisodeIds.size === filteredEpisodes.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+
+                  {selectedEpisodeIds.size > 0 && (
+                    <Button 
+                      onClick={() => batchBriefingMutation.mutate(Array.from(selectedEpisodeIds))}
+                      disabled={batchBriefingMutation.isPending}
+                      data-testid="button-batch-brief"
+                    >
+                      {batchBriefingMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 mr-2" />
+                      )}
+                      Brief {selectedEpisodeIds.size} Episode{selectedEpisodeIds.size > 1 ? 's' : ''}
+                    </Button>
+                  )}
+                </div>
+
                 {episodesLoading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
                   </div>
-                ) : episodes.length === 0 ? (
+                ) : filteredEpisodes.length === 0 ? (
                   <Card className="p-8 text-center">
                     <Play className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <h3 className="font-semibold mb-2">No episodes yet</h3>
                     <p className="text-muted-foreground text-sm">Subscribe to podcasts to see their latest episodes here</p>
                   </Card>
                 ) : (
-                  episodes.map((episode) => (
-                    <Card key={episode.id} className={`hover-elevate ${!episode.isRead ? 'border-primary/30' : ''}`}>
+                  filteredEpisodes.map((episode) => (
+                    <Card key={episode.id} className={`hover-elevate ${!episode.isRead ? 'border-primary/30' : ''} ${selectedEpisodeIds.has(episode.id) ? 'ring-2 ring-primary' : ''}`}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-4">
-                          <button 
-                            onClick={() => togglePlayEpisode(episode)}
-                            disabled={!episode.audioUrl}
-                            className="flex-shrink-0 w-16 h-16 bg-muted rounded-lg flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            data-testid={`button-play-${episode.id}`}
-                          >
-                            {playingEpisodeId === episode.id ? (
-                              <Pause className="h-6 w-6 text-primary" />
-                            ) : (
-                              <Play className="h-6 w-6 text-muted-foreground" />
-                            )}
-                          </button>
+                          <div className="flex flex-col items-center gap-2">
+                            <Checkbox
+                              checked={selectedEpisodeIds.has(episode.id)}
+                              onCheckedChange={() => toggleEpisodeSelection(episode.id)}
+                              data-testid={`checkbox-episode-${episode.id}`}
+                            />
+                            <button 
+                              onClick={() => togglePlayEpisode(episode)}
+                              disabled={!episode.audioUrl}
+                              className="flex-shrink-0 w-12 h-12 bg-muted rounded-lg flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              data-testid={`button-play-${episode.id}`}
+                            >
+                              {playingEpisodeId === episode.id ? (
+                                <Pause className="h-5 w-5 text-primary" />
+                              ) : (
+                                <Play className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               {!episode.isRead && <Badge className="text-xs">New</Badge>}
@@ -780,7 +914,16 @@ export default function ListenerDashboard() {
                             <Badge variant={briefing.relevanceScore >= 70 ? 'default' : 'secondary'}>
                               {briefing.relevanceScore}% Relevant
                             </Badge>
-                            {briefing.isBookmarked && <Bookmark className="h-4 w-4 text-primary fill-primary" />}
+                            <Button
+                              size="sm"
+                              variant={briefing.isBookmarked ? "default" : "outline"}
+                              onClick={() => toggleBookmarkMutation.mutate(briefing.id)}
+                              disabled={toggleBookmarkMutation.isPending}
+                              data-testid={`button-save-briefing-${briefing.id}`}
+                            >
+                              <Bookmark className={`h-4 w-4 mr-1 ${briefing.isBookmarked ? 'fill-current' : ''}`} />
+                              {briefing.isBookmarked ? 'Saved' : 'Save'}
+                            </Button>
                           </div>
                           {spotifyStatus?.connected && briefing.relevanceScore >= 70 && episode && subscription && (
                             <Button
