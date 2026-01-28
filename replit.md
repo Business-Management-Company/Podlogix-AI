@@ -137,24 +137,38 @@ Required environment variables:
 
 ## Creator Social Profiles
 
-Creators can connect their social media profiles to showcase on their public profile pages. This uses free APIs (YouTube Data API v3) instead of paid services.
+Creators can connect their social media profiles to showcase on their public profile pages. This uses free APIs (YouTube Data API v3, Facebook Graph API for Instagram) instead of paid services.
 
 ### Features
 - **Multi-Platform Support**: YouTube, Instagram, TikTok, X, LinkedIn
 - **YouTube Analytics**: Automatically fetches subscriber count, video count, and total views using YouTube Data API v3
+- **Instagram OAuth**: Secure OAuth flow to connect Instagram Business/Creator accounts with follower and post counts
 - **Flexible URL Resolution**: Accepts YouTube channel URLs, handles (@username), or full URLs
 - **Public Display**: Connected profiles appear on creator's public profile page with analytics badges
 
 ### API Endpoints
 - `GET /api/creator/social-profiles`: List current user's social profiles
 - `POST /api/creator/social-profiles`: Add a new social profile (auto-fetches YouTube stats)
-- `POST /api/creator/social-profiles/:id/sync`: Refresh YouTube analytics
+- `POST /api/creator/social-profiles/:id/sync`: Refresh YouTube/Instagram analytics
 - `DELETE /api/creator/social-profiles/:id`: Remove a social profile
+- `GET /api/creator/instagram/status`: Check if Instagram OAuth is configured
+- `GET /api/creator/instagram/auth`: Get Instagram OAuth authorization URL (authenticated)
+- `GET /api/creator/instagram/callback`: Handle OAuth callback from Facebook
 
 ### Database Table
-- `creator_social_profiles`: Stores connected social profiles with YouTube analytics fields (subscriberCount, videoCount, viewCount)
+- `creator_social_profiles`: Stores connected social profiles with analytics fields
+  - YouTube: subscriberCount, videoCount, viewCount
+  - Instagram: followersCount, followingCount, mediaCount, instagramAccountId, instagramAccessToken, instagramTokenExpiresAt
 
 ### YouTube API Integration
 - Uses `YOUTUBE_API_KEY` environment variable
 - Resolves channel handles (@username) and URLs to channel IDs
 - Fetches channel statistics via YouTube Data API v3 (free tier: 10,000 units/day)
+
+### Instagram OAuth Integration
+- Uses Facebook Graph API with Instagram Business Account API
+- Requires `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN` environment variables
+- OAuth flow with HMAC-signed state parameter for CSRF protection (10-minute expiry)
+- Exchanges short-lived tokens for 60-day long-lived tokens
+- Requires Instagram account to be Business or Creator account linked to a Facebook Page
+- Fetches follower count, post count, and profile info
