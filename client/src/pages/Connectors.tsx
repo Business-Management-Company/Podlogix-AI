@@ -288,20 +288,47 @@ export default function Connectors() {
       </div>
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Your Social Profiles</h2>
-          </div>
-          
-          {availablePlatforms.length > 0 && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-2" data-testid="button-add-social-profile">
-                  <Plus className="h-4 w-4" />
-                  Add Profile
-                </Button>
-              </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold">Your Social Profiles</h2>
+        </div>
+
+        {availablePlatforms.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Add Social Profiles</CardTitle>
+                <CardDescription>
+                  Click a platform to connect your profile and showcase it on your creator page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {availablePlatforms.map((platform) => (
+                    <Button
+                      key={platform}
+                      variant="outline"
+                      className="flex flex-col items-center gap-2 h-auto py-4 hover-elevate"
+                      onClick={() => {
+                        setSelectedPlatform(platform);
+                        setProfileUrl("");
+                        setDialogOpen(true);
+                      }}
+                      data-testid={`button-add-${platform}`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                        {platformIcons[platform]}
+                      </div>
+                      <span className="text-sm font-medium">{platformNames[platform]}</span>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Social Profile</DialogTitle>
@@ -360,8 +387,6 @@ export default function Connectors() {
                 </div>
               </DialogContent>
             </Dialog>
-          )}
-        </div>
         
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card>
