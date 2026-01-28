@@ -20,6 +20,7 @@ import ListenerDashboard from "@/pages/ListenerDashboard";
 import ListenerAnalytics from "@/pages/ListenerAnalytics";
 import KnowledgeBase from "@/pages/KnowledgeBase";
 import BrandDashboard from "@/pages/BrandDashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 function Router() {
   return (
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/listener" component={ListenerDashboard} />
       <Route path="/listener/analytics" component={ListenerAnalytics} />
       <Route path="/brand" component={BrandDashboard} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route path="/help" component={KnowledgeBase} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/identity" component={IdentityHub} />
