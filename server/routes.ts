@@ -41,6 +41,13 @@ import {
   getPhylloStatus,
   getSupportedPlatforms
 } from "./services/phylloService";
+import {
+  isYouTubeConfigured,
+  searchYouTubeChannels,
+  getChannelDetails,
+  getChannelVideos,
+  calculateEngagementRate
+} from "./services/youtubeService";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 
 export async function registerRoutes(
@@ -1293,6 +1300,106 @@ export async function registerRoutes(
   // Check if Modash is configured
   app.get('/api/brand/modash/status', isAuthenticated, async (req: any, res) => {
     res.json({ configured: isModashConfigured() });
+  });
+
+  // ==================== YOUTUBE INFLUENCER DISCOVERY (FREE API) ====================
+
+  // Check if YouTube API is configured
+  app.get('/api/brand/youtube/status', isAuthenticated, async (req: any, res) => {
+    res.json({ configured: isYouTubeConfigured() });
+  });
+
+  // Search YouTube channels
+  app.post('/api/brand/youtube/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const { query, maxResults, pageToken, order } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query is required' });
+      }
+
+      const results = await searchYouTubeChannels(query, {
+        maxResults: maxResults || 10,
+        pageToken,
+        order: order || 'relevance',
+      });
+
+      // Transform to influencer-like format for consistent UI
+      const influencers = results.channels.map(channel => ({
+        userId: channel.channelId,
+        username: channel.customUrl?.replace('@', '') || channel.title.toLowerCase().replace(/\s+/g, ''),
+        fullName: channel.title,
+        profilePicUrl: channel.thumbnailUrl,
+        bio: channel.description?.slice(0, 200) || '',
+        followerCount: channel.subscriberCount,
+        followingCount: 0,
+        engagementRate: 0,
+        avgLikes: 0,
+        avgComments: 0,
+        avgViews: Math.round(channel.viewCount / Math.max(channel.videoCount, 1)),
+        videoCount: channel.videoCount,
+        totalViews: channel.viewCount,
+        location: channel.country,
+        categories: [],
+        platform: 'youtube',
+        channelUrl: channel.customUrl 
+          ? `https://youtube.com/${channel.customUrl}`
+          : `https://youtube.com/channel/${channel.channelId}`,
+      }));
+
+      res.json({
+        influencers,
+        total: results.total,
+        nextPageToken: results.nextPageToken,
+        hasMore: !!results.nextPageToken,
+      });
+    } catch (error) {
+      console.error('Error searching YouTube channels:', error);
+      res.status(500).json({ message: 'Failed to search YouTube channels' });
+    }
+  });
+
+  // Get YouTube channel details with videos
+  app.get('/api/brand/youtube/channel/:channelId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { channelId } = req.params;
+      
+      const [channel, videos] = await Promise.all([
+        getChannelDetails(channelId),
+        getChannelVideos(channelId, 10),
+      ]);
+
+      if (!channel) {
+        return res.status(404).json({ message: 'Channel not found' });
+      }
+
+      // Calculate engagement from recent videos
+      let avgViews = 0, avgLikes = 0, avgComments = 0;
+      if (videos.length > 0) {
+        avgViews = Math.round(videos.reduce((sum, v) => sum + v.viewCount, 0) / videos.length);
+        avgLikes = Math.round(videos.reduce((sum, v) => sum + v.likeCount, 0) / videos.length);
+        avgComments = Math.round(videos.reduce((sum, v) => sum + v.commentCount, 0) / videos.length);
+      }
+
+      const engagementRate = calculateEngagementRate(
+        channel.subscriberCount,
+        avgViews,
+        avgLikes,
+        avgComments
+      );
+
+      res.json({
+        ...channel,
+        recentVideos: videos,
+        avgViews,
+        avgLikes,
+        avgComments,
+        engagementRate,
+      });
+    } catch (error) {
+      console.error('Error getting YouTube channel:', error);
+      res.status(500).json({ message: 'Failed to get channel details' });
+    }
   });
 
   // Search influencers via Modash

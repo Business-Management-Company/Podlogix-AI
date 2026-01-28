@@ -92,6 +92,20 @@ const PlatformIcon = ({ platform }: { platform: string }) => {
   }
 };
 
+interface YouTubeInfluencer extends Influencer {
+  avgViews?: number;
+  videoCount?: number;
+  totalViews?: number;
+  channelUrl?: string;
+}
+
+interface YouTubeSearchResult {
+  influencers: YouTubeInfluencer[];
+  total: number;
+  nextPageToken: string | null;
+  hasMore: boolean;
+}
+
 export default function BrandDashboard() {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { toast } = useToast();
@@ -106,9 +120,15 @@ export default function BrandDashboard() {
   const [showFilters, setShowFilters] = useState(false);
   const [newHashtag, setNewHashtag] = useState('');
   const [hashtagPlatform, setHashtagPlatform] = useState('instagram');
+  const [youtubeQuery, setYoutubeQuery] = useState('');
 
   const { data: modashStatus } = useQuery<{ configured: boolean }>({
     queryKey: ['/api/brand/modash/status'],
+    enabled: !!user,
+  });
+
+  const { data: youtubeStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ['/api/brand/youtube/status'],
     enabled: !!user,
   });
 
@@ -190,6 +210,38 @@ export default function BrandDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/brand/hashtag-monitors'] });
       toast({ title: "Hashtag monitor removed" });
+    },
+  });
+
+  const youtubeSearchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/brand/youtube/search', {
+        query: youtubeQuery,
+        maxResults: 12,
+      });
+      return res.json() as Promise<YouTubeSearchResult>;
+    },
+  });
+
+  const saveYouTubeInfluencerMutation = useMutation({
+    mutationFn: async (influencer: YouTubeInfluencer) => {
+      const res = await apiRequest('POST', '/api/brand/saved-influencers', {
+        platform: 'youtube',
+        platformUserId: influencer.userId,
+        username: influencer.username,
+        fullName: influencer.fullName,
+        profilePicUrl: influencer.profilePicUrl,
+        bio: influencer.bio,
+        followerCount: influencer.followerCount,
+        engagementRate: 0,
+        location: influencer.location,
+        categories: [],
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand/saved-influencers'] });
+      toast({ title: "YouTube channel saved!" });
     },
   });
 
@@ -275,8 +327,12 @@ export default function BrandDashboard() {
           </div>
         </motion.div>
 
-        <Tabs defaultValue="search" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+        <Tabs defaultValue="youtube" className="space-y-6">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
+            <TabsTrigger value="youtube" data-testid="tab-youtube">
+              <SiYoutube className="h-4 w-4 mr-2" />
+              YouTube
+            </TabsTrigger>
             <TabsTrigger value="search" data-testid="tab-search">
               <Search className="h-4 w-4 mr-2" />
               Search
@@ -290,6 +346,165 @@ export default function BrandDashboard() {
               Hashtags
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="youtube" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <SiYoutube className="h-5 w-5 text-red-500" />
+                      YouTube Creator Discovery
+                      <Badge variant="default" className="ml-2">Free</Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Search real YouTube channels with subscriber counts, views, and video stats
+                    </CardDescription>
+                  </div>
+                  {!youtubeStatus?.configured && (
+                    <Badge variant="outline">Demo Mode - Add YOUTUBE_API_KEY for live data</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search YouTube creators (e.g., tech reviews, cooking, fitness)"
+                    value={youtubeQuery}
+                    onChange={(e) => setYoutubeQuery(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-youtube-search"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && youtubeQuery.trim()) {
+                        youtubeSearchMutation.mutate();
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={() => youtubeSearchMutation.mutate()} 
+                    disabled={youtubeSearchMutation.isPending || !youtubeQuery.trim()}
+                    data-testid="button-youtube-search"
+                  >
+                    {youtubeSearchMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {youtubeSearchMutation.data && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Found {youtubeSearchMutation.data.total.toLocaleString()} YouTube channels
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {youtubeSearchMutation.data.influencers.map((channel) => (
+                    <Card key={channel.userId} className="hover-elevate overflow-visible">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-14 w-14">
+                            <AvatarImage src={channel.profilePicUrl || undefined} />
+                            <AvatarFallback>
+                              <SiYoutube className="h-6 w-6 text-red-500" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold truncate">{channel.fullName}</h3>
+                              <SiYoutube className="h-4 w-4 text-red-500 shrink-0" />
+                            </div>
+                            <p className="text-sm text-muted-foreground">@{channel.username}</p>
+                            {channel.location && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                                <MapPin className="h-3 w-3" />
+                                {channel.location}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                          {channel.bio || 'No description available'}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-sm font-semibold">{formatFollowers(channel.followerCount)}</p>
+                            <p className="text-xs text-muted-foreground">Subscribers</p>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-sm font-semibold">{formatFollowers(channel.totalViews || 0)}</p>
+                            <p className="text-xs text-muted-foreground">Total Views</p>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-sm font-semibold">{channel.videoCount || 0}</p>
+                            <p className="text-xs text-muted-foreground">Videos</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            disabled={isInfluencerSaved(channel.userId) || saveYouTubeInfluencerMutation.isPending}
+                            onClick={() => saveYouTubeInfluencerMutation.mutate(channel)}
+                            data-testid={`button-save-yt-${channel.userId}`}
+                          >
+                            {isInfluencerSaved(channel.userId) ? (
+                              <>Saved</>
+                            ) : saveYouTubeInfluencerMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Bookmark className="h-4 w-4 mr-1" />
+                                Save
+                              </>
+                            )}
+                          </Button>
+                          <Button size="sm" variant="outline" asChild>
+                            <a 
+                              href={channel.channelUrl || `https://youtube.com/channel/${channel.userId}`}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!youtubeSearchMutation.data && !youtubeSearchMutation.isPending && (
+              <Card className="p-8 text-center">
+                <SiYoutube className="h-12 w-12 mx-auto text-red-500 mb-4" />
+                <h3 className="font-semibold mb-2">Discover YouTube Creators</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Search for YouTube channels by topic, niche, or creator name. Get real subscriber counts, view stats, and video counts - completely free!
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {['tech reviews', 'fitness', 'cooking', 'gaming', 'travel vlog'].map((term) => (
+                    <Button 
+                      key={term} 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setYoutubeQuery(term);
+                        setTimeout(() => youtubeSearchMutation.mutate(), 100);
+                      }}
+                    >
+                      {term}
+                    </Button>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </TabsContent>
 
           <TabsContent value="search" className="space-y-6">
             <Card>
