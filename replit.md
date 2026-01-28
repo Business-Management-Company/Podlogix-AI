@@ -101,14 +101,15 @@ The platform includes a Brand Dashboard (/brand) for influencer discovery and ha
 
 ### Brand Dashboard (/brand)
 - **YouTube Discovery**: Search YouTube channels with real subscriber counts, views, and video stats using YouTube Data API v3 (free)
-- **Instagram Lookup**: Look up Instagram business/creator accounts by username using Facebook Graph API Business Discovery (free)
+- **Instagram Hashtag Discovery**: Search hashtags to discover Instagram creators posting about specific topics using Instagram Graph API (free)
 - **Saved Influencers**: Manage a list of saved influencers with notes and status tracking
 - **Hashtag Monitoring**: Track hashtags across Instagram, TikTok, and YouTube
 
-### Instagram Lookup Integration
-Uses Facebook Graph API Business Discovery to look up public Instagram business/creator accounts. Features:
-- **Username Lookup**: Enter any Instagram username to fetch follower count, post count, and bio
-- **Business Discovery**: Uses page access token to query public business account data
+### Instagram Hashtag Discovery Integration
+Uses Instagram Graph API to discover creators by searching hashtags. Features:
+- **Hashtag Search**: Enter any topic/keyword to find Instagram posts using that hashtag
+- **Top Posts**: Shows recent top-performing posts with likes, comments, and engagement stats
+- **Creator Discovery**: Identifies creators posting about topics you care about
 - **Free API**: No Modash or paid service required
 
 Required environment variables:
@@ -116,7 +117,10 @@ Required environment variables:
 - `META_APP_SECRET`: Your Facebook app secret
 - `META_ACCESS_TOKEN`: User access token with pages_show_list and instagram_basic permissions
 
-Note: Only Instagram Business or Creator accounts linked to a Facebook Page can be looked up.
+Important limitations:
+- Requires an Instagram Business account linked to a Facebook Page
+- Limited to 30 unique hashtag searches per 7 days (API restriction)
+- Only shows posts from the hashtag, not full profile data
 
 ### Phyllo Integration (Social Monitoring)
 Phyllo provides social media monitoring for voice identity protection. Key features:

@@ -61,6 +61,10 @@ import {
   lookupInstagramProfile,
   searchInstagramInfluencers
 } from "./services/instagramLookupService";
+import {
+  discoverInfluencersByHashtag,
+  checkHashtagServiceStatus
+} from "./services/instagramHashtagService";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 
 export async function registerRoutes(
@@ -1786,6 +1790,79 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error looking up Instagram profile:', error);
       res.status(500).json({ message: 'Failed to lookup Instagram profile' });
+    }
+  });
+
+  // Instagram hashtag discovery status
+  app.get('/api/brand/instagram/hashtag-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const status = await checkHashtagServiceStatus();
+      res.json(status);
+    } catch (error) {
+      console.error('Error checking hashtag service status:', error);
+      res.status(500).json({ message: 'Failed to check hashtag service status' });
+    }
+  });
+
+  // Instagram hashtag-based post discovery
+  app.post('/api/brand/instagram/hashtag-search', isAuthenticated, async (req: any, res) => {
+    try {
+      const hashtagSchema = z.object({
+        hashtag: z.string().min(1, 'Hashtag is required').max(50, 'Hashtag too long'),
+      });
+      
+      const parseResult = hashtagSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid hashtag', details: parseResult.error.issues });
+      }
+      
+      const { hashtag } = parseResult.data;
+      const result = await discoverInfluencersByHashtag(hashtag);
+      
+      if (result.error) {
+        let statusCode: number;
+        switch (result.error.type) {
+          case 'not_configured':
+          case 'no_ig_account':
+            statusCode = 503;
+            break;
+          case 'rate_limit':
+            statusCode = 429;
+            break;
+          case 'api_error':
+            statusCode = 500;
+            break;
+          case 'hashtag_not_found':
+          default:
+            statusCode = 404;
+            break;
+        }
+        return res.status(statusCode).json({ 
+          error: result.error.type,
+          message: result.error.message,
+          hashtag: result.hashtag
+        });
+      }
+
+      res.json({
+        hashtag: result.hashtag,
+        hashtagId: result.hashtagId,
+        posts: result.posts.map(post => ({
+          postId: post.postId,
+          caption: post.caption,
+          mediaType: post.mediaType,
+          likeCount: post.likeCount,
+          commentsCount: post.commentsCount,
+          engagement: post.engagement,
+          timestamp: post.timestamp,
+          permalink: post.permalink,
+          platform: 'instagram',
+        })),
+        total: result.total,
+      });
+    } catch (error) {
+      console.error('Error discovering posts by hashtag:', error);
+      res.status(500).json({ message: 'Failed to discover posts by hashtag' });
     }
   });
 
