@@ -1,8 +1,10 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/use-auth";
+import { AppLayout } from "@/components/AppLayout";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import IdentityHub from "@/pages/IdentityHub";
@@ -21,31 +23,74 @@ import ListenerAnalytics from "@/pages/ListenerAnalytics";
 import KnowledgeBase from "@/pages/KnowledgeBase";
 import BrandDashboard from "@/pages/BrandDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Connectors from "@/pages/Connectors";
 
-function Router() {
+function AuthenticatedRoutes() {
+  return (
+    <AppLayout>
+      <Switch>
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/dashboard/profile" component={ProfileEditor} />
+        <Route path="/dashboard/podcast" component={ProfileEditor} />
+        <Route path="/dashboard/rss" component={RssManagement} />
+        <Route path="/dashboard/distribution" component={Distribution} />
+        <Route path="/dashboard/ai" component={AiAssistant} />
+        <Route path="/dashboard/certify" component={DashboardCertify} />
+        <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
+        <Route path="/listener" component={ListenerDashboard} />
+        <Route path="/listener/analytics" component={ListenerAnalytics} />
+        <Route path="/brand" component={BrandDashboard} />
+        <Route path="/admin" component={AdminDashboard} />
+        <Route path="/connectors" component={Connectors} />
+        <Route path="/identity" component={IdentityHub} />
+        <Route path="/help" component={KnowledgeBase} />
+        <Route component={NotFound} />
+      </Switch>
+    </AppLayout>
+  );
+}
+
+function PublicRoutes() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/dashboard/profile" component={ProfileEditor} />
-      <Route path="/dashboard/podcast" component={ProfileEditor} />
-      <Route path="/dashboard/rss" component={RssManagement} />
-      <Route path="/dashboard/distribution" component={Distribution} />
-      <Route path="/dashboard/ai" component={AiAssistant} />
-      <Route path="/dashboard/certify" component={DashboardCertify} />
-      <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
-      <Route path="/listener" component={ListenerDashboard} />
-      <Route path="/listener/analytics" component={ListenerAnalytics} />
-      <Route path="/brand" component={BrandDashboard} />
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/help" component={KnowledgeBase} />
       <Route path="/p/:slug" component={PublicProfile} />
-      <Route path="/identity" component={IdentityHub} />
       <Route path="/voice-certification" component={VoiceCertification} />
       <Route path="/certificate/:id" component={Certificate} />
       <Route component={NotFound} />
     </Switch>
   );
+}
+
+function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  const publicPaths = ["/", "/p/", "/voice-certification", "/certificate/"];
+  const isPublicPath = publicPaths.some(path => 
+    location === path || location.startsWith("/p/") || location.startsWith("/certificate/")
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (isPublicPath && !isAuthenticated) {
+    return <PublicRoutes />;
+  }
+
+  if (isAuthenticated) {
+    if (location === "/") {
+      return <PublicRoutes />;
+    }
+    return <AuthenticatedRoutes />;
+  }
+
+  return <PublicRoutes />;
 }
 
 function App() {
