@@ -31,7 +31,7 @@ export function getInstagramAuthUrl(redirectUri: string, state?: string): string
   const params = new URLSearchParams({
     client_id: META_APP_ID!,
     redirect_uri: redirectUri,
-    scope: 'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management',
+    scope: 'instagram_basic,pages_show_list',
     response_type: 'code',
     ...(state && { state }),
   });
