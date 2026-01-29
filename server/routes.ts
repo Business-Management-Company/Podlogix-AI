@@ -69,6 +69,76 @@ import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSc
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
 import { sendEmail, isEmailConfigured } from "./services/emailService";
 
+async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
+  // Check if email is configured first
+  if (!isEmailConfigured()) {
+    throw new Error('Email service is not configured');
+  }
+
+  const campaign = await storage.getEmailCampaign(campaignId);
+  if (!campaign || campaign.userId !== userId) {
+    throw new Error('Campaign not found');
+  }
+
+  const contacts = await storage.getEmailContacts(userId);
+  const recipients = recipientIds 
+    ? contacts.filter(c => recipientIds.includes(c.id))
+    : contacts.filter(c => c.isSubscribed);
+
+  // Check for empty recipients
+  if (recipients.length === 0) {
+    throw new Error('No recipients selected for this campaign');
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const contact of recipients) {
+    try {
+      let personalizedBody = campaign.body;
+      let personalizedSubject = campaign.subject;
+      
+      // Replace personalization tokens with actual values or remove them
+      personalizedBody = personalizedBody
+        .replace(/\{\{firstName\}\}/g, contact.firstName || '')
+        .replace(/\{\{lastName\}\}/g, contact.lastName || '')
+        .replace(/\{\{email\}\}/g, contact.email);
+      personalizedSubject = personalizedSubject
+        .replace(/\{\{firstName\}\}/g, contact.firstName || '')
+        .replace(/\{\{lastName\}\}/g, contact.lastName || '')
+        .replace(/\{\{email\}\}/g, contact.email);
+
+      const sent = await sendEmail({
+        to: contact.email,
+        subject: personalizedSubject,
+        text: personalizedBody.replace(/<[^>]*>/g, ''),
+        html: personalizedBody,
+      });
+
+      if (sent) {
+        successCount++;
+        await storage.updateEmailContact(contact.id, userId, { lastEmailedAt: new Date() });
+      } else {
+        failCount++;
+      }
+    } catch (error) {
+      console.error(`Failed to send to ${contact.email}:`, error);
+      failCount++;
+    }
+  }
+
+  // Only mark as sent if at least one email was successful
+  if (successCount > 0) {
+    await storage.updateEmailCampaign(campaignId, userId, {
+      status: 'sent',
+      sentAt: new Date(),
+      recipientCount: successCount,
+    });
+  }
+
+  return { success: successCount > 0, sent: successCount, failed: failCount };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express

@@ -36,6 +36,7 @@ import {
   Radio,
   Users,
   Hash,
+  Mail,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -49,6 +50,7 @@ const creatorMenuItems = [
   { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
   { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
   { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
+  { title: "Email Hub", url: "/dashboard/email", icon: Mail },
   { title: "AI Assistant", url: "/dashboard/ai", icon: Sparkles },
 ];
 

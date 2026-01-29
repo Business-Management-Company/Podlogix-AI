@@ -3,6 +3,7 @@ import {
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
+  emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -13,7 +14,9 @@ import {
   type InfluencerSearch, type InsertInfluencerSearch,
   type ConnectedSocialAccount, type InsertConnectedSocialAccount,
   type SocialMonitoringAlert, type InsertSocialMonitoringAlert,
-  type CreatorSocialProfile, type InsertCreatorSocialProfile
+  type CreatorSocialProfile, type InsertCreatorSocialProfile,
+  type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
+  type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -120,6 +123,20 @@ export interface IStorage {
   getCreatorSocialProfileByPlatform(userId: string, platform: string): Promise<CreatorSocialProfile | undefined>;
   updateCreatorSocialProfile(id: string, updates: Partial<CreatorSocialProfile>): Promise<CreatorSocialProfile | undefined>;
   deleteCreatorSocialProfile(id: string): Promise<void>;
+  // Email Contacts
+  getEmailContacts(userId: string): Promise<EmailContact[]>;
+  createEmailContact(contact: InsertEmailContact): Promise<EmailContact>;
+  updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
+  deleteEmailContact(id: string, userId: string): Promise<void>;
+  // Email Templates
+  getEmailTemplates(userId: string): Promise<EmailTemplate[]>;
+  createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
+  deleteEmailTemplate(id: string, userId: string): Promise<void>;
+  // Email Campaigns
+  getEmailCampaigns(userId: string): Promise<EmailCampaign[]>;
+  getEmailCampaign(id: string): Promise<EmailCampaign | undefined>;
+  createEmailCampaign(campaign: InsertEmailCampaign): Promise<EmailCampaign>;
+  updateEmailCampaign(id: string, userId: string, updates: Partial<EmailCampaign>): Promise<EmailCampaign | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -570,6 +587,71 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCreatorSocialProfile(id: string): Promise<void> {
     await db.delete(creatorSocialProfiles).where(eq(creatorSocialProfiles.id, id));
+  }
+
+  // Email Contacts
+  async getEmailContacts(userId: string): Promise<EmailContact[]> {
+    return await db.select().from(emailContacts)
+      .where(eq(emailContacts.userId, userId))
+      .orderBy(desc(emailContacts.createdAt));
+  }
+
+  async createEmailContact(contact: InsertEmailContact): Promise<EmailContact> {
+    const [created] = await db.insert(emailContacts).values(contact).returning();
+    return created;
+  }
+
+  async updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined> {
+    const [updated] = await db.update(emailContacts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(emailContacts.id, id), eq(emailContacts.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmailContact(id: string, userId: string): Promise<void> {
+    await db.delete(emailContacts).where(and(eq(emailContacts.id, id), eq(emailContacts.userId, userId)));
+  }
+
+  // Email Templates
+  async getEmailTemplates(userId: string): Promise<EmailTemplate[]> {
+    return await db.select().from(emailTemplates)
+      .where(eq(emailTemplates.userId, userId))
+      .orderBy(desc(emailTemplates.createdAt));
+  }
+
+  async createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate> {
+    const [created] = await db.insert(emailTemplates).values(template).returning();
+    return created;
+  }
+
+  async deleteEmailTemplate(id: string, userId: string): Promise<void> {
+    await db.delete(emailTemplates).where(and(eq(emailTemplates.id, id), eq(emailTemplates.userId, userId)));
+  }
+
+  // Email Campaigns
+  async getEmailCampaigns(userId: string): Promise<EmailCampaign[]> {
+    return await db.select().from(emailCampaigns)
+      .where(eq(emailCampaigns.userId, userId))
+      .orderBy(desc(emailCampaigns.createdAt));
+  }
+
+  async getEmailCampaign(id: string): Promise<EmailCampaign | undefined> {
+    const [campaign] = await db.select().from(emailCampaigns).where(eq(emailCampaigns.id, id));
+    return campaign;
+  }
+
+  async createEmailCampaign(campaign: InsertEmailCampaign): Promise<EmailCampaign> {
+    const [created] = await db.insert(emailCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateEmailCampaign(id: string, userId: string, updates: Partial<EmailCampaign>): Promise<EmailCampaign | undefined> {
+    const [updated] = await db.update(emailCampaigns)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(emailCampaigns.id, id), eq(emailCampaigns.userId, userId)))
+      .returning();
+    return updated;
   }
 }
 
