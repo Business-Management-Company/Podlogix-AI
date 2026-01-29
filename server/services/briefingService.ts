@@ -133,6 +133,13 @@ export async function processEpisodeBriefing(episodeId: string, userId: string):
 
 export async function transcribeEpisode(episodeId: string, userId: string): Promise<string> {
   try {
+    // Check OpenAI API key first
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY is not configured');
+      await storage.updateSubscriptionEpisode(episodeId, { transcriptStatus: 'failed' });
+      throw new Error('OpenAI API key not configured');
+    }
+
     const episode = await storage.getSubscriptionEpisode(episodeId);
     if (!episode || episode.userId !== userId) {
       throw new Error('Episode not found');
@@ -146,20 +153,33 @@ export async function transcribeEpisode(episodeId: string, userId: string): Prom
     await storage.updateSubscriptionEpisode(episodeId, { transcriptStatus: 'processing' });
 
     // Download audio file
+    console.log(`Downloading audio from: ${episode.audioUrl}`);
     const audioResponse = await fetch(episode.audioUrl);
     if (!audioResponse.ok) {
+      console.error(`Failed to download audio: ${audioResponse.status} ${audioResponse.statusText}`);
       throw new Error('Failed to download audio');
     }
 
     const audioBuffer = await audioResponse.arrayBuffer();
+    console.log(`Audio downloaded, size: ${audioBuffer.byteLength} bytes`);
+    
+    // Check file size - Whisper has a 25MB limit
+    const maxSize = 25 * 1024 * 1024; // 25MB
+    if (audioBuffer.byteLength > maxSize) {
+      console.error(`Audio file too large: ${audioBuffer.byteLength} bytes (max: ${maxSize})`);
+      throw new Error('Audio file too large for transcription (max 25MB)');
+    }
+
     const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mpeg' });
 
     // Transcribe using OpenAI Whisper
+    console.log('Starting OpenAI Whisper transcription...');
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
       model: 'whisper-1',
       response_format: 'text',
     });
+    console.log('Transcription completed successfully');
 
     // Save transcript
     await storage.updateSubscriptionEpisode(episodeId, {
@@ -180,8 +200,16 @@ export async function transcribeEpisode(episodeId: string, userId: string): Prom
     });
 
     return transcription;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error transcribing episode:', error);
+    
+    // Log specific OpenAI error details
+    if (error?.status === 429) {
+      console.error('OpenAI API quota exceeded or rate limited');
+    } else if (error?.status === 401) {
+      console.error('OpenAI API key is invalid');
+    }
+    
     await storage.updateSubscriptionEpisode(episodeId, { transcriptStatus: 'failed' });
     throw error;
   }

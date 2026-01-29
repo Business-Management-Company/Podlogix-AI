@@ -865,6 +865,13 @@ export default function ListenerDashboard() {
                                   </Button>
                                 ) : episode.briefingStatus === 'processing' ? (
                                   <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Generating...</Badge>
+                                ) : episode.briefingStatus === 'failed' ? (
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="destructive">Briefing Failed</Badge>
+                                    <Button size="sm" onClick={() => generateBriefingMutation.mutate(episode.id)} disabled={generateBriefingMutation.isPending} data-testid={`button-retry-briefing-${episode.id}`}>
+                                      Retry
+                                    </Button>
+                                  </div>
                                 ) : (
                                   <Button size="sm" onClick={() => generateBriefingMutation.mutate(episode.id)} disabled={generateBriefingMutation.isPending} data-testid={`button-generate-briefing-${episode.id}`}>
                                     <Sparkles className="h-4 w-4 mr-1" />
@@ -873,6 +880,13 @@ export default function ListenerDashboard() {
                                 )
                               ) : episode.transcriptStatus === 'processing' ? (
                                 <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Transcribing...</Badge>
+                              ) : episode.transcriptStatus === 'failed' ? (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="destructive">Transcription Failed</Badge>
+                                  <Button size="sm" variant="outline" onClick={() => transcribeMutation.mutate(episode.id)} disabled={transcribeMutation.isPending} data-testid={`button-retry-transcribe-${episode.id}`}>
+                                    Retry
+                                  </Button>
+                                </div>
                               ) : (
                                 <Button size="sm" variant="outline" onClick={() => transcribeMutation.mutate(episode.id)} disabled={transcribeMutation.isPending || !episode.audioUrl} data-testid={`button-transcribe-${episode.id}`}>
                                   <FileText className="h-4 w-4 mr-1" />
