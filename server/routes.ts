@@ -66,6 +66,8 @@ import {
   checkHashtagServiceStatus
 } from "./services/instagramHashtagService";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
+import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
+import { sendEmail, isEmailConfigured } from "./services/emailService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -2127,6 +2129,192 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error getting platform stats:', error);
       res.status(500).json({ message: 'Failed to get stats' });
+    }
+  });
+
+  // ==================== EMAIL HUB ROUTES ====================
+
+  // Get all email contacts
+  app.get('/api/email/contacts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const contacts = await storage.getEmailContacts(userId);
+      res.json(contacts);
+    } catch (error) {
+      console.error('Error getting contacts:', error);
+      res.status(500).json({ message: 'Failed to get contacts' });
+    }
+  });
+
+  // Add email contact
+  app.post('/api/email/contacts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const contact = await storage.createEmailContact({ ...req.body, userId });
+      res.json(contact);
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      res.status(500).json({ message: 'Failed to create contact' });
+    }
+  });
+
+  // Update email contact
+  app.patch('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const contact = await storage.updateEmailContact(req.params.id, userId, req.body);
+      if (!contact) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+      res.json(contact);
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      res.status(500).json({ message: 'Failed to update contact' });
+    }
+  });
+
+  // Delete email contact
+  app.delete('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      await storage.deleteEmailContact(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting contact:', error);
+      res.status(500).json({ message: 'Failed to delete contact' });
+    }
+  });
+
+  // Get email templates
+  app.get('/api/email/templates', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const templates = await storage.getEmailTemplates(userId);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error getting templates:', error);
+      res.status(500).json({ message: 'Failed to get templates' });
+    }
+  });
+
+  // Create email template
+  app.post('/api/email/templates', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const template = await storage.createEmailTemplate({ ...req.body, userId });
+      res.json(template);
+    } catch (error) {
+      console.error('Error creating template:', error);
+      res.status(500).json({ message: 'Failed to create template' });
+    }
+  });
+
+  // Delete email template
+  app.delete('/api/email/templates/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      await storage.deleteEmailTemplate(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      res.status(500).json({ message: 'Failed to delete template' });
+    }
+  });
+
+  // Get email campaigns
+  app.get('/api/email/campaigns', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const campaigns = await storage.getEmailCampaigns(userId);
+      res.json(campaigns);
+    } catch (error) {
+      console.error('Error getting campaigns:', error);
+      res.status(500).json({ message: 'Failed to get campaigns' });
+    }
+  });
+
+  // Create email campaign
+  app.post('/api/email/campaigns', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const campaign = await storage.createEmailCampaign({ ...req.body, userId });
+      res.json(campaign);
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      res.status(500).json({ message: 'Failed to create campaign' });
+    }
+  });
+
+  // Update email campaign
+  app.patch('/api/email/campaigns/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const campaign = await storage.updateEmailCampaign(req.params.id, userId, req.body);
+      if (!campaign) {
+        return res.status(404).json({ message: 'Campaign not found' });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error('Error updating campaign:', error);
+      res.status(500).json({ message: 'Failed to update campaign' });
+    }
+  });
+
+  // Send email campaign
+  app.post('/api/email/campaigns/:id/send', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { recipientIds } = req.body;
+      const result = await sendEmailCampaign(req.params.id, userId, recipientIds);
+      res.json(result);
+    } catch (error) {
+      console.error('Error sending campaign:', error);
+      res.status(500).json({ message: 'Failed to send campaign' });
+    }
+  });
+
+  // Generate email with AI
+  app.post('/api/email/generate', isAuthenticated, async (req: any, res) => {
+    try {
+      const email = await generateEmailWithAI(req.body);
+      res.json(email);
+    } catch (error) {
+      console.error('Error generating email:', error);
+      res.status(500).json({ message: 'Failed to generate email' });
+    }
+  });
+
+  // Improve email with AI
+  app.post('/api/email/improve', isAuthenticated, async (req: any, res) => {
+    try {
+      const { subject, body, instruction } = req.body;
+      const improved = await improveEmailWithAI(subject, body, instruction);
+      res.json(improved);
+    } catch (error) {
+      console.error('Error improving email:', error);
+      res.status(500).json({ message: 'Failed to improve email' });
+    }
+  });
+
+  // Generate subject lines
+  app.post('/api/email/subjects', isAuthenticated, async (req: any, res) => {
+    try {
+      const { body, count } = req.body;
+      const subjects = await generateSubjectLines(body, count || 5);
+      res.json({ subjects });
+    } catch (error) {
+      console.error('Error generating subjects:', error);
+      res.status(500).json({ message: 'Failed to generate subjects' });
+    }
+  });
+
+  // Check email service status
+  app.get('/api/email/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const configured = await isEmailConfigured();
+      res.json({ configured });
+    } catch (error) {
+      res.json({ configured: false });
     }
   });
 

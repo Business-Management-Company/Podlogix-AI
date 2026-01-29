@@ -525,3 +525,103 @@ export const insertCreatorSocialProfileSchema = createInsertSchema(creatorSocial
 
 export type CreatorSocialProfile = typeof creatorSocialProfiles.$inferSelect;
 export type InsertCreatorSocialProfile = z.infer<typeof insertCreatorSocialProfileSchema>;
+
+// Email Contacts (guests, subscribers, team, etc.)
+export const emailContacts = pgTable("email_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  email: varchar("email").notNull(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  category: varchar("category").default("subscriber"), // guest, subscriber, sponsor, collaborator, team
+  notes: text("notes"),
+  tags: text("tags").array(),
+  isSubscribed: boolean("is_subscribed").default(true),
+  lastEmailedAt: timestamp("last_emailed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Email Templates (reusable templates)
+export const emailTemplates = pgTable("email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: varchar("name").notNull(),
+  subject: varchar("subject").notNull(),
+  body: text("body").notNull(), // HTML content
+  category: varchar("category").default("custom"), // guest_invite, newsletter, thank_you, follow_up, custom
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Email Campaigns (sent emails / drafts)
+export const emailCampaigns = pgTable("email_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: varchar("name").notNull(),
+  subject: varchar("subject").notNull(),
+  body: text("body").notNull(),
+  templateId: varchar("template_id"),
+  recipientType: varchar("recipient_type").default("individual"), // individual, category, all
+  recipientFilter: text("recipient_filter"), // JSON for filtering (e.g., { category: "guest" })
+  status: varchar("status").default("draft"), // draft, scheduled, sending, sent, failed
+  scheduledAt: timestamp("scheduled_at"),
+  sentAt: timestamp("sent_at"),
+  recipientCount: integer("recipient_count").default(0),
+  openCount: integer("open_count").default(0),
+  clickCount: integer("click_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Email Campaign Recipients (individual recipients for a campaign)
+export const emailCampaignRecipients = pgTable("email_campaign_recipients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull(),
+  contactId: varchar("contact_id"),
+  email: varchar("email").notNull(),
+  status: varchar("status").default("pending"), // pending, sent, delivered, opened, clicked, bounced, failed
+  sentAt: timestamp("sent_at"),
+  openedAt: timestamp("opened_at"),
+  clickedAt: timestamp("clicked_at"),
+  errorMessage: text("error_message"),
+});
+
+export const insertEmailContactSchema = createInsertSchema(emailContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastEmailedAt: true,
+});
+
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEmailCampaignSchema = createInsertSchema(emailCampaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
+  openCount: true,
+  clickCount: true,
+});
+
+export const insertEmailCampaignRecipientSchema = createInsertSchema(emailCampaignRecipients).omit({
+  id: true,
+  sentAt: true,
+  openedAt: true,
+  clickedAt: true,
+});
+
+export type EmailContact = typeof emailContacts.$inferSelect;
+export type InsertEmailContact = z.infer<typeof insertEmailContactSchema>;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type EmailCampaign = typeof emailCampaigns.$inferSelect;
+export type InsertEmailCampaign = z.infer<typeof insertEmailCampaignSchema>;
+export type EmailCampaignRecipient = typeof emailCampaignRecipients.$inferSelect;
+export type InsertEmailCampaignRecipient = z.infer<typeof insertEmailCampaignRecipientSchema>;
