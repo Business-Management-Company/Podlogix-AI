@@ -46,7 +46,7 @@ interface AdminCheck {
 
 const creatorMenuItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Profile", url: "/dashboard/profile", icon: User },
+  { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
   { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
   { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
   { title: "AI Assistant", url: "/dashboard/ai", icon: Sparkles },
