@@ -510,6 +510,10 @@ export const creatorSocialProfiles = pgTable("creator_social_profiles", {
   followersCount: integer("followers_count"),
   followingCount: integer("following_count"),
   mediaCount: integer("media_count"),
+  // LinkedIn-specific fields (populated via LinkedIn OAuth)
+  linkedinMemberId: varchar("linkedin_member_id"),
+  linkedinAccessToken: text("linkedin_access_token"),
+  linkedinTokenExpiresAt: timestamp("linkedin_token_expires_at"),
   // Verification status
   verified: boolean("verified").default(false),
   lastSyncedAt: timestamp("last_synced_at"),

@@ -65,6 +65,12 @@ import {
   discoverInfluencersByHashtag,
   checkHashtagServiceStatus
 } from "./services/instagramHashtagService";
+import {
+  isLinkedInOAuthConfigured,
+  getLinkedInAuthUrl,
+  exchangeCodeForToken as linkedinExchangeCodeForToken,
+  getLinkedInProfile
+} from "./services/linkedinOAuth";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
 import { sendEmail, isEmailConfigured } from "./services/emailService";
@@ -891,6 +897,123 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error syncing Instagram profile:", error);
       res.status(500).json({ error: 'Failed to sync profile' });
+    }
+  });
+
+  // LinkedIn OAuth routes for creator profiles
+  app.get("/api/creator/linkedin/status", async (req, res) => {
+    res.json({
+      configured: isLinkedInOAuthConfigured(),
+    });
+  });
+
+  app.get("/api/creator/linkedin/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isLinkedInOAuthConfigured()) {
+        return res.status(400).json({ error: 'LinkedIn OAuth not configured' });
+      }
+
+      const userId = req.user.claims.sub;
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/creator/linkedin/callback`;
+
+      const stateData = { userId, timestamp: Date.now() };
+      const statePayload = Buffer.from(JSON.stringify(stateData)).toString('base64');
+      const signature = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'linkedin-oauth-secret')
+        .update(statePayload)
+        .digest('hex');
+      const state = `${statePayload}.${signature}`;
+
+      const authUrl = getLinkedInAuthUrl(redirectUri, state);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Error generating LinkedIn auth URL:", error);
+      res.status(500).json({ error: 'Failed to generate auth URL' });
+    }
+  });
+
+  app.get("/api/creator/linkedin/callback", async (req, res) => {
+    try {
+      const { code, state, error: authError, error_description } = req.query as Record<string, string>;
+
+      if (authError) {
+        console.error("LinkedIn auth error:", authError, error_description);
+        return res.redirect('/connectors?linkedin_error=auth_denied');
+      }
+
+      if (!code || !state) {
+        return res.redirect('/connectors?linkedin_error=missing_params');
+      }
+
+      let userId: string;
+      try {
+        const [statePayload, signature] = state.split('.');
+        const expectedSig = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'linkedin-oauth-secret')
+          .update(statePayload)
+          .digest('hex');
+
+        if (signature !== expectedSig) {
+          console.error("LinkedIn OAuth state signature mismatch");
+          return res.redirect('/connectors?linkedin_error=invalid_state');
+        }
+
+        const stateData = JSON.parse(Buffer.from(statePayload, 'base64').toString());
+        
+        if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
+          return res.redirect('/connectors?linkedin_error=expired');
+        }
+
+        userId = stateData.userId;
+      } catch (e) {
+        console.error("LinkedIn OAuth state parsing error:", e);
+        return res.redirect('/connectors?linkedin_error=invalid_state');
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/creator/linkedin/callback`;
+
+      const tokens = await linkedinExchangeCodeForToken(code, redirectUri);
+      if (!tokens) {
+        return res.redirect('/connectors?linkedin_error=token_failed');
+      }
+
+      const linkedInProfile = await getLinkedInProfile(tokens.accessToken);
+      if (!linkedInProfile) {
+        return res.redirect('/connectors?linkedin_error=profile_failed');
+      }
+
+      const existingProfile = await storage.getCreatorSocialProfileByPlatform(userId, 'linkedin');
+      
+      const linkedInProfileUrl = linkedInProfile.profileUrl || 
+        (linkedInProfile.vanityName ? `https://linkedin.com/in/${linkedInProfile.vanityName}` : `https://linkedin.com/in/${linkedInProfile.id}`);
+
+      if (existingProfile) {
+        await storage.updateCreatorSocialProfile(existingProfile.id, {
+          profileUrl: linkedInProfileUrl,
+          displayName: `${linkedInProfile.firstName} ${linkedInProfile.lastName}`.trim(),
+          linkedinAccessToken: tokens.accessToken,
+          linkedinTokenExpiresAt: tokens.expiresAt,
+          linkedinMemberId: linkedInProfile.id,
+          lastSyncedAt: new Date(),
+        });
+      } else {
+        await storage.createCreatorSocialProfile({
+          userId,
+          platform: 'linkedin',
+          profileUrl: linkedInProfileUrl,
+          displayName: `${linkedInProfile.firstName} ${linkedInProfile.lastName}`.trim(),
+          linkedinAccessToken: tokens.accessToken,
+          linkedinTokenExpiresAt: tokens.expiresAt,
+          linkedinMemberId: linkedInProfile.id,
+        });
+      }
+
+      res.redirect('/connectors?linkedin_connected=true');
+    } catch (error) {
+      console.error("LinkedIn callback error:", error);
+      res.redirect('/connectors?linkedin_error=callback_failed');
     }
   });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +67,10 @@ interface InstagramStatus {
   configured: boolean;
 }
 
+interface LinkedInStatus {
+  configured: boolean;
+}
+
 interface AdminCheck {
   isAdmin: boolean;
   isSuperAdmin: boolean;
@@ -132,12 +136,39 @@ export default function Connectors() {
     queryKey: ["/api/creator/instagram/status"],
   });
 
+  const { data: linkedinStatus } = useQuery<LinkedInStatus>({
+    queryKey: ["/api/creator/linkedin/status"],
+  });
+
   const { data: creatorProfiles = [], isLoading: profilesLoading } = useQuery<CreatorSocialProfile[]>({
     queryKey: ["/api/creator/social-profiles"],
   });
 
   const isSuperAdmin = adminCheck?.isSuperAdmin === true;
   const hasInstagramConnected = creatorProfiles.some(p => p.platform === 'instagram' && p.instagramAccountId);
+  const hasLinkedInConnected = creatorProfiles.some(p => p.platform === 'linkedin');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    
+    if (params.get('instagram_connected') === 'true') {
+      toast({ title: "Instagram connected!", description: "Your Instagram profile has been linked successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      window.history.replaceState({}, '', '/connectors');
+    } else if (params.get('instagram_error')) {
+      toast({ title: "Instagram connection failed", description: "Could not connect your Instagram account", variant: "destructive" });
+      window.history.replaceState({}, '', '/connectors');
+    }
+    
+    if (params.get('linkedin_connected') === 'true') {
+      toast({ title: "LinkedIn connected!", description: "Your LinkedIn profile has been linked successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      window.history.replaceState({}, '', '/connectors');
+    } else if (params.get('linkedin_error')) {
+      toast({ title: "LinkedIn connection failed", description: "Could not connect your LinkedIn account", variant: "destructive" });
+      window.history.replaceState({}, '', '/connectors');
+    }
+  }, [toast]);
 
   const connectSpotifyMutation = useMutation({
     mutationFn: async () => {
@@ -192,6 +223,20 @@ export default function Connectors() {
     },
   });
 
+  const connectLinkedInMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/creator/linkedin/auth");
+      const data = await res.json();
+      return data.authUrl;
+    },
+    onSuccess: (authUrl) => {
+      window.location.href = authUrl;
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to connect to LinkedIn", variant: "destructive" });
+    },
+  });
+
   const addProfileMutation = useMutation({
     mutationFn: async ({ platform, profileUrl }: { platform: string; profileUrl: string }) => {
       const res = await apiRequest("POST", "/api/creator/social-profiles", { platform, profileUrl });
@@ -242,7 +287,7 @@ export default function Connectors() {
   });
 
   const connectedPlatforms = creatorProfiles.map((p) => p.platform);
-  const urlBasedPlatforms = ['youtube', 'tiktok', 'twitter', 'linkedin'];
+  const urlBasedPlatforms = ['youtube', 'tiktok', 'twitter'];
   const availablePlatforms = urlBasedPlatforms.filter((p) => !connectedPlatforms.includes(p));
 
   const getProfileByPlatform = (platform: string) => creatorProfiles.find(p => p.platform === platform);
@@ -610,12 +655,12 @@ export default function Connectors() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                  Showcase your LinkedIn profile on your creator page
+                  Connect your LinkedIn profile via OAuth
                 </td>
                 <td className="px-4 py-3 text-right">
                   {profilesLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
-                  ) : connectedPlatforms.includes('linkedin') ? (
+                  ) : hasLinkedInConnected ? (
                     <div className="flex items-center justify-end gap-2">
                       <Badge variant="default" className="gap-1">
                         <CheckCircle className="h-3 w-3" />
@@ -631,20 +676,23 @@ export default function Connectors() {
                         Manage
                       </Button>
                     </div>
-                  ) : (
+                  ) : linkedinStatus?.configured ? (
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => {
-                        setSelectedPlatform('linkedin');
-                        setProfileUrl('');
-                        setDialogOpen(true);
-                      }}
+                      onClick={() => connectLinkedInMutation.mutate()}
+                      disabled={connectLinkedInMutation.isPending}
                       data-testid="button-connect-linkedin"
                     >
-                      <Settings className="h-3 w-3 mr-1" />
+                      {connectLinkedInMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Settings className="h-3 w-3 mr-1" />
+                      )}
                       Sign in
                     </Button>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Not configured</span>
                   )}
                 </td>
               </tr>
@@ -702,6 +750,19 @@ export default function Connectors() {
                   <td className="px-4 py-3 text-right">
                     <Badge variant={instagramStatus?.configured ? "default" : "secondary"}>
                       {instagramStatus?.configured ? "Configured" : "Not Configured"}
+                    </Badge>
+                  </td>
+                </tr>
+                <tr className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Linkedin className="h-5 w-5 text-blue-600" />
+                      <span className="font-medium">LinkedIn OAuth</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Badge variant={linkedinStatus?.configured ? "default" : "secondary"}>
+                      {linkedinStatus?.configured ? "Configured" : "Not Configured"}
                     </Badge>
                   </td>
                 </tr>
