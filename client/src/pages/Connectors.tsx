@@ -1,40 +1,33 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { motion } from "framer-motion";
 import {
   Link2,
   Instagram,
   Youtube,
   Linkedin,
   CheckCircle,
-  XCircle,
   Loader2,
-  AlertCircle,
-  Users,
   Settings,
-  Headphones,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Eye,
-  Video,
+  Database,
+  Shield,
+  Mail,
   ExternalLink,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
-import { SiTiktok, SiSpotify } from "react-icons/si";
+import { SiTiktok, SiSpotify, SiGithub } from "react-icons/si";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -120,6 +113,8 @@ export default function Connectors() {
   const [selectedPlatform, setSelectedPlatform] = useState<string>("");
   const [profileUrl, setProfileUrl] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [managePlatform, setManagePlatform] = useState<string>("");
 
   const { data: adminCheck } = useQuery<AdminCheck>({
     queryKey: ["/api/admin/check"],
@@ -165,6 +160,7 @@ export default function Connectors() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/listener/spotify/status"] });
       toast({ title: "Disconnected", description: "Spotify has been disconnected" });
+      setManageDialogOpen(false);
     },
   });
 
@@ -238,6 +234,7 @@ export default function Connectors() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
       toast({ title: "Removed", description: "Social profile has been removed." });
+      setManageDialogOpen(false);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to remove profile", variant: "destructive" });
@@ -245,424 +242,685 @@ export default function Connectors() {
   });
 
   const connectedPlatforms = creatorProfiles.map((p) => p.platform);
-  // Instagram uses OAuth, so exclude it from URL-based platforms
   const urlBasedPlatforms = ['youtube', 'tiktok', 'twitter', 'linkedin'];
   const availablePlatforms = urlBasedPlatforms.filter((p) => !connectedPlatforms.includes(p));
 
+  const getProfileByPlatform = (platform: string) => creatorProfiles.find(p => p.platform === platform);
+
+  const handleManage = (platform: string) => {
+    setManagePlatform(platform);
+    setManageDialogOpen(true);
+  };
+
+  const managedProfile = managePlatform ? getProfileByPlatform(managePlatform) : null;
+
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Link2 className="h-8 w-8 text-primary" />
-          Connectors
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Connect your accounts to enable podcast imports, showcase your social profiles, and more.
+    <div className="p-6 max-w-5xl mx-auto space-y-8">
+      <div className="flex items-center gap-3">
+        <Link2 className="h-8 w-8 text-primary" />
+        <h1 className="text-3xl font-bold">Integrations</h1>
+      </div>
+
+      {/* Podlogix Managed Section */}
+      <section>
+        <h2 className="text-xl font-semibold mb-2">Podlogix managed</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          These are built-in integrations that work automatically. They're configured for your app.
         </p>
-      </div>
-
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Headphones className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-semibold">Podcast & Music</h2>
-        </div>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <SiSpotify className="h-6 w-6 text-green-500" />
-                  <div>
-                    <CardTitle>Spotify</CardTitle>
-                    <CardDescription>Import your followed podcasts from Spotify</CardDescription>
-                  </div>
-                </div>
-                {spotifyLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : spotifyStatus?.connected ? (
-                  <Badge variant="default" className="gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    Connected
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="gap-1">
-                    <XCircle className="h-3 w-3" />
-                    Not Connected
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {spotifyStatus?.connected ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{spotifyStatus.displayName || "Spotify Account"}</p>
-                    <p className="text-xs text-muted-foreground">ID: {spotifyStatus.spotifyUserId}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => disconnectSpotifyMutation.mutate()}
-                    disabled={disconnectSpotifyMutation.isPending}
-                    data-testid="button-disconnect-spotify"
-                  >
-                    Disconnect
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => connectSpotifyMutation.mutate()}
-                  disabled={connectSpotifyMutation.isPending}
-                  className="gap-2"
-                  data-testid="button-connect-spotify"
-                >
-                  {connectSpotifyMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <SiSpotify className="h-4 w-4" />
-                  )}
-                  Connect Spotify
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-semibold">Your Social Profiles</h2>
-        </div>
-
-        {instagramStatus?.configured && !hasInstagramConnected && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-2">
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Type</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Instagram className="h-6 w-6 text-pink-500" />
-                    <div>
-                      <CardTitle>Instagram</CardTitle>
-                      <CardDescription>Connect your Instagram Business account to display follower count and analytics</CardDescription>
-                    </div>
+                    <Database className="h-5 w-5 text-blue-500" />
+                    <span className="font-medium">Podlogix Database</span>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Requires an Instagram Business or Creator account linked to a Facebook Page.
-                  </p>
-                  <Button
-                    onClick={() => connectInstagramMutation.mutate()}
-                    disabled={connectInstagramMutation.isPending}
-                    className="gap-2"
-                    data-testid="button-connect-instagram"
-                  >
-                    {connectInstagramMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Instagram className="h-4 w-4" />
-                    )}
-                    Connect Instagram
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">PostgreSQL</td>
+                <td className="px-4 py-3 text-right">
+                  <span className="text-sm text-muted-foreground">Active</span>
+                </td>
+              </tr>
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Shield className="h-5 w-5 text-green-500" />
+                    <span className="font-medium">Podlogix Auth</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">Authentication</td>
+                <td className="px-4 py-3 text-right">
+                  <span className="text-sm text-muted-foreground">Active</span>
+                </td>
+              </tr>
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-purple-500" />
+                    <span className="font-medium">Resend</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">Email Service</td>
+                <td className="px-4 py-3 text-right">
+                  <span className="text-sm text-muted-foreground">Active</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        {availablePlatforms.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Add Social Profiles</CardTitle>
-                <CardDescription>
-                  Click a platform to connect your profile and showcase it on your creator page.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                  {availablePlatforms.map((platform) => (
-                    <Button
-                      key={platform}
-                      variant="outline"
-                      className="flex flex-col items-center gap-2 h-auto py-4 hover-elevate"
+      {/* Connectors Section */}
+      <section>
+        <h2 className="text-xl font-semibold mb-2">Connectors</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Connect your accounts to import podcasts, showcase social profiles, and more.
+        </p>
+        
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Description</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Connection Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {/* GitHub - always show as active (Replit managed) */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <SiGithub className="h-5 w-5" />
+                    <span className="font-medium">GitHub</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Access GitHub repositories and organizations
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <Badge variant="default" className="gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Active
+                    </Badge>
+                  </div>
+                </td>
+              </tr>
+
+              {/* Spotify */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <SiSpotify className="h-5 w-5 text-green-500" />
+                    <span className="font-medium">Spotify</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Import your followed podcasts from Spotify
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {spotifyLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : spotifyStatus?.connected ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('spotify')}
+                        data-testid="button-manage-spotify"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => connectSpotifyMutation.mutate()}
+                      disabled={connectSpotifyMutation.isPending}
+                      data-testid="button-connect-spotify"
+                    >
+                      {connectSpotifyMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Settings className="h-3 w-3 mr-1" />
+                      )}
+                      Sign in
+                    </Button>
+                  )}
+                </td>
+              </tr>
+
+              {/* YouTube */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Youtube className="h-5 w-5 text-red-500" />
+                    <span className="font-medium">YouTube</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Showcase your YouTube channel with real analytics
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {profilesLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : connectedPlatforms.includes('youtube') ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('youtube')}
+                        data-testid="button-manage-youtube"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
                       onClick={() => {
-                        setSelectedPlatform(platform);
-                        setProfileUrl("");
+                        setSelectedPlatform('youtube');
+                        setProfileUrl('');
                         setDialogOpen(true);
                       }}
-                      data-testid={`button-add-${platform}`}
+                      data-testid="button-connect-youtube"
                     >
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                        {platformIcons[platform]}
-                      </div>
-                      <span className="text-sm font-medium">{platformNames[platform]}</span>
+                      <Settings className="h-3 w-3 mr-1" />
+                      Sign in
                     </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Social Profile</DialogTitle>
-                  <DialogDescription>
-                    Add your social media profile to showcase on your creator page. YouTube profiles will automatically fetch your channel stats.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Platform</Label>
-                    <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                      <SelectTrigger data-testid="select-platform">
-                        <SelectValue placeholder="Select a platform" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availablePlatforms.map((platform) => (
-                          <SelectItem key={platform} value={platform}>
-                            <div className="flex items-center gap-2">
-                              {platformIcons[platform]}
-                              {platformNames[platform]}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {selectedPlatform && (
-                    <div className="space-y-2">
-                      <Label>Profile URL</Label>
-                      <Input
-                        placeholder={platformPlaceholders[selectedPlatform]}
-                        value={profileUrl}
-                        onChange={(e) => setProfileUrl(e.target.value)}
-                        data-testid="input-profile-url"
-                      />
-                      {selectedPlatform === "youtube" && (
-                        <p className="text-xs text-muted-foreground">
-                          We'll automatically fetch your subscriber count, views, and video count using the YouTube API.
-                        </p>
-                      )}
-                    </div>
                   )}
-                  
-                  <Button
-                    className="w-full"
-                    onClick={() => addProfileMutation.mutate({ platform: selectedPlatform, profileUrl })}
-                    disabled={!selectedPlatform || !profileUrl || addProfileMutation.isPending}
-                    data-testid="button-submit-profile"
-                  >
-                    {addProfileMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : null}
-                    Add Profile
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-        
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Connected Social Profiles</CardTitle>
-              <CardDescription>
-                Showcase your social media presence on your creator page. YouTube profiles include real-time analytics.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {profilesLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : creatorProfiles.length > 0 ? (
-                <div className="space-y-4">
-                  {creatorProfiles.map((profile) => (
-                    <div
-                      key={profile.id}
-                      className="flex items-start justify-between p-4 border rounded-lg"
-                      data-testid={`profile-${profile.platform}`}
-                    >
-                      <div className="flex items-start gap-4">
-                        {profile.profilePictureUrl ? (
-                          <img
-                            src={profile.profilePictureUrl}
-                            alt={profile.displayName || profile.username || "Profile"}
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                            {platformIcons[profile.platform]}
-                          </div>
-                        )}
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            {platformIcons[profile.platform]}
-                            <span className="font-medium">
-                              {profile.displayName || profile.username || platformNames[profile.platform]}
-                            </span>
-                            {profile.verified && (
-                              <Badge variant="default" className="gap-1 text-xs">
-                                <CheckCircle className="h-3 w-3" />
-                                Verified
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {profile.platform === "youtube" && profile.subscriberCount !== undefined && (
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {formatNumber(profile.subscriberCount)} subscribers
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Video className="h-3 w-3" />
-                                {formatNumber(profile.videoCount)} videos
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Eye className="h-3 w-3" />
-                                {formatNumber(profile.viewCount)} views
-                              </span>
-                            </div>
-                          )}
+                </td>
+              </tr>
 
-                          {profile.platform === "instagram" && profile.followersCount !== undefined && (
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {formatNumber(profile.followersCount)} followers
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Video className="h-3 w-3" />
-                                {formatNumber(profile.mediaCount)} posts
-                              </span>
-                            </div>
-                          )}
-                          
-                          {profile.username && profile.platform !== "youtube" && profile.platform !== "instagram" && (
-                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
-                          )}
-                          
-                          {(profile.platform === "youtube" || profile.platform === "instagram") && profile.username && (
-                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
-                          )}
-                          
-                          {profile.lastSyncedAt && (
-                            <p className="text-xs text-muted-foreground">
-                              Last synced: {new Date(profile.lastSyncedAt).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => window.open(profile.profileUrl, "_blank")}
-                          data-testid={`button-view-${profile.platform}`}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        {profile.platform === "youtube" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => syncProfileMutation.mutate(profile.id)}
-                            disabled={syncProfileMutation.isPending}
-                            data-testid={`button-sync-${profile.platform}`}
-                          >
-                            <RefreshCw className={`h-4 w-4 ${syncProfileMutation.isPending ? "animate-spin" : ""}`} />
-                          </Button>
-                        )}
-                        {profile.platform === "instagram" && profile.instagramAccountId && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => syncInstagramMutation.mutate(profile.id)}
-                            disabled={syncInstagramMutation.isPending}
-                            data-testid={`button-sync-instagram`}
-                          >
-                            <RefreshCw className={`h-4 w-4 ${syncInstagramMutation.isPending ? "animate-spin" : ""}`} />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteProfileMutation.mutate(profile.id)}
-                          disabled={deleteProfileMutation.isPending}
-                          data-testid={`button-delete-${profile.platform}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
+              {/* Instagram */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Instagram className="h-5 w-5 text-pink-500" />
+                    <span className="font-medium">Instagram</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Display follower count and profile on your creator page
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {profilesLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : hasInstagramConnected ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('instagram')}
+                        data-testid="button-manage-instagram"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p className="font-medium">No social profiles added yet</p>
-                  <p className="text-sm mt-1">Add your YouTube, Instagram, TikTok and other social profiles to showcase on your creator page.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+                  ) : instagramStatus?.configured ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => connectInstagramMutation.mutate()}
+                      disabled={connectInstagramMutation.isPending}
+                      data-testid="button-connect-instagram"
+                    >
+                      {connectInstagramMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Settings className="h-3 w-3 mr-1" />
+                      )}
+                      Sign in
+                    </Button>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Not configured</span>
+                  )}
+                </td>
+              </tr>
 
+              {/* TikTok */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <SiTiktok className="h-5 w-5" />
+                    <span className="font-medium">TikTok</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Showcase your TikTok profile on your creator page
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {profilesLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : connectedPlatforms.includes('tiktok') ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('tiktok')}
+                        data-testid="button-manage-tiktok"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPlatform('tiktok');
+                        setProfileUrl('');
+                        setDialogOpen(true);
+                      }}
+                      data-testid="button-connect-tiktok"
+                    >
+                      <Settings className="h-3 w-3 mr-1" />
+                      Sign in
+                    </Button>
+                  )}
+                </td>
+              </tr>
+
+              {/* X (Twitter) */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-lg">𝕏</span>
+                    <span className="font-medium">X (Twitter)</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Showcase your X profile on your creator page
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {profilesLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : connectedPlatforms.includes('twitter') ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('twitter')}
+                        data-testid="button-manage-twitter"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPlatform('twitter');
+                        setProfileUrl('');
+                        setDialogOpen(true);
+                      }}
+                      data-testid="button-connect-twitter"
+                    >
+                      <Settings className="h-3 w-3 mr-1" />
+                      Sign in
+                    </Button>
+                  )}
+                </td>
+              </tr>
+
+              {/* LinkedIn */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Linkedin className="h-5 w-5 text-blue-600" />
+                    <span className="font-medium">LinkedIn</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Showcase your LinkedIn profile on your creator page
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {profilesLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : connectedPlatforms.includes('linkedin') ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('linkedin')}
+                        data-testid="button-manage-linkedin"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPlatform('linkedin');
+                        setProfileUrl('');
+                        setDialogOpen(true);
+                      }}
+                      data-testid="button-connect-linkedin"
+                    >
+                      <Settings className="h-3 w-3 mr-1" />
+                      Sign in
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Super Admin Section */}
       {isSuperAdmin && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-primary" />
+        <section>
+          <div className="flex items-center gap-2 mb-4">
             <h2 className="text-xl font-semibold">Platform Configuration</h2>
             <Badge variant="outline" className="text-xs">Super Admin</Badge>
           </div>
           
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle>API Configuration Status</CardTitle>
-                <CardDescription>Overview of configured external services for the platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="border rounded-lg overflow-hidden border-dashed">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Service</th>
+                  <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                <tr className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <SiSpotify className="h-5 w-5 text-green-500" />
-                      <span>Spotify API</span>
+                      <span className="font-medium">Spotify API</span>
                     </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
                     <Badge variant="default">Configured</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                  </td>
+                </tr>
+                <tr className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Youtube className="h-5 w-5 text-red-500" />
-                      <span>YouTube Data API</span>
+                      <span className="font-medium">YouTube Data API</span>
                     </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
                     <Badge variant="default">Configured</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                  </td>
+                </tr>
+                <tr className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Instagram className="h-5 w-5 text-pink-500" />
+                      <span className="font-medium">Meta Graph API</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Badge variant={instagramStatus?.configured ? "default" : "secondary"}>
+                      {instagramStatus?.configured ? "Configured" : "Not Configured"}
+                    </Badge>
+                  </td>
+                </tr>
+                <tr className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Link2 className="h-5 w-5 text-primary" />
-                      <span>Phyllo Social Monitoring</span>
+                      <span className="font-medium">Phyllo Social Monitoring</span>
                     </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
                     <Badge variant={phylloStatus?.configured ? "default" : "secondary"}>
                       {phylloStatus?.configured ? "Configured" : "Not Configured"}
                     </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
+
+      {/* Add Profile Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedPlatform && platformIcons[selectedPlatform]}
+              Add {selectedPlatform ? platformNames[selectedPlatform] : 'Social'} Profile
+            </DialogTitle>
+            <DialogDescription>
+              Enter your profile URL to add it to your creator page.
+              {selectedPlatform === 'youtube' && ' We\'ll automatically fetch your channel stats.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            {!selectedPlatform && (
+              <div className="space-y-2">
+                <Label>Platform</Label>
+                <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+                  <SelectTrigger data-testid="select-platform">
+                    <SelectValue placeholder="Select a platform" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePlatforms.map((platform) => (
+                      <SelectItem key={platform} value={platform}>
+                        <div className="flex items-center gap-2">
+                          {platformIcons[platform]}
+                          {platformNames[platform]}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {selectedPlatform && (
+              <div className="space-y-2">
+                <Label>Profile URL</Label>
+                <Input
+                  placeholder={platformPlaceholders[selectedPlatform]}
+                  value={profileUrl}
+                  onChange={(e) => setProfileUrl(e.target.value)}
+                  data-testid="input-profile-url"
+                />
+              </div>
+            )}
+            
+            <Button
+              className="w-full"
+              onClick={() => addProfileMutation.mutate({ platform: selectedPlatform, profileUrl })}
+              disabled={!selectedPlatform || !profileUrl || addProfileMutation.isPending}
+              data-testid="button-submit-profile"
+            >
+              {addProfileMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Connect Profile
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Profile Dialog */}
+      <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {managePlatform === 'spotify' ? (
+                <SiSpotify className="h-5 w-5 text-green-500" />
+              ) : managePlatform && platformIcons[managePlatform]}
+              Manage {managePlatform === 'spotify' ? 'Spotify' : managePlatform ? platformNames[managePlatform] : ''} Connection
+            </DialogTitle>
+            <DialogDescription>
+              View and manage your connected account.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-4">
+            {managePlatform === 'spotify' && spotifyStatus?.connected && (
+              <>
+                <div className="p-4 border rounded-lg space-y-2">
+                  <p className="font-medium">{spotifyStatus.displayName || "Spotify Account"}</p>
+                  <p className="text-sm text-muted-foreground">ID: {spotifyStatus.spotifyUserId}</p>
+                </div>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => disconnectSpotifyMutation.mutate()}
+                  disabled={disconnectSpotifyMutation.isPending}
+                  data-testid="button-disconnect-spotify"
+                >
+                  {disconnectSpotifyMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Disconnect Spotify
+                </Button>
+              </>
+            )}
+            
+            {managePlatform && managePlatform !== 'spotify' && managedProfile && (
+              <>
+                <div className="p-4 border rounded-lg space-y-2">
+                  <div className="flex items-center gap-3">
+                    {managedProfile.profilePictureUrl ? (
+                      <img
+                        src={managedProfile.profilePictureUrl}
+                        alt={managedProfile.displayName || "Profile"}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                        {platformIcons[managedProfile.platform]}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium">
+                        {managedProfile.displayName || managedProfile.username || platformNames[managedProfile.platform]}
+                      </p>
+                      {managedProfile.username && (
+                        <p className="text-sm text-muted-foreground">@{managedProfile.username}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {managedProfile.platform === "youtube" && managedProfile.subscriberCount !== undefined && (
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+                      <span>{formatNumber(managedProfile.subscriberCount)} subscribers</span>
+                      <span>{formatNumber(managedProfile.videoCount)} videos</span>
+                      <span>{formatNumber(managedProfile.viewCount)} views</span>
+                    </div>
+                  )}
+                  
+                  {managedProfile.platform === "instagram" && managedProfile.followersCount !== undefined && (
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+                      <span>{formatNumber(managedProfile.followersCount)} followers</span>
+                      <span>{formatNumber(managedProfile.mediaCount)} posts</span>
+                    </div>
+                  )}
+                  
+                  {managedProfile.lastSyncedAt && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Last synced: {new Date(managedProfile.lastSyncedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => window.open(managedProfile.profileUrl, "_blank")}
+                    data-testid="button-view-profile"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Profile
+                  </Button>
+                  
+                  {(managedProfile.platform === 'youtube' || managedProfile.platform === 'instagram') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (managedProfile.platform === 'instagram') {
+                          syncInstagramMutation.mutate(managedProfile.id);
+                        } else {
+                          syncProfileMutation.mutate(managedProfile.id);
+                        }
+                      }}
+                      disabled={syncProfileMutation.isPending || syncInstagramMutation.isPending}
+                      data-testid="button-sync-profile"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${(syncProfileMutation.isPending || syncInstagramMutation.isPending) ? "animate-spin" : ""}`} />
+                      Sync
+                    </Button>
+                  )}
+                </div>
+                
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => deleteProfileMutation.mutate(managedProfile.id)}
+                  disabled={deleteProfileMutation.isPending}
+                  data-testid="button-disconnect-profile"
+                >
+                  {deleteProfileMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Disconnect {platformNames[managedProfile.platform]}
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
