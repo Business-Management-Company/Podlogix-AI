@@ -68,6 +68,7 @@ import {
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
 import { sendEmail, isEmailConfigured } from "./services/emailService";
+import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
   // Check if email is configured first
@@ -998,6 +999,58 @@ export async function registerRoutes(
   app.delete('/api/profile/links/:id', isAuthenticated, async (req: any, res) => {
     await storage.deleteProfileLink(req.params.id);
     res.status(204).send();
+  });
+
+  // AI Profile Assistant endpoints
+  app.post('/api/profile/ai/analyze-link', isAuthenticated, async (req: any, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ message: 'URL is required' });
+      }
+      const analysis = analyzeLink(url);
+      res.json(analysis);
+    } catch (error) {
+      console.error('Error analyzing link:', error);
+      res.status(500).json({ message: 'Failed to analyze link' });
+    }
+  });
+
+  app.post('/api/profile/ai/generate-bio', isAuthenticated, async (req: any, res) => {
+    try {
+      const { podcastName, podcastTopic, hostName, existingBio } = req.body;
+      const result = await generateBioAndHeadlines({ podcastName, podcastTopic, hostName, existingBio });
+      res.json(result);
+    } catch (error) {
+      console.error('Error generating bio:', error);
+      res.status(500).json({ message: 'Failed to generate bio' });
+    }
+  });
+
+  app.post('/api/profile/ai/improve-bio', isAuthenticated, async (req: any, res) => {
+    try {
+      const { bio, hostName } = req.body;
+      const improved = await improveBio(bio, hostName);
+      res.json({ bio: improved });
+    } catch (error) {
+      console.error('Error improving bio:', error);
+      res.status(500).json({ message: 'Failed to improve bio' });
+    }
+  });
+
+  app.post('/api/profile/ai/suggest-links', isAuthenticated, async (req: any, res) => {
+    try {
+      const { podcastName, podcastTopic } = req.body;
+      const suggestions = await suggestLinksForPodcast(podcastName, podcastTopic);
+      res.json({ suggestions });
+    } catch (error) {
+      console.error('Error suggesting links:', error);
+      res.status(500).json({ message: 'Failed to suggest links' });
+    }
+  });
+
+  app.get('/api/profile/ai/quick-templates', isAuthenticated, async (req: any, res) => {
+    res.json({ templates: quickLinkTemplates });
   });
 
   // Podcasts endpoints (protected)
