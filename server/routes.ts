@@ -71,6 +71,14 @@ import {
   exchangeCodeForToken as linkedinExchangeCodeForToken,
   getLinkedInProfile
 } from "./services/linkedinOAuth";
+import {
+  isLinkedInDiscoveryConfigured,
+  extractLinkedInProfileInfo,
+  extractLinkedInCompanyInfo,
+  getLinkedInSearchUrl,
+  getLinkedInHashtagUrl,
+  generateLinkedInSearchSuggestions
+} from "./services/linkedinDiscoveryService";
 import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
 import { sendEmail, isEmailConfigured } from "./services/emailService";
@@ -2147,6 +2155,74 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error discovering posts by hashtag:', error);
       res.status(500).json({ message: 'Failed to discover posts by hashtag' });
+    }
+  });
+
+  // LinkedIn Discovery Routes
+  app.get('/api/brand/linkedin/status', isAuthenticated, async (req: any, res) => {
+    res.json({
+      configured: isLinkedInDiscoveryConfigured(),
+    });
+  });
+
+  app.post('/api/brand/linkedin/lookup', isAuthenticated, async (req: any, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'LinkedIn URL is required' });
+      }
+
+      if (url.includes('/company/')) {
+        const company = await extractLinkedInCompanyInfo(url);
+        if (company) {
+          return res.json({ type: 'company', data: company });
+        }
+      } else if (url.includes('/in/')) {
+        const person = await extractLinkedInProfileInfo(url);
+        if (person) {
+          return res.json({ type: 'person', data: person });
+        }
+      }
+
+      res.status(400).json({ error: 'Could not parse LinkedIn URL. Please provide a valid profile or company URL.' });
+    } catch (error) {
+      console.error('Error looking up LinkedIn profile:', error);
+      res.status(500).json({ message: 'Failed to lookup LinkedIn profile' });
+    }
+  });
+
+  app.get('/api/brand/linkedin/search-url', isAuthenticated, async (req: any, res) => {
+    try {
+      const { query, type = 'people' } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Search query is required' });
+      }
+
+      const searchUrl = getLinkedInSearchUrl(query, type as 'people' | 'companies');
+      const suggestions = generateLinkedInSearchSuggestions(query);
+
+      res.json({ searchUrl, suggestions });
+    } catch (error) {
+      console.error('Error generating LinkedIn search URL:', error);
+      res.status(500).json({ message: 'Failed to generate search URL' });
+    }
+  });
+
+  app.get('/api/brand/linkedin/hashtag-url', isAuthenticated, async (req: any, res) => {
+    try {
+      const { hashtag } = req.query;
+      
+      if (!hashtag || typeof hashtag !== 'string') {
+        return res.status(400).json({ error: 'Hashtag is required' });
+      }
+
+      const hashtagUrl = getLinkedInHashtagUrl(hashtag);
+      res.json({ hashtagUrl, hashtag: hashtag.replace(/^#/, '') });
+    } catch (error) {
+      console.error('Error generating LinkedIn hashtag URL:', error);
+      res.status(500).json({ message: 'Failed to generate hashtag URL' });
     }
   });
 

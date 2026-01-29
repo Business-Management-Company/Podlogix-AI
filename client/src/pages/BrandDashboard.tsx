@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
-import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si";
+import { SiInstagram, SiTiktok, SiYoutube, SiLinkedin } from "react-icons/si";
 
 interface Influencer {
   userId: string;
@@ -152,6 +152,9 @@ export default function BrandDashboard() {
   const [hashtagPlatform, setHashtagPlatform] = useState('instagram');
   const [youtubeQuery, setYoutubeQuery] = useState('');
   const [instagramHashtag, setInstagramHashtag] = useState('');
+  const [linkedinQuery, setLinkedinQuery] = useState('');
+  const [linkedinSearchType, setLinkedinSearchType] = useState<'people' | 'companies'>('people');
+  const [linkedinHashtag, setLinkedinHashtag] = useState('');
 
   const { data: modashStatus } = useQuery<{ configured: boolean }>({
     queryKey: ['/api/brand/modash/status'],
@@ -165,6 +168,11 @@ export default function BrandDashboard() {
 
   const { data: instagramStatus } = useQuery<{ configured: boolean; hasInstagramAccount?: boolean; message?: string }>({
     queryKey: ['/api/brand/instagram/hashtag-status'],
+    enabled: !!user,
+  });
+
+  const { data: linkedinStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ['/api/brand/linkedin/status'],
     enabled: !!user,
   });
 
@@ -381,7 +389,7 @@ export default function BrandDashboard() {
         </motion.div>
 
         <Tabs defaultValue="youtube" className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-lg">
+          <TabsList className="grid grid-cols-5 w-full max-w-2xl">
             <TabsTrigger value="youtube" data-testid="tab-youtube">
               <SiYoutube className="h-4 w-4 mr-2" />
               YouTube
@@ -389,6 +397,10 @@ export default function BrandDashboard() {
             <TabsTrigger value="instagram" data-testid="tab-instagram">
               <SiInstagram className="h-4 w-4 mr-2" />
               Instagram
+            </TabsTrigger>
+            <TabsTrigger value="linkedin" data-testid="tab-linkedin">
+              <SiLinkedin className="h-4 w-4 mr-2" />
+              LinkedIn
             </TabsTrigger>
             <TabsTrigger value="saved" data-testid="tab-saved">
               <Bookmark className="h-4 w-4 mr-2" />
@@ -712,6 +724,125 @@ export default function BrandDashboard() {
                 )}
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="linkedin" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <SiLinkedin className="h-5 w-5 text-blue-600" />
+                      LinkedIn Discovery
+                      <Badge variant="default" className="ml-2">Free</Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Search for LinkedIn profiles and companies, or browse hashtags
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Select 
+                      value={linkedinSearchType} 
+                      onValueChange={(val) => setLinkedinSearchType(val as 'people' | 'companies')}
+                    >
+                      <SelectTrigger className="w-40" data-testid="select-linkedin-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="people">People</SelectItem>
+                        <SelectItem value="companies">Companies</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="flex-1 flex gap-2">
+                      <Input
+                        placeholder={linkedinSearchType === 'people' ? 'Search for people (e.g., podcast host, marketing)' : 'Search for companies (e.g., tech startup)'}
+                        value={linkedinQuery}
+                        onChange={(e) => setLinkedinQuery(e.target.value)}
+                        className="flex-1"
+                        data-testid="input-linkedin-search"
+                      />
+                      <Button 
+                        onClick={() => {
+                          if (linkedinQuery.trim()) {
+                            const searchUrl = linkedinSearchType === 'companies'
+                              ? `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(linkedinQuery)}`
+                              : `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(linkedinQuery)}`;
+                            window.open(searchUrl, '_blank');
+                          }
+                        }}
+                        disabled={!linkedinQuery.trim()}
+                        data-testid="button-linkedin-search"
+                      >
+                        <Search className="h-4 w-4 mr-2" />
+                        Search on LinkedIn
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <Label className="text-sm font-medium mb-2 block">Browse LinkedIn Hashtag</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter hashtag (e.g., podcast, marketing, entrepreneurship)"
+                        value={linkedinHashtag}
+                        onChange={(e) => setLinkedinHashtag(e.target.value)}
+                        className="flex-1"
+                        data-testid="input-linkedin-hashtag"
+                      />
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          if (linkedinHashtag.trim()) {
+                            const cleanHashtag = linkedinHashtag.replace(/^#/, '');
+                            window.open(`https://www.linkedin.com/feed/hashtag/${cleanHashtag}/`, '_blank');
+                          }
+                        }}
+                        disabled={!linkedinHashtag.trim()}
+                        data-testid="button-linkedin-hashtag"
+                      >
+                        <Hash className="h-4 w-4 mr-2" />
+                        Browse Hashtag
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <SiLinkedin className="h-12 w-12 text-blue-600 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Discover LinkedIn Creators</h3>
+                  <p className="text-muted-foreground max-w-md mb-6">
+                    Search for people or companies on LinkedIn by topic, industry, or name. 
+                    Click the search button to open results directly on LinkedIn.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {['podcast host', 'influencer marketing', 'tech founder', 'content creator', 'thought leader'].map(suggestion => (
+                      <Badge 
+                        key={suggestion}
+                        variant="secondary" 
+                        className="cursor-pointer hover-elevate"
+                        onClick={() => setLinkedinQuery(suggestion)}
+                      >
+                        {suggestion}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+                  <p className="flex items-start gap-2">
+                    <span className="shrink-0">Note:</span>
+                    <span>
+                      LinkedIn's API doesn't support public search like YouTube or Instagram. 
+                      This tool opens LinkedIn search directly in a new tab where you can explore and connect with creators.
+                    </span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="saved" className="space-y-4">
