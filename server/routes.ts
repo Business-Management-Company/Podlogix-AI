@@ -76,6 +76,42 @@ export async function registerRoutes(
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // Meta/Instagram Webhook verification (GET)
+  const META_WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'podlogix_meta_webhook_2024';
+  
+  app.get("/api/webhooks/meta", (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode === 'subscribe' && token === META_WEBHOOK_VERIFY_TOKEN) {
+      console.log('Meta webhook verified successfully');
+      res.status(200).send(challenge);
+    } else {
+      console.log('Meta webhook verification failed');
+      res.sendStatus(403);
+    }
+  });
+
+  // Meta/Instagram Webhook events (POST)
+  app.post("/api/webhooks/meta", (req, res) => {
+    const body = req.body;
+    console.log('Meta webhook event received:', JSON.stringify(body, null, 2));
+    
+    // Process different event types
+    if (body.object === 'instagram') {
+      // Handle Instagram events (mentions, comments, etc.)
+      body.entry?.forEach((entry: any) => {
+        entry.changes?.forEach((change: any) => {
+          console.log('Instagram change:', change.field, change.value);
+        });
+      });
+    }
+    
+    // Always return 200 to acknowledge receipt
+    res.sendStatus(200);
+  });
+
   // Setup auth before other routes
   await setupAuth(app);
   registerAuthRoutes(app);
