@@ -584,7 +584,7 @@ export default function BrandDashboard() {
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Enter hashtag (e.g., fitness, travel, cooking)"
+                    placeholder="Enter keyword or phrase (e.g., fitness tips, healthy eating)"
                     value={instagramHashtag}
                     onChange={(e) => setInstagramHashtag(e.target.value)}
                     className="flex-1"
@@ -607,8 +607,13 @@ export default function BrandDashboard() {
                     )}
                   </Button>
                 </div>
+                {instagramHashtag.trim() && instagramHashtag.includes(' ') && (
+                  <p className="text-xs text-muted-foreground">
+                    Will search: #{instagramHashtag.toLowerCase().replace(/[^a-z0-9]/g, '')}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Note: Limited to 30 unique hashtag searches per 7 days. Results show top posts using this hashtag.
+                  Tip: Type natural phrases like "fitness tips" and we'll convert them to hashtags. Limited to 30 unique searches per 7 days.
                 </p>
               </CardContent>
             </Card>

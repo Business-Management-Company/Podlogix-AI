@@ -1,5 +1,20 @@
 import fetch from 'node-fetch';
 
+/**
+ * Converts a natural language phrase into hashtag format
+ * Examples:
+ * - "fitness tips" -> "fitnesstips"
+ * - "healthy eating habits" -> "healthyeatinghabits"
+ * - "#alreadyahashtag" -> "alreadyahashtag"
+ */
+function phraseToHashtag(phrase: string): string {
+  return phrase
+    .toLowerCase()
+    .replace(/^#/, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
 interface MediaItem {
   id: string;
   caption?: string;
@@ -106,7 +121,7 @@ export async function discoverInfluencersByHashtag(hashtag: string): Promise<Has
     };
   }
 
-  const cleanHashtag = hashtag.replace(/^#/, '').toLowerCase().trim();
+  const cleanHashtag = phraseToHashtag(hashtag);
 
   try {
     const igUserId = await getInstagramBusinessAccountId(accessToken);
