@@ -15,7 +15,10 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PhoneMockup } from "@/components/PhoneMockup";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Form,
   FormControl,
@@ -39,7 +42,9 @@ import {
   Link2,
   Lightbulb,
   RefreshCw,
-  Check
+  Check,
+  Video,
+  X
 } from "lucide-react";
 import { SiSpotify, SiApplepodcasts, SiYoutube, SiInstagram, SiTiktok, SiX, SiLinkedin, SiPatreon, SiDiscord } from "react-icons/si";
 import { motion, AnimatePresence } from "framer-motion";
@@ -85,6 +90,17 @@ export default function ProfileEditor() {
   const [showAddLinkDialog, setShowAddLinkDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<QuickTemplate | null>(null);
   const [suggestedHeadlines, setSuggestedHeadlines] = useState<string[]>([]);
+  
+  // Social icons state
+  const [socialIcons, setSocialIcons] = useState<{ platform: string; url: string }[]>([]);
+  const [showAddSocialDialog, setShowAddSocialDialog] = useState(false);
+  const [newSocialPlatform, setNewSocialPlatform] = useState('instagram');
+  const [newSocialUrl, setNewSocialUrl] = useState('');
+  
+  // YouTube video state
+  const [showYouTubeDialog, setShowYouTubeDialog] = useState(false);
+  const [youtubeVideoUrl, setYoutubeVideoUrl] = useState('');
+  const [youtubeVideoMode, setYoutubeVideoMode] = useState<'specific' | 'latest' | 'channel' | 'latestLink'>('specific');
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -124,6 +140,16 @@ export default function ProfileEditor() {
         bio: profile.bio || "",
         isPublished: profile.isPublished || false,
       });
+      // Load social icons and YouTube settings
+      if (profile.socialIcons) {
+        setSocialIcons(profile.socialIcons as { platform: string; url: string }[]);
+      }
+      if (profile.youtubeVideoUrl) {
+        setYoutubeVideoUrl(profile.youtubeVideoUrl);
+      }
+      if (profile.youtubeVideoMode) {
+        setYoutubeVideoMode(profile.youtubeVideoMode as 'specific' | 'latest' | 'channel' | 'latestLink');
+      }
     }
   }, [profile, form]);
 
@@ -238,6 +264,29 @@ export default function ProfileEditor() {
     },
   });
 
+  const updateSocialIconsMutation = useMutation({
+    mutationFn: async (icons: { platform: string; url: string }[]) => {
+      const res = await apiRequest('PATCH', '/api/profile', { socialIcons: icons });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/profile'] });
+      toast({ title: "Social icons updated!" });
+    },
+  });
+
+  const updateYouTubeVideoMutation = useMutation({
+    mutationFn: async (data: { youtubeVideoUrl: string | null; youtubeVideoMode: string }) => {
+      const res = await apiRequest('PATCH', '/api/profile', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/profile'] });
+      setShowYouTubeDialog(false);
+      toast({ title: "YouTube video updated!" });
+    },
+  });
+
   const handleSubmit = (values: z.infer<typeof profileSchema>) => {
     if (profile) {
       updateProfileMutation.mutate(values);
@@ -280,6 +329,48 @@ export default function ProfileEditor() {
     if (lowerUrl.includes('discord')) return platformIcons.discord;
     return <Link2 className="h-4 w-4" />;
   };
+
+  const handleAddSocialIcon = () => {
+    if (!newSocialUrl.trim()) {
+      toast({ title: "Please enter a URL", variant: "destructive" });
+      return;
+    }
+    const newIcons = [...socialIcons, { platform: newSocialPlatform, url: newSocialUrl }];
+    setSocialIcons(newIcons);
+    updateSocialIconsMutation.mutate(newIcons);
+    setNewSocialUrl('');
+    setShowAddSocialDialog(false);
+  };
+
+  const handleRemoveSocialIcon = (index: number) => {
+    const newIcons = socialIcons.filter((_, i) => i !== index);
+    setSocialIcons(newIcons);
+    updateSocialIconsMutation.mutate(newIcons);
+  };
+
+  const handleSaveYouTubeVideo = () => {
+    updateYouTubeVideoMutation.mutate({
+      youtubeVideoUrl: youtubeVideoUrl || null,
+      youtubeVideoMode,
+    });
+  };
+
+  const getYouTubeVideoId = (url: string) => {
+    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+    return match ? match[1] : null;
+  };
+
+  const socialPlatformOptions = [
+    { value: 'instagram', label: 'Instagram', icon: <SiInstagram className="h-4 w-4" /> },
+    { value: 'youtube', label: 'YouTube', icon: <SiYoutube className="h-4 w-4" /> },
+    { value: 'spotify', label: 'Spotify', icon: <SiSpotify className="h-4 w-4" /> },
+    { value: 'tiktok', label: 'TikTok', icon: <SiTiktok className="h-4 w-4" /> },
+    { value: 'twitter', label: 'X (Twitter)', icon: <SiX className="h-4 w-4" /> },
+    { value: 'linkedin', label: 'LinkedIn', icon: <SiLinkedin className="h-4 w-4" /> },
+    { value: 'apple', label: 'Apple Podcasts', icon: <SiApplepodcasts className="h-4 w-4" /> },
+    { value: 'patreon', label: 'Patreon', icon: <SiPatreon className="h-4 w-4" /> },
+    { value: 'discord', label: 'Discord', icon: <SiDiscord className="h-4 w-4" /> },
+  ];
 
   if (authLoading || profileLoading) {
     return (
@@ -487,7 +578,253 @@ export default function ProfileEditor() {
             </motion.div>
 
             {profile && (
+              <>
+              {/* Social Icons Section */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <CardTitle className="text-lg">Social Icons</CardTitle>
+                        <CardDescription>Display social media icons at the top of your page</CardDescription>
+                      </div>
+                      <Dialog open={showAddSocialDialog} onOpenChange={setShowAddSocialDialog}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" data-testid="button-add-social-icon">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Icon
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add Social Icon</DialogTitle>
+                            <DialogDescription>Choose a platform and enter your profile URL</DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label>Platform</Label>
+                              <Select value={newSocialPlatform} onValueChange={setNewSocialPlatform}>
+                                <SelectTrigger data-testid="select-social-platform">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {socialPlatformOptions.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      <div className="flex items-center gap-2">
+                                        {opt.icon}
+                                        {opt.label}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Profile URL</Label>
+                              <Input
+                                placeholder="https://instagram.com/yourprofile"
+                                value={newSocialUrl}
+                                onChange={(e) => setNewSocialUrl(e.target.value)}
+                                data-testid="input-social-url"
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button 
+                              onClick={handleAddSocialIcon}
+                              disabled={updateSocialIconsMutation.isPending}
+                              data-testid="button-save-social-icon"
+                            >
+                              {updateSocialIconsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                              Add Icon
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {socialIcons.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <div className="flex justify-center gap-3 mb-3 opacity-50">
+                          <SiInstagram className="h-6 w-6" />
+                          <SiYoutube className="h-6 w-6" />
+                          <SiSpotify className="h-6 w-6" />
+                        </div>
+                        <p className="text-sm">Add social icons to display at the top of your page</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {socialIcons.map((icon, index) => {
+                          const platformOption = socialPlatformOptions.find(p => p.value === icon.platform);
+                          return (
+                            <div 
+                              key={index}
+                              className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg group"
+                            >
+                              {platformOption?.icon || <Link2 className="h-4 w-4" />}
+                              <span className="text-sm">{platformOption?.label || icon.platform}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100"
+                                onClick={() => handleRemoveSocialIcon(index)}
+                                data-testid={`button-remove-social-${index}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* YouTube Video Section */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <SiYoutube className="h-5 w-5 text-red-500" />
+                          YouTube Video
+                        </CardTitle>
+                        <CardDescription>Embed a YouTube video on your page</CardDescription>
+                      </div>
+                      <Dialog open={showYouTubeDialog} onOpenChange={setShowYouTubeDialog}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant={youtubeVideoUrl ? "outline" : "default"} data-testid="button-setup-youtube">
+                            {youtubeVideoUrl ? (
+                              <>
+                                <Video className="h-4 w-4 mr-2" />
+                                Edit Video
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Video
+                              </>
+                            )}
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle>Set up your YouTube link</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            {youtubeVideoUrl && getYouTubeVideoId(youtubeVideoUrl) && (
+                              <div className="bg-muted/50 rounded-lg p-4 flex justify-center">
+                                <div className="relative rounded-lg overflow-hidden shadow-lg" style={{ width: '280px' }}>
+                                  <img 
+                                    src={`https://img.youtube.com/vi/${getYouTubeVideoId(youtubeVideoUrl)}/mqdefault.jpg`}
+                                    alt="Video thumbnail"
+                                    className="w-full aspect-video object-cover"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="bg-red-600 rounded-full p-3">
+                                      <Video className="h-5 w-5 text-white" />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="space-y-2">
+                              <Label>YouTube Video URL</Label>
+                              <Input
+                                placeholder="https://www.youtube.com/watch?v=..."
+                                value={youtubeVideoUrl}
+                                onChange={(e) => setYoutubeVideoUrl(e.target.value)}
+                                data-testid="input-youtube-url"
+                              />
+                            </div>
+                            <div className="space-y-3">
+                              <Label>This link should:</Label>
+                              <RadioGroup value={youtubeVideoMode} onValueChange={(val) => setYoutubeVideoMode(val as typeof youtubeVideoMode)}>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="specific" id="specific" />
+                                  <Label htmlFor="specific" className="font-normal cursor-pointer">Display the video I've linked to</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="latest" id="latest" />
+                                  <Label htmlFor="latest" className="font-normal cursor-pointer flex items-center gap-1">
+                                    Always display my latest video
+                                    <Badge variant="secondary" className="text-xs">Pro</Badge>
+                                  </Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="channel" id="channel" />
+                                  <Label htmlFor="channel" className="font-normal cursor-pointer">Link out to my YouTube channel</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="latestLink" id="latestLink" />
+                                  <Label htmlFor="latestLink" className="font-normal cursor-pointer flex items-center gap-1">
+                                    Always link out to my latest video
+                                    <Badge variant="secondary" className="text-xs">Pro</Badge>
+                                  </Label>
+                                </div>
+                              </RadioGroup>
+                            </div>
+                          </div>
+                          <DialogFooter className="flex-col sm:flex-row gap-2">
+                            {youtubeVideoUrl && (
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setYoutubeVideoUrl('');
+                                  updateYouTubeVideoMutation.mutate({ youtubeVideoUrl: null, youtubeVideoMode: 'specific' });
+                                }}
+                                className="sm:mr-auto"
+                                data-testid="button-remove-youtube"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Remove Video
+                              </Button>
+                            )}
+                            <Button
+                              onClick={handleSaveYouTubeVideo}
+                              disabled={updateYouTubeVideoMutation.isPending}
+                              data-testid="button-save-youtube"
+                            >
+                              {updateYouTubeVideoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                              Add YouTube video layout
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </CardHeader>
+                  {youtubeVideoUrl && (
+                    <CardContent>
+                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                        <div className="w-16 h-10 rounded overflow-hidden bg-black shrink-0">
+                          {getYouTubeVideoId(youtubeVideoUrl) && (
+                            <img 
+                              src={`https://img.youtube.com/vi/${getYouTubeVideoId(youtubeVideoUrl)}/default.jpg`}
+                              alt="Video thumbnail"
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">YouTube Video</p>
+                          <p className="text-xs text-muted-foreground truncate">{youtubeVideoUrl}</p>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0">
+                          {youtubeVideoMode === 'specific' ? 'Specific Video' : 
+                           youtubeVideoMode === 'latest' ? 'Latest Video' :
+                           youtubeVideoMode === 'channel' ? 'Channel Link' : 'Latest Link'}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              </motion.div>
+
+              {/* Links Section */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                 <Card>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
@@ -631,6 +968,7 @@ export default function ProfileEditor() {
                   </CardContent>
                 </Card>
               </motion.div>
+              </>
             )}
           </div>
 
@@ -640,6 +978,8 @@ export default function ProfileEditor() {
                 displayName={watchedValues.displayName || "Your Name"}
                 headline={watchedValues.headline}
                 bio={watchedValues.bio}
+                socialIcons={socialIcons}
+                youtubeVideoUrl={youtubeVideoUrl}
                 links={links}
               />
             </div>
