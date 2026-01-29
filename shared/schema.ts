@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, varchar, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 export { serial };
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -137,6 +137,12 @@ export const profiles = pgTable("profiles", {
   theme: varchar("theme").default("default"), // default, dark, vibrant, etc.
   accentColor: varchar("accent_color").default("#6366f1"),
   isPublished: boolean("is_published").default(false),
+  // Social icons displayed at top of profile
+  socialIcons: jsonb("social_icons").$type<{ platform: string; url: string }[]>().default([]),
+  // YouTube video embed
+  youtubeVideoUrl: text("youtube_video_url"),
+  youtubeVideoMode: varchar("youtube_video_mode").default("specific"), // specific, latest, channel, latestLink
+  youtubeChannelId: varchar("youtube_channel_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
