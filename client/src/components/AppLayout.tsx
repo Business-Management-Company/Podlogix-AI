@@ -22,7 +22,6 @@ import {
   Mic,
   LayoutDashboard,
   Headphones,
-  Fingerprint,
   Shield,
   ShieldCheck,
   Link2,
@@ -32,11 +31,10 @@ import {
   User,
   HelpCircle,
   LogOut,
-  Settings,
   Radio,
   Users,
-  Hash,
   Mail,
+  Plug,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -45,8 +43,8 @@ interface AdminCheck {
   role: string;
 }
 
-const creatorMenuItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
+const podcastMenuItems = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
   { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
   { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
@@ -54,28 +52,27 @@ const creatorMenuItems = [
   { title: "AI Assistant", url: "/dashboard/ai", icon: Sparkles },
 ];
 
+const voiceProtectionItems = [
+  { title: "My Certificates", url: "/identity", icon: Shield },
+  { title: "Certify Voice", url: "/dashboard/certify", icon: Mic },
+  { title: "Certify Likeness", url: "/dashboard/certify-likeness", icon: User },
+];
+
 const listenerMenuItems = [
   { title: "My Podcasts", url: "/listener", icon: Headphones },
   { title: "Analytics", url: "/listener/analytics", icon: Radio },
 ];
 
-const identityMenuItems = [
-  { title: "Voice Identity", url: "/identity", icon: Fingerprint },
-  { title: "Certify Voice", url: "/dashboard/certify", icon: Mic },
-  { title: "Certify Likeness", url: "/dashboard/certify-likeness", icon: User },
-];
-
 const brandMenuItems = [
   { title: "Influencer Discovery", url: "/brand", icon: Users },
-  { title: "Hashtag Monitor", url: "/brand", icon: Hash },
 ];
 
 const adminMenuItems = [
   { title: "Admin Panel", url: "/admin", icon: ShieldCheck },
 ];
 
-const connectorsMenuItems = [
-  { title: "Connectors", url: "/connectors", icon: Link2 },
+const settingsMenuItems = [
+  { title: "Connectors", url: "/connectors", icon: Plug },
 ];
 
 interface AppLayoutProps {
@@ -117,10 +114,28 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <SidebarContent className="overflow-y-auto">
             <SidebarGroup>
-              <SidebarGroupLabel>Creator</SidebarGroupLabel>
+              <SidebarGroupLabel>Podcast</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {creatorMenuItems.map((item) => (
+                  {podcastMenuItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>Voice Protection</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {voiceProtectionItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={isActive(item.url)}>
                         <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
@@ -153,10 +168,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             </SidebarGroup>
 
             <SidebarGroup>
-              <SidebarGroupLabel>Identity Protection</SidebarGroupLabel>
+              <SidebarGroupLabel>Brand</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {identityMenuItems.map((item) => (
+                  {brandMenuItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={isActive(item.url)}>
                         <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
@@ -171,28 +186,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             </SidebarGroup>
 
             <SidebarGroup>
-              <SidebarGroupLabel>Brand</SidebarGroupLabel>
+              <SidebarGroupLabel>Settings</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {brandMenuItems.map((item, index) => (
-                    <SidebarMenuItem key={`${item.title}-${index}`}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Integrations</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {connectorsMenuItems.map((item) => (
+                  {settingsMenuItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={isActive(item.url)}>
                         <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
