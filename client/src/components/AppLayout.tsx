@@ -43,13 +43,16 @@ interface AdminCheck {
   role: string;
 }
 
-const podcastMenuItems = [
+const creatorMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
-  { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
-  { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
   { title: "Email Hub", url: "/dashboard/email", icon: Mail },
   { title: "AI Assistant", url: "/dashboard/ai", icon: Sparkles },
+];
+
+const podcastMenuItems = [
+  { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
+  { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
 ];
 
 const voiceProtectionItems = [
@@ -113,6 +116,24 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           <SidebarContent className="overflow-y-auto">
+            <SidebarGroup>
+              <SidebarGroupLabel>Creator</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {creatorMenuItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
             <SidebarGroup>
               <SidebarGroupLabel>Podcast</SidebarGroupLabel>
               <SidebarGroupContent>
