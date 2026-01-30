@@ -46,7 +46,7 @@ import {
   Video,
   X
 } from "lucide-react";
-import { SiSpotify, SiApplepodcasts, SiYoutube, SiInstagram, SiTiktok, SiX, SiLinkedin, SiPatreon, SiDiscord } from "react-icons/si";
+import { SiSpotify, SiApplepodcasts, SiYoutube, SiInstagram, SiTiktok, SiX, SiLinkedin, SiPatreon, SiDiscord, SiFacebook } from "react-icons/si";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Profile, ProfileLink } from "@shared/schema";
 
@@ -128,6 +128,22 @@ export default function ProfileEditor() {
 
   const { data: templates } = useQuery<{ templates: QuickTemplate[] }>({
     queryKey: ['/api/profile/ai/quick-templates'],
+    enabled: isAuthenticated,
+  });
+
+  interface ConnectedProfile {
+    id: string;
+    platform: string;
+    profileUrl: string;
+    username?: string;
+    displayName?: string;
+    followersCount?: number;
+    subscriberCount?: number;
+    facebookFansCount?: number;
+  }
+
+  const { data: connectedProfiles = [] } = useQuery<ConnectedProfile[]>({
+    queryKey: ['/api/creator/social-profiles'],
     enabled: isAuthenticated,
   });
 
@@ -363,6 +379,7 @@ export default function ProfileEditor() {
   const socialPlatformOptions = [
     { value: 'instagram', label: 'Instagram', icon: <SiInstagram className="h-4 w-4" /> },
     { value: 'youtube', label: 'YouTube', icon: <SiYoutube className="h-4 w-4" /> },
+    { value: 'facebook', label: 'Facebook', icon: <SiFacebook className="h-4 w-4" /> },
     { value: 'spotify', label: 'Spotify', icon: <SiSpotify className="h-4 w-4" /> },
     { value: 'tiktok', label: 'TikTok', icon: <SiTiktok className="h-4 w-4" /> },
     { value: 'twitter', label: 'X (Twitter)', icon: <SiX className="h-4 w-4" /> },
@@ -595,12 +612,96 @@ export default function ProfileEditor() {
                             Add Icon
                           </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="max-w-md">
                           <DialogHeader>
                             <DialogTitle>Add Social Icon</DialogTitle>
-                            <DialogDescription>Choose a platform and enter your profile URL</DialogDescription>
+                            <DialogDescription>Add from your connected accounts or enter a URL</DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
+                            {connectedProfiles.length > 0 && (
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Connected Accounts</Label>
+                                <div className="space-y-2">
+                                  {connectedProfiles
+                                    .filter(p => !socialIcons.some(icon => icon.platform === p.platform))
+                                    .map(profile => {
+                                      const opt = socialPlatformOptions.find(o => o.value === profile.platform);
+                                      const alreadyAsLink = links.some(link => link.url === profile.profileUrl);
+                                      return (
+                                        <div
+                                          key={profile.id}
+                                          className="p-3 border rounded-lg"
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                              {opt?.icon || <Link2 className="h-4 w-4" />}
+                                              <div>
+                                                <p className="text-sm font-medium">{profile.displayName || profile.username || opt?.label}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {profile.platform === 'youtube' && profile.subscriberCount && `${profile.subscriberCount.toLocaleString()} subscribers`}
+                                                  {profile.platform === 'instagram' && profile.followersCount && `${profile.followersCount.toLocaleString()} followers`}
+                                                  {profile.platform === 'facebook' && profile.facebookFansCount && `${profile.facebookFansCount.toLocaleString()} fans`}
+                                                  {!profile.subscriberCount && !profile.followersCount && !profile.facebookFansCount && 'Connected'}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <Badge variant="secondary" className="text-xs">Connected</Badge>
+                                          </div>
+                                          <div className="flex gap-2 mt-3">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="flex-1"
+                                              onClick={() => {
+                                                setNewSocialPlatform(profile.platform);
+                                                setNewSocialUrl(profile.profileUrl);
+                                              }}
+                                              data-testid={`add-icon-${profile.platform}`}
+                                            >
+                                              <Sparkles className="h-3 w-3 mr-1" />
+                                              Add as Icon
+                                            </Button>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="flex-1"
+                                              disabled={alreadyAsLink}
+                                              onClick={async () => {
+                                                const title = profile.displayName || profile.username || opt?.label || profile.platform;
+                                                try {
+                                                  await apiRequest('POST', '/api/profile/links', { title, url: profile.profileUrl });
+                                                  queryClient.invalidateQueries({ queryKey: ['/api/profile/links'] });
+                                                  toast({ title: "Link added!" });
+                                                  setShowAddSocialDialog(false);
+                                                } catch {
+                                                  toast({ title: "Error", description: "Failed to add link", variant: "destructive" });
+                                                }
+                                              }}
+                                              data-testid={`add-link-${profile.platform}`}
+                                            >
+                                              <Link2 className="h-3 w-3 mr-1" />
+                                              {alreadyAsLink ? 'Already a Link' : 'Add as Link'}
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                                {connectedProfiles.filter(p => !socialIcons.some(icon => icon.platform === p.platform)).length === 0 && (
+                                  <p className="text-sm text-muted-foreground text-center py-2">All connected accounts added as icons</p>
+                                )}
+                              </div>
+                            )}
+                            
+                            <div className="relative">
+                              <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t" />
+                              </div>
+                              <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-background px-2 text-muted-foreground">Or add manually</span>
+                              </div>
+                            </div>
+                            
                             <div className="space-y-2">
                               <Label>Platform</Label>
                               <Select value={newSocialPlatform} onValueChange={setNewSocialPlatform}>
@@ -839,15 +940,61 @@ export default function ProfileEditor() {
                             Add Link
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-lg">
+                        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Add a Link</DialogTitle>
                             <DialogDescription>
-                              Choose a platform or paste any URL
+                              Add from connected accounts or paste any URL
                             </DialogDescription>
                           </DialogHeader>
                           
                           <div className="space-y-4">
+                            {connectedProfiles.length > 0 && !selectedTemplate && (
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Connected Accounts</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {connectedProfiles
+                                    .filter(p => !links.some(link => link.url === p.profileUrl))
+                                    .map(profile => {
+                                      const opt = socialPlatformOptions.find(o => o.value === profile.platform);
+                                      return (
+                                        <Button
+                                          key={profile.id}
+                                          variant="outline"
+                                          className="flex items-center justify-start gap-2 h-auto py-2 px-3"
+                                          onClick={() => {
+                                            setNewLink({
+                                              title: profile.displayName || profile.username || opt?.label || profile.platform,
+                                              url: profile.profileUrl
+                                            });
+                                          }}
+                                          data-testid={`link-connected-${profile.platform}`}
+                                        >
+                                          {opt?.icon || <Link2 className="h-4 w-4" />}
+                                          <div className="text-left">
+                                            <p className="text-xs font-medium truncate">{profile.displayName || profile.username || opt?.label}</p>
+                                            <p className="text-[10px] text-muted-foreground">
+                                              {profile.platform === 'youtube' && profile.subscriberCount && `${profile.subscriberCount.toLocaleString()} subs`}
+                                              {profile.platform === 'instagram' && profile.followersCount && `${profile.followersCount.toLocaleString()} followers`}
+                                              {profile.platform === 'facebook' && profile.facebookFansCount && `${profile.facebookFansCount.toLocaleString()} fans`}
+                                              {!profile.subscriberCount && !profile.followersCount && !profile.facebookFansCount && 'Connected'}
+                                            </p>
+                                          </div>
+                                        </Button>
+                                      );
+                                    })}
+                                </div>
+                                <div className="relative pt-2">
+                                  <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                  </div>
+                                  <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-background px-2 text-muted-foreground">Or choose platform</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
                             {!selectedTemplate && (
                               <div className="grid grid-cols-3 gap-2">
                                 {templates?.templates?.slice(0, 9).map((template) => (

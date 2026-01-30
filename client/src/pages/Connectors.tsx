@@ -71,6 +71,10 @@ interface LinkedInStatus {
   configured: boolean;
 }
 
+interface FacebookStatus {
+  configured: boolean;
+}
+
 interface AdminCheck {
   isAdmin: boolean;
   isSuperAdmin: boolean;
@@ -140,6 +144,10 @@ export default function Connectors() {
     queryKey: ["/api/creator/linkedin/status"],
   });
 
+  const { data: facebookStatus } = useQuery<FacebookStatus>({
+    queryKey: ["/api/creator/facebook/status"],
+  });
+
   const { data: creatorProfiles = [], isLoading: profilesLoading } = useQuery<CreatorSocialProfile[]>({
     queryKey: ["/api/creator/social-profiles"],
   });
@@ -147,6 +155,7 @@ export default function Connectors() {
   const isSuperAdmin = adminCheck?.isSuperAdmin === true;
   const hasInstagramConnected = creatorProfiles.some(p => p.platform === 'instagram' && p.instagramAccountId);
   const hasLinkedInConnected = creatorProfiles.some(p => p.platform === 'linkedin');
+  const hasFacebookConnected = creatorProfiles.some(p => p.platform === 'facebook');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -166,6 +175,21 @@ export default function Connectors() {
       window.history.replaceState({}, '', '/connectors');
     } else if (params.get('linkedin_error')) {
       toast({ title: "LinkedIn connection failed", description: "Could not connect your LinkedIn account", variant: "destructive" });
+      window.history.replaceState({}, '', '/connectors');
+    }
+    
+    if (params.get('facebook_connected') === 'true') {
+      toast({ title: "Facebook connected!", description: "Your Facebook Page has been linked successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/social-profiles"] });
+      window.history.replaceState({}, '', '/connectors');
+    } else if (params.get('facebook_error')) {
+      const error = params.get('facebook_error');
+      const errorMessages: Record<string, string> = {
+        'no_pages': 'No Facebook Pages found. You need a Facebook Page to connect.',
+        'auth_denied': 'Access was denied.',
+        'token_exchange_failed': 'Could not exchange authorization code.',
+      };
+      toast({ title: "Facebook connection failed", description: (error && errorMessages[error]) || "Could not connect your Facebook Page", variant: "destructive" });
       window.history.replaceState({}, '', '/connectors');
     }
   }, [toast]);
@@ -235,6 +259,20 @@ export default function Connectors() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to connect to LinkedIn", variant: "destructive" });
+    },
+  });
+
+  const connectFacebookMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", `/api/creator/facebook/auth?t=${Date.now()}`);
+      const data = await res.json();
+      return data.url;
+    },
+    onSuccess: (url) => {
+      window.location.href = url;
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to connect to Facebook", variant: "destructive" });
     },
   });
 
@@ -686,6 +724,59 @@ export default function Connectors() {
                       data-testid="button-connect-linkedin"
                     >
                       {connectLinkedInMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Settings className="h-3 w-3 mr-1" />
+                      )}
+                      Sign in
+                    </Button>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Not configured</span>
+                  )}
+                </td>
+              </tr>
+
+              {/* Facebook */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <svg className="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                    <span className="font-medium">Facebook Page</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  Connect your Facebook Page via OAuth
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {profilesLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : hasFacebookConnected ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleManage('facebook')}
+                        data-testid="button-manage-facebook"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : facebookStatus?.configured ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => connectFacebookMutation.mutate()}
+                      disabled={connectFacebookMutation.isPending}
+                      data-testid="button-connect-facebook"
+                    >
+                      {connectFacebookMutation.isPending ? (
                         <Loader2 className="h-3 w-3 animate-spin mr-1" />
                       ) : (
                         <Settings className="h-3 w-3 mr-1" />

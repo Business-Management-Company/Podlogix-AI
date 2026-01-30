@@ -1026,6 +1026,145 @@ export async function registerRoutes(
     }
   });
 
+  // Facebook OAuth routes for creator profiles
+  app.get("/api/creator/facebook/status", async (req, res) => {
+    const { isFacebookOAuthConfigured } = await import('./services/facebookOAuth');
+    res.json({
+      configured: isFacebookOAuthConfigured(),
+    });
+  });
+
+  app.get("/api/creator/facebook/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      const { isFacebookOAuthConfigured, getFacebookAuthUrl } = await import('./services/facebookOAuth');
+      
+      if (!isFacebookOAuthConfigured()) {
+        return res.status(400).json({ error: 'Facebook OAuth not configured' });
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/creator/facebook/callback`;
+      
+      const userId = req.user.claims.sub;
+      const timestamp = Date.now();
+      const stateData = JSON.stringify({ userId, timestamp });
+      const signature = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'facebook-oauth-secret')
+        .update(stateData)
+        .digest('hex');
+      const state = Buffer.from(JSON.stringify({ data: stateData, sig: signature })).toString('base64');
+      
+      const authUrl = getFacebookAuthUrl(redirectUri, state);
+      res.json({ url: authUrl });
+    } catch (error) {
+      console.error("Error generating Facebook auth URL:", error);
+      res.status(500).json({ error: 'Failed to generate auth URL' });
+    }
+  });
+
+  app.get("/api/creator/facebook/callback", async (req, res) => {
+    try {
+      const { code, state, error: authError, error_description } = req.query;
+
+      if (authError) {
+        console.error("Facebook auth error:", authError, error_description);
+        return res.redirect('/connectors?facebook_error=auth_denied');
+      }
+
+      if (!code || !state) {
+        return res.redirect('/connectors?facebook_error=missing_params');
+      }
+
+      let userId: string;
+      try {
+        const stateObj = JSON.parse(Buffer.from(state as string, 'base64').toString());
+        const { data: stateData, sig } = stateObj;
+        
+        const expectedSig = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'facebook-oauth-secret')
+          .update(stateData)
+          .digest('hex');
+        
+        if (sig !== expectedSig) {
+          console.error("Facebook OAuth state signature mismatch");
+          return res.redirect('/connectors?facebook_error=invalid_state');
+        }
+        
+        const parsed = JSON.parse(stateData);
+        userId = parsed.userId;
+        
+        const stateAge = Date.now() - parsed.timestamp;
+        if (stateAge > 10 * 60 * 1000) {
+          return res.redirect('/connectors?facebook_error=state_expired');
+        }
+      } catch (e) {
+        console.error("Facebook OAuth state parsing error:", e);
+        return res.redirect('/connectors?facebook_error=invalid_state');
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/creator/facebook/callback`;
+
+      const { exchangeCodeForToken, getLongLivedToken, getUserPages } = await import('./services/facebookOAuth');
+
+      const tokens = await exchangeCodeForToken(code as string, redirectUri);
+      if (!tokens) {
+        return res.redirect('/connectors?facebook_error=token_exchange_failed');
+      }
+
+      const longLivedTokens = await getLongLivedToken(tokens.accessToken);
+      const accessToken = longLivedTokens?.accessToken || tokens.accessToken;
+      const expiresAt = longLivedTokens?.expiresAt || tokens.expiresAt;
+
+      const pages = await getUserPages(accessToken);
+      if (!pages || pages.length === 0) {
+        return res.redirect('/connectors?facebook_error=no_pages');
+      }
+
+      // Use the first page for now
+      const page = pages[0];
+
+      const existingProfiles = await storage.getCreatorSocialProfilesByUser(userId);
+      const existingFacebook = existingProfiles.find(p => p.platform === 'facebook');
+      
+      if (existingFacebook) {
+        await storage.updateCreatorSocialProfile(existingFacebook.id, {
+          username: page.name,
+          displayName: page.name,
+          profilePictureUrl: page.pictureUrl,
+          facebookPageId: page.id,
+          facebookAccessToken: page.accessToken,
+          facebookTokenExpiresAt: expiresAt,
+          facebookPageName: page.name,
+          facebookFansCount: page.fansCount,
+          verified: true,
+          lastSyncedAt: new Date(),
+        });
+      } else {
+        await storage.createCreatorSocialProfile({
+          userId,
+          platform: 'facebook',
+          profileUrl: `https://facebook.com/${page.id}`,
+          username: page.name,
+          displayName: page.name,
+          profilePictureUrl: page.pictureUrl,
+          facebookPageId: page.id,
+          facebookAccessToken: page.accessToken,
+          facebookTokenExpiresAt: expiresAt,
+          facebookPageName: page.name,
+          facebookFansCount: page.fansCount,
+          verified: true,
+          lastSyncedAt: new Date(),
+        });
+      }
+
+      res.redirect('/connectors?facebook_connected=true');
+    } catch (error) {
+      console.error("Facebook callback error:", error);
+      res.redirect('/connectors?facebook_error=callback_failed');
+    }
+  });
+
   // Dashboard endpoint (protected)
   app.get(api.dashboard.get.path, isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
