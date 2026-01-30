@@ -197,7 +197,8 @@ export default function Connectors() {
 
   const connectInstagramMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("GET", "/api/creator/instagram/auth");
+      // Add timestamp to prevent browser caching
+      const res = await apiRequest("GET", `/api/creator/instagram/auth?t=${Date.now()}`);
       const data = await res.json();
       return data.url;
     },
