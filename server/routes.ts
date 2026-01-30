@@ -747,6 +747,7 @@ export async function registerRoutes(
 
   app.get("/api/creator/instagram/auth", isAuthenticated, async (req: any, res) => {
     try {
+      console.log("[Instagram Auth] META_APP_ID from env:", process.env.META_APP_ID);
       if (!isInstagramOAuthConfigured()) {
         return res.status(400).json({ error: 'Instagram OAuth not configured' });
       }
