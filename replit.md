@@ -87,6 +87,13 @@ The platform includes dual functionality for both podcasters (creators) and podc
 - **episodeSyncService**: Handles RSS polling and orchestrates auto-briefing generation
 - **syncAllSubscriptionsForUser**: Fetches latest episodes from all user subscriptions
 - **processAutoBriefingsForUser**: Transcribes and generates briefings for pending episodes
+- **schedulerService**: Automatic background sync that runs every 30 minutes to fetch new episodes for all users with active subscriptions
+
+### Spotify Playlist Integration
+- Create "Podlogix Recommendations" playlist in user's Spotify account
+- Add individual high-relevance episodes to playlist from briefings
+- Bulk add all new (unread) episodes to playlist with one click
+- Episodes are matched by searching Spotify's catalog
 
 ### Database Tables for Listener Features
 - `podcast_subscriptions`: User's followed podcasts (RSS or Spotify)
