@@ -520,6 +520,12 @@ export const creatorSocialProfiles = pgTable("creator_social_profiles", {
   linkedinMemberId: varchar("linkedin_member_id"),
   linkedinAccessToken: text("linkedin_access_token"),
   linkedinTokenExpiresAt: timestamp("linkedin_token_expires_at"),
+  // Facebook-specific fields (populated via Facebook OAuth)
+  facebookPageId: varchar("facebook_page_id"),
+  facebookAccessToken: text("facebook_access_token"),
+  facebookTokenExpiresAt: timestamp("facebook_token_expires_at"),
+  facebookPageName: varchar("facebook_page_name"),
+  facebookFansCount: integer("facebook_fans_count"),
   // Verification status
   verified: boolean("verified").default(false),
   lastSyncedAt: timestamp("last_synced_at"),
