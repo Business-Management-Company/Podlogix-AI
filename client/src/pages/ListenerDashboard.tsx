@@ -367,6 +367,22 @@ export default function ListenerDashboard() {
     },
   });
 
+  const addNewEpisodesToPlaylistMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/listener/spotify/playlist/add-new');
+      return res.json();
+    },
+    onSuccess: (data: { addedCount: number; totalAttempted: number; playlistUrl: string }) => {
+      toast({ 
+        title: "Episodes added!", 
+        description: `Added ${data.addedCount} of ${data.totalAttempted} new episodes to your playlist` 
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to add episodes", description: "Could not add episodes to playlist", variant: "destructive" });
+    },
+  });
+
   const toggleBookmarkMutation = useMutation({
     mutationFn: async (briefingId: string) => {
       const res = await apiRequest('PATCH', `/api/listener/briefings/${briefingId}/bookmark`);
@@ -1221,7 +1237,22 @@ export default function ListenerDashboard() {
                       Create Playlist
                     </Button>
                     <Button 
-                      variant="outline" 
+                      variant="outline"
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => addNewEpisodesToPlaylistMutation.mutate()}
+                      disabled={addNewEpisodesToPlaylistMutation.isPending || episodes.filter(e => !e.isRead).length === 0}
+                      data-testid="button-add-new-to-playlist"
+                    >
+                      {addNewEpisodesToPlaylistMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4 mr-2" />
+                      )}
+                      Add New Episodes ({episodes.filter(e => !e.isRead).length})
+                    </Button>
+                    <Button 
+                      variant="ghost" 
                       size="sm" 
                       className="w-full"
                       onClick={() => disconnectSpotifyMutation.mutate()}

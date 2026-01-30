@@ -1528,6 +1528,55 @@ export async function registerRoutes(
     }
   });
 
+  // Add all new episodes to Spotify playlist
+  app.post('/api/listener/spotify/playlist/add-new', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      
+      const playlist = await createOrGetBriefingsPlaylist(userId);
+      if (!playlist) {
+        return res.status(400).json({ message: 'No Spotify playlist found. Connect Spotify first.' });
+      }
+
+      // Get all new (unread) episodes with their subscription info
+      const episodes = await storage.getSubscriptionEpisodesByUser(userId);
+      const subscriptions = await storage.getPodcastSubscriptionsByUserId(userId);
+      const subsMap = new Map(subscriptions.map(s => [s.id, s]));
+      
+      // Filter for new episodes (those that aren't read yet)
+      const newEpisodes = episodes.filter(e => !e.isRead).slice(0, 20); // Limit to 20 to avoid rate limits
+      
+      let addedCount = 0;
+      const errors: string[] = [];
+      
+      for (const episode of newEpisodes) {
+        const subscription = subsMap.get(episode.subscriptionId);
+        if (!subscription) continue;
+        
+        try {
+          const episodeUri = await searchSpotifyEpisode(userId, subscription.title, episode.title);
+          if (episodeUri) {
+            const added = await addEpisodeToPlaylist(userId, playlist.id, episodeUri);
+            if (added) addedCount++;
+          }
+        } catch (err) {
+          errors.push(episode.title);
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        addedCount, 
+        totalAttempted: newEpisodes.length,
+        playlistUrl: playlist.externalUrl,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error('Error adding new episodes to playlist:', error);
+      res.status(500).json({ message: 'Failed to add episodes to playlist' });
+    }
+  });
+
   // Get user's podcast subscriptions
   app.get('/api/listener/subscriptions', isAuthenticated, async (req: any, res) => {
     try {
