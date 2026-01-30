@@ -1,6 +1,12 @@
-const META_APP_ID = process.env.META_APP_ID;
-const META_APP_SECRET = process.env.META_APP_SECRET;
 const GRAPH_API_BASE = 'https://graph.facebook.com/v18.0';
+
+function getMetaAppId(): string | undefined {
+  return process.env.META_APP_ID;
+}
+
+function getMetaAppSecret(): string | undefined {
+  return process.env.META_APP_SECRET;
+}
 
 export interface InstagramProfile {
   id: string;
@@ -20,16 +26,21 @@ export interface InstagramTokens {
 }
 
 export function isInstagramOAuthConfigured(): boolean {
-  return !!(META_APP_ID && META_APP_SECRET);
+  return !!(getMetaAppId() && getMetaAppSecret());
 }
 
 export function getInstagramAuthUrl(redirectUri: string, state?: string): string {
-  if (!isInstagramOAuthConfigured()) {
+  const appId = getMetaAppId();
+  const appSecret = getMetaAppSecret();
+  
+  if (!appId || !appSecret) {
     throw new Error('Instagram OAuth not configured');
   }
 
+  console.log('[Instagram OAuth] Using META_APP_ID:', appId);
+
   const params = new URLSearchParams({
-    client_id: META_APP_ID!,
+    client_id: appId,
     redirect_uri: redirectUri,
     scope: 'instagram_basic,pages_show_list',
     response_type: 'code',
@@ -49,8 +60,8 @@ export async function exchangeCodeForToken(
 
   try {
     const params = new URLSearchParams({
-      client_id: META_APP_ID!,
-      client_secret: META_APP_SECRET!,
+      client_id: getMetaAppId()!,
+      client_secret: getMetaAppSecret()!,
       redirect_uri: redirectUri,
       code,
     });
@@ -89,8 +100,8 @@ export async function getLongLivedToken(shortLivedToken: string): Promise<Instag
   try {
     const params = new URLSearchParams({
       grant_type: 'fb_exchange_token',
-      client_id: META_APP_ID!,
-      client_secret: META_APP_SECRET!,
+      client_id: getMetaAppId()!,
+      client_secret: getMetaAppSecret()!,
       fb_exchange_token: shortLivedToken,
     });
 
@@ -190,7 +201,7 @@ export async function refreshInstagramAnalytics(
 export async function validateAccessToken(accessToken: string): Promise<boolean> {
   try {
     const response = await fetch(
-      `${GRAPH_API_BASE}/debug_token?input_token=${accessToken}&access_token=${META_APP_ID}|${META_APP_SECRET}`
+      `${GRAPH_API_BASE}/debug_token?input_token=${accessToken}&access_token=${getMetaAppId()}|${getMetaAppSecret()}`
     );
 
     if (!response.ok) {
