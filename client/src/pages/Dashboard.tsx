@@ -112,7 +112,7 @@ export default function Dashboard() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/5 rounded-2xl p-6"
+        className="bg-primary/10 rounded-2xl p-6"
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -189,7 +189,7 @@ export default function Dashboard() {
           transition={{ delay: 0.2 }}
           className="space-y-4"
         >
-          <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+          <Card className="bg-primary/5 border-primary/20">
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -211,7 +211,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-blue-500/20">
+          <Card className="bg-blue-500/5 border-blue-500/20">
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
@@ -233,7 +233,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500/5 to-emerald-500/5 border-green-500/20">
+          <Card className="bg-green-500/5 border-green-500/20">
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">

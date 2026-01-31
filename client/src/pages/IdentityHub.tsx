@@ -216,7 +216,7 @@ export default function IdentityHub() {
         </motion.div>
 
         {/* Identity Promise */}
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+        <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
@@ -236,7 +236,7 @@ export default function IdentityHub() {
         </Card>
 
         {/* Blockchain Explainer */}
-        <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-2 border-primary/20">
+        <Card className="bg-primary/5 border-2 border-primary/20">
           <CardContent className="pt-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">

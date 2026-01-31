@@ -89,7 +89,7 @@ export default function Certificate() {
           animate={{ opacity: 1, y: 0 }}
         >
           <Card className="border-2 border-primary/20 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
+            <CardHeader className="bg-primary/10">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-3 rounded-lg bg-primary/10">
@@ -190,7 +190,7 @@ export default function Certificate() {
               )}
 
               {/* Verification Badge */}
-              <div className="bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg p-4 border border-primary/20">
+              <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
                 <div className="flex items-center gap-3">
                   <Shield className="h-6 w-6 text-primary" />
                   <div>
@@ -206,7 +206,7 @@ export default function Certificate() {
         </motion.div>
 
         {/* Identity Promise */}
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+        <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />

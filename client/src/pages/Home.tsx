@@ -105,7 +105,7 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
-            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent -translate-y-1/2 hidden md:block" />
+            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-primary/20 -translate-y-1/2 hidden md:block" />
             
             {[
               { step: "01", title: "Upload Episode", desc: "Drag and drop your audio file. We support MP3, WAV, and M4A up to 2 hours." },

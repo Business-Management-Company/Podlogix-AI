@@ -164,7 +164,7 @@ export default function Distribution() {
         ) : (
           <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <Card className="bg-gradient-to-r from-primary/5 to-accent/5">
+              <Card className="bg-primary/5">
                 <CardHeader>
                   <CardTitle>Publish Everywhere</CardTitle>
                   <CardDescription>
