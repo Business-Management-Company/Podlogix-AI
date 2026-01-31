@@ -257,58 +257,6 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {dashboardData?.profile && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Radio className="h-5 w-5" />
-                Your Podcast
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <User className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Profile</p>
-                    <p className="font-medium">{dashboardData.profile.displayName}</p>
-                  </div>
-                </div>
-                {dashboardData.podcasts?.[0] && (
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <Mic className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Podcast</p>
-                      <p className="font-medium">{dashboardData.podcasts[0].title}</p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <Rss className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">RSS Feed</p>
-                    <p className="font-medium">{dashboardData.hasRssFeed ? 'Connected' : 'Not connected'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <Share2 className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Platforms</p>
-                    <p className="font-medium">
-                      {Object.values(dashboardData.distributionStatus || {}).filter(s => s === 'submitted' || s === 'approved').length} active
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
     </div>
   );
 }
