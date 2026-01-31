@@ -249,7 +249,7 @@ export default function PublicProfile() {
             href="/" 
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <div className="w-5 h-5 rounded bg-gradient-to-tr from-primary to-purple-400 flex items-center justify-center text-white">
+            <div className="w-5 h-5 rounded bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white">
               <Mic className="w-3 h-3" />
             </div>
             Powered by Podlogix

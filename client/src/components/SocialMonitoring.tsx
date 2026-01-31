@@ -20,7 +20,7 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 };
 
 const PLATFORM_COLORS: Record<string, string> = {
-  instagram: "bg-gradient-to-r from-purple-500 to-pink-500",
+  instagram: "bg-gradient-to-r from-blue-500 to-blue-700",
   tiktok: "bg-black",
   youtube: "bg-red-600",
   twitter: "bg-black",

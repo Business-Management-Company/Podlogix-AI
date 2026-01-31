@@ -65,7 +65,7 @@ export function PhoneMockup({
             <div className="flex flex-col items-center text-center space-y-4">
               <Avatar className="w-20 h-20 ring-4 ring-primary/20">
                 <AvatarImage src={avatarUrl} />
-                <AvatarFallback className="text-2xl bg-gradient-to-tr from-primary to-purple-400 text-white">
+                <AvatarFallback className="text-2xl bg-gradient-to-tr from-primary to-blue-500 text-white">
                   {displayName?.[0]?.toUpperCase() || "?"}
                 </AvatarFallback>
               </Avatar>

@@ -43,7 +43,7 @@ export function Navbar() {
     )}>
       <div className="container mx-auto px-4 md:px-6 flex flex-wrap items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-purple-400 flex items-center justify-center text-white shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300">
             <Mic className="w-5 h-5" />
           </div>
           <span className="font-display font-bold text-xl tracking-tight">Podlogix</span>

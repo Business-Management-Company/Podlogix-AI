@@ -389,7 +389,7 @@ export default function Connectors() {
               <tr className="hover:bg-muted/30">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Mail className="h-5 w-5 text-purple-500" />
+                    <Mail className="h-5 w-5 text-blue-600" />
                     <span className="font-medium">Resend</span>
                   </div>
                 </td>

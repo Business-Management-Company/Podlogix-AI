@@ -337,7 +337,7 @@ export default function BrandDashboard() {
       <header className="border-b bg-card/50 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -369,7 +369,7 @@ export default function BrandDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-pink-500/5 rounded-2xl p-6 md:p-8"
+          className="bg-gradient-to-r from-blue-500/10 via-blue-600/10 to-blue-500/5 rounded-2xl p-6 md:p-8"
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -642,7 +642,7 @@ export default function BrandDashboard() {
                     <Card key={post.postId} className="hover-elevate overflow-visible">
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
-                          <div className="h-14 w-14 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                          <div className="h-14 w-14 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-lg">
                             #{index + 1}
                           </div>
                           <div className="flex-1 min-w-0">

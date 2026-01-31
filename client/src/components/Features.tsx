@@ -58,7 +58,7 @@ export function Features() {
           {features.map((feature, index) => {
             const CardContent = (
               <>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 ${feature.highlight ? 'bg-gradient-to-br from-primary to-purple-500 text-white' : 'bg-primary/10 text-primary'}`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 ${feature.highlight ? 'bg-gradient-to-br from-primary to-blue-600 text-white' : 'bg-primary/10 text-primary'}`}>
                   <feature.icon className="w-6 h-6" />
                 </div>
                 <h3 className="text-xl font-bold mb-2 font-display">{feature.title}</h3>

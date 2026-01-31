@@ -139,7 +139,7 @@ export default function EmailHub() {
   }
 
   const categoryColors: Record<string, string> = {
-    guest: "bg-purple-500/20 text-purple-400",
+    guest: "bg-blue-600/20 text-blue-500",
     subscriber: "bg-blue-500/20 text-blue-400",
     sponsor: "bg-green-500/20 text-green-400",
     collaborator: "bg-orange-500/20 text-orange-400",

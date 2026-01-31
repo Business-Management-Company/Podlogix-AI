@@ -267,7 +267,7 @@ export default function DashboardCertifyLikeness() {
             Dashboard
           </Button>
           <div className="flex items-center gap-2">
-            <Camera className="h-6 w-6 text-purple-600" />
+            <Camera className="h-6 w-6 text-blue-700" />
             <span className="font-display font-bold text-xl">Likeness Certification</span>
           </div>
         </div>
@@ -291,15 +291,15 @@ export default function DashboardCertifyLikeness() {
                 <div 
                   key={i}
                   className={`flex flex-col items-center ${
-                    i + 1 <= currentStep ? 'text-purple-600' : 'text-muted-foreground'
+                    i + 1 <= currentStep ? 'text-blue-700' : 'text-muted-foreground'
                   }`}
                 >
                   <div 
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                       i + 1 < currentStep 
-                        ? 'bg-purple-600 text-white' 
+                        ? 'bg-blue-700 text-white' 
                         : i + 1 === currentStep
-                        ? 'border-2 border-purple-600 bg-background'
+                        ? 'border-2 border-blue-700 bg-background'
                         : 'border-2 border-muted bg-background'
                     }`}
                   >
@@ -498,7 +498,7 @@ export default function DashboardCertifyLikeness() {
 
                       <Button 
                         type="submit" 
-                        className="w-full bg-purple-600 hover:bg-purple-700"
+                        className="w-full bg-blue-700 hover:bg-blue-800"
                         disabled={createAssetMutation.isPending}
                         data-testid="button-continue-step1"
                       >
@@ -545,7 +545,7 @@ export default function DashboardCertifyLikeness() {
                     {uploadedImages.map((path, index) => (
                       <div 
                         key={index} 
-                        className="relative aspect-square rounded-lg border-2 border-purple-200 bg-purple-50 dark:bg-purple-950/20 overflow-hidden group"
+                        className="relative aspect-square rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/20 overflow-hidden group"
                       >
                         <img 
                           src={path} 
@@ -559,20 +559,20 @@ export default function DashboardCertifyLikeness() {
                         >
                           <X className="h-4 w-4" />
                         </button>
-                        <div className="absolute bottom-2 left-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                        <div className="absolute bottom-2 left-2 bg-blue-700 text-white text-xs px-2 py-1 rounded">
                           Photo {index + 1}
                         </div>
                       </div>
                     ))}
                     
                     {uploadedImages.length < 5 && (
-                      <div className="aspect-square rounded-lg border-2 border-dashed border-purple-300 bg-purple-50/50 dark:bg-purple-950/10 flex flex-col items-center justify-center">
+                      <div className="aspect-square rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/50 dark:bg-blue-950/10 flex flex-col items-center justify-center">
                         <ObjectUploader
                           maxNumberOfFiles={5 - uploadedImages.length}
                           maxFileSize={10485760}
                           onGetUploadParameters={getUploadParameters}
                           onComplete={handleUploadComplete}
-                          buttonClassName="bg-purple-600 hover:bg-purple-700"
+                          buttonClassName="bg-blue-700 hover:bg-blue-800"
                         >
                           <Upload className="h-4 w-4 mr-2" />
                           Add Photo
@@ -601,7 +601,7 @@ export default function DashboardCertifyLikeness() {
                   {uploadedImages.length >= 3 && (
                     <Button 
                       onClick={() => setCurrentStep(3)}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      className="w-full bg-blue-700 hover:bg-blue-800"
                       data-testid="button-continue-step2"
                     >
                       <ArrowRight className="h-4 w-4 mr-2" />
@@ -660,8 +660,8 @@ export default function DashboardCertifyLikeness() {
                     ))}
                   </div>
 
-                  <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 p-4 rounded-lg">
-                    <p className="text-sm text-purple-800 dark:text-purple-200">
+                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
                       By minting this certificate, you confirm that the photos are of yourself and you authorize Podlogix to create a blockchain-verified likeness certificate for protection against AI impersonation.
                     </p>
                   </div>
@@ -678,7 +678,7 @@ export default function DashboardCertifyLikeness() {
                     </Button>
                     <Button 
                       onClick={() => mintMutation.mutate()}
-                      className="flex-1 bg-purple-600 hover:bg-purple-700"
+                      className="flex-1 bg-blue-700 hover:bg-blue-800"
                       disabled={mintMutation.isPending}
                       data-testid="button-mint"
                     >
@@ -708,8 +708,8 @@ export default function DashboardCertifyLikeness() {
             >
               <Card className="text-center">
                 <CardContent className="pt-12 pb-8 space-y-6">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                    <Check className="h-10 w-10 text-purple-600" />
+                  <div className="w-20 h-20 mx-auto rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Check className="h-10 w-10 text-blue-700" />
                   </div>
                   
                   <div>
@@ -727,7 +727,7 @@ export default function DashboardCertifyLikeness() {
                   <div className="flex flex-col gap-3 max-w-xs mx-auto">
                     <Button 
                       onClick={() => navigate("/dashboard")}
-                      className="bg-purple-600 hover:bg-purple-700"
+                      className="bg-blue-700 hover:bg-blue-800"
                       data-testid="button-view-dashboard"
                     >
                       View Dashboard

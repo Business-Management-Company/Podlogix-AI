@@ -108,7 +108,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Sidebar>
           <SidebarHeader className="p-4 border-b">
             <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-purple-400 flex items-center justify-center text-white shadow-lg">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white shadow-lg">
                 <Mic className="w-5 h-5" />
               </div>
               <span className="font-bold text-lg">Podlogix</span>

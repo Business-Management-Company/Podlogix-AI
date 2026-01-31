@@ -30,7 +30,7 @@ const channelIcons: Record<string, any> = {
 
 const channelColors: Record<string, string> = {
   spotify: "text-green-500",
-  apple: "text-purple-500",
+  apple: "text-blue-600",
   youtube: "text-red-500",
   amazon: "text-orange-500",
 };
