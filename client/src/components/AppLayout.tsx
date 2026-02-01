@@ -35,6 +35,7 @@ import {
   Users,
   Mail,
   Plug,
+  Youtube,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -48,6 +49,7 @@ const creatorMenuItems = [
   { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
   { title: "Email Hub", url: "/dashboard/email", icon: Mail },
   { title: "AI Assistant", url: "/dashboard/ai", icon: Sparkles },
+  { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Youtube },
 ];
 
 const podcastMenuItems = [

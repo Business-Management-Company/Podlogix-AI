@@ -27,6 +27,7 @@ import Connectors from "@/pages/Connectors";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import EmailHub from "@/pages/EmailHub";
+import VideoAnalysis from "@/pages/VideoAnalysis";
 
 function AuthenticatedRoutes() {
   return (
@@ -39,6 +40,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/distribution" component={Distribution} />
         <Route path="/dashboard/email" component={EmailHub} />
         <Route path="/dashboard/ai" component={AiAssistant} />
+        <Route path="/dashboard/video-analysis" component={VideoAnalysis} />
         <Route path="/dashboard/certify" component={DashboardCertify} />
         <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
         <Route path="/listener" component={ListenerDashboard} />

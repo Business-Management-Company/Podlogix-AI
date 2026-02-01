@@ -641,3 +641,38 @@ export type EmailCampaign = typeof emailCampaigns.$inferSelect;
 export type InsertEmailCampaign = z.infer<typeof insertEmailCampaignSchema>;
 export type EmailCampaignRecipient = typeof emailCampaignRecipients.$inferSelect;
 export type InsertEmailCampaignRecipient = z.infer<typeof insertEmailCampaignRecipientSchema>;
+
+// YouTube Video Analysis
+export const videoAnalyses = pgTable("video_analyses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(),
+  videoUrl: text("video_url").notNull(),
+  videoId: text("video_id").notNull(),
+  videoTitle: text("video_title"),
+  channelName: text("channel_name"),
+  thumbnailUrl: text("thumbnail_url"),
+  transcript: text("transcript"),
+  presenceScore: integer("presence_score"),
+  speakingAbilityScore: integer("speaking_ability_score"),
+  fillerWordsScore: integer("filler_words_score"),
+  appearanceScore: integer("appearance_score"),
+  overallScore: integer("overall_score"),
+  presenceFeedback: text("presence_feedback"),
+  speakingAbilityFeedback: text("speaking_ability_feedback"),
+  fillerWordsFeedback: text("filler_words_feedback"),
+  appearanceFeedback: text("appearance_feedback"),
+  overallFeedback: text("overall_feedback"),
+  fillerWordsDetected: jsonb("filler_words_detected"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  analyzedAt: timestamp("analyzed_at"),
+});
+
+export const insertVideoAnalysisSchema = createInsertSchema(videoAnalyses).omit({
+  id: true,
+  createdAt: true,
+  analyzedAt: true,
+});
+
+export type VideoAnalysis = typeof videoAnalyses.$inferSelect;
+export type InsertVideoAnalysis = z.infer<typeof insertVideoAnalysisSchema>;

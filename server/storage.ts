@@ -3,7 +3,7 @@ import {
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
-  emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients,
+  emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -16,7 +16,8 @@ import {
   type SocialMonitoringAlert, type InsertSocialMonitoringAlert,
   type CreatorSocialProfile, type InsertCreatorSocialProfile,
   type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
-  type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient
+  type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
+  type VideoAnalysis, type InsertVideoAnalysis
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -137,6 +138,11 @@ export interface IStorage {
   getEmailCampaign(id: string): Promise<EmailCampaign | undefined>;
   createEmailCampaign(campaign: InsertEmailCampaign): Promise<EmailCampaign>;
   updateEmailCampaign(id: string, userId: string, updates: Partial<EmailCampaign>): Promise<EmailCampaign | undefined>;
+  // Video Analysis
+  createVideoAnalysis(analysis: InsertVideoAnalysis): Promise<VideoAnalysis>;
+  getVideoAnalysesByUser(userId: string): Promise<VideoAnalysis[]>;
+  getVideoAnalysis(id: string): Promise<VideoAnalysis | undefined>;
+  updateVideoAnalysis(id: string, updates: Partial<VideoAnalysis>): Promise<VideoAnalysis | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -650,6 +656,31 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(emailCampaigns)
       .set({ ...updates, updatedAt: new Date() })
       .where(and(eq(emailCampaigns.id, id), eq(emailCampaigns.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  // Video Analysis
+  async createVideoAnalysis(analysis: InsertVideoAnalysis): Promise<VideoAnalysis> {
+    const [created] = await db.insert(videoAnalyses).values(analysis).returning();
+    return created;
+  }
+
+  async getVideoAnalysesByUser(userId: string): Promise<VideoAnalysis[]> {
+    return await db.select().from(videoAnalyses)
+      .where(eq(videoAnalyses.userId, userId))
+      .orderBy(desc(videoAnalyses.createdAt));
+  }
+
+  async getVideoAnalysis(id: string): Promise<VideoAnalysis | undefined> {
+    const [analysis] = await db.select().from(videoAnalyses).where(eq(videoAnalyses.id, id));
+    return analysis;
+  }
+
+  async updateVideoAnalysis(id: string, updates: Partial<VideoAnalysis>): Promise<VideoAnalysis | undefined> {
+    const [updated] = await db.update(videoAnalyses)
+      .set(updates)
+      .where(eq(videoAnalyses.id, id))
       .returning();
     return updated;
   }

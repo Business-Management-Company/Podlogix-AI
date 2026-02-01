@@ -2829,5 +2829,186 @@ export async function registerRoutes(
     }
   });
 
+  // YouTube Video Analysis Routes
+  app.get('/api/video-analysis', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const analyses = await storage.getVideoAnalysesByUser(userId);
+      res.json(analyses);
+    } catch (error) {
+      console.error('Error fetching video analyses:', error);
+      res.status(500).json({ message: 'Failed to fetch analyses' });
+    }
+  });
+
+  app.post('/api/video-analysis', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { videoUrl } = req.body;
+
+      if (!videoUrl) {
+        return res.status(400).json({ message: 'Video URL is required' });
+      }
+
+      // Extract video ID from YouTube URL
+      const videoIdMatch = videoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+      if (!videoIdMatch) {
+        return res.status(400).json({ message: 'Invalid YouTube URL' });
+      }
+      const videoId = videoIdMatch[1];
+
+      // Create initial analysis record
+      const analysis = await storage.createVideoAnalysis({
+        userId,
+        videoUrl,
+        videoId,
+        status: 'pending',
+      });
+
+      // Start async analysis
+      analyzeYouTubeVideo(analysis.id, videoId).catch(err => {
+        console.error('Error in video analysis:', err);
+      });
+
+      res.json(analysis);
+    } catch (error) {
+      console.error('Error creating video analysis:', error);
+      res.status(500).json({ message: 'Failed to create analysis' });
+    }
+  });
+
+  app.get('/api/video-analysis/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const analysis = await storage.getVideoAnalysis(id);
+      if (!analysis || analysis.userId !== userId) {
+        return res.status(404).json({ message: 'Analysis not found' });
+      }
+      res.json(analysis);
+    } catch (error) {
+      console.error('Error fetching video analysis:', error);
+      res.status(500).json({ message: 'Failed to fetch analysis' });
+    }
+  });
+
+  async function analyzeYouTubeVideo(analysisId: string, videoId: string) {
+    try {
+      const { YoutubeTranscript } = await import('youtube-transcript');
+      const OpenAI = (await import('openai')).default;
+
+      // Fetch transcript
+      let transcript = '';
+      try {
+        const transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
+        transcript = transcriptData.map(t => t.text).join(' ');
+      } catch (e) {
+        console.error('Error fetching transcript:', e);
+        await storage.updateVideoAnalysis(analysisId, {
+          status: 'failed',
+          overallFeedback: 'Could not fetch transcript. The video may not have captions available.',
+        });
+        return;
+      }
+
+      if (!transcript || transcript.length < 50) {
+        await storage.updateVideoAnalysis(analysisId, {
+          status: 'failed',
+          overallFeedback: 'Transcript too short or unavailable for analysis.',
+        });
+        return;
+      }
+
+      // Fetch video info from YouTube API
+      const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+      let videoTitle = '';
+      let channelName = '';
+      let thumbnailUrl = '';
+
+      if (YOUTUBE_API_KEY) {
+        try {
+          const videoResponse = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+          );
+          const videoData = await videoResponse.json();
+          if (videoData.items?.[0]?.snippet) {
+            const snippet = videoData.items[0].snippet;
+            videoTitle = snippet.title;
+            channelName = snippet.channelTitle;
+            thumbnailUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url;
+          }
+        } catch (e) {
+          console.error('Error fetching video info:', e);
+        }
+      }
+
+      // Analyze with OpenAI
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const analysisPrompt = `You are an expert speaking coach analyzing a speaker based on their video transcript. Analyze the following transcript and provide scores (0-100) and detailed feedback for each category.
+
+TRANSCRIPT:
+${transcript.substring(0, 8000)}
+
+Analyze the speaker on these 5 criteria:
+
+1. PRESENCE (How commanding, confident, and engaging is the speaker?)
+2. SPEAKING ABILITY (Clarity, articulation, pacing, and flow)
+3. FILLER WORDS (Count and impact of filler words like "um", "uh", "like", "you know", "basically", "actually", "so", etc.)
+4. APPEARANCE (Based on speaking style, professionalism in word choice, energy level)
+
+For each category, provide:
+- A score from 0-100
+- Specific feedback with examples from the transcript
+- Actionable improvement suggestions
+
+Also provide an OVERALL SCORE (average of all scores) and OVERALL FEEDBACK summarizing the speaker's strengths and areas for improvement.
+
+Respond in this exact JSON format:
+{
+  "presence": {"score": 85, "feedback": "..."},
+  "speakingAbility": {"score": 80, "feedback": "..."},
+  "fillerWords": {"score": 70, "feedback": "...", "detected": ["um (5x)", "like (3x)"]},
+  "appearance": {"score": 75, "feedback": "..."},
+  "overall": {"score": 78, "feedback": "..."}
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: analysisPrompt }],
+        response_format: { type: 'json_object' },
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content || '{}');
+
+      await storage.updateVideoAnalysis(analysisId, {
+        videoTitle,
+        channelName,
+        thumbnailUrl,
+        transcript: transcript.substring(0, 50000),
+        presenceScore: result.presence?.score || 0,
+        speakingAbilityScore: result.speakingAbility?.score || 0,
+        fillerWordsScore: result.fillerWords?.score || 0,
+        appearanceScore: result.appearance?.score || 0,
+        overallScore: result.overall?.score || 0,
+        presenceFeedback: result.presence?.feedback || '',
+        speakingAbilityFeedback: result.speakingAbility?.feedback || '',
+        fillerWordsFeedback: result.fillerWords?.feedback || '',
+        appearanceFeedback: result.appearance?.feedback || '',
+        overallFeedback: result.overall?.feedback || '',
+        fillerWordsDetected: result.fillerWords?.detected || [],
+        status: 'completed',
+        analyzedAt: new Date(),
+      });
+
+    } catch (error) {
+      console.error('Error analyzing video:', error);
+      await storage.updateVideoAnalysis(analysisId, {
+        status: 'failed',
+        overallFeedback: 'An error occurred during analysis.',
+      });
+    }
+  }
+
   return httpServer;
 }
