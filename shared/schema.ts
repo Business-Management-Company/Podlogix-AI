@@ -721,3 +721,50 @@ export type UploadPostAccount = typeof uploadPostAccounts.$inferSelect;
 export type InsertUploadPostAccount = z.infer<typeof insertUploadPostAccountSchema>;
 export type UploadPostPost = typeof uploadPostPosts.$inferSelect;
 export type InsertUploadPostPost = z.infer<typeof insertUploadPostPostSchema>;
+
+// Admin Creator List - influencers discovered and added by admin for outreach/management
+export const adminCreatorList = pgTable("admin_creator_list", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addedByUserId: varchar("added_by_user_id").notNull(),
+  platform: varchar("platform").notNull(),
+  platformUserId: varchar("platform_user_id"),
+  username: varchar("username").notNull(),
+  fullName: varchar("full_name"),
+  profilePicUrl: text("profile_pic_url"),
+  bio: text("bio"),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  websiteUrl: text("website_url"),
+  followerCount: integer("follower_count"),
+  followingCount: integer("following_count"),
+  engagementRate: integer("engagement_rate"),
+  avgLikes: integer("avg_likes"),
+  avgComments: integer("avg_comments"),
+  avgViews: integer("avg_views"),
+  location: varchar("location"),
+  categories: text("categories").array(),
+  niche: varchar("niche"),
+  hourlyRate: integer("hourly_rate"),
+  perPostRate: integer("per_post_rate"),
+  perVideoRate: integer("per_video_rate"),
+  perStoryRate: integer("per_story_rate"),
+  monthlyRetainerRate: integer("monthly_retainer_rate"),
+  packageDescription: text("package_description"),
+  currency: varchar("currency").default("USD"),
+  status: varchar("status").default("prospect"),
+  priority: varchar("priority").default("medium"),
+  notes: text("notes"),
+  tags: text("tags").array(),
+  lastContactedAt: timestamp("last_contacted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminCreatorSchema = createInsertSchema(adminCreatorList).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AdminCreator = typeof adminCreatorList.$inferSelect;
+export type InsertAdminCreator = z.infer<typeof insertAdminCreatorSchema>;

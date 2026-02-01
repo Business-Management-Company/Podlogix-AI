@@ -4,6 +4,7 @@ import {
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
+  adminCreatorList,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -18,7 +19,8 @@ import {
   type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
   type VideoAnalysis, type InsertVideoAnalysis,
-  type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost
+  type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
+  type AdminCreator, type InsertAdminCreator
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -156,6 +158,12 @@ export interface IStorage {
   getUploadPostPostsByUser(userId: string): Promise<UploadPostPost[]>;
   getUploadPostPost(id: string): Promise<UploadPostPost | undefined>;
   updateUploadPostPost(id: string, updates: Partial<UploadPostPost>): Promise<UploadPostPost | undefined>;
+  // Admin Creator List
+  createAdminCreator(creator: InsertAdminCreator): Promise<AdminCreator>;
+  getAdminCreators(): Promise<AdminCreator[]>;
+  getAdminCreator(id: string): Promise<AdminCreator | undefined>;
+  updateAdminCreator(id: string, updates: Partial<AdminCreator>): Promise<AdminCreator | undefined>;
+  deleteAdminCreator(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -754,6 +762,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(uploadPostPosts.id, id))
       .returning();
     return updated;
+  }
+
+  // Admin Creator List
+  async createAdminCreator(creator: InsertAdminCreator): Promise<AdminCreator> {
+    const [created] = await db.insert(adminCreatorList).values(creator).returning();
+    return created;
+  }
+
+  async getAdminCreators(): Promise<AdminCreator[]> {
+    return await db.select().from(adminCreatorList)
+      .orderBy(desc(adminCreatorList.createdAt));
+  }
+
+  async getAdminCreator(id: string): Promise<AdminCreator | undefined> {
+    const [creator] = await db.select().from(adminCreatorList).where(eq(adminCreatorList.id, id));
+    return creator;
+  }
+
+  async updateAdminCreator(id: string, updates: Partial<AdminCreator>): Promise<AdminCreator | undefined> {
+    const [updated] = await db.update(adminCreatorList)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(adminCreatorList.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAdminCreator(id: string): Promise<void> {
+    await db.delete(adminCreatorList).where(eq(adminCreatorList.id, id));
   }
 }
 
