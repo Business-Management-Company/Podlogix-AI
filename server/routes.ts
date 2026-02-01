@@ -3415,5 +3415,223 @@ Respond in this exact JSON format:
     }
   });
 
+  // ============ SOCIAL ANALYTICS (Influencers.club for user's connected accounts) ============
+  
+  // Get analytics for a user's connected social account
+  app.post('/api/social-analytics/profile', isAuthenticated, async (req: any, res) => {
+    try {
+      const profileSchema = z.object({
+        handle: z.string().min(1, 'Handle is required').max(100),
+        platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
+      });
+
+      const parseResult = profileSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const { handle, platform } = parseResult.data;
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          handle: handle.replace('@', ''),
+          platform: platform.toLowerCase(),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Influencers.club enrich error:', error);
+        return res.status(response.status).json({ error: 'Failed to fetch analytics' });
+      }
+
+      const data = await response.json();
+      
+      // Extract key analytics metrics
+      const analytics = {
+        handle: data.handle || handle,
+        platform: platform.toLowerCase(),
+        name: data.name || data.fullname || handle,
+        bio: data.bio || data.biography,
+        profilePicture: data.avatar || data.profile_pic_url,
+        followers: data.followers || data.follower_count || 0,
+        following: data.following || data.followees_count || 0,
+        postsCount: data.posts_count || data.media_count || 0,
+        engagementRate: data.engagement_rate || data.avg_engagement_rate || 0,
+        avgLikes: data.avg_likes || data.average_likes || 0,
+        avgComments: data.avg_comments || data.average_comments || 0,
+        avgViews: data.avg_views || data.average_views || 0,
+        avgReelLikes: data.avg_reel_likes || 0,
+        postsPerMonth: data.posts_per_month || 0,
+        email: data.email || null,
+        emailVerified: data.email_verified || false,
+        location: data.location || data.city || data.country,
+        language: data.language,
+        businessCategory: data.business_category || data.category,
+        isVerified: data.is_verified || data.verified || false,
+        // Social links
+        socialLinks: data.social_links || data.external_urls || [],
+        // Raw data for advanced use
+        rawData: data,
+      };
+
+      res.json({ success: true, analytics });
+    } catch (error) {
+      console.error('Error fetching social analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch analytics' });
+    }
+  });
+
+  // Get analytics for all user's connected accounts
+  app.get('/api/social-analytics/my-accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accounts = await storage.getUploadPostAccountsByUser(userId);
+      
+      if (!accounts || accounts.length === 0) {
+        return res.json({ accounts: [], message: 'No connected accounts found' });
+      }
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const analyticsResults = [];
+      const platformMapping: Record<string, string> = {
+        'instagram': 'instagram',
+        'tiktok': 'tiktok',
+        'youtube': 'youtube',
+        'twitter': 'twitter',
+        'x': 'twitter',
+        'twitch': 'twitch',
+      };
+
+      for (const account of accounts) {
+        const platform = platformMapping[account.platform?.toLowerCase() || ''];
+        if (!platform || !account.platformUsername) continue;
+
+        try {
+          const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              handle: account.platformUsername.replace('@', ''),
+              platform,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            analyticsResults.push({
+              accountId: account.id,
+              platform: account.platform,
+              handle: account.platformUsername,
+              name: data.name || data.fullname || account.platformUsername,
+              bio: data.bio || data.biography || null,
+              profilePicture: data.avatar || data.profile_pic_url || account.profilePictureUrl,
+              followers: data.followers || data.follower_count || 0,
+              following: data.following || data.followees_count || 0,
+              engagementRate: data.engagement_rate || data.avg_engagement_rate || 0,
+              avgLikes: data.avg_likes || data.average_likes || 0,
+              avgComments: data.avg_comments || data.average_comments || 0,
+              avgViews: data.avg_views || data.average_views || 0,
+              avgReelLikes: data.avg_reel_likes || 0,
+              postsCount: data.posts_count || data.media_count || 0,
+              postsPerMonth: data.posts_per_month || 0,
+              location: data.location || data.city || data.country || null,
+              language: data.language || null,
+              businessCategory: data.business_category || data.category || null,
+              isVerified: data.is_verified || data.verified || false,
+            });
+          }
+        } catch (err) {
+          console.error(`Error fetching analytics for ${account.platformUsername}:`, err);
+        }
+      }
+
+      res.json({ success: true, accounts: analyticsResults });
+    } catch (error) {
+      console.error('Error fetching my account analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch analytics' });
+    }
+  });
+
+  // Calculate suggested rates based on analytics
+  app.post('/api/social-analytics/calculate-rates', isAuthenticated, async (req: any, res) => {
+    try {
+      const ratesSchema = z.object({
+        followers: z.number().min(1, 'Followers must be at least 1'),
+        engagementRate: z.number().min(0).max(100).optional().default(2),
+        platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']).optional().default('instagram'),
+        avgViews: z.number().min(0).optional(),
+      });
+
+      const parseResult = ratesSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const { followers, engagementRate, platform, avgViews } = parseResult.data;
+
+      // Rate calculation based on industry standards
+      // Base rate per 1000 followers, adjusted by engagement
+      const baseRates: Record<string, { post: number; story: number; reel: number; video: number }> = {
+        instagram: { post: 10, story: 3, reel: 15, video: 20 },
+        tiktok: { post: 8, story: 2, reel: 12, video: 15 },
+        youtube: { post: 15, story: 5, reel: 18, video: 25 },
+        twitter: { post: 5, story: 0, reel: 0, video: 8 },
+        twitch: { post: 12, story: 4, reel: 0, video: 20 },
+      };
+
+      const platformRates = baseRates[platform] || baseRates.instagram;
+      const engagementMultiplier = Math.max(0.5, Math.min(3, engagementRate / 2));
+      const followerMultiplier = Math.max(followers, 1) / 1000; // Guard against 0
+      const viewsBonus = avgViews && followers > 0 ? Math.min(1.5, avgViews / followers) : 1;
+
+      const calculateRate = (baseRate: number) => {
+        const rate = baseRate * followerMultiplier * engagementMultiplier * viewsBonus;
+        return Math.round(Math.max(rate, 25)); // Minimum $25
+      };
+
+      const rates = {
+        feedPost: calculateRate(platformRates.post),
+        story: platformRates.story > 0 ? calculateRate(platformRates.story) : null,
+        reel: platformRates.reel > 0 ? calculateRate(platformRates.reel) : null,
+        video: calculateRate(platformRates.video),
+        // Package deals
+        package3Posts: Math.round(calculateRate(platformRates.post) * 2.7),
+        packageMonthly: Math.round(calculateRate(platformRates.post) * 8),
+      };
+
+      res.json({
+        success: true,
+        rates,
+        breakdown: {
+          followers,
+          engagementRate: engagementRate || 2,
+          engagementMultiplier: engagementMultiplier.toFixed(2),
+          platform: platform || 'instagram',
+        },
+      });
+    } catch (error) {
+      console.error('Error calculating rates:', error);
+      res.status(500).json({ message: 'Failed to calculate rates' });
+    }
+  });
+
   return httpServer;
 }

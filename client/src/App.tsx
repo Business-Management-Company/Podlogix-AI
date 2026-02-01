@@ -30,6 +30,7 @@ import Terms from "@/pages/Terms";
 import EmailHub from "@/pages/EmailHub";
 import VideoAnalysis from "@/pages/VideoAnalysis";
 import SocialHub from "@/pages/SocialHub";
+import SocialAnalytics from "@/pages/SocialAnalytics";
 
 function AuthenticatedRoutes() {
   return (
@@ -44,6 +45,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/ai" component={AiAssistant} />
         <Route path="/dashboard/video-analysis" component={VideoAnalysis} />
         <Route path="/dashboard/social-hub" component={SocialHub} />
+        <Route path="/dashboard/social-analytics" component={SocialAnalytics} />
         <Route path="/dashboard/certify" component={DashboardCertify} />
         <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
         <Route path="/listener" component={ListenerDashboard} />

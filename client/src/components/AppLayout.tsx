@@ -37,6 +37,7 @@ import {
   Plug,
   Youtube,
   Building2,
+  BarChart3,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -49,6 +50,7 @@ const creatorMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },
+  { title: "Social Analytics", url: "/dashboard/social-analytics", icon: BarChart3 },
   { title: "Email Hub", url: "/dashboard/email", icon: Mail },
   { title: "AI Assistant", url: "/dashboard/ai", icon: Sparkles },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Youtube },
