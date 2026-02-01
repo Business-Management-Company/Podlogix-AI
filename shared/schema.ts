@@ -676,3 +676,48 @@ export const insertVideoAnalysisSchema = createInsertSchema(videoAnalyses).omit(
 
 export type VideoAnalysis = typeof videoAnalyses.$inferSelect;
 export type InsertVideoAnalysis = z.infer<typeof insertVideoAnalysisSchema>;
+
+// Upload-Post connected social accounts for creators
+export const uploadPostAccounts = pgTable("upload_post_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  uploadPostUsername: varchar("upload_post_username").notNull(),
+  platform: varchar("platform").notNull(),
+  platformAccountId: varchar("platform_account_id"),
+  platformUsername: varchar("platform_username"),
+  profileUrl: text("profile_url"),
+  profilePictureUrl: text("profile_picture_url"),
+  isConnected: boolean("is_connected").default(true),
+  connectedAt: timestamp("connected_at").defaultNow(),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Upload-Post scheduled/published posts
+export const uploadPostPosts = pgTable("upload_post_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  uploadPostPostId: varchar("upload_post_post_id"),
+  platforms: text("platforms").array(),
+  content: text("content"),
+  mediaUrls: text("media_urls").array(),
+  scheduledAt: timestamp("scheduled_at"),
+  publishedAt: timestamp("published_at"),
+  status: varchar("status").default("draft"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUploadPostAccountSchema = createInsertSchema(uploadPostAccounts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUploadPostPostSchema = createInsertSchema(uploadPostPosts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UploadPostAccount = typeof uploadPostAccounts.$inferSelect;
+export type InsertUploadPostAccount = z.infer<typeof insertUploadPostAccountSchema>;
+export type UploadPostPost = typeof uploadPostPosts.$inferSelect;
+export type InsertUploadPostPost = z.infer<typeof insertUploadPostPostSchema>;

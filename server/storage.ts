@@ -3,7 +3,7 @@ import {
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
-  emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses,
+  emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -17,7 +17,8 @@ import {
   type CreatorSocialProfile, type InsertCreatorSocialProfile,
   type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
-  type VideoAnalysis, type InsertVideoAnalysis
+  type VideoAnalysis, type InsertVideoAnalysis,
+  type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost
 } from "@shared/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 
@@ -143,6 +144,18 @@ export interface IStorage {
   getVideoAnalysesByUser(userId: string): Promise<VideoAnalysis[]>;
   getVideoAnalysis(id: string): Promise<VideoAnalysis | undefined>;
   updateVideoAnalysis(id: string, updates: Partial<VideoAnalysis>): Promise<VideoAnalysis | undefined>;
+  // Upload-Post Accounts
+  createUploadPostAccount(account: InsertUploadPostAccount): Promise<UploadPostAccount>;
+  getUploadPostAccountsByUser(userId: string): Promise<UploadPostAccount[]>;
+  getUploadPostAccount(id: string): Promise<UploadPostAccount | undefined>;
+  updateUploadPostAccount(id: string, updates: Partial<UploadPostAccount>): Promise<UploadPostAccount | undefined>;
+  deleteUploadPostAccount(id: string): Promise<void>;
+  deleteUploadPostAccountsByUser(userId: string): Promise<void>;
+  // Upload-Post Posts
+  createUploadPostPost(post: InsertUploadPostPost): Promise<UploadPostPost>;
+  getUploadPostPostsByUser(userId: string): Promise<UploadPostPost[]>;
+  getUploadPostPost(id: string): Promise<UploadPostPost | undefined>;
+  updateUploadPostPost(id: string, updates: Partial<UploadPostPost>): Promise<UploadPostPost | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -681,6 +694,64 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(videoAnalyses)
       .set(updates)
       .where(eq(videoAnalyses.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Upload-Post Accounts
+  async createUploadPostAccount(account: InsertUploadPostAccount): Promise<UploadPostAccount> {
+    const [created] = await db.insert(uploadPostAccounts).values(account).returning();
+    return created;
+  }
+
+  async getUploadPostAccountsByUser(userId: string): Promise<UploadPostAccount[]> {
+    return await db.select().from(uploadPostAccounts)
+      .where(eq(uploadPostAccounts.userId, userId))
+      .orderBy(desc(uploadPostAccounts.createdAt));
+  }
+
+  async getUploadPostAccount(id: string): Promise<UploadPostAccount | undefined> {
+    const [account] = await db.select().from(uploadPostAccounts).where(eq(uploadPostAccounts.id, id));
+    return account;
+  }
+
+  async updateUploadPostAccount(id: string, updates: Partial<UploadPostAccount>): Promise<UploadPostAccount | undefined> {
+    const [updated] = await db.update(uploadPostAccounts)
+      .set(updates)
+      .where(eq(uploadPostAccounts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteUploadPostAccount(id: string): Promise<void> {
+    await db.delete(uploadPostAccounts).where(eq(uploadPostAccounts.id, id));
+  }
+
+  async deleteUploadPostAccountsByUser(userId: string): Promise<void> {
+    await db.delete(uploadPostAccounts).where(eq(uploadPostAccounts.userId, userId));
+  }
+
+  // Upload-Post Posts
+  async createUploadPostPost(post: InsertUploadPostPost): Promise<UploadPostPost> {
+    const [created] = await db.insert(uploadPostPosts).values(post).returning();
+    return created;
+  }
+
+  async getUploadPostPostsByUser(userId: string): Promise<UploadPostPost[]> {
+    return await db.select().from(uploadPostPosts)
+      .where(eq(uploadPostPosts.userId, userId))
+      .orderBy(desc(uploadPostPosts.createdAt));
+  }
+
+  async getUploadPostPost(id: string): Promise<UploadPostPost | undefined> {
+    const [post] = await db.select().from(uploadPostPosts).where(eq(uploadPostPosts.id, id));
+    return post;
+  }
+
+  async updateUploadPostPost(id: string, updates: Partial<UploadPostPost>): Promise<UploadPostPost | undefined> {
+    const [updated] = await db.update(uploadPostPosts)
+      .set(updates)
+      .where(eq(uploadPostPosts.id, id))
       .returning();
     return updated;
   }
