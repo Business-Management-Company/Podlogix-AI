@@ -93,6 +93,14 @@ export default function SocialHub() {
       const res = await apiRequest("POST", "/api/upload-post/create-profile");
       return res.json();
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create profile. Please try again.",
+        variant: "destructive",
+      });
+      setIsConnecting(false);
+    },
   });
 
   const connectMutation = useMutation({
@@ -147,8 +155,12 @@ export default function SocialHub() {
 
   const handleConnect = async () => {
     setIsConnecting(true);
-    await createProfileMutation.mutateAsync();
-    connectMutation.mutate(["instagram", "tiktok", "youtube", "facebook", "linkedin"]);
+    try {
+      await createProfileMutation.mutateAsync();
+      connectMutation.mutate(["instagram", "tiktok", "youtube", "facebook", "linkedin"]);
+    } catch (error) {
+      setIsConnecting(false);
+    }
   };
 
   const handlePost = () => {

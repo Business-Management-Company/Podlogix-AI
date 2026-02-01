@@ -196,3 +196,35 @@ Creators can connect their social media profiles to showcase on their public pro
 - Exchanges short-lived tokens for 60-day long-lived tokens
 - Requires Instagram account to be Business or Creator account linked to a Facebook Page
 - Fetches follower count, post count, and profile info
+
+## Social Hub (Upload-Post Integration)
+
+The Social Hub allows creators to connect their social media accounts and post across multiple platforms from Podlogix.
+
+### Features
+- **Multi-Platform Posting**: Post to Instagram, TikTok, YouTube, Facebook, LinkedIn simultaneously
+- **Account Connection**: White-label OAuth flow via Upload-Post
+- **Post History**: Track all posts made through the platform
+- **Scheduled Posts**: Schedule content for future publishing
+
+### Integration Flow
+1. Creator clicks "Connect Social Accounts" in Social Hub
+2. System creates Upload-Post profile using creator's Podlogix ID
+3. System generates secure JWT URL (valid 48 hours) for OAuth
+4. Creator connects accounts through Upload-Post's secure interface
+5. On return, connected accounts are synced to local database
+
+### API Endpoints
+- `POST /api/upload-post/create-profile`: Create Upload-Post profile for user
+- `POST /api/upload-post/connect-url`: Generate secure OAuth connection URL
+- `GET /api/upload-post/accounts`: Fetch connected accounts from Upload-Post
+- `GET /api/upload-post/local-accounts`: Get locally cached accounts
+- `POST /api/upload-post/posts`: Create and publish a post
+- `GET /api/upload-post/posts`: Get user's post history
+
+### Database Tables
+- `upload_post_accounts`: Connected social accounts via Upload-Post
+- `upload_post_posts`: Posts created and published through Upload-Post
+
+### Environment Variables
+- `UPLOAD_POST_API_KEY`: API key for Upload-Post integration
