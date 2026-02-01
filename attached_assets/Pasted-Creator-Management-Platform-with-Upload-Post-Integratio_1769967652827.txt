@@ -1,0 +1,145 @@
+Creator Management Platform with Upload-Post Integration
+Build a creator management platform that allows creators to create profile pages and connect their social media accounts using the Upload-Post white-label integration.
+Core Requirements
+1. User Authentication & Profile System
+
+Implement user registration and login system for creators
+Each creator gets a unique username/ID that will be used as their Upload-Post identifier
+Creator profile page showing:
+
+Basic info (name, bio, profile picture)
+Connected social media accounts status
+Content upload history
+Account connection button
+
+
+
+2. Upload-Post White-Label Integration
+Backend API Integration:
+Create the following API endpoints:
+A. Create Upload-Post Profile (when creator signs up)
+POST /api/uploadposts/users
+Headers: Authorization: ApiKey YOUR_API_KEY
+Body: { "username": "creator_unique_id" }
+B. Generate Secure Connection URL (when creator clicks "Connect Accounts")
+POST /api/uploadposts/users/generate-jwt
+Headers: Authorization: ApiKey YOUR_API_KEY
+Body: {
+  "username": "creator_unique_id",
+  "redirect_url": "https://your-platform.com/dashboard/connected",
+  "logo_image": "https://your-platform.com/logo.png",
+  "redirect_button_text": "Return to Dashboard",
+  "connect_title": "Connect Your Social Accounts",
+  "connect_description": "Link your social media to start posting",
+  "platforms": ["instagram", "tiktok", "youtube", "facebook", "linkedin"],
+  "show_calendar": true
+}
+C. Get User's Connected Accounts
+GET /api/uploadposts/users
+Headers: Authorization: ApiKey YOUR_API_KEY
+3. Integration Flow
+When Creator Signs Up:
+
+Create user account in your database
+Automatically call Upload-Post API to create their profile using their unique ID
+Store the username mapping in your database
+
+When Creator Clicks "Connect Social Accounts":
+
+Call the generate-jwt endpoint with their username
+Get the access_url from response
+Redirect creator to this URL (valid for 48 hours)
+User connects accounts through Upload-Post's secure OAuth interface
+
+After Creator Returns:
+
+Fetch connected accounts from Upload-Post API
+Display connected platforms on their dashboard
+Enable content upload features
+
+4. Content Management Features
+After accounts are connected, add functionality to:
+
+Upload photos to connected platforms
+Upload videos to connected platforms
+Include username parameter in all upload requests to specify which creator's accounts to use
+
+Example upload call:
+POST /api/upload
+Headers: Authorization: ApiKey YOUR_API_KEY
+Body: {
+  "user": "creator_unique_id",
+  "platform": ["instagram", "tiktok"],
+  "video": file,
+  "title": "Post title"
+}
+5. Dashboard UI Components
+Creator Dashboard should include:
+
+Connection status widget showing which platforms are connected
+"Connect More Accounts" button that triggers JWT URL generation
+Upload form (only visible when accounts are connected)
+Calendar view of scheduled/posted content
+List of connected platforms with disconnect options
+
+6. Environment Variables Needed
+UPLOAD_POST_API_KEY=your_api_key_here
+UPLOAD_POST_API_BASE_URL=https://api.upload-post.com
+PLATFORM_REDIRECT_URL=https://your-platform.com/dashboard/connected
+PLATFORM_LOGO_URL=https://your-platform.com/logo.png
+7. Database Schema
+Users table:
+
+id (primary key)
+email
+password_hash
+username (unique - used for Upload-Post)
+created_at
+profile_info (JSON for bio, profile pic, etc.)
+
+Connected_Accounts table:
+
+id
+user_id (foreign key)
+platform_name
+connected_at
+account_status
+
+8. Security Considerations
+
+Store Upload-Post API key securely in environment variables
+Never expose API key to frontend
+All Upload-Post API calls must go through your backend
+Validate user sessions before generating JWT URLs
+The JWT URLs expire in 48 hours automatically
+
+9. Tech Stack Recommendations
+
+Backend: Node.js/Express or Python/Flask
+Frontend: React or Next.js
+Database: PostgreSQL or MongoDB
+API calls: axios or fetch
+
+10. API Documentation Reference
+Follow Upload-Post documentation at:
+
+User Profiles: https://docs.upload-post.com/api/user-profiles
+Upload endpoints: https://docs.upload-post.com/api/reference
+White-label guide: https://docs.upload-post.com/guides/user-profile-integration
+
+Implementation Priority
+
+Set up basic authentication and user management
+Integrate Upload-Post profile creation on user signup
+Build "Connect Accounts" flow with JWT URL generation
+Add dashboard to show connected accounts
+Implement content upload features
+Add calendar and history views
+
+
+Additional Notes:
+
+The secure connection URL is valid for 48 hours
+All authentication with Upload-Post uses your API key
+Users connect accounts through Upload-Post's OAuth interface (you don't handle OAuth)
+Store the username mapping carefully - it's your link between your users and Upload-Post profiles
