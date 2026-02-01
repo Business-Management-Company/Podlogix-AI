@@ -2643,6 +2643,73 @@ export async function registerRoutes(
     }
   });
 
+  // ============ ADMIN CREATOR LIST ROUTES ============
+
+  // Get all creators in admin list
+  app.get('/api/admin/creators', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const creators = await storage.getAdminCreators();
+      res.json(creators);
+    } catch (error) {
+      console.error('Error getting admin creators:', error);
+      res.status(500).json({ message: 'Failed to get creators' });
+    }
+  });
+
+  // Add creator to admin list
+  app.post('/api/admin/creators', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const creator = await storage.createAdminCreator({ 
+        ...req.body, 
+        addedByUserId: userId 
+      });
+      res.json(creator);
+    } catch (error) {
+      console.error('Error adding creator:', error);
+      res.status(500).json({ message: 'Failed to add creator' });
+    }
+  });
+
+  // Get single creator details
+  app.get('/api/admin/creators/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const creator = await storage.getAdminCreator(req.params.id);
+      if (!creator) {
+        return res.status(404).json({ message: 'Creator not found' });
+      }
+      res.json(creator);
+    } catch (error) {
+      console.error('Error getting creator:', error);
+      res.status(500).json({ message: 'Failed to get creator' });
+    }
+  });
+
+  // Update creator (rate sheet, notes, status, etc.)
+  app.patch('/api/admin/creators/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const creator = await storage.updateAdminCreator(req.params.id, req.body);
+      if (!creator) {
+        return res.status(404).json({ message: 'Creator not found' });
+      }
+      res.json(creator);
+    } catch (error) {
+      console.error('Error updating creator:', error);
+      res.status(500).json({ message: 'Failed to update creator' });
+    }
+  });
+
+  // Delete creator from admin list
+  app.delete('/api/admin/creators/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      await storage.deleteAdminCreator(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting creator:', error);
+      res.status(500).json({ message: 'Failed to delete creator' });
+    }
+  });
+
   // ==================== EMAIL HUB ROUTES ====================
 
   // Get all email contacts
