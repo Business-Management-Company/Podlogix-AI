@@ -3010,5 +3010,222 @@ Respond in this exact JSON format:
     }
   }
 
+  // ============ UPLOAD-POST INTEGRATION ============
+
+  const UPLOAD_POST_API_BASE = 'https://api.upload-post.com';
+
+  function getUploadPostApiKey(): string {
+    const key = process.env.UPLOAD_POST_API_KEY;
+    if (!key) throw new Error('UPLOAD_POST_API_KEY not configured');
+    return key;
+  }
+
+  // Create Upload-Post profile for user (called on first connect)
+  app.post('/api/upload-post/create-profile', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const uploadPostUsername = `podlogix_${userId}`;
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: uploadPostUsername }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Upload-Post profile creation error:', error);
+        if (response.status === 409) {
+          return res.json({ success: true, username: uploadPostUsername, message: 'Profile already exists' });
+        }
+        return res.status(response.status).json({ message: 'Failed to create Upload-Post profile' });
+      }
+
+      const data = await response.json();
+      res.json({ success: true, username: uploadPostUsername, ...data });
+    } catch (error) {
+      console.error('Error creating Upload-Post profile:', error);
+      res.status(500).json({ message: 'Failed to create Upload-Post profile' });
+    }
+  });
+
+  // Generate secure connection URL for OAuth
+  app.post('/api/upload-post/connect-url', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const uploadPostUsername = `podlogix_${userId}`;
+      const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'] } = req.body;
+
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers['host'] || 'localhost:5000';
+      const baseUrl = `${protocol}://${host}`;
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users/generate-jwt`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: uploadPostUsername,
+          redirect_url: `${baseUrl}/dashboard/social-hub?connected=true`,
+          logo_image: `${baseUrl}/favicon.svg`,
+          redirect_button_text: 'Return to Podlogix',
+          connect_title: 'Connect Your Social Accounts',
+          connect_description: 'Link your social media to start posting from Podlogix',
+          platforms,
+          show_calendar: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Upload-Post JWT generation error:', error);
+        return res.status(response.status).json({ message: 'Failed to generate connection URL' });
+      }
+
+      const data = await response.json();
+      res.json({ success: true, ...data });
+    } catch (error) {
+      console.error('Error generating Upload-Post connection URL:', error);
+      res.status(500).json({ message: 'Failed to generate connection URL' });
+    }
+  });
+
+  // Get connected accounts from Upload-Post
+  app.get('/api/upload-post/accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const uploadPostUsername = `podlogix_${userId}`;
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users?username=${uploadPostUsername}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return res.json({ accounts: [], hasProfile: false });
+        }
+        const error = await response.text();
+        console.error('Upload-Post get accounts error:', error);
+        return res.status(response.status).json({ message: 'Failed to fetch accounts' });
+      }
+
+      const data = await response.json();
+
+      // Sync accounts to local database
+      await storage.deleteUploadPostAccountsByUser(userId);
+      if (data.accounts && Array.isArray(data.accounts)) {
+        for (const account of data.accounts) {
+          await storage.createUploadPostAccount({
+            userId,
+            uploadPostUsername,
+            platform: account.platform || account.type,
+            platformAccountId: account.id?.toString(),
+            platformUsername: account.username || account.name,
+            profileUrl: account.profile_url,
+            profilePictureUrl: account.avatar || account.profile_picture,
+            isConnected: true,
+          });
+        }
+      }
+
+      res.json({ hasProfile: true, ...data });
+    } catch (error) {
+      console.error('Error fetching Upload-Post accounts:', error);
+      res.status(500).json({ message: 'Failed to fetch accounts' });
+    }
+  });
+
+  // Get local cached accounts
+  app.get('/api/upload-post/local-accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accounts = await storage.getUploadPostAccountsByUser(userId);
+      res.json({ accounts });
+    } catch (error) {
+      console.error('Error fetching local accounts:', error);
+      res.status(500).json({ message: 'Failed to fetch local accounts' });
+    }
+  });
+
+  // Create a post via Upload-Post
+  app.post('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const uploadPostUsername = `podlogix_${userId}`;
+      const { platforms, content, mediaUrl, scheduledAt } = req.body;
+
+      if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
+        return res.status(400).json({ message: 'At least one platform is required' });
+      }
+
+      if (!content && !mediaUrl) {
+        return res.status(400).json({ message: 'Content or media is required' });
+      }
+
+      const postData: any = {
+        user: uploadPostUsername,
+        platform: platforms,
+        title: content,
+      };
+
+      if (scheduledAt) {
+        postData.publish_at = new Date(scheduledAt).toISOString().replace('T', ' ').split('.')[0];
+      }
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(postData),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Upload-Post create post error:', error);
+        return res.status(response.status).json({ message: 'Failed to create post' });
+      }
+
+      const data = await response.json();
+
+      // Save to local database
+      const localPost = await storage.createUploadPostPost({
+        userId,
+        uploadPostPostId: data.post_id?.toString(),
+        platforms,
+        content,
+        mediaUrls: mediaUrl ? [mediaUrl] : null,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        status: scheduledAt ? 'scheduled' : 'published',
+      });
+
+      res.json({ success: true, post: localPost, ...data });
+    } catch (error) {
+      console.error('Error creating Upload-Post post:', error);
+      res.status(500).json({ message: 'Failed to create post' });
+    }
+  });
+
+  // Get user's posts
+  app.get('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const posts = await storage.getUploadPostPostsByUser(userId);
+      res.json({ posts });
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      res.status(500).json({ message: 'Failed to fetch posts' });
+    }
+  });
+
   return httpServer;
 }
