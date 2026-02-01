@@ -60,7 +60,7 @@ Preferred communication style: Simple, everyday language.
 - **Access Control**: Admin and Superadmin roles.
 - **User Management**: View, manage roles, status.
 - **Creator Management**: Track influencers with rate sheets, status, analytics.
-- **Discovery**: YouTube, Instagram influencer search.
+- **Discovery**: Influencers.club (340M+ creators), YouTube, Instagram, LinkedIn influencer search.
 
 ## External Dependencies
 
@@ -80,3 +80,4 @@ Preferred communication style: Simple, everyday language.
 - **Upload-Post**: For multi-platform social media posting.
 - **YouTube Data API v3**: For YouTube channel discovery and analytics.
 - **Instagram Graph API**: For Instagram hashtag discovery and creator social profile analytics.
+- **Influencers.club API**: 340M+ creator database for influencer discovery (Instagram, TikTok, YouTube, Twitter, Twitch) with AI-powered search, verified emails, engagement metrics.

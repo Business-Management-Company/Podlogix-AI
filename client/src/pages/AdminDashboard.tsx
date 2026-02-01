@@ -42,7 +42,7 @@ import {
   Loader2
 } from "lucide-react";
 import { Link } from "wouter";
-import { SiYoutube, SiInstagram, SiLinkedin, SiTiktok } from "react-icons/si";
+import { SiYoutube, SiInstagram, SiLinkedin, SiTiktok, SiX, SiTwitch } from "react-icons/si";
 
 interface User {
   id: string;
@@ -141,6 +141,31 @@ interface HashtagDiscoveryResult {
   error?: { type: string; message: string };
 }
 
+interface InfluencersClubCreator {
+  handle?: string;
+  username?: string;
+  full_name?: string;
+  profile_picture?: string;
+  biography?: string;
+  follower_count?: number;
+  following_count?: number;
+  engagement_percent?: number;
+  avg_likes?: number;
+  avg_comments?: number;
+  avg_views?: number;
+  email?: string;
+  location?: { country?: string; city?: string };
+  is_verified?: boolean;
+  platform?: string;
+}
+
+interface InfluencersClubResult {
+  creators?: InfluencersClubCreator[];
+  data?: InfluencersClubCreator[];
+  total?: number;
+  error?: string;
+}
+
 function formatFollowers(count: number): string {
   if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
   if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
@@ -158,6 +183,8 @@ function getPlatformIcon(platform: string) {
     case 'tiktok': return <SiTiktok className="h-4 w-4" />;
     case 'youtube': return <SiYoutube className="h-4 w-4 text-red-500" />;
     case 'linkedin': return <SiLinkedin className="h-4 w-4 text-blue-600" />;
+    case 'twitter': return <SiX className="h-4 w-4" />;
+    case 'twitch': return <SiTwitch className="h-4 w-4 text-purple-500" />;
     default: return <Users className="h-4 w-4" />;
   }
 }
@@ -187,6 +214,8 @@ export default function AdminDashboard() {
   const [instagramHashtag, setInstagramHashtag] = useState("");
   const [linkedinQuery, setLinkedinQuery] = useState("");
   const [linkedinSearchType, setLinkedinSearchType] = useState<'people' | 'companies'>('people');
+  const [influencersClubQuery, setInfluencersClubQuery] = useState("");
+  const [influencersClubPlatform, setInfluencersClubPlatform] = useState<string>('instagram');
   const [selectedCreator, setSelectedCreator] = useState<AdminCreator | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -230,6 +259,18 @@ export default function AdminDashboard() {
     mutationFn: async (hashtag: string) => {
       const res = await apiRequest("POST", "/api/brand/instagram/hashtag-search", { hashtag });
       return res.json() as Promise<HashtagDiscoveryResult>;
+    },
+  });
+
+  const { data: influencersClubStatus } = useQuery<{ configured: boolean; valid?: boolean; credits?: number }>({
+    queryKey: ['/api/influencers-club/status'],
+    enabled: adminCheck?.isAdmin === true,
+  });
+
+  const influencersClubMutation = useMutation({
+    mutationFn: async ({ platform, prompt }: { platform: string; prompt: string }) => {
+      const res = await apiRequest("POST", "/api/influencers-club/discover", { platform, prompt, limit: 20 });
+      return res.json() as Promise<InfluencersClubResult>;
     },
   });
 
@@ -358,6 +399,30 @@ export default function AdminDashboard() {
       profilePicUrl: post.mediaUrl,
       avgLikes: post.likeCount,
       avgComments: post.commentsCount,
+      status: 'prospect',
+      priority: 'medium',
+    });
+  };
+
+  const handleInfluencersClubSearch = () => {
+    if (!influencersClubQuery.trim()) return;
+    influencersClubMutation.mutate({ platform: influencersClubPlatform, prompt: influencersClubQuery });
+  };
+
+  const handleAddInfluencersClubCreator = (creator: InfluencersClubCreator) => {
+    addCreatorMutation.mutate({
+      platform: creator.platform || influencersClubPlatform,
+      username: creator.handle || creator.username || 'unknown',
+      fullName: creator.full_name,
+      profilePicUrl: creator.profile_picture,
+      bio: creator.biography?.substring(0, 500),
+      followerCount: creator.follower_count,
+      engagementRate: creator.engagement_percent ? Math.round(creator.engagement_percent * 100) : undefined,
+      avgLikes: creator.avg_likes,
+      avgComments: creator.avg_comments,
+      avgViews: creator.avg_views,
+      email: creator.email,
+      location: creator.location?.country ? `${creator.location.city || ''} ${creator.location.country}`.trim() : undefined,
       status: 'prospect',
       priority: 'medium',
     });
@@ -755,12 +820,106 @@ export default function AdminDashboard() {
 
           {/* Discovery Tab */}
           <TabsContent value="discovery" className="space-y-6">
-            <Tabs defaultValue="youtube" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3 max-w-lg">
+            <Tabs defaultValue="influencers-club" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+                <TabsTrigger value="influencers-club" data-testid="tab-discovery-influencers-club">
+                  <Search className="h-4 w-4 mr-2" />Influencers.club
+                </TabsTrigger>
                 <TabsTrigger value="youtube" data-testid="tab-discovery-youtube"><SiYoutube className="h-4 w-4 mr-2" />YouTube</TabsTrigger>
                 <TabsTrigger value="instagram" data-testid="tab-discovery-instagram"><SiInstagram className="h-4 w-4 mr-2" />Instagram</TabsTrigger>
                 <TabsTrigger value="linkedin" data-testid="tab-discovery-linkedin"><SiLinkedin className="h-4 w-4 mr-2" />LinkedIn</TabsTrigger>
               </TabsList>
+
+              {/* Influencers.club Tab */}
+              <TabsContent value="influencers-club" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Search className="h-5 w-5 text-primary" />Influencers.club Discovery
+                          <Badge variant="default" className="ml-2">340M+ Creators</Badge>
+                        </CardTitle>
+                        <CardDescription>AI-powered search across Instagram, TikTok, YouTube, Twitter, Twitch & more</CardDescription>
+                      </div>
+                      {influencersClubStatus?.configured ? (
+                        <Badge variant="outline" className="gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          {influencersClubStatus.credits ? `${influencersClubStatus.credits} credits` : 'Connected'}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive">Not Configured</Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-2 flex-wrap">
+                      <Select value={influencersClubPlatform} onValueChange={setInfluencersClubPlatform}>
+                        <SelectTrigger className="w-[140px]" data-testid="select-influencers-platform">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="instagram"><div className="flex items-center gap-2"><SiInstagram className="h-4 w-4" />Instagram</div></SelectItem>
+                          <SelectItem value="tiktok"><div className="flex items-center gap-2"><SiTiktok className="h-4 w-4" />TikTok</div></SelectItem>
+                          <SelectItem value="youtube"><div className="flex items-center gap-2"><SiYoutube className="h-4 w-4" />YouTube</div></SelectItem>
+                          <SelectItem value="twitter"><div className="flex items-center gap-2"><SiX className="h-4 w-4" />Twitter/X</div></SelectItem>
+                          <SelectItem value="twitch"><div className="flex items-center gap-2"><SiTwitch className="h-4 w-4" />Twitch</div></SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input 
+                        className="flex-1 min-w-[200px]" 
+                        placeholder="Describe the creators you're looking for (e.g., 'fitness influencers in Los Angeles with 10K-100K followers')..." 
+                        value={influencersClubQuery} 
+                        onChange={(e) => setInfluencersClubQuery(e.target.value)} 
+                        onKeyDown={(e) => e.key === 'Enter' && handleInfluencersClubSearch()} 
+                        data-testid="input-influencers-search" 
+                      />
+                      <Button onClick={handleInfluencersClubSearch} disabled={influencersClubMutation.isPending || !influencersClubStatus?.configured} data-testid="button-influencers-search">
+                        {influencersClubMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    {influencersClubMutation.data?.error && (
+                      <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm">{influencersClubMutation.data.error}</div>
+                    )}
+                    {(influencersClubMutation.data?.creators || influencersClubMutation.data?.data) && (
+                      <div className="grid gap-3">
+                        {(influencersClubMutation.data.creators || influencersClubMutation.data.data || []).map((creator, idx) => (
+                          <div key={creator.handle || creator.username || idx} className="flex items-center justify-between p-4 border rounded-lg hover-elevate" data-testid={`card-influencer-${idx}`}>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-12 w-12">
+                                <AvatarImage src={creator.profile_picture} />
+                                <AvatarFallback>{(creator.handle || creator.username || '?')[0].toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {creator.full_name || creator.handle || creator.username}
+                                  {creator.is_verified && <CheckCircle className="h-4 w-4 text-blue-500" />}
+                                </div>
+                                <div className="text-sm text-muted-foreground">@{creator.handle || creator.username}</div>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                                  {creator.follower_count && <span>{formatFollowers(creator.follower_count)} followers</span>}
+                                  {creator.engagement_percent && <span>{(creator.engagement_percent * 100).toFixed(1)}% eng.</span>}
+                                  {creator.location?.country && <span>{creator.location.city ? `${creator.location.city}, ` : ''}{creator.location.country}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {creator.email && (
+                                <Badge variant="outline" className="gap-1 text-xs">
+                                  <Mail className="h-3 w-3" />Email
+                                </Badge>
+                              )}
+                              <Button size="sm" onClick={() => handleAddInfluencersClubCreator(creator)} disabled={addCreatorMutation.isPending} data-testid={`button-add-influencer-${idx}`}>
+                                <UserPlus className="h-4 w-4 mr-1" />Add
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
               <TabsContent value="youtube" className="space-y-4">
                 <Card>

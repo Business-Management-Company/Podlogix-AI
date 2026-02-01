@@ -2710,6 +2710,127 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== INFLUENCERS.CLUB API ROUTES ====================
+
+  const getInfluencersClubApiKey = () => process.env.INFLUENCERS_CLUB_API_KEY;
+
+  // Influencers.club Discovery API
+  app.post('/api/influencers-club/discover', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Influencers.club API key not configured' });
+      }
+
+      const { platform, filters, prompt, limit = 20 } = req.body;
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/discovery/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: platform || 'instagram',
+          prompt: prompt || '',
+          filters: filters || {},
+          limit: Math.min(limit, 50),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Influencers.club API error:', errorText);
+        return res.status(response.status).json({ 
+          error: 'Discovery API request failed',
+          details: errorText 
+        });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Error with Influencers.club discovery:', error);
+      res.status(500).json({ error: 'Failed to search creators' });
+    }
+  });
+
+  // Influencers.club Enrich by Handle
+  app.post('/api/influencers-club/enrich-handle', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Influencers.club API key not configured' });
+      }
+
+      const { handle, platform } = req.body;
+      if (!handle || !platform) {
+        return res.status(400).json({ error: 'Handle and platform are required' });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          handle,
+          platform,
+          email_required: 'preferred',
+          include_lookalikes: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Influencers.club enrich error:', errorText);
+        return res.status(response.status).json({ 
+          error: 'Enrichment failed',
+          details: errorText 
+        });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Error enriching handle:', error);
+      res.status(500).json({ error: 'Failed to enrich creator' });
+    }
+  });
+
+  // Check Influencers.club API status and credits
+  app.get('/api/influencers-club/status', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.json({ configured: false });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/account/credits/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        return res.json({ configured: true, valid: false });
+      }
+
+      const data = await response.json();
+      res.json({ 
+        configured: true, 
+        valid: true,
+        credits: data.credits_remaining || data.credits || 0,
+        usage: data
+      });
+    } catch (error) {
+      console.error('Error checking Influencers.club status:', error);
+      res.json({ configured: true, valid: false });
+    }
+  });
+
   // ==================== EMAIL HUB ROUTES ====================
 
   // Get all email contacts
