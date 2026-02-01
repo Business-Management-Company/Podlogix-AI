@@ -757,9 +757,9 @@ export default function AdminDashboard() {
           <TabsContent value="discovery" className="space-y-6">
             <Tabs defaultValue="youtube" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3 max-w-lg">
-                <TabsTrigger value="youtube"><SiYoutube className="h-4 w-4 mr-2" />YouTube</TabsTrigger>
-                <TabsTrigger value="instagram"><SiInstagram className="h-4 w-4 mr-2" />Instagram</TabsTrigger>
-                <TabsTrigger value="linkedin"><SiLinkedin className="h-4 w-4 mr-2" />LinkedIn</TabsTrigger>
+                <TabsTrigger value="youtube" data-testid="tab-discovery-youtube"><SiYoutube className="h-4 w-4 mr-2" />YouTube</TabsTrigger>
+                <TabsTrigger value="instagram" data-testid="tab-discovery-instagram"><SiInstagram className="h-4 w-4 mr-2" />Instagram</TabsTrigger>
+                <TabsTrigger value="linkedin" data-testid="tab-discovery-linkedin"><SiLinkedin className="h-4 w-4 mr-2" />LinkedIn</TabsTrigger>
               </TabsList>
 
               <TabsContent value="youtube" className="space-y-4">
@@ -799,7 +799,7 @@ export default function AdminDashboard() {
                             </div>
                             <div className="flex items-center gap-2">
                               <a href={`https://youtube.com/channel/${channel.id}`} target="_blank" rel="noopener noreferrer">
-                                <Button variant="ghost" size="icon"><ExternalLink className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" data-testid={`button-youtube-external-${channel.id}`}><ExternalLink className="h-4 w-4" /></Button>
                               </a>
                               <Button size="sm" onClick={() => handleAddYouTubeCreator(channel)} disabled={addCreatorMutation.isPending} data-testid={`button-add-youtube-${channel.id}`}>
                                 <UserPlus className="h-4 w-4 mr-1" />Add
@@ -850,7 +850,7 @@ export default function AdminDashboard() {
                             </div>
                             <div className="flex items-center gap-2">
                               <a href={post.permalink} target="_blank" rel="noopener noreferrer">
-                                <Button variant="ghost" size="icon"><ExternalLink className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" data-testid={`button-instagram-external-${post.id}`}><ExternalLink className="h-4 w-4" /></Button>
                               </a>
                               <Button size="sm" onClick={() => handleAddInstagramCreator(post)} disabled={addCreatorMutation.isPending} data-testid={`button-add-instagram-${post.id}`}>
                                 <UserPlus className="h-4 w-4 mr-1" />Add

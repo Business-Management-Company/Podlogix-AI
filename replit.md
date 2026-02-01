@@ -1,230 +1,82 @@
 # Podlogix
 
 ## Overview
-
-Podlogix is a podcast automation platform that uses AI to help creators scale their shows. The application provides smart transcription, automated show notes, viral clip generation, content repurposing, and audio enhancement. A key differentiating feature is Voice Identity Protection, which allows users to certify their voice on the Polygon blockchain to protect against AI impersonation and deepfakes.
+Podlogix is an AI-powered podcast automation platform designed to help creators scale their shows and protect their voice identity. It offers smart transcription, automated show notes, viral clip generation, content repurposing, and audio enhancement. A core feature is Voice Identity Protection, utilizing the Polygon blockchain to certify user voices against AI impersonation. The platform caters to both podcasters (creators) and podcast listeners, providing tools for content creation, consumption, social media integration, and brand/influencer management.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React with TypeScript, using Vite as the build tool
-- **Routing**: Wouter for client-side routing (lightweight alternative to React Router)
-- **State Management**: TanStack React Query for server state management
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS with custom CSS variables for theming (dark mode by default)
-- **Animations**: Framer Motion for smooth UI animations
-- **Forms**: React Hook Form with Zod validation via @hookform/resolvers
+### Frontend
+- **Framework**: React with TypeScript, Vite, Wouter for routing, TanStack React Query for state.
+- **UI/Styling**: shadcn/ui (Radix UI), Tailwind CSS with custom theming (dark mode default), Framer Motion for animations.
+- **Forms**: React Hook Form with Zod validation.
 
-### Backend Architecture
-- **Runtime**: Node.js with Express.js
-- **Language**: TypeScript with ESM modules
-- **API Design**: REST endpoints defined in shared/routes.ts with Zod schemas for input validation and response typing
-- **Database ORM**: Drizzle ORM with PostgreSQL dialect
-- **Session Management**: connect-pg-simple for PostgreSQL-backed sessions
+### Backend
+- **Runtime**: Node.js with Express.js, TypeScript with ESM modules.
+- **API**: REST endpoints (shared/routes.ts) with Zod schemas for validation and typing.
+- **Database**: Drizzle ORM with PostgreSQL.
+- **Session Management**: PostgreSQL-backed sessions using `connect-pg-simple`.
 
-### Shared Code Structure
-- **Schema Definition**: Drizzle schemas in shared/schema.ts define database tables and generate Zod validation schemas via drizzle-zod
-- **API Contracts**: shared/routes.ts contains typed API route definitions with input/output schemas, enabling type-safe API calls from the frontend
+### Shared Code
+- **Schemas**: Drizzle schemas (shared/schema.ts) define database tables and generate Zod validation.
+- **API Contracts**: Typed API route definitions (shared/routes.ts) ensure type-safe client-server communication.
 
 ### Build System
-- **Development**: Vite dev server with HMR proxied through Express
-- **Production**: Vite builds frontend to dist/public, esbuild bundles server to dist/index.cjs
-- **Database Migrations**: Drizzle Kit with `db:push` command for schema synchronization
+- **Development**: Vite dev server with HMR proxied through Express.
+- **Production**: Vite builds frontend, esbuild bundles server.
+- **Database Migrations**: Drizzle Kit (`db:push`).
 
 ### Key Design Patterns
-- **Type-Safe API Layer**: API routes defined with Zod schemas in shared/routes.ts, validated on both client and server
-- **Storage Abstraction**: IStorage interface in server/storage.ts allows swapping database implementations
-- **Component Composition**: UI components use Radix primitives with Tailwind styling via class-variance-authority
+- **Type-Safe API Layer**: Zod schemas for API validation on client and server.
+- **Storage Abstraction**: `IStorage` interface for database flexibility.
+- **Component Composition**: Radix primitives with Tailwind CSS via `class-variance-authority`.
+
+### Feature Specifications
+
+#### Podcast Listener Features
+- **Subscriptions**: Via RSS or Spotify import.
+- **AI Briefings**: Personalized summaries, quotes, and insights based on user interests (OpenAI Whisper for transcription, GPT-4o for briefing).
+- **Automation**: `episodeSyncService` for RSS polling, `schedulerService` for background sync.
+- **Spotify Integration**: Create and manage "Podlogix Recommendations" playlists.
+
+#### Brand Dashboard Features
+- **Influencer Discovery**: Search YouTube channels (YouTube Data API v3), Instagram hashtags (Instagram Graph API).
+- **Influencer Management**: Save and track influencers with notes and status.
+- **Hashtag Monitoring**: Across Instagram, TikTok, YouTube.
+
+#### Creator Social Profiles
+- **Multi-Platform Support**: YouTube, Instagram, TikTok, X, LinkedIn.
+- **Analytics**: Auto-fetches YouTube stats (subscribers, views) and Instagram stats (followers, posts) via free APIs.
+- **OAuth**: Secure Instagram OAuth flow.
+
+#### Social Hub (Upload-Post Integration)
+- **Multi-Platform Posting**: Instagram, TikTok, YouTube, Facebook, LinkedIn.
+- **Account Connection**: White-label OAuth via Upload-Post.
+- **Post Management**: Post history, scheduled posts.
+
+#### Admin Dashboard
+- **Access Control**: Admin and Superadmin roles.
+- **User Management**: View, manage roles, status.
+- **Creator Management**: Track influencers with rate sheets, status, analytics.
+- **Discovery**: YouTube, Instagram influencer search.
 
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Primary database, connected via DATABASE_URL environment variable
-- **Drizzle ORM**: Type-safe database queries and schema management
+- **PostgreSQL**: Primary database.
+- **Drizzle ORM**: For database interactions.
 
 ### Third-Party Integrations
-- **GitHub API**: Connected via Replit Connectors using @octokit/rest for repository operations
-- **Polygon Blockchain**: Referenced for NFT minting of voice identity certificates (certTxHash, certTokenId fields in schema)
-- **Spotify API**: Connected via Replit Connectors for importing followed podcasts
-- **Meta API**: Instagram/Facebook monitoring for voice impersonation detection
-- **Resend**: Email notification service for briefing alerts. Connected via Replit Connectors for sending transactional emails (new episode alerts, briefing ready notifications).
-
-### Key NPM Packages
-- **@tanstack/react-query**: Server state management and caching
-- **framer-motion**: Animation library for UI transitions
-- **lucide-react**: Icon library
-- **zod**: Schema validation for API inputs/outputs
-- **date-fns**: Date formatting utilities
-- **wouter**: Lightweight client-side routing
-- **rss-parser**: Parse RSS/Atom feeds for podcast subscriptions
-- **@spotify/web-api-ts-sdk**: Spotify API SDK for podcast imports
-- **openai**: OpenAI SDK for Whisper transcription and GPT-4o briefing generation
-
-## Podcast Listener Features
-
-The platform includes dual functionality for both podcasters (creators) and podcast listeners.
-
-### Listener Dashboard (/listener)
-- **Podcast Subscriptions**: Subscribe via RSS feed or import from Spotify
-- **Episode Management**: View and manage episodes from subscribed podcasts
-- **User Interests**: Define topics/keywords for AI to track across podcasts
-- **AI Briefings**: Personalized summaries with quotes, takeaways, and insights (no timestamps)
-- **Notifications**: Dashboard and email alerts for new episodes and briefings
-- **Sync Episodes**: Manual button to fetch new episodes from all RSS feeds
-- **Auto Briefings**: Automatically transcribe and generate briefings for new episodes (max 3 at a time)
-- **Spotify Playlist**: Create "Podlogix Recommendations" playlist and add high-relevance episodes
-
-### AI Processing Pipeline
-1. **Transcription**: OpenAI Whisper converts audio to text
-2. **Briefing Generation**: GPT-4o creates personalized summaries based on user interests
-3. **Relevance Scoring**: 0-100 score indicating how relevant episode is to user's interests
-
-### Automation Services
-- **episodeSyncService**: Handles RSS polling and orchestrates auto-briefing generation
-- **syncAllSubscriptionsForUser**: Fetches latest episodes from all user subscriptions
-- **processAutoBriefingsForUser**: Transcribes and generates briefings for pending episodes
-- **schedulerService**: Automatic background sync that runs every 30 minutes to fetch new episodes for all users with active subscriptions
-
-### Spotify Playlist Integration
-- Create "Podlogix Recommendations" playlist in user's Spotify account
-- Add individual high-relevance episodes to playlist from briefings
-- Bulk add all new (unread) episodes to playlist with one click
-- Episodes are matched by searching Spotify's catalog
-
-### Database Tables for Listener Features
-- `podcast_subscriptions`: User's followed podcasts (RSS or Spotify)
-- `subscription_episodes`: Episodes from subscribed podcasts
-- `user_interests`: Topics and keywords user wants to track
-- `episode_briefings`: AI-generated personalized briefings
-- `notifications`: Dashboard and email notification queue
-
-## Brand Dashboard Features
-
-The platform includes a Brand Dashboard (/brand) for influencer discovery and hashtag monitoring.
-
-### Brand Dashboard (/brand)
-- **YouTube Discovery**: Search YouTube channels with real subscriber counts, views, and video stats using YouTube Data API v3 (free)
-- **Instagram Hashtag Discovery**: Search hashtags to discover Instagram creators posting about specific topics using Instagram Graph API (free)
-- **Saved Influencers**: Manage a list of saved influencers with notes and status tracking
-- **Hashtag Monitoring**: Track hashtags across Instagram, TikTok, and YouTube
-
-### Instagram Hashtag Discovery Integration
-Uses Instagram Graph API to discover creators by searching hashtags. Features:
-- **Hashtag Search**: Enter any topic/keyword to find Instagram posts using that hashtag
-- **Top Posts**: Shows recent top-performing posts with likes, comments, and engagement stats
-- **Creator Discovery**: Identifies creators posting about topics you care about
-- **Free API**: No Modash or paid service required
-
-Required environment variables:
-- `META_APP_ID`: Your Facebook app ID
-- `META_APP_SECRET`: Your Facebook app secret
-- `META_ACCESS_TOKEN`: User access token with pages_show_list and instagram_basic permissions
-
-Important limitations:
-- Requires an Instagram Business account linked to a Facebook Page
-- Limited to 30 unique hashtag searches per 7 days (API restriction)
-- Only shows posts from the hashtag, not full profile data
-
-### Phyllo Integration (Social Monitoring)
-Phyllo provides social media monitoring for voice identity protection. Key features:
-- **Multi-Platform Support**: Instagram, TikTok, YouTube, X (Twitter), LinkedIn, Facebook
-- **SDK Integration**: Phyllo Connect SDK for secure account connections
-- **Impersonation Detection**: Monitor connected accounts for potential impersonation alerts
-- **Brand Safety**: Real-time screening for content flags and mentions
-
-Required environment variables:
-- `PHYLLO_CLIENT_ID`: Your Phyllo client ID
-- `PHYLLO_SECRET`: Your Phyllo API secret
-
-### Database Tables for Social Monitoring
-- `connected_social_accounts`: User's connected social accounts via Phyllo
-- `social_monitoring_alerts`: Impersonation and brand safety alerts
-
-### Modash Integration
-Modash provides influencer discovery and analytics from public social media data. Key features:
-- **Public Data**: No creator consent required - aggregates public profile data
-- **Search API**: Find influencers by followers, engagement, location, keywords
-- **Multi-Platform**: Instagram, TikTok, YouTube support
-- **Demo Mode**: Shows sample influencer data when API key not configured
-
-Required environment variables:
-- `MODASH_API_KEY`: Your Modash API key from https://modash.io
-
-### Database Tables for Brand Features
-- `saved_influencers`: User's saved influencer profiles with notes and status
-- `hashtag_monitors`: Tracked hashtags per platform
-- `influencer_searches`: Saved search queries
-
-## Creator Social Profiles
-
-Creators can connect their social media profiles to showcase on their public profile pages. This uses free APIs (YouTube Data API v3, Facebook Graph API for Instagram) instead of paid services.
-
-### Features
-- **Multi-Platform Support**: YouTube, Instagram, TikTok, X, LinkedIn
-- **YouTube Analytics**: Automatically fetches subscriber count, video count, and total views using YouTube Data API v3
-- **Instagram OAuth**: Secure OAuth flow to connect Instagram Business/Creator accounts with follower and post counts
-- **Flexible URL Resolution**: Accepts YouTube channel URLs, handles (@username), or full URLs
-- **Public Display**: Connected profiles appear on creator's public profile page with analytics badges
-
-### API Endpoints
-- `GET /api/creator/social-profiles`: List current user's social profiles
-- `POST /api/creator/social-profiles`: Add a new social profile (auto-fetches YouTube stats)
-- `POST /api/creator/social-profiles/:id/sync`: Refresh YouTube/Instagram analytics
-- `DELETE /api/creator/social-profiles/:id`: Remove a social profile
-- `GET /api/creator/instagram/status`: Check if Instagram OAuth is configured
-- `GET /api/creator/instagram/auth`: Get Instagram OAuth authorization URL (authenticated)
-- `GET /api/creator/instagram/callback`: Handle OAuth callback from Facebook
-
-### Database Table
-- `creator_social_profiles`: Stores connected social profiles with analytics fields
-  - YouTube: subscriberCount, videoCount, viewCount
-  - Instagram: followersCount, followingCount, mediaCount, instagramAccountId, instagramAccessToken, instagramTokenExpiresAt
-
-### YouTube API Integration
-- Uses `YOUTUBE_API_KEY` environment variable
-- Resolves channel handles (@username) and URLs to channel IDs
-- Fetches channel statistics via YouTube Data API v3 (free tier: 10,000 units/day)
-
-### Instagram OAuth Integration
-- Uses Facebook Graph API with Instagram Business Account API
-- Requires `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN` environment variables
-- OAuth flow with HMAC-signed state parameter for CSRF protection (10-minute expiry)
-- Exchanges short-lived tokens for 60-day long-lived tokens
-- Requires Instagram account to be Business or Creator account linked to a Facebook Page
-- Fetches follower count, post count, and profile info
-
-## Social Hub (Upload-Post Integration)
-
-The Social Hub allows creators to connect their social media accounts and post across multiple platforms from Podlogix.
-
-### Features
-- **Multi-Platform Posting**: Post to Instagram, TikTok, YouTube, Facebook, LinkedIn simultaneously
-- **Account Connection**: White-label OAuth flow via Upload-Post
-- **Post History**: Track all posts made through the platform
-- **Scheduled Posts**: Schedule content for future publishing
-
-### Integration Flow
-1. Creator clicks "Connect Social Accounts" in Social Hub
-2. System creates Upload-Post profile using creator's Podlogix ID
-3. System generates secure JWT URL (valid 48 hours) for OAuth
-4. Creator connects accounts through Upload-Post's secure interface
-5. On return, connected accounts are synced to local database
-
-### API Endpoints
-- `POST /api/upload-post/create-profile`: Create Upload-Post profile for user
-- `POST /api/upload-post/connect-url`: Generate secure OAuth connection URL
-- `GET /api/upload-post/accounts`: Fetch connected accounts from Upload-Post
-- `GET /api/upload-post/local-accounts`: Get locally cached accounts
-- `POST /api/upload-post/posts`: Create and publish a post
-- `GET /api/upload-post/posts`: Get user's post history
-
-### Database Tables
-- `upload_post_accounts`: Connected social accounts via Upload-Post
-- `upload_post_posts`: Posts created and published through Upload-Post
-
-### Environment Variables
-- `UPLOAD_POST_API_KEY`: API key for Upload-Post integration
+- **GitHub API**: (via Replit Connectors) for repository operations.
+- **Polygon Blockchain**: For Voice Identity Protection NFT minting.
+- **Spotify API**: (via Replit Connectors) for podcast imports.
+- **Meta API**: Instagram/Facebook monitoring for impersonation detection.
+- **Resend**: (via Replit Connectors) Email notification service.
+- **OpenAI**: Whisper for transcription, GPT-4o for briefing generation.
+- **Modash**: Influencer discovery and analytics (optional, requires API key).
+- **Phyllo**: Social media monitoring for voice identity protection (Instagram, TikTok, YouTube, X, LinkedIn, Facebook).
+- **Upload-Post**: For multi-platform social media posting.
+- **YouTube Data API v3**: For YouTube channel discovery and analytics.
+- **Instagram Graph API**: For Instagram hashtag discovery and creator social profile analytics.
