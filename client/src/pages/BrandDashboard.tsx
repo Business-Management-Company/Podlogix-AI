@@ -25,7 +25,8 @@ import {
   ExternalLink,
   Filter,
   Loader2,
-  LogOut
+  LogOut,
+  Shield
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
@@ -136,9 +137,20 @@ interface HashtagSearchResult {
   total: number;
 }
 
+interface AdminCheck {
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  role: string;
+}
+
 export default function BrandDashboard() {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { toast } = useToast();
+
+  const { data: adminCheck } = useQuery<AdminCheck>({
+    queryKey: ["/api/admin/check"],
+    enabled: !!user,
+  });
   const [searchFilters, setSearchFilters] = useState({
     platform: 'instagram' as 'instagram' | 'tiktok' | 'youtube',
     minFollowers: '',
@@ -388,30 +400,49 @@ export default function BrandDashboard() {
           </div>
         </motion.div>
 
-        <Tabs defaultValue="youtube" className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-2xl">
-            <TabsTrigger value="youtube" data-testid="tab-youtube">
-              <SiYoutube className="h-4 w-4 mr-2" />
-              YouTube
-            </TabsTrigger>
-            <TabsTrigger value="instagram" data-testid="tab-instagram">
-              <SiInstagram className="h-4 w-4 mr-2" />
-              Instagram
-            </TabsTrigger>
-            <TabsTrigger value="linkedin" data-testid="tab-linkedin">
-              <SiLinkedin className="h-4 w-4 mr-2" />
-              LinkedIn
-            </TabsTrigger>
+        <Tabs defaultValue={adminCheck?.isAdmin ? "youtube" : "saved"} className="space-y-6">
+          <TabsList className={`grid w-full max-w-2xl ${adminCheck?.isAdmin ? 'grid-cols-5' : 'grid-cols-1'}`}>
+            {adminCheck?.isAdmin && (
+              <>
+                <TabsTrigger value="youtube" data-testid="tab-youtube">
+                  <SiYoutube className="h-4 w-4 mr-2" />
+                  YouTube
+                </TabsTrigger>
+                <TabsTrigger value="instagram" data-testid="tab-instagram">
+                  <SiInstagram className="h-4 w-4 mr-2" />
+                  Instagram
+                </TabsTrigger>
+                <TabsTrigger value="linkedin" data-testid="tab-linkedin">
+                  <SiLinkedin className="h-4 w-4 mr-2" />
+                  LinkedIn
+                </TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="saved" data-testid="tab-saved">
               <Bookmark className="h-4 w-4 mr-2" />
               Saved ({savedInfluencers.length})
             </TabsTrigger>
-            <TabsTrigger value="hashtags" data-testid="tab-hashtags">
-              <Hash className="h-4 w-4 mr-2" />
-              Hashtags
-            </TabsTrigger>
+            {adminCheck?.isAdmin && (
+              <TabsTrigger value="hashtags" data-testid="tab-hashtags">
+                <Hash className="h-4 w-4 mr-2" />
+                Hashtags
+              </TabsTrigger>
+            )}
           </TabsList>
 
+          {!adminCheck?.isAdmin && (
+            <Card className="p-8 text-center">
+              <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="font-semibold mb-2">Discovery Features are Admin-Only</h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                The influencer discovery features (YouTube, Instagram, LinkedIn, Hashtags) require admin access.
+                You can view and manage your saved influencers below.
+              </p>
+            </Card>
+          )}
+
+          {adminCheck?.isAdmin && (
+          <>
           <TabsContent value="youtube" className="space-y-6">
             <Card>
               <CardHeader>
@@ -844,6 +875,8 @@ export default function BrandDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+          </>
+          )}
 
           <TabsContent value="saved" className="space-y-4">
             {savedLoading ? (
@@ -904,6 +937,7 @@ export default function BrandDashboard() {
             )}
           </TabsContent>
 
+          {adminCheck?.isAdmin && (
           <TabsContent value="hashtags" className="space-y-4">
             <Card>
               <CardHeader>
@@ -994,6 +1028,7 @@ export default function BrandDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
         </Tabs>
       </main>
     </div>

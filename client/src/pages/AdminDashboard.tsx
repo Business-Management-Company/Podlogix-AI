@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { motion } from "framer-motion";
@@ -216,6 +217,16 @@ export default function AdminDashboard() {
   const [linkedinSearchType, setLinkedinSearchType] = useState<'people' | 'companies'>('people');
   const [influencersClubQuery, setInfluencersClubQuery] = useState("");
   const [influencersClubPlatform, setInfluencersClubPlatform] = useState<string>('instagram');
+  const [influencersClubFilters, setInfluencersClubFilters] = useState({
+    keywords: "",
+    bioKeywords: "",
+    location: "",
+    minFollowers: "5000",
+    maxFollowers: "100000",
+    minEngagement: "2.5",
+    hasEmail: false,
+    isVerified: false,
+  });
   const [selectedCreator, setSelectedCreator] = useState<AdminCreator | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -405,8 +416,21 @@ export default function AdminDashboard() {
   };
 
   const handleInfluencersClubSearch = () => {
-    if (!influencersClubQuery.trim()) return;
-    influencersClubMutation.mutate({ platform: influencersClubPlatform, prompt: influencersClubQuery });
+    const { keywords, bioKeywords, location, minFollowers, maxFollowers, minEngagement, hasEmail, isVerified } = influencersClubFilters;
+    
+    // Build a structured prompt from the filters
+    const parts: string[] = [];
+    if (keywords.trim()) parts.push(`keywords: ${keywords}`);
+    if (bioKeywords.trim()) parts.push(`bio contains: ${bioKeywords}`);
+    if (location.trim()) parts.push(`located in: ${location}`);
+    if (minFollowers) parts.push(`minimum ${minFollowers} followers`);
+    if (maxFollowers) parts.push(`maximum ${maxFollowers} followers`);
+    if (minEngagement) parts.push(`minimum ${minEngagement}% engagement`);
+    if (hasEmail) parts.push(`has verified email`);
+    if (isVerified) parts.push(`verified account`);
+    
+    const prompt = parts.join(', ') || 'popular influencers';
+    influencersClubMutation.mutate({ platform: influencersClubPlatform, prompt });
   };
 
   const handleAddInfluencersClubCreator = (creator: InfluencersClubCreator) => {
@@ -853,30 +877,119 @@ export default function AdminDashboard() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex gap-2 flex-wrap">
-                      <Select value={influencersClubPlatform} onValueChange={setInfluencersClubPlatform}>
-                        <SelectTrigger className="w-[140px]" data-testid="select-influencers-platform">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="instagram"><div className="flex items-center gap-2"><SiInstagram className="h-4 w-4" />Instagram</div></SelectItem>
-                          <SelectItem value="tiktok"><div className="flex items-center gap-2"><SiTiktok className="h-4 w-4" />TikTok</div></SelectItem>
-                          <SelectItem value="youtube"><div className="flex items-center gap-2"><SiYoutube className="h-4 w-4" />YouTube</div></SelectItem>
-                          <SelectItem value="twitter"><div className="flex items-center gap-2"><SiX className="h-4 w-4" />Twitter/X</div></SelectItem>
-                          <SelectItem value="twitch"><div className="flex items-center gap-2"><SiTwitch className="h-4 w-4" />Twitch</div></SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input 
-                        className="flex-1 min-w-[200px]" 
-                        placeholder="Describe the creators you're looking for (e.g., 'fitness influencers in Los Angeles with 10K-100K followers')..." 
-                        value={influencersClubQuery} 
-                        onChange={(e) => setInfluencersClubQuery(e.target.value)} 
-                        onKeyDown={(e) => e.key === 'Enter' && handleInfluencersClubSearch()} 
-                        data-testid="input-influencers-search" 
-                      />
-                      <Button onClick={handleInfluencersClubSearch} disabled={influencersClubMutation.isPending || !influencersClubStatus?.configured} data-testid="button-influencers-search">
-                        {influencersClubMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                      </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>Platform</Label>
+                        <Select value={influencersClubPlatform} onValueChange={setInfluencersClubPlatform}>
+                          <SelectTrigger data-testid="select-influencers-platform">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="instagram"><div className="flex items-center gap-2"><SiInstagram className="h-4 w-4" />Instagram</div></SelectItem>
+                            <SelectItem value="tiktok"><div className="flex items-center gap-2"><SiTiktok className="h-4 w-4" />TikTok</div></SelectItem>
+                            <SelectItem value="youtube"><div className="flex items-center gap-2"><SiYoutube className="h-4 w-4" />YouTube</div></SelectItem>
+                            <SelectItem value="twitter"><div className="flex items-center gap-2"><SiX className="h-4 w-4" />Twitter/X</div></SelectItem>
+                            <SelectItem value="twitch"><div className="flex items-center gap-2"><SiTwitch className="h-4 w-4" />Twitch</div></SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Keywords (comma-separated)</Label>
+                        <Input 
+                          placeholder="military, veteran, fitness..." 
+                          value={influencersClubFilters.keywords} 
+                          onChange={(e) => setInfluencersClubFilters(f => ({ ...f, keywords: e.target.value }))} 
+                          data-testid="input-influencers-keywords" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Bio Keywords</Label>
+                        <Input 
+                          placeholder="combat, marine, airforce..." 
+                          value={influencersClubFilters.bioKeywords} 
+                          onChange={(e) => setInfluencersClubFilters(f => ({ ...f, bioKeywords: e.target.value }))} 
+                          data-testid="input-influencers-bio" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Location</Label>
+                        <Input 
+                          placeholder="United States" 
+                          value={influencersClubFilters.location} 
+                          onChange={(e) => setInfluencersClubFilters(f => ({ ...f, location: e.target.value }))} 
+                          data-testid="input-influencers-location" 
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                      <div className="space-y-2">
+                        <Label>Min Followers</Label>
+                        <Input 
+                          type="number"
+                          placeholder="5000" 
+                          value={influencersClubFilters.minFollowers} 
+                          onChange={(e) => setInfluencersClubFilters(f => ({ ...f, minFollowers: e.target.value }))} 
+                          data-testid="input-influencers-min-followers" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Max Followers</Label>
+                        <Input 
+                          type="number"
+                          placeholder="100000" 
+                          value={influencersClubFilters.maxFollowers} 
+                          onChange={(e) => setInfluencersClubFilters(f => ({ ...f, maxFollowers: e.target.value }))} 
+                          data-testid="input-influencers-max-followers" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Min Engagement %</Label>
+                        <Input 
+                          type="number"
+                          step="0.1"
+                          placeholder="2.5" 
+                          value={influencersClubFilters.minEngagement} 
+                          onChange={(e) => setInfluencersClubFilters(f => ({ ...f, minEngagement: e.target.value }))} 
+                          data-testid="input-influencers-min-engagement" 
+                        />
+                      </div>
+                      <div className="flex items-center gap-4 pt-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            id="hasEmail" 
+                            checked={influencersClubFilters.hasEmail}
+                            onCheckedChange={(checked) => setInfluencersClubFilters(f => ({ ...f, hasEmail: checked === true }))}
+                            data-testid="checkbox-has-email"
+                          />
+                          <Label htmlFor="hasEmail" className="flex items-center gap-1 cursor-pointer">
+                            <Mail className="h-3 w-3" />Has Email
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            id="isVerified" 
+                            checked={influencersClubFilters.isVerified}
+                            onCheckedChange={(checked) => setInfluencersClubFilters(f => ({ ...f, isVerified: checked === true }))}
+                            data-testid="checkbox-verified"
+                          />
+                          <Label htmlFor="isVerified" className="flex items-center gap-1 cursor-pointer">
+                            <CheckCircle className="h-3 w-3" />Verified
+                          </Label>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleInfluencersClubSearch} disabled={influencersClubMutation.isPending || !influencersClubStatus?.configured} data-testid="button-influencers-search">
+                          {influencersClubMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                          Search Influencers
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setInfluencersClubFilters({ keywords: "", bioKeywords: "", location: "", minFollowers: "5000", maxFollowers: "100000", minEngagement: "2.5", hasEmail: false, isVerified: false })}
+                          data-testid="button-clear-filters"
+                        >
+                          Clear
+                        </Button>
+                      </div>
                     </div>
                     {influencersClubMutation.data?.error && (
                       <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm">{influencersClubMutation.data.error}</div>

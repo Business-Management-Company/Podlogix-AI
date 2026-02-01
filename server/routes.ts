@@ -2101,8 +2101,8 @@ export async function registerRoutes(
     res.json({ configured: isYouTubeConfigured() });
   });
 
-  // Search YouTube channels
-  app.post('/api/brand/youtube/search', isAuthenticated, async (req: any, res) => {
+  // Search YouTube channels (admin only)
+  app.post('/api/brand/youtube/search', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { query, maxResults, pageToken, order } = req.body;
       
@@ -2285,8 +2285,8 @@ export async function registerRoutes(
     }
   });
 
-  // Instagram hashtag-based post discovery
-  app.post('/api/brand/instagram/hashtag-search', isAuthenticated, async (req: any, res) => {
+  // Instagram hashtag-based post discovery (admin only)
+  app.post('/api/brand/instagram/hashtag-search', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const hashtagSchema = z.object({
         hashtag: z.string().min(1, 'Hashtag is required').max(50, 'Hashtag too long'),

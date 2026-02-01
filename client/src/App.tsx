@@ -23,6 +23,7 @@ import ListenerAnalytics from "@/pages/ListenerAnalytics";
 import KnowledgeBase from "@/pages/KnowledgeBase";
 import BrandDashboard from "@/pages/BrandDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import SaaSAdminPortal from "@/pages/SaaSAdminPortal";
 import Connectors from "@/pages/Connectors";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
@@ -49,6 +50,7 @@ function AuthenticatedRoutes() {
         <Route path="/listener/analytics" component={ListenerAnalytics} />
         <Route path="/brand" component={BrandDashboard} />
         <Route path="/admin" component={AdminDashboard} />
+        <Route path="/saas-admin" component={SaaSAdminPortal} />
         <Route path="/connectors" component={Connectors} />
         <Route path="/identity" component={IdentityHub} />
         <Route path="/help" component={KnowledgeBase} />

@@ -36,6 +36,7 @@ import {
   Mail,
   Plug,
   Youtube,
+  Building2,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -75,6 +76,10 @@ const brandMenuItems = [
 
 const adminMenuItems = [
   { title: "Admin Panel", url: "/admin", icon: ShieldCheck },
+];
+
+const saasAdminMenuItems = [
+  { title: "SaaS Owner Portal", url: "/saas-admin", icon: Building2 },
 ];
 
 const settingsMenuItems = [
@@ -238,9 +243,17 @@ export function AppLayout({ children }: AppLayoutProps) {
                           <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
                             <item.icon className="h-4 w-4" />
                             <span>{item.title}</span>
-                            {adminCheck.isSuperAdmin && (
-                              <Badge variant="secondary" className="ml-auto text-xs">Super</Badge>
-                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                    {adminCheck.isSuperAdmin && saasAdminMenuItems.map((item) => (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                          <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                            <Badge variant="secondary" className="ml-auto text-xs">Owner</Badge>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
