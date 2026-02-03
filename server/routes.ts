@@ -3633,5 +3633,607 @@ Respond in this exact JSON format:
     }
   });
 
+  // ============ INFLUENCERS.CLUB PRO API FEATURES ============
+
+  // Discovery API - Search creators with 60+ filters and AI-powered search
+  app.post('/api/social-analytics/discover', isAuthenticated, async (req: any, res) => {
+    try {
+      const discoverSchema = z.object({
+        platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']).optional(),
+        minFollowers: z.number().min(0).optional(),
+        maxFollowers: z.number().min(0).optional(),
+        minEngagement: z.number().min(0).max(100).optional(),
+        maxEngagement: z.number().min(0).max(100).optional(),
+        location: z.string().optional(),
+        language: z.string().optional(),
+        niche: z.string().optional(),
+        hasEmail: z.boolean().optional(),
+        isVerified: z.boolean().optional(),
+        aiPrompt: z.string().max(500).optional(), // AI-powered natural language search
+        limit: z.number().min(1).max(100).optional().default(25),
+        offset: z.number().min(0).optional().default(0),
+      });
+
+      const parseResult = discoverSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const filters = parseResult.data;
+      
+      // Build discovery request
+      const discoveryRequest: Record<string, any> = {
+        limit: filters.limit,
+        offset: filters.offset,
+      };
+
+      if (filters.platform) discoveryRequest.platform = filters.platform;
+      if (filters.minFollowers) discoveryRequest.followers_min = filters.minFollowers;
+      if (filters.maxFollowers) discoveryRequest.followers_max = filters.maxFollowers;
+      if (filters.minEngagement) discoveryRequest.engagement_rate_min = filters.minEngagement;
+      if (filters.maxEngagement) discoveryRequest.engagement_rate_max = filters.maxEngagement;
+      if (filters.location) discoveryRequest.location = filters.location;
+      if (filters.language) discoveryRequest.language = filters.language;
+      if (filters.niche) discoveryRequest.niche = filters.niche;
+      if (filters.hasEmail !== undefined) discoveryRequest.has_email = filters.hasEmail;
+      if (filters.isVerified !== undefined) discoveryRequest.is_verified = filters.isVerified;
+      if (filters.aiPrompt) discoveryRequest.ai_prompt = filters.aiPrompt;
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/discovery/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(discoveryRequest),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Discovery API error:', error);
+        return res.status(response.status).json({ error: 'Discovery search failed' });
+      }
+
+      const data = await response.json();
+      
+      const creators = (data.results || data.creators || []).map((creator: any) => ({
+        handle: creator.handle || creator.username,
+        platform: creator.platform,
+        name: creator.name || creator.fullname,
+        profilePicture: creator.avatar || creator.profile_pic_url,
+        followers: creator.followers || creator.follower_count || 0,
+        engagementRate: creator.engagement_rate || 0,
+        avgViews: creator.avg_views || 0,
+        email: creator.email || null,
+        emailVerified: creator.email_verified || false,
+        location: creator.location || creator.country,
+        niche: creator.niche || creator.category,
+        isVerified: creator.is_verified || false,
+        estimatedMonthlyIncome: creator.estimated_monthly_income || null,
+        fakeFollowerPercent: creator.fake_follower_percent || null,
+      }));
+
+      res.json({
+        success: true,
+        creators,
+        total: data.total || creators.length,
+        offset: filters.offset,
+        limit: filters.limit,
+      });
+    } catch (error) {
+      console.error('Error in discovery search:', error);
+      res.status(500).json({ message: 'Failed to search creators' });
+    }
+  });
+
+  // Lookalikes API - Find similar creators
+  app.post('/api/social-analytics/lookalikes', isAuthenticated, async (req: any, res) => {
+    try {
+      const lookalikesSchema = z.object({
+        handle: z.string().min(1).max(100),
+        platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
+        limit: z.number().min(1).max(50).optional().default(20),
+        // Additional filters for lookalikes
+        minFollowers: z.number().min(0).optional(),
+        maxFollowers: z.number().min(0).optional(),
+        location: z.string().optional(),
+      });
+
+      const parseResult = lookalikesSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const { handle, platform, limit, minFollowers, maxFollowers, location } = parseResult.data;
+
+      const requestBody: Record<string, any> = {
+        handle: handle.replace('@', ''),
+        platform,
+        limit,
+      };
+
+      if (minFollowers) requestBody.followers_min = minFollowers;
+      if (maxFollowers) requestBody.followers_max = maxFollowers;
+      if (location) requestBody.location = location;
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/lookalikes/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Lookalikes API error:', error);
+        return res.status(response.status).json({ error: 'Failed to find lookalikes' });
+      }
+
+      const data = await response.json();
+      
+      const lookalikes = (data.results || data.lookalikes || []).map((creator: any) => ({
+        handle: creator.handle || creator.username,
+        platform: creator.platform || platform,
+        name: creator.name || creator.fullname,
+        profilePicture: creator.avatar || creator.profile_pic_url,
+        followers: creator.followers || creator.follower_count || 0,
+        engagementRate: creator.engagement_rate || 0,
+        avgViews: creator.avg_views || 0,
+        email: creator.email || null,
+        location: creator.location,
+        niche: creator.niche || creator.category,
+        similarityScore: creator.similarity_score || creator.match_score || null,
+      }));
+
+      res.json({
+        success: true,
+        originalHandle: handle,
+        originalPlatform: platform,
+        lookalikes,
+      });
+    } catch (error) {
+      console.error('Error finding lookalikes:', error);
+      res.status(500).json({ message: 'Failed to find similar creators' });
+    }
+  });
+
+  // Email Enrichment API - Enrich by email (basic or advanced)
+  app.post('/api/social-analytics/enrich-email', isAuthenticated, async (req: any, res) => {
+    try {
+      const enrichSchema = z.object({
+        email: z.string().email(),
+        mode: z.enum(['basic', 'advanced']).optional().default('advanced'),
+      });
+
+      const parseResult = enrichSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const { email, mode } = parseResult.data;
+      const endpoint = mode === 'basic' 
+        ? 'https://api-dashboard.influencers.club/public/v1/enrichment/email/basic/'
+        : 'https://api-dashboard.influencers.club/public/v1/enrichment/email/advanced/';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Email enrichment error:', error);
+        return res.status(response.status).json({ error: 'Email enrichment failed' });
+      }
+
+      const data = await response.json();
+
+      const profiles = (data.profiles || data.social_profiles || [data]).filter((p: any) => p).map((profile: any) => ({
+        platform: profile.platform,
+        handle: profile.handle || profile.username,
+        name: profile.name || profile.fullname,
+        profilePicture: profile.avatar || profile.profile_pic_url,
+        followers: profile.followers || profile.follower_count || 0,
+        engagementRate: profile.engagement_rate || 0,
+        isVerified: profile.is_verified || false,
+        bio: profile.bio || profile.biography,
+      }));
+
+      res.json({
+        success: true,
+        email,
+        mode,
+        name: data.name || data.fullname,
+        profiles,
+        socialLinks: data.social_links || [],
+        estimatedMonthlyIncome: data.estimated_monthly_income,
+      });
+    } catch (error) {
+      console.error('Error enriching email:', error);
+      res.status(500).json({ message: 'Failed to enrich email' });
+    }
+  });
+
+  // Get Creator Posts with Engagement Metrics
+  app.post('/api/social-analytics/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const postsSchema = z.object({
+        handle: z.string().min(1).max(100),
+        platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
+        limit: z.number().min(1).max(50).optional().default(12),
+      });
+
+      const parseResult = postsSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const { handle, platform, limit } = parseResult.data;
+
+      // First enrich to get posts data
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          handle: handle.replace('@', ''),
+          platform,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Posts API error:', error);
+        return res.status(response.status).json({ error: 'Failed to fetch posts' });
+      }
+
+      const data = await response.json();
+      
+      const posts = (data.recent_posts || data.posts || data.latest_posts || []).slice(0, limit).map((post: any) => ({
+        id: post.id || post.post_id,
+        type: post.type || post.media_type || 'post',
+        caption: post.caption || post.text || post.title,
+        thumbnail: post.thumbnail || post.thumbnail_url || post.image,
+        url: post.url || post.permalink,
+        likes: post.likes || post.like_count || 0,
+        comments: post.comments || post.comment_count || 0,
+        views: post.views || post.view_count || 0,
+        shares: post.shares || post.share_count || 0,
+        engagementRate: post.engagement_rate || 0,
+        postedAt: post.posted_at || post.timestamp || post.created_at,
+      }));
+
+      res.json({
+        success: true,
+        handle,
+        platform,
+        posts,
+        avgLikes: data.avg_likes || 0,
+        avgComments: data.avg_comments || 0,
+        avgViews: data.avg_views || 0,
+        postsPerMonth: data.posts_per_month || 0,
+      });
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      res.status(500).json({ message: 'Failed to fetch posts' });
+    }
+  });
+
+  // Check API Credits and Usage
+  app.get('/api/social-analytics/credits', isAuthenticated, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/account/credits/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Credits API error:', error);
+        return res.status(response.status).json({ error: 'Failed to fetch credits' });
+      }
+
+      const data = await response.json();
+
+      res.json({
+        success: true,
+        credits: {
+          available: data.credits_available || data.remaining || data.balance || 0,
+          used: data.credits_used || data.used || 0,
+          total: data.credits_total || data.total || 0,
+          plan: data.plan || data.subscription_plan || 'PRO',
+          resetDate: data.reset_date || data.billing_cycle_end,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching credits:', error);
+      res.status(500).json({ message: 'Failed to fetch credits' });
+    }
+  });
+
+  // Batch Enrichment - Create batch job
+  app.post('/api/social-analytics/batch/create', isAuthenticated, async (req: any, res) => {
+    try {
+      const batchSchema = z.object({
+        handles: z.array(z.object({
+          handle: z.string().min(1).max(100),
+          platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
+        })).min(1).max(1000),
+      });
+
+      const parseResult = batchSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parseResult.error.issues });
+      }
+
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const { handles } = parseResult.data;
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/batch/create/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: handles.map(h => ({
+            handle: h.handle.replace('@', ''),
+            platform: h.platform,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Batch create error:', error);
+        return res.status(response.status).json({ error: 'Failed to create batch job' });
+      }
+
+      const data = await response.json();
+
+      res.json({
+        success: true,
+        batchId: data.batch_id || data.id,
+        itemCount: handles.length,
+        status: data.status || 'processing',
+        estimatedCredits: data.estimated_credits || handles.length * 2,
+      });
+    } catch (error) {
+      console.error('Error creating batch:', error);
+      res.status(500).json({ message: 'Failed to create batch job' });
+    }
+  });
+
+  // Batch Enrichment - Check status
+  app.get('/api/social-analytics/batch/:batchId/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const { batchId } = req.params;
+
+      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/batch/${batchId}/status/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'Failed to fetch batch status' });
+      }
+
+      const data = await response.json();
+
+      res.json({
+        success: true,
+        batchId,
+        status: data.status,
+        progress: data.progress || 0,
+        completed: data.completed || 0,
+        total: data.total || 0,
+        errors: data.errors || 0,
+      });
+    } catch (error) {
+      console.error('Error fetching batch status:', error);
+      res.status(500).json({ message: 'Failed to fetch batch status' });
+    }
+  });
+
+  // Batch Enrichment - Download results
+  app.get('/api/social-analytics/batch/:batchId/results', isAuthenticated, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const { batchId } = req.params;
+
+      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/batch/${batchId}/results/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'Failed to fetch batch results' });
+      }
+
+      const data = await response.json();
+
+      const results = (data.results || []).map((item: any) => ({
+        handle: item.handle,
+        platform: item.platform,
+        name: item.name || item.fullname,
+        profilePicture: item.avatar || item.profile_pic_url,
+        followers: item.followers || 0,
+        engagementRate: item.engagement_rate || 0,
+        avgViews: item.avg_views || 0,
+        email: item.email,
+        emailVerified: item.email_verified || false,
+        location: item.location,
+        niche: item.niche || item.category,
+        isVerified: item.is_verified || false,
+        estimatedMonthlyIncome: item.estimated_monthly_income,
+        fakeFollowerPercent: item.fake_follower_percent,
+        error: item.error,
+      }));
+
+      res.json({
+        success: true,
+        batchId,
+        results,
+        total: results.length,
+      });
+    } catch (error) {
+      console.error('Error fetching batch results:', error);
+      res.status(500).json({ message: 'Failed to fetch batch results' });
+    }
+  });
+
+  // Get available locations for discovery filters
+  app.get('/api/social-analytics/filters/locations', isAuthenticated, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const platform = req.query.platform || 'instagram';
+
+      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/filters/locations/?platform=${platform}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        // Return default locations if API fails
+        return res.json({
+          success: true,
+          locations: ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Italy', 'Brazil', 'Mexico', 'India', 'Japan'],
+        });
+      }
+
+      const data = await response.json();
+      res.json({ success: true, locations: data.locations || data });
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      res.json({ success: true, locations: ['United States', 'United Kingdom', 'Canada', 'Australia'] });
+    }
+  });
+
+  // Get available languages for discovery filters
+  app.get('/api/social-analytics/filters/languages', isAuthenticated, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/filters/languages/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        return res.json({
+          success: true,
+          languages: ['English', 'Spanish', 'Portuguese', 'French', 'German', 'Italian', 'Japanese', 'Korean', 'Chinese', 'Hindi', 'Arabic'],
+        });
+      }
+
+      const data = await response.json();
+      res.json({ success: true, languages: data.languages || data });
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      res.json({ success: true, languages: ['English', 'Spanish', 'Portuguese', 'French', 'German'] });
+    }
+  });
+
+  // Get available niches/categories for discovery filters
+  app.get('/api/social-analytics/filters/niches', isAuthenticated, async (req: any, res) => {
+    try {
+      const apiKey = getInfluencersClubApiKey();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/filters/niches/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        return res.json({
+          success: true,
+          niches: [
+            'Fashion', 'Beauty', 'Fitness', 'Travel', 'Food', 'Technology', 'Gaming', 
+            'Music', 'Sports', 'Business', 'Education', 'Entertainment', 'Lifestyle',
+            'Health', 'Parenting', 'Pets', 'Art', 'Photography', 'Comedy', 'DIY'
+          ],
+        });
+      }
+
+      const data = await response.json();
+      res.json({ success: true, niches: data.niches || data.categories || data });
+    } catch (error) {
+      console.error('Error fetching niches:', error);
+      res.json({ 
+        success: true, 
+        niches: ['Fashion', 'Beauty', 'Fitness', 'Travel', 'Food', 'Technology', 'Gaming', 'Music'] 
+      });
+    }
+  });
+
   return httpServer;
 }

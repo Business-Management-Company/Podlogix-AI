@@ -80,4 +80,12 @@ Preferred communication style: Simple, everyday language.
 - **Upload-Post**: For multi-platform social media posting.
 - **YouTube Data API v3**: For YouTube channel discovery and analytics.
 - **Instagram Graph API**: For Instagram hashtag discovery and creator social profile analytics.
-- **Influencers.club API**: 340M+ creator database for influencer discovery (Instagram, TikTok, YouTube, Twitter, Twitch) with AI-powered search, verified emails, engagement metrics.
+- **Influencers.club PRO API**: 340M+ creator database with full PRO tier features:
+  - **AI Discovery**: Natural language search with 60+ filters (location, niche, engagement, followers, verified emails)
+  - **Profile Enrichment**: Full analytics including fake follower detection, estimated monthly income
+  - **Lookalikes**: Find similar creators to any handle
+  - **Email Enrichment**: Convert emails to social profiles (basic/advanced modes)
+  - **Posts API**: Get recent posts with engagement metrics
+  - **Batch Processing**: Bulk enrichment for large creator lists
+  - **Credits Monitoring**: Track API usage and remaining credits
+- **Meta App (Seeksy Social Graph)**: App ID 1358972209298823, for Instagram/Facebook Graph API access.
