@@ -79,7 +79,9 @@ import {
   getLinkedInHashtagUrl,
   generateLinkedInSearchSuggestions
 } from "./services/linkedinDiscoveryService";
-import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema } from "@shared/schema";
+import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema, clientSavedCreators } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc } from "drizzle-orm";
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
 import { sendEmail, isEmailConfigured } from "./services/emailService";
 import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
@@ -4232,6 +4234,164 @@ Respond in this exact JSON format:
         success: true, 
         niches: ['Fashion', 'Beauty', 'Fitness', 'Travel', 'Food', 'Technology', 'Gaming', 'Music'] 
       });
+    }
+  });
+
+  // ==================== CLIENT PORTAL ROUTES ====================
+  
+  // Get all saved creators for the current user
+  app.get('/api/client-portal/saved-creators', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const creators = await db
+        .select()
+        .from(clientSavedCreators)
+        .where(eq(clientSavedCreators.userId, userId))
+        .orderBy(desc(clientSavedCreators.createdAt));
+      
+      res.json(creators);
+    } catch (error) {
+      console.error('Error fetching saved creators:', error);
+      res.status(500).json({ message: 'Failed to fetch saved creators' });
+    }
+  });
+
+  // Save a new creator
+  app.post('/api/client-portal/saved-creators', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const finiteInt = z.number().optional().transform(val => {
+        if (val === undefined || val === null) return undefined;
+        if (!isFinite(val)) return undefined;
+        return Math.round(Math.max(0, val));
+      });
+
+      const schema = z.object({
+        platform: z.string(),
+        platformUserId: z.string().optional(),
+        username: z.string(),
+        displayName: z.string().optional(),
+        profilePicUrl: z.string().optional(),
+        bio: z.string().optional(),
+        followerCount: finiteInt,
+        engagementRate: finiteInt,
+        avgViews: finiteInt,
+        avgLikes: finiteInt,
+        location: z.string().optional(),
+        categories: z.array(z.string()).optional(),
+        email: z.string().optional(),
+        estimatedPostRate: finiteInt,
+        estimatedStoryRate: finiteInt,
+        estimatedVideoRate: finiteInt,
+        notes: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        status: z.string().optional(),
+        listName: z.string().optional(),
+      });
+
+      const parseResult = schema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request body', details: parseResult.error.format() });
+      }
+
+      const data = parseResult.data;
+
+      // Check if already saved
+      const existing = await db
+        .select()
+        .from(clientSavedCreators)
+        .where(
+          and(
+            eq(clientSavedCreators.userId, userId),
+            eq(clientSavedCreators.platform, data.platform),
+            eq(clientSavedCreators.username, data.username)
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        return res.status(400).json({ error: 'Creator already saved' });
+      }
+
+      const [creator] = await db
+        .insert(clientSavedCreators)
+        .values({
+          userId,
+          ...data,
+        })
+        .returning();
+
+      res.json(creator);
+    } catch (error) {
+      console.error('Error saving creator:', error);
+      res.status(500).json({ message: 'Failed to save creator' });
+    }
+  });
+
+  // Update a saved creator
+  app.patch('/api/client-portal/saved-creators/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const schema = z.object({
+        status: z.string().optional(),
+        notes: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        listName: z.string().optional(),
+      });
+
+      const parseResult = schema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid request body', details: parseResult.error.format() });
+      }
+
+      const [updated] = await db
+        .update(clientSavedCreators)
+        .set({ ...parseResult.data, updatedAt: new Date() })
+        .where(
+          and(
+            eq(clientSavedCreators.id, id),
+            eq(clientSavedCreators.userId, userId)
+          )
+        )
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ error: 'Creator not found' });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating creator:', error);
+      res.status(500).json({ message: 'Failed to update creator' });
+    }
+  });
+
+  // Delete a saved creator
+  app.delete('/api/client-portal/saved-creators/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const [deleted] = await db
+        .delete(clientSavedCreators)
+        .where(
+          and(
+            eq(clientSavedCreators.id, id),
+            eq(clientSavedCreators.userId, userId)
+          )
+        )
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ error: 'Creator not found' });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting creator:', error);
+      res.status(500).json({ message: 'Failed to delete creator' });
     }
   });
 

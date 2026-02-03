@@ -31,6 +31,7 @@ import EmailHub from "@/pages/EmailHub";
 import VideoAnalysis from "@/pages/VideoAnalysis";
 import SocialHub from "@/pages/SocialHub";
 import SocialAnalytics from "@/pages/SocialAnalytics";
+import ClientPortal from "@/pages/ClientPortal";
 
 function AuthenticatedRoutes() {
   return (
@@ -53,6 +54,7 @@ function AuthenticatedRoutes() {
         <Route path="/brand" component={BrandDashboard} />
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/saas-admin" component={SaaSAdminPortal} />
+        <Route path="/client" component={ClientPortal} />
         <Route path="/connectors" component={Connectors} />
         <Route path="/identity" component={IdentityHub} />
         <Route path="/help" component={KnowledgeBase} />

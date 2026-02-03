@@ -38,6 +38,7 @@ import {
   Youtube,
   Building2,
   BarChart3,
+  Briefcase,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -74,6 +75,7 @@ const listenerMenuItems = [
 
 const brandMenuItems = [
   { title: "Influencer Discovery", url: "/brand", icon: Users },
+  { title: "Client Portal", url: "/client", icon: Briefcase },
 ];
 
 const adminMenuItems = [

@@ -62,6 +62,13 @@ Preferred communication style: Simple, everyday language.
 - **Creator Management**: Track influencers with rate sheets, status, analytics.
 - **Discovery**: Influencers.club (340M+ creators), YouTube, Instagram, LinkedIn influencer search.
 
+#### Client Portal (for Brands/Agencies)
+- **Creator Discovery**: AI-powered search of 340M+ influencers and podcasters via Influencers.club.
+- **Media Kit Viewer**: View creator profiles, stats, and estimated rate cards.
+- **Rate Calculator**: Industry-standard algorithm using followers, engagement rate, and avg views (min $25/post).
+- **Saved Creators**: Track creators with status (saved, interested, contacted, negotiating, partnered, declined).
+- **Connection Management**: Add notes, tags, and organize creators into lists.
+
 ## External Dependencies
 
 ### Database

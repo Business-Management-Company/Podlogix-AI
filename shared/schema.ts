@@ -768,3 +768,66 @@ export const insertAdminCreatorSchema = createInsertSchema(adminCreatorList).omi
 
 export type AdminCreator = typeof adminCreatorList.$inferSelect;
 export type InsertAdminCreator = z.infer<typeof insertAdminCreatorSchema>;
+
+// Client Portal - Saved Creators for brands/agencies
+export const clientSavedCreators = pgTable("client_saved_creators", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // The client/brand user
+  platform: varchar("platform").notNull(), // instagram, youtube, tiktok, twitter, podcast
+  platformUserId: varchar("platform_user_id"), // External platform ID if available
+  username: varchar("username").notNull(),
+  displayName: varchar("display_name"),
+  profilePicUrl: text("profile_pic_url"),
+  bio: text("bio"),
+  followerCount: integer("follower_count"),
+  engagementRate: integer("engagement_rate"), // Stored as percentage * 100
+  avgViews: integer("avg_views"),
+  avgLikes: integer("avg_likes"),
+  location: varchar("location"),
+  categories: text("categories").array(),
+  email: varchar("email"), // Contact email if available
+  estimatedPostRate: integer("estimated_post_rate"), // In cents
+  estimatedStoryRate: integer("estimated_story_rate"),
+  estimatedVideoRate: integer("estimated_video_rate"),
+  notes: text("notes"),
+  tags: text("tags").array(),
+  status: varchar("status").default("saved"), // saved, interested, contacted, negotiating, partnered, declined
+  listName: varchar("list_name"), // For organizing into lists
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Client Portal - Outreach/Connection Requests
+export const clientOutreachRequests = pgTable("client_outreach_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // The client/brand user
+  savedCreatorId: varchar("saved_creator_id").notNull(), // References clientSavedCreators
+  messageType: varchar("message_type").default("collaboration"), // collaboration, sponsorship, ambassador, custom
+  subject: varchar("subject"),
+  message: text("message"),
+  proposedBudget: integer("proposed_budget"), // In cents
+  proposedDeliverables: text("proposed_deliverables"),
+  status: varchar("status").default("draft"), // draft, sent, viewed, replied, accepted, declined
+  sentAt: timestamp("sent_at"),
+  respondedAt: timestamp("responded_at"),
+  creatorResponse: text("creator_response"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientSavedCreatorSchema = createInsertSchema(clientSavedCreators).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertClientOutreachRequestSchema = createInsertSchema(clientOutreachRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ClientSavedCreator = typeof clientSavedCreators.$inferSelect;
+export type InsertClientSavedCreator = z.infer<typeof insertClientSavedCreatorSchema>;
+export type ClientOutreachRequest = typeof clientOutreachRequests.$inferSelect;
+export type InsertClientOutreachRequest = z.infer<typeof insertClientOutreachRequestSchema>;
