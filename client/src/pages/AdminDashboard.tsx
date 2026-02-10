@@ -40,7 +40,15 @@ import {
   Globe,
   Tag,
   ExternalLink,
-  Loader2
+  Loader2,
+  Code,
+  UserCheck,
+  Plus,
+  FileText,
+  Send,
+  Clock,
+  RefreshCw,
+  X
 } from "lucide-react";
 import { Link } from "wouter";
 import { SiYoutube, SiInstagram, SiLinkedin, SiTiktok, SiX, SiTwitch } from "react-icons/si";
@@ -208,6 +216,28 @@ function getPriorityColor(priority: string | null): string {
   }
 }
 
+interface DevDocument {
+  id: string;
+  title: string;
+  content: string;
+  category: string | null;
+  createdByUserId: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+interface TeamInvitation {
+  id: string;
+  email: string;
+  role: string;
+  invitedByUserId: string;
+  invitedByName: string | null;
+  status: string | null;
+  expiresAt: string | null;
+  acceptedAt: string | null;
+  createdAt: string | null;
+}
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [selectedTab, setSelectedTab] = useState("overview");
@@ -231,6 +261,15 @@ export default function AdminDashboard() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<AdminCreator>>({});
+  const [newDocTitle, setNewDocTitle] = useState("");
+  const [newDocContent, setNewDocContent] = useState("");
+  const [newDocCategory, setNewDocCategory] = useState("general");
+  const [editingDoc, setEditingDoc] = useState<DevDocument | null>(null);
+  const [editDocTitle, setEditDocTitle] = useState("");
+  const [editDocContent, setEditDocContent] = useState("");
+  const [editDocCategory, setEditDocCategory] = useState("general");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "superadmin">("admin");
 
   const { data: adminCheck, isLoading: checkLoading } = useQuery<AdminCheck>({
     queryKey: ["/api/admin/check"],
@@ -257,6 +296,16 @@ export default function AdminDashboard() {
 
   const { data: instagramStatus } = useQuery<{ configured: boolean; hasLinkedAccount: boolean }>({
     queryKey: ['/api/brand/instagram/hashtag-status'],
+  });
+
+  const { data: devDocs = [], isLoading: docsLoading } = useQuery<DevDocument[]>({
+    queryKey: ['/api/admin/dev-documents'],
+    enabled: adminCheck?.isAdmin === true,
+  });
+
+  const { data: invitations = [], isLoading: invitationsLoading } = useQuery<TeamInvitation[]>({
+    queryKey: ['/api/admin/team-invitations'],
+    enabled: adminCheck?.isAdmin === true,
   });
 
   const youtubeSearchMutation = useMutation({
@@ -322,6 +371,87 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/creators'] });
       toast({ title: "Creator Removed", description: "Creator has been removed from your list." });
+    },
+  });
+
+  const createDocMutation = useMutation({
+    mutationFn: async (data: { title: string; content: string; category?: string }) => {
+      const res = await apiRequest("POST", "/api/admin/dev-documents", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dev-documents'] });
+      setNewDocTitle("");
+      setNewDocContent("");
+      setNewDocCategory("general");
+      toast({ title: "Document Created", description: "Development document has been saved." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create document.", variant: "destructive" });
+    },
+  });
+
+  const updateDocMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { title?: string; content?: string; category?: string } }) => {
+      const res = await apiRequest("PATCH", `/api/admin/dev-documents/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dev-documents'] });
+      setEditingDoc(null);
+      toast({ title: "Document Updated", description: "Document has been updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update document.", variant: "destructive" });
+    },
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/admin/dev-documents/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dev-documents'] });
+      toast({ title: "Document Deleted", description: "Document has been removed." });
+    },
+  });
+
+  const createInvitationMutation = useMutation({
+    mutationFn: async (data: { email: string; role: string }) => {
+      const res = await apiRequest("POST", "/api/admin/team-invitations", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/team-invitations'] });
+      setInviteEmail("");
+      setInviteRole("admin");
+      toast({ title: "Invitation Sent", description: "Team invitation has been created." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to create invitation.", variant: "destructive" });
+    },
+  });
+
+  const revokeInvitationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/admin/team-invitations/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/team-invitations'] });
+      toast({ title: "Invitation Revoked", description: "Invitation has been revoked." });
+    },
+  });
+
+  const resendInvitationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/admin/team-invitations/${id}/resend`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/team-invitations'] });
+      toast({ title: "Invitation Resent", description: "Invitation has been renewed." });
     },
   });
 
@@ -549,7 +679,7 @@ export default function AdminDashboard() {
         </motion.div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-6 max-w-4xl">
             <TabsTrigger value="overview" data-testid="tab-overview">
               <Activity className="h-4 w-4 mr-2" />
               Overview
@@ -565,6 +695,14 @@ export default function AdminDashboard() {
             <TabsTrigger value="discovery" data-testid="tab-discovery">
               <Search className="h-4 w-4 mr-2" />
               Discovery
+            </TabsTrigger>
+            <TabsTrigger value="development" data-testid="tab-development">
+              <Code className="h-4 w-4 mr-2" />
+              Development
+            </TabsTrigger>
+            <TabsTrigger value="team" data-testid="tab-team">
+              <UserCheck className="h-4 w-4 mr-2" />
+              Team
             </TabsTrigger>
           </TabsList>
 
@@ -1165,6 +1303,260 @@ export default function AdminDashboard() {
               </TabsContent>
             </Tabs>
           </TabsContent>
+
+          <TabsContent value="development" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Add Development Document
+                </CardTitle>
+                <CardDescription>Share documentation, guides, or notes with your development team</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Title</Label>
+                    <Input
+                      value={newDocTitle}
+                      onChange={(e) => setNewDocTitle(e.target.value)}
+                      placeholder="e.g. Meta App Review Guide"
+                      data-testid="input-doc-title"
+                    />
+                  </div>
+                  <div>
+                    <Label>Category</Label>
+                    <Select value={newDocCategory} onValueChange={setNewDocCategory}>
+                      <SelectTrigger data-testid="select-doc-category"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="api">API Documentation</SelectItem>
+                        <SelectItem value="setup">Setup Guide</SelectItem>
+                        <SelectItem value="architecture">Architecture</SelectItem>
+                        <SelectItem value="deployment">Deployment</SelectItem>
+                        <SelectItem value="troubleshooting">Troubleshooting</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label>Content</Label>
+                  <Textarea
+                    value={newDocContent}
+                    onChange={(e) => setNewDocContent(e.target.value)}
+                    placeholder="Paste or type your development documentation here..."
+                    className="min-h-[200px] font-mono text-sm"
+                    data-testid="textarea-doc-content"
+                  />
+                </div>
+                <Button
+                  onClick={() => {
+                    if (!newDocTitle.trim() || !newDocContent.trim()) {
+                      toast({ title: "Missing Fields", description: "Title and content are required.", variant: "destructive" });
+                      return;
+                    }
+                    createDocMutation.mutate({ title: newDocTitle, content: newDocContent, category: newDocCategory });
+                  }}
+                  disabled={createDocMutation.isPending}
+                  data-testid="button-create-doc"
+                >
+                  {createDocMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  <FileText className="h-4 w-4 mr-2" />
+                  Save Document
+                </Button>
+              </CardContent>
+            </Card>
+
+            {docsLoading ? (
+              <div className="space-y-4">
+                {[1, 2].map(i => <Skeleton key={i} className="h-32 w-full" />)}
+              </div>
+            ) : devDocs.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Documents Yet</h3>
+                  <p className="text-muted-foreground text-center">Add your first development document above to share with your team.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {devDocs.map((doc) => (
+                  <Card key={doc.id}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg">{doc.title}</CardTitle>
+                          <Badge variant="secondary">{doc.category || 'general'}</Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingDoc(doc);
+                              setEditDocTitle(doc.title);
+                              setEditDocContent(doc.content);
+                              setEditDocCategory(doc.category || 'general');
+                            }}
+                            data-testid={`button-edit-doc-${doc.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteDocMutation.mutate(doc.id)}
+                            data-testid={`button-delete-doc-${doc.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <CardDescription>
+                        Updated {doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : 'recently'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-md overflow-auto max-h-[400px]" data-testid={`text-doc-content-${doc.id}`}>
+                        {doc.content}
+                      </pre>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="team" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Invite Team Member
+                </CardTitle>
+                <CardDescription>
+                  Invite developers or admins to join your platform. They will be granted the selected role when they sign up with the invited email.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[250px]">
+                    <Label>Email Address</Label>
+                    <Input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="developer@example.com"
+                      data-testid="input-invite-email"
+                    />
+                  </div>
+                  <div className="w-[180px]">
+                    <Label>Role</Label>
+                    <Select value={inviteRole} onValueChange={(v: "admin" | "superadmin") => setInviteRole(v)}>
+                      <SelectTrigger data-testid="select-invite-role"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="superadmin">Super Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
+                        toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                        return;
+                      }
+                      createInvitationMutation.mutate({ email: inviteEmail, role: inviteRole });
+                    }}
+                    disabled={createInvitationMutation.isPending}
+                    data-testid="button-send-invite"
+                  >
+                    {createInvitationMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Invite
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Invitations</CardTitle>
+                <CardDescription>Manage pending and past invitations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {invitationsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+                  </div>
+                ) : invitations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <UserCheck className="h-10 w-10 text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground">No invitations sent yet. Use the form above to invite team members.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {invitations.map((inv) => (
+                      <div key={inv.id} className="flex items-center justify-between gap-4 p-4 border rounded-md flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarFallback>{inv.email[0]?.toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium" data-testid={`text-invite-email-${inv.id}`}>{inv.email}</div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                              <Badge variant="secondary" className="gap-1">
+                                {inv.role === 'superadmin' ? <Crown className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+                                {inv.role}
+                              </Badge>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}
+                              </span>
+                              {inv.invitedByName && <span>by {inv.invitedByName}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={inv.status === 'accepted' ? 'default' : inv.status === 'pending' ? 'secondary' : 'outline'}
+                            data-testid={`badge-invite-status-${inv.id}`}
+                          >
+                            {inv.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
+                            {inv.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                            {inv.status}
+                          </Badge>
+                          {inv.status === 'pending' && (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => resendInvitationMutation.mutate(inv.id)}
+                                title="Resend invitation"
+                                data-testid={`button-resend-invite-${inv.id}`}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => revokeInvitationMutation.mutate(inv.id)}
+                                title="Revoke invitation"
+                                data-testid={`button-revoke-invite-${inv.id}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* View Creator Dialog */}
@@ -1283,6 +1675,64 @@ export default function AdminDashboard() {
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleSaveEdit} disabled={updateCreatorMutation.isPending} data-testid="button-save-edit">
                 {updateCreatorMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Document Dialog */}
+        <Dialog open={editingDoc !== null} onOpenChange={(open) => { if (!open) setEditingDoc(null); }}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Document</DialogTitle>
+              <DialogDescription>Update the development document</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Title</Label>
+                  <Input value={editDocTitle} onChange={(e) => setEditDocTitle(e.target.value)} data-testid="input-edit-doc-title" />
+                </div>
+                <div>
+                  <Label>Category</Label>
+                  <Select value={editDocCategory} onValueChange={setEditDocCategory}>
+                    <SelectTrigger data-testid="select-edit-doc-category"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="api">API Documentation</SelectItem>
+                      <SelectItem value="setup">Setup Guide</SelectItem>
+                      <SelectItem value="architecture">Architecture</SelectItem>
+                      <SelectItem value="deployment">Deployment</SelectItem>
+                      <SelectItem value="troubleshooting">Troubleshooting</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Content</Label>
+                <Textarea
+                  value={editDocContent}
+                  onChange={(e) => setEditDocContent(e.target.value)}
+                  className="min-h-[300px] font-mono text-sm"
+                  data-testid="textarea-edit-doc-content"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingDoc(null)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  if (!editingDoc) return;
+                  updateDocMutation.mutate({
+                    id: editingDoc.id,
+                    data: { title: editDocTitle, content: editDocContent, category: editDocCategory },
+                  });
+                }}
+                disabled={updateDocMutation.isPending}
+                data-testid="button-save-doc-edit"
+              >
+                {updateDocMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Changes
               </Button>
             </DialogFooter>
           </DialogContent>

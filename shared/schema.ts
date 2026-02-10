@@ -831,3 +831,43 @@ export type ClientSavedCreator = typeof clientSavedCreators.$inferSelect;
 export type InsertClientSavedCreator = z.infer<typeof insertClientSavedCreatorSchema>;
 export type ClientOutreachRequest = typeof clientOutreachRequests.$inferSelect;
 export type InsertClientOutreachRequest = z.infer<typeof insertClientOutreachRequestSchema>;
+
+export const adminDevDocuments = pgTable("admin_dev_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  content: text("content").notNull(),
+  category: varchar("category").default("general"),
+  createdByUserId: varchar("created_by_user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminDevDocumentSchema = createInsertSchema(adminDevDocuments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AdminDevDocument = typeof adminDevDocuments.$inferSelect;
+export type InsertAdminDevDocument = z.infer<typeof insertAdminDevDocumentSchema>;
+
+export const teamInvitations = pgTable("team_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull(),
+  role: varchar("role").notNull().default("admin"),
+  invitedByUserId: varchar("invited_by_user_id").notNull(),
+  invitedByName: varchar("invited_by_name"),
+  status: varchar("status").default("pending"),
+  expiresAt: timestamp("expires_at"),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTeamInvitationSchema = createInsertSchema(teamInvitations).omit({
+  id: true,
+  acceptedAt: true,
+  createdAt: true,
+});
+
+export type TeamInvitation = typeof teamInvitations.$inferSelect;
+export type InsertTeamInvitation = z.infer<typeof insertTeamInvitationSchema>;

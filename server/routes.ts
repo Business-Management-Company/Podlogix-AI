@@ -79,7 +79,7 @@ import {
   getLinkedInHashtagUrl,
   generateLinkedInSearchSuggestions
 } from "./services/linkedinDiscoveryService";
-import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema, clientSavedCreators } from "@shared/schema";
+import { insertSavedInfluencerSchema, insertHashtagMonitorSchema, modashSearchSchema, insertConnectedSocialAccountSchema, clientSavedCreators, adminDevDocuments, teamInvitations } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
@@ -2709,6 +2709,189 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error deleting creator:', error);
       res.status(500).json({ message: 'Failed to delete creator' });
+    }
+  });
+
+  // ==================== ADMIN DEV DOCUMENTS ====================
+
+  app.get('/api/admin/dev-documents', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const docs = await db.select().from(adminDevDocuments).orderBy(desc(adminDevDocuments.updatedAt));
+      res.json(docs);
+    } catch (error) {
+      console.error('Error fetching dev documents:', error);
+      res.status(500).json({ message: 'Failed to fetch documents' });
+    }
+  });
+
+  app.post('/api/admin/dev-documents', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const schema = z.object({
+        title: z.string().min(1),
+        content: z.string().min(1),
+        category: z.string().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.format() });
+      }
+      const [doc] = await db.insert(adminDevDocuments).values({
+        ...parsed.data,
+        createdByUserId: userId,
+      }).returning();
+      res.json(doc);
+    } catch (error) {
+      console.error('Error creating dev document:', error);
+      res.status(500).json({ message: 'Failed to create document' });
+    }
+  });
+
+  app.patch('/api/admin/dev-documents/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const schema = z.object({
+        title: z.string().min(1).optional(),
+        content: z.string().min(1).optional(),
+        category: z.string().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.format() });
+      }
+      const [doc] = await db.update(adminDevDocuments)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(eq(adminDevDocuments.id, req.params.id))
+        .returning();
+      if (!doc) return res.status(404).json({ message: 'Document not found' });
+      res.json(doc);
+    } catch (error) {
+      console.error('Error updating dev document:', error);
+      res.status(500).json({ message: 'Failed to update document' });
+    }
+  });
+
+  app.delete('/api/admin/dev-documents/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      await db.delete(adminDevDocuments).where(eq(adminDevDocuments.id, req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting dev document:', error);
+      res.status(500).json({ message: 'Failed to delete document' });
+    }
+  });
+
+  // ==================== TEAM INVITATIONS ====================
+
+  app.get('/api/admin/team-invitations', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const invitations = await db.select().from(teamInvitations).orderBy(desc(teamInvitations.createdAt));
+      res.json(invitations);
+    } catch (error) {
+      console.error('Error fetching team invitations:', error);
+      res.status(500).json({ message: 'Failed to fetch invitations' });
+    }
+  });
+
+  app.post('/api/admin/team-invitations', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const schema = z.object({
+        email: z.string().email(),
+        role: z.enum(['admin', 'superadmin']),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.format() });
+      }
+
+      const existing = await db.select().from(teamInvitations).where(
+        and(
+          eq(teamInvitations.email, parsed.data.email),
+          eq(teamInvitations.status, 'pending')
+        )
+      );
+      if (existing.length > 0) {
+        return res.status(409).json({ message: 'A pending invitation already exists for this email' });
+      }
+
+      const user = await authStorage.getUser(userId);
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const [invitation] = await db.insert(teamInvitations).values({
+        email: parsed.data.email,
+        role: parsed.data.role,
+        invitedByUserId: userId,
+        invitedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Admin',
+        status: 'pending',
+        expiresAt,
+      }).returning();
+
+      res.json(invitation);
+    } catch (error) {
+      console.error('Error creating team invitation:', error);
+      res.status(500).json({ message: 'Failed to create invitation' });
+    }
+  });
+
+  app.delete('/api/admin/team-invitations/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      await db.delete(teamInvitations).where(eq(teamInvitations.id, req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error revoking invitation:', error);
+      res.status(500).json({ message: 'Failed to revoke invitation' });
+    }
+  });
+
+  app.post('/api/admin/team-invitations/:id/resend', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      const [invitation] = await db.update(teamInvitations)
+        .set({ expiresAt, status: 'pending' })
+        .where(eq(teamInvitations.id, req.params.id))
+        .returning();
+      if (!invitation) return res.status(404).json({ message: 'Invitation not found' });
+      res.json(invitation);
+    } catch (error) {
+      console.error('Error resending invitation:', error);
+      res.status(500).json({ message: 'Failed to resend invitation' });
+    }
+  });
+
+  // Auto-accept invitation when user logs in (checked on admin check)
+  app.post('/api/admin/accept-invitation', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const user = await authStorage.getUser(userId);
+      if (!user?.email) return res.status(400).json({ message: 'User email not found' });
+
+      const [invitation] = await db.select().from(teamInvitations).where(
+        and(
+          eq(teamInvitations.email, user.email),
+          eq(teamInvitations.status, 'pending')
+        )
+      );
+
+      if (!invitation) return res.json({ accepted: false, message: 'No pending invitation' });
+
+      if (invitation.expiresAt && new Date() > invitation.expiresAt) {
+        await db.update(teamInvitations)
+          .set({ status: 'expired' })
+          .where(eq(teamInvitations.id, invitation.id));
+        return res.json({ accepted: false, message: 'Invitation has expired' });
+      }
+
+      await authStorage.updateUserRole(user.id, invitation.role);
+      await db.update(teamInvitations)
+        .set({ status: 'accepted', acceptedAt: new Date() })
+        .where(eq(teamInvitations.id, invitation.id));
+
+      res.json({ accepted: true, role: invitation.role });
+    } catch (error) {
+      console.error('Error accepting invitation:', error);
+      res.status(500).json({ message: 'Failed to accept invitation' });
     }
   });
 

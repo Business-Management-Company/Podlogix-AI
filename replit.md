@@ -61,6 +61,8 @@ Preferred communication style: Simple, everyday language.
 - **User Management**: View, manage roles, status.
 - **Creator Management**: Track influencers with rate sheets, status, analytics.
 - **Discovery**: Influencers.club (340M+ creators), YouTube, Instagram, LinkedIn influencer search.
+- **Development Tab**: CRUD for developer documentation (title, content, category). Categories: general, api, setup, architecture, deployment, troubleshooting.
+- **Team Tab**: Invite team members by email with role (admin/superadmin). Manage invitations (revoke, resend). Auto-accept on login when invited email matches.
 
 #### Client Portal (for Brands/Agencies)
 - **Creator Discovery**: AI-powered search of 340M+ influencers and podcasters via Influencers.club.
