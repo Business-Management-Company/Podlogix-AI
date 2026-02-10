@@ -88,7 +88,6 @@ const brandMenuItems = [
 
 const adminMenuItems = [
   { title: "Admin Panel", url: "/admin", icon: ShieldCheck },
-  { title: "Team", url: "/admin?tab=team", icon: UserPlus },
 ];
 
 const saasAdminMenuItems = [
