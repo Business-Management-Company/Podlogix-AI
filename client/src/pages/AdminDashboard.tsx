@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,8 @@ import {
   Send,
   Clock,
   RefreshCw,
-  X
+  X,
+  ChevronRight
 } from "lucide-react";
 import { Link } from "wouter";
 import { SiYoutube, SiInstagram, SiLinkedin, SiTiktok, SiX, SiTwitch } from "react-icons/si";
@@ -276,6 +278,7 @@ export default function AdminDashboard() {
   const [editDocTitle, setEditDocTitle] = useState("");
   const [editDocContent, setEditDocContent] = useState("");
   const [editDocCategory, setEditDocCategory] = useState("general");
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "superadmin">("admin");
 
@@ -1377,7 +1380,7 @@ export default function AdminDashboard() {
 
             {docsLoading ? (
               <div className="space-y-4">
-                {[1, 2].map(i => <Skeleton key={i} className="h-32 w-full" />)}
+                {[1, 2].map(i => <Skeleton key={i} className="h-16 w-full" />)}
               </div>
             ) : devDocs.length === 0 ? (
               <Card>
@@ -1387,13 +1390,22 @@ export default function AdminDashboard() {
                   <p className="text-muted-foreground text-center">Add your first development document above to share with your team.</p>
                 </CardContent>
               </Card>
-            ) : (
-              <div className="space-y-4">
-                {devDocs.map((doc) => (
-                  <Card key={doc.id}>
+            ) : selectedDocId && devDocs.find(d => d.id === selectedDocId) ? (
+              (() => {
+                const doc = devDocs.find(d => d.id === selectedDocId)!;
+                return (
+                  <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setSelectedDocId(null)}
+                            data-testid="button-back-to-docs"
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </Button>
                           <CardTitle className="text-lg">{doc.title}</CardTitle>
                           <Badge variant="secondary">{doc.category || 'general'}</Badge>
                         </div>
@@ -1414,7 +1426,10 @@ export default function AdminDashboard() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => deleteDocMutation.mutate(doc.id)}
+                            onClick={() => {
+                              deleteDocMutation.mutate(doc.id);
+                              setSelectedDocId(null);
+                            }}
                             data-testid={`button-delete-doc-${doc.id}`}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1426,13 +1441,46 @@ export default function AdminDashboard() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-md overflow-auto max-h-[400px]" data-testid={`text-doc-content-${doc.id}`}>
-                        {doc.content}
-                      </pre>
+                      <div className="prose prose-sm dark:prose-invert max-w-none" data-testid={`text-doc-content-${doc.id}`}>
+                        <ReactMarkdown>{doc.content}</ReactMarkdown>
+                      </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                );
+              })()
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Documents</CardTitle>
+                  <CardDescription>{devDocs.length} document{devDocs.length !== 1 ? 's' : ''}</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {devDocs.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between gap-4 px-6 py-4 cursor-pointer hover-elevate"
+                        onClick={() => setSelectedDocId(doc.id)}
+                        data-testid={`doc-list-item-${doc.id}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{doc.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : 'recently'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="secondary">{doc.category || 'general'}</Badge>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 

@@ -31,6 +31,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: sessionTtl,
     },
   });
@@ -58,7 +59,7 @@ async function ensureSuperadminPassword() {
 async function seedBuildPlanDocument() {
   try {
     const existing = await db.select().from(adminDevDocuments);
-    const hasBuildPlan = existing.some(d => d.title?.includes("BUILD PLAN"));
+    const hasBuildPlan = existing.some((d: { title: string | null }) => d.title?.includes("BUILD PLAN"));
     if (hasBuildPlan) return;
 
     const superadmin = await authStorage.getUserByEmail("andrew@podlogix.co");

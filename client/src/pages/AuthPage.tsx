@@ -1,31 +1,55 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Mic, Loader2, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
+const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const signupSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
+type SignupValues = z.infer<typeof signupSchema>;
+
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
+  const loginForm = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  const signupForm = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { email: "", password: "", firstName: "", lastName: "" },
+  });
+
   const loginMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: LoginValues) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(values),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -43,12 +67,12 @@ export default function AuthPage() {
   });
 
   const signupMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: SignupValues) => {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password, firstName, lastName }),
+        body: JSON.stringify(values),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -64,15 +88,6 @@ export default function AuthPage() {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
     },
   });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (mode === "login") {
-      loginMutation.mutate();
-    } else {
-      signupMutation.mutate();
-    }
-  };
 
   const isLoading = loginMutation.isPending || signupMutation.isPending;
 
@@ -103,77 +118,155 @@ export default function AuthPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === "signup" && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        data-testid="input-first-name"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        placeholder="Andrew"
-                        required
+              {mode === "login" ? (
+                <Form {...loginForm}>
+                  <form onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))} className="space-y-4">
+                    <FormField
+                      control={loginForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              placeholder="you@example.com"
+                              data-testid="input-email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={loginForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Your password"
+                              data-testid="input-password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isLoading}
+                      data-testid="button-auth-submit"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          Sign In
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              ) : (
+                <Form {...signupForm}>
+                  <form onSubmit={signupForm.handleSubmit((values) => signupMutation.mutate(values))} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={signupForm.control}
+                        name="firstName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>First Name</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Andrew"
+                                data-testid="input-first-name"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={signupForm.control}
+                        name="lastName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Last Name</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Appleton"
+                                data-testid="input-last-name"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        data-testid="input-last-name"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        placeholder="Appleton"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    data-testid="input-email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    data-testid="input-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-                    required
-                    minLength={mode === "signup" ? 6 : undefined}
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading}
-                  data-testid="button-auth-submit"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      {mode === "login" ? "Sign In" : "Create Account"}
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-              </form>
+                    <FormField
+                      control={signupForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              placeholder="you@example.com"
+                              data-testid="input-email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={signupForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="At least 6 characters"
+                              data-testid="input-password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isLoading}
+                      data-testid="button-auth-submit"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          Create Account
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              )}
 
               <div className="mt-6 text-center text-sm text-muted-foreground">
                 {mode === "login" ? (
@@ -181,7 +274,7 @@ export default function AuthPage() {
                     Don't have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => setMode("signup")}
+                      onClick={() => { setMode("signup"); loginForm.reset(); }}
                       className="text-primary underline-offset-4 hover:underline font-medium"
                       data-testid="button-switch-signup"
                     >
@@ -193,7 +286,7 @@ export default function AuthPage() {
                     Already have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => setMode("login")}
+                      onClick={() => { setMode("login"); signupForm.reset(); }}
                       className="text-primary underline-offset-4 hover:underline font-medium"
                       data-testid="button-switch-login"
                     >
