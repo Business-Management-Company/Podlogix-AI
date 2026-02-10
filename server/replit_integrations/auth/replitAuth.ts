@@ -33,9 +33,24 @@ export function getSession() {
   });
 }
 
+async function ensureSuperadminPassword() {
+  try {
+    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.co");
+    if (superadmin && !superadmin.passwordHash) {
+      const hash = await bcrypt.hash("podlogix2024", 10);
+      await authStorage.setPassword(superadmin.id, hash);
+      console.log("[Auth] Set temporary password for superadmin account");
+    }
+  } catch (err) {
+    console.error("[Auth] Failed to ensure superadmin password:", err);
+  }
+}
+
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
+
+  await ensureSuperadminPassword();
 
   const signupSchema = z.object({
     email: z.string().email(),
