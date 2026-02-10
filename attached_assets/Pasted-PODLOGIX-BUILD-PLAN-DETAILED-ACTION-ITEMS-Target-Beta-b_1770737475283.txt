@@ -1,0 +1,316 @@
+PODLOGIX — BUILD PLAN (DETAILED ACTION ITEMS)
+
+Target: Beta by early March
+
+⸻
+
+PHASE 1 — Hosting & Syndication (Week 1–2)
+
+Objective
+
+PodLogix can host podcasts and distribute them via RSS.
+
+Deliverables
+	•	Podcast hosting system
+	•	RSS import + export
+	•	Spotify + Apple distribution working
+
+⸻
+
+Developer Checklist
+
+Database
+	•	podcasts table
+	•	episodes table
+	•	rss_feeds table
+	•	distribution_accounts table
+
+⸻
+
+RSS Hosting
+	•	Generate RSS feed per podcast
+	•	Validate RSS against Apple spec
+	•	Episode upload flow
+	•	Audio file storage (R2 / S3)
+
+⸻
+
+RSS Import (Migration)
+	•	Import RSS feed URL
+	•	Parse existing episodes
+	•	Copy media files
+	•	Preserve metadata
+	•	Verify feed ownership flow
+
+⸻
+
+Distribution
+	•	Spotify RSS submission workflow
+	•	Apple Podcasts RSS submission workflow
+	•	YouTube podcast support (optional beta)
+
+⸻
+
+Definition of Done
+	•	A podcast can:
+	•	import RSS
+	•	upload episode
+	•	generate RSS
+	•	submit to Spotify
+
+⸻
+
+PHASE 2 — AI Studio MVP (Week 3–5)
+
+Objective
+
+Record → Edit → Export inside PodLogix.
+
+⸻
+
+Deliverables
+	•	Recording workflow
+	•	AI editing pass
+	•	Clip generator
+
+⸻
+
+Developer Checklist
+
+Recording
+
+Option A (fastest):
+	•	Zoom integration
+	•	Pull recordings via API
+
+Option B (later):
+	•	WebRTC recording studio
+
+⸻
+
+Media Pipeline
+	•	Upload video/audio
+	•	Transcription service
+	•	Speaker detection
+	•	Timeline generation
+
+⸻
+
+AI Editing
+	•	Remove filler words
+	•	Silence trimming
+	•	Speaker labeling
+	•	Lower-third metadata support
+
+⸻
+
+Clips
+	•	Clip suggestion detection
+	•	Export vertical clips
+	•	Caption overlay
+
+⸻
+
+Definition of Done
+
+User can:
+	•	upload recording
+	•	auto-generate transcript
+	•	export edited episode
+	•	export clip
+
+⸻
+
+PHASE 3 — Distribution & Ads (Week 6–7)
+
+Objective
+
+Monetization infrastructure.
+
+⸻
+
+Deliverables
+	•	Ad insertion workflow
+	•	Advertiser dashboard (basic)
+	•	Social distribution
+
+⸻
+
+Developer Checklist
+
+Social Distribution
+	•	Post clip to social API
+	•	Scheduler
+	•	Upload queue
+
+⸻
+
+Ad System (MVP)
+	•	ad_campaigns table
+	•	ad_reads table
+	•	ad_audio_assets table
+	•	episode_ad_mapping table
+
+⸻
+
+Ad Insertion
+	•	Insert audio into timeline
+	•	Render episode with ad
+	•	CPM tracking model
+
+⸻
+
+Advertiser Dashboard
+	•	impressions
+	•	podcasts running ads
+	•	campaign status
+
+⸻
+
+Definition of Done
+	•	Ad can be inserted into episode
+	•	Episode exported with ad
+	•	Advertiser sees metrics
+
+⸻
+
+PHASE 4 — First-Person Data + Bio Page (Week 8–9)
+
+Objective
+
+Creator identity + analytics layer.
+
+This becomes a major differentiator.
+
+⸻
+
+Deliverables
+	•	Creator bio page
+	•	Smart pixel
+	•	Email capture
+
+⸻
+
+Developer Checklist
+
+Bio Page Builder
+	•	creator_profiles table
+	•	public profile route
+	•	social links module
+	•	podcast embed module
+
+⸻
+
+Creator Pixel
+	•	pixel script generator
+	•	event tracking endpoint
+	•	visitor session tracking
+
+⸻
+
+First-Party Data
+	•	email capture widget
+	•	subscriber table
+	•	consent tracking
+
+⸻
+
+Definition of Done
+	•	Creator has public profile
+	•	Pixel records visits
+	•	Emails captured
+
+⸻
+
+PHASE 5 — AI Agent + Dashboard (Week 10+)
+
+Objective
+
+AI “co-pilot” for podcasters.
+
+This is PodLogix’s long-term moat.
+
+⸻
+
+Deliverables
+	•	AI assistant
+	•	podcast insights dashboard
+	•	guest booking automation
+
+⸻
+
+Developer Checklist
+
+AI Agent
+	•	agent orchestration layer
+	•	prompt templates
+	•	conversation history storage
+
+⸻
+
+Guest Booking Automation
+	•	email generator
+	•	guest intake form
+	•	research agent workflow
+	•	contact enrichment API
+
+⸻
+
+Podcast Dashboard
+	•	downloads aggregation
+	•	listener analytics
+	•	episode performance metrics
+	•	ad revenue metrics
+
+⸻
+
+Definition of Done
+
+User can:
+	•	ask AI to invite guest
+	•	AI sends email draft
+	•	AI generates episode outline
+	•	dashboard shows performance
+
+⸻
+
+RECOMMENDED BUILD ORDER (IMPORTANT)
+
+This is what I would tell the dev team:
+
+Priority stack:
+	1.	Hosting + RSS
+	2.	Upload + transcription pipeline
+	3.	AI editing
+	4.	Clip generation
+	5.	Bio page + pixel
+	6.	Ads
+	7.	AI agent
+
+Not the other way around.
+
+Infrastructure first.
+AI agent last.
+
+⸻
+
+TEAM ROLES (SUGGESTED)
+
+You: Product owner / roadmap
+Lead dev: Architecture + APIs
+Dev #2: UI + dashboard + flows
+Claude/Cursor: Code acceleration
+
+⸻
+
+BETA DEFINITION
+
+Your beta should allow:
+	•	host podcast
+	•	upload episode
+	•	auto-transcribe
+	•	basic AI edit
+	•	export episode
+	•	simple creator profile
+
+That’s enough for 10–25 beta users.
