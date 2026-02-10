@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AppLayout } from "@/components/AppLayout";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
+import AuthPage from "@/pages/AuthPage";
 import IdentityHub from "@/pages/IdentityHub";
 import VoiceCertification from "@/pages/VoiceCertification";
 import Certificate from "@/pages/Certificate";
@@ -68,6 +69,8 @@ function PublicRoutes() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={AuthPage} />
+      <Route path="/signup" component={AuthPage} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/voice-certification" component={VoiceCertification} />
       <Route path="/certificate/:id" component={Certificate} />
@@ -82,8 +85,8 @@ function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
 
-  const publicPaths = ["/", "/p/", "/voice-certification", "/certificate/"];
-  const isPublicPath = publicPaths.some(path => 
+  const publicPaths = ["/", "/login", "/signup", "/p/", "/voice-certification", "/certificate/", "/privacy", "/terms"];
+  const isPublicPath = publicPaths.some(path =>
     location === path || location.startsWith("/p/") || location.startsWith("/certificate/")
   );
 
@@ -95,18 +98,21 @@ function Router() {
     );
   }
 
-  if (isPublicPath && !isAuthenticated) {
-    return <PublicRoutes />;
-  }
-
   if (isAuthenticated) {
-    if (location === "/") {
+    if (location === "/login" || location === "/signup") {
+      return <Redirect to="/dashboard" />;
+    }
+    if (location === "/" || isPublicPath) {
       return <PublicRoutes />;
     }
     return <AuthenticatedRoutes />;
   }
 
-  return <PublicRoutes />;
+  if (isPublicPath) {
+    return <PublicRoutes />;
+  }
+
+  return <Redirect to="/login" />;
 }
 
 function App() {

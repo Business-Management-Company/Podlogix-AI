@@ -943,7 +943,7 @@ export default function ClientPortal() {
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <a href="/api/login">Sign In</a>
+              <a href="/login">Sign In</a>
             </Button>
           </CardContent>
         </Card>

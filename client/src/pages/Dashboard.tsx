@@ -53,7 +53,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       toast({ title: "Please log in", description: "Redirecting to login...", variant: "destructive" });
-      setTimeout(() => { window.location.href = "/api/login"; }, 500);
+      setTimeout(() => { window.location.href = "/login"; }, 500);
     }
   }, [authLoading, isAuthenticated, toast]);
 

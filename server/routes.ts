@@ -286,7 +286,7 @@ export async function registerRoutes(
   app.patch("/api/identity/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = req.params.id;
-      const userEmail = req.user?.claims?.email;
+      const userEmail = (req as any).dbUser?.email;
       
       const asset = await storage.getIdentityAsset(id);
       if (!asset) {
@@ -318,7 +318,7 @@ export async function registerRoutes(
     try {
       const { voiceHash } = api.identity.mint.input.parse(req.body);
       const id = req.params.id;
-      const userEmail = req.user?.claims?.email;
+      const userEmail = (req as any).dbUser?.email;
 
       const asset = await storage.getIdentityAsset(id);
       if (!asset) {
@@ -378,7 +378,7 @@ export async function registerRoutes(
     try {
       const { likenessHash } = req.body;
       const id = req.params.id;
-      const userEmail = req.user?.claims?.email;
+      const userEmail = (req as any).dbUser?.email;
 
       if (!likenessHash) {
         return res.status(400).json({ message: 'Likeness hash is required' });
@@ -492,8 +492,9 @@ export async function registerRoutes(
   app.post("/api/social/phyllo/sdk-token", isAuthenticated, async (req: any, res) => {
     console.log("=== Phyllo SDK Token Request ===");
     try {
-      const userId = req.user.claims.sub;
-      const userName = `${req.user.claims.first_name || ''} ${req.user.claims.last_name || ''}`.trim() || req.user.claims.email;
+      const userId = req.session.userId!;
+      const dbUser = (req as any).dbUser;
+      const userName = `${dbUser?.firstName || ''} ${dbUser?.lastName || ''}`.trim() || dbUser?.email || 'User';
       console.log(`Phyllo request for user: ${userId}, name: ${userName}`);
       
       if (!isPhylloConfigured()) {
@@ -528,7 +529,7 @@ export async function registerRoutes(
   // Get connected social accounts for the current user
   app.get("/api/social/phyllo/accounts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       
       // Get from our database
       const accounts = await storage.getConnectedSocialAccountsByUser(userId);
@@ -542,7 +543,7 @@ export async function registerRoutes(
   // Save a newly connected social account (called after Phyllo SDK success)
   app.post("/api/social/phyllo/accounts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const parseResult = insertConnectedSocialAccountSchema.safeParse({ ...req.body, userId });
       
       if (!parseResult.success) {
@@ -561,7 +562,7 @@ export async function registerRoutes(
   app.delete("/api/social/phyllo/accounts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       
       const account = await storage.getConnectedSocialAccount(id);
       if (!account || account.userId !== userId) {
@@ -584,7 +585,7 @@ export async function registerRoutes(
   // Get monitoring alerts for the current user
   app.get("/api/social/phyllo/alerts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const unresolvedOnly = req.query.unresolvedOnly === 'true';
       
       const alerts = unresolvedOnly 
@@ -602,7 +603,7 @@ export async function registerRoutes(
   app.patch("/api/social/phyllo/alerts/:id/resolve", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       
       const alerts = await storage.getSocialMonitoringAlertsByUser(userId);
       const alert = alerts.find(a => a.id === id);
@@ -626,7 +627,7 @@ export async function registerRoutes(
   // Creator Social Profiles (native API integration)
   app.get("/api/creator/social-profiles", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const profiles = await storage.getCreatorSocialProfilesByUser(userId);
       res.json(profiles);
     } catch (error) {
@@ -637,7 +638,7 @@ export async function registerRoutes(
 
   app.post("/api/creator/social-profiles", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const { platform, profileUrl } = req.body;
 
       if (!platform || !profileUrl) {
@@ -691,7 +692,7 @@ export async function registerRoutes(
   app.post("/api/creator/social-profiles/:id/sync", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       
       const profile = await storage.getCreatorSocialProfile(id);
       if (!profile || profile.userId !== userId) {
@@ -725,7 +726,7 @@ export async function registerRoutes(
   app.delete("/api/creator/social-profiles/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       
       const profile = await storage.getCreatorSocialProfile(id);
       if (!profile || profile.userId !== userId) {
@@ -758,7 +759,7 @@ export async function registerRoutes(
       const host = req.headers.host;
       const redirectUri = `${protocol}://${host}/api/creator/instagram/callback`;
       
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const timestamp = Date.now();
       const stateData = JSON.stringify({ userId, timestamp });
       const signature = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'instagram-oauth-secret')
@@ -877,7 +878,7 @@ export async function registerRoutes(
   app.post("/api/creator/instagram/sync/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
 
       const profile = await storage.getCreatorSocialProfile(id);
       if (!profile || profile.userId !== userId) {
@@ -924,7 +925,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: 'LinkedIn OAuth not configured' });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const protocol = req.headers['x-forwarded-proto'] || 'https';
       const host = req.headers.host;
       const redirectUri = `${protocol}://${host}/api/creator/linkedin/callback`;
@@ -1048,7 +1049,7 @@ export async function registerRoutes(
       const host = req.headers.host;
       const redirectUri = `${protocol}://${host}/api/creator/facebook/callback`;
       
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const timestamp = Date.now();
       const stateData = JSON.stringify({ userId, timestamp });
       const signature = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'facebook-oauth-secret')
@@ -1169,7 +1170,7 @@ export async function registerRoutes(
 
   // Dashboard endpoint (protected)
   app.get(api.dashboard.get.path, isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.session.userId!;
     const profile = await storage.getProfileByUserId(userId);
     const podcastsList = await storage.getPodcastsByUserId(userId);
     
@@ -1190,7 +1191,7 @@ export async function registerRoutes(
 
   // Profile endpoints (protected)
   app.get(api.profiles.get.path, isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.session.userId!;
     const profile = await storage.getProfileByUserId(userId);
     if (!profile) {
       return res.status(404).json({ message: 'Profile not found' });
@@ -1200,7 +1201,7 @@ export async function registerRoutes(
 
   app.post(api.profiles.create.path, isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const input = api.profiles.create.input.parse({ ...req.body, userId });
       const profile = await storage.createProfile(input);
       res.status(201).json(profile);
@@ -1213,7 +1214,7 @@ export async function registerRoutes(
   });
 
   app.patch(api.profiles.update.path, isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.session.userId!;
     const profile = await storage.getProfileByUserId(userId);
     if (!profile) {
       return res.status(404).json({ message: 'Profile not found' });
@@ -1236,7 +1237,7 @@ export async function registerRoutes(
 
   // Profile Links endpoints (protected)
   app.get(api.profileLinks.list.path, isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.session.userId!;
     const profile = await storage.getProfileByUserId(userId);
     if (!profile) return res.json([]);
     const links = await storage.getProfileLinks(profile.id);
@@ -1245,7 +1246,7 @@ export async function registerRoutes(
 
   app.post(api.profileLinks.create.path, isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const profile = await storage.getProfileByUserId(userId);
       if (!profile) {
         return res.status(400).json({ message: 'Create a profile first' });
@@ -1328,14 +1329,14 @@ export async function registerRoutes(
 
   // Podcasts endpoints (protected)
   app.get(api.podcasts.list.path, isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.session.userId!;
     const podcastsList = await storage.getPodcastsByUserId(userId);
     res.json(podcastsList);
   });
 
   app.post(api.podcasts.create.path, isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const input = api.podcasts.create.input.parse({ ...req.body, userId });
       const podcast = await storage.createPodcast(input);
       res.status(201).json(podcast);
@@ -1444,7 +1445,7 @@ export async function registerRoutes(
   // Spotify OAuth: Initiate login
   app.get('/api/listener/spotify/auth', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const protocol = req.headers['x-forwarded-proto'] || req.protocol;
       const host = req.headers.host;
       const redirectUri = `${protocol}://${host}/api/listener/spotify/callback`;
@@ -1466,7 +1467,7 @@ export async function registerRoutes(
         return res.redirect('/listener?spotify_error=missing_params');
       }
 
-      const authenticatedUserId = req.user?.claims?.sub;
+      const authenticatedUserId = req.session.userId!;
       if (!authenticatedUserId) {
         return res.redirect('/login?return_to=/listener&spotify_error=not_authenticated');
       }
@@ -1505,7 +1506,7 @@ export async function registerRoutes(
   // Spotify integration status (per-user)
   app.get('/api/listener/spotify/status', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const connected = await isSpotifyConnectedForUser(userId);
       const connection = connected ? await storage.getSpotifyConnection(userId) : null;
       res.json({ 
@@ -1522,7 +1523,7 @@ export async function registerRoutes(
   // Disconnect Spotify
   app.delete('/api/listener/spotify/disconnect', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       await storage.deleteSpotifyConnection(userId);
       res.json({ success: true });
     } catch (error) {
@@ -1534,7 +1535,7 @@ export async function registerRoutes(
   // Get user's followed podcasts from Spotify (per-user)
   app.get('/api/listener/spotify/shows', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const shows = await getUserSavedShowsForUser(userId);
       res.json(shows);
     } catch (error) {
@@ -1546,7 +1547,7 @@ export async function registerRoutes(
   // Search podcasts on Spotify (per-user)
   app.get('/api/listener/spotify/search', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const query = req.query.q as string;
       if (!query) {
         return res.status(400).json({ message: 'Search query required' });
@@ -1562,7 +1563,7 @@ export async function registerRoutes(
   // Import podcast from Spotify (per-user)
   app.post('/api/listener/spotify/import', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const { showId } = req.body;
       
       const show = await getShowDetailsForUser(userId, showId);
@@ -1593,7 +1594,7 @@ export async function registerRoutes(
   // Sync episodes from all subscriptions
   app.post('/api/listener/sync', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const result = await syncAllSubscriptionsForUser(userId);
       res.json(result);
     } catch (error) {
@@ -1605,7 +1606,7 @@ export async function registerRoutes(
   // Run auto-briefings for pending episodes
   app.post('/api/listener/auto-briefings', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const maxEpisodes = req.body.maxEpisodes || 3;
       const result = await processAutoBriefingsForUser(userId, maxEpisodes);
       res.json(result);
@@ -1618,7 +1619,7 @@ export async function registerRoutes(
   // Get or create Spotify playlist
   app.get('/api/listener/spotify/playlist', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const playlist = await getPlaylistForUser(userId);
       res.json(playlist || { exists: false });
     } catch (error) {
@@ -1630,7 +1631,7 @@ export async function registerRoutes(
   // Create Spotify playlist
   app.post('/api/listener/spotify/playlist', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const playlist = await createOrGetBriefingsPlaylist(userId);
       if (!playlist) {
         return res.status(500).json({ message: 'Failed to create playlist' });
@@ -1645,7 +1646,7 @@ export async function registerRoutes(
   // Add episode to Spotify playlist
   app.post('/api/listener/spotify/playlist/add', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const { episodeId, podcastName, episodeTitle } = req.body;
       
       const playlist = await createOrGetBriefingsPlaylist(userId);
@@ -1673,7 +1674,7 @@ export async function registerRoutes(
   // Add all new episodes to Spotify playlist
   app.post('/api/listener/spotify/playlist/add-new', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       
       const playlist = await createOrGetBriefingsPlaylist(userId);
       if (!playlist) {
@@ -1722,7 +1723,7 @@ export async function registerRoutes(
   // Get user's podcast subscriptions
   app.get('/api/listener/subscriptions', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const subscriptions = await storage.getPodcastSubscriptionsByUserId(userId);
       res.json(subscriptions);
     } catch (error) {
@@ -1734,7 +1735,7 @@ export async function registerRoutes(
   // Subscribe to podcast via RSS feed
   app.post('/api/listener/subscriptions', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const { feedUrl } = req.body;
       
       // Validate and parse the feed
@@ -1778,7 +1779,7 @@ export async function registerRoutes(
   // Unsubscribe from podcast
   app.delete('/api/listener/subscriptions/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const sub = await storage.getPodcastSubscription(req.params.id);
       
       if (!sub || sub.userId !== userId) {
@@ -1796,7 +1797,7 @@ export async function registerRoutes(
   // Get episodes for user (all subscriptions)
   app.get('/api/listener/episodes', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const episodes = await storage.getSubscriptionEpisodesByUser(userId);
       res.json(episodes);
     } catch (error) {
@@ -1808,7 +1809,7 @@ export async function registerRoutes(
   // Get episodes for specific subscription
   app.get('/api/listener/subscriptions/:id/episodes', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const sub = await storage.getPodcastSubscription(req.params.id);
       
       if (!sub || sub.userId !== userId) {
@@ -1826,7 +1827,7 @@ export async function registerRoutes(
   // Mark episode as read
   app.patch('/api/listener/episodes/:id/read', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const episode = await storage.getSubscriptionEpisode(req.params.id);
       
       if (!episode || episode.userId !== userId) {
@@ -1844,7 +1845,7 @@ export async function registerRoutes(
   // Transcribe episode (uses OpenAI Whisper)
   app.post('/api/listener/episodes/:id/transcribe', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const episode = await storage.getSubscriptionEpisode(req.params.id);
       
       if (!episode || episode.userId !== userId) {
@@ -1870,7 +1871,7 @@ export async function registerRoutes(
   // Generate briefing for episode
   app.post('/api/listener/episodes/:id/briefing', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const episode = await storage.getSubscriptionEpisode(req.params.id);
       
       if (!episode || episode.userId !== userId) {
@@ -1896,7 +1897,7 @@ export async function registerRoutes(
   // Get briefing for specific episode
   app.get('/api/listener/episodes/:id/briefing', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const episode = await storage.getSubscriptionEpisode(req.params.id);
       
       if (!episode || episode.userId !== userId) {
@@ -1922,7 +1923,7 @@ export async function registerRoutes(
   // Get user interests
   app.get('/api/listener/interests', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const interests = await storage.getUserInterests(userId);
       res.json(interests);
     } catch (error) {
@@ -1934,7 +1935,7 @@ export async function registerRoutes(
   // Add user interest
   app.post('/api/listener/interests', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const input = insertUserInterestSchema.parse({ ...req.body, userId });
       const interest = await storage.createUserInterest(input);
       res.status(201).json(interest);
@@ -1950,7 +1951,7 @@ export async function registerRoutes(
   // Update user interest
   app.patch('/api/listener/interests/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const interests = await storage.getUserInterests(userId);
       const interest = interests.find(i => i.id === req.params.id);
       
@@ -1969,7 +1970,7 @@ export async function registerRoutes(
   // Delete user interest
   app.delete('/api/listener/interests/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const interests = await storage.getUserInterests(userId);
       const interest = interests.find(i => i.id === req.params.id);
       
@@ -1992,7 +1993,7 @@ export async function registerRoutes(
   // Get all briefings for user
   app.get('/api/listener/briefings', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const briefings = await storage.getEpisodeBriefingsByUser(userId);
       res.json(briefings);
     } catch (error) {
@@ -2004,7 +2005,7 @@ export async function registerRoutes(
   // Get specific briefing
   app.get('/api/listener/briefings/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const briefing = await storage.getEpisodeBriefing(req.params.id);
       
       if (!briefing || briefing.userId !== userId) {
@@ -2021,7 +2022,7 @@ export async function registerRoutes(
   // Toggle bookmark on briefing
   app.patch('/api/listener/briefings/:id/bookmark', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const briefing = await storage.getEpisodeBriefing(req.params.id);
       
       if (!briefing || briefing.userId !== userId) {
@@ -2045,7 +2046,7 @@ export async function registerRoutes(
   // Get all notifications
   app.get('/api/listener/notifications', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const notifications = await storage.getNotificationsByUser(userId);
       res.json(notifications);
     } catch (error) {
@@ -2057,7 +2058,7 @@ export async function registerRoutes(
   // Get unread notification count
   app.get('/api/listener/notifications/unread', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const notifications = await storage.getUnreadNotifications(userId);
       res.json({ count: notifications.length, notifications });
     } catch (error) {
@@ -2080,7 +2081,7 @@ export async function registerRoutes(
   // Mark all notifications as read
   app.patch('/api/listener/notifications/read-all', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       await storage.markAllNotificationsRead(userId);
       res.json({ success: true });
     } catch (error) {
@@ -2463,7 +2464,7 @@ export async function registerRoutes(
   // Get saved influencers
   app.get('/api/brand/saved-influencers', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const influencers = await storage.getSavedInfluencersByUser(userId);
       res.json(influencers);
     } catch (error) {
@@ -2475,7 +2476,7 @@ export async function registerRoutes(
   // Save an influencer
   app.post('/api/brand/saved-influencers', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const data = insertSavedInfluencerSchema.parse({ ...req.body, userId });
       const influencer = await storage.createSavedInfluencer(data);
       res.status(201).json(influencer);
@@ -2511,7 +2512,7 @@ export async function registerRoutes(
   // Get hashtag monitors
   app.get('/api/brand/hashtag-monitors', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const monitors = await storage.getHashtagMonitorsByUser(userId);
       res.json(monitors);
     } catch (error) {
@@ -2523,7 +2524,7 @@ export async function registerRoutes(
   // Create hashtag monitor
   app.post('/api/brand/hashtag-monitors', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const data = insertHashtagMonitorSchema.parse({ ...req.body, userId });
       const monitor = await storage.createHashtagMonitor(data);
       res.status(201).json(monitor);
@@ -2549,7 +2550,7 @@ export async function registerRoutes(
   // Check if current user is admin
   app.get('/api/admin/check', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const user = await authStorage.getUser(userId);
       res.json({ 
         isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
@@ -2612,7 +2613,7 @@ export async function registerRoutes(
   // Delete user (superadmin only)
   app.delete('/api/admin/users/:id', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const requestingUserId = req.user?.claims?.sub;
+      const requestingUserId = req.session.userId!;
       if (req.params.id === requestingUserId) {
         return res.status(400).json({ message: 'Cannot delete your own account' });
       }
@@ -2661,7 +2662,7 @@ export async function registerRoutes(
   // Add creator to admin list
   app.post('/api/admin/creators', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const creator = await storage.createAdminCreator({ 
         ...req.body, 
         addedByUserId: userId 
@@ -2726,7 +2727,7 @@ export async function registerRoutes(
 
   app.post('/api/admin/dev-documents', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const schema = z.object({
         title: z.string().min(1),
         content: z.string().min(1),
@@ -2794,7 +2795,7 @@ export async function registerRoutes(
 
   app.post('/api/admin/team-invitations', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const schema = z.object({
         email: z.string().email(),
         role: z.enum(['admin', 'superadmin']),
@@ -2863,7 +2864,7 @@ export async function registerRoutes(
   // Auto-accept invitation when user logs in (checked on admin check)
   app.post('/api/admin/accept-invitation', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const user = await authStorage.getUser(userId);
       if (!user?.email) return res.status(400).json({ message: 'User email not found' });
 
@@ -3021,7 +3022,7 @@ export async function registerRoutes(
   // Get all email contacts
   app.get('/api/email/contacts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const contacts = await storage.getEmailContacts(userId);
       res.json(contacts);
     } catch (error) {
@@ -3033,7 +3034,7 @@ export async function registerRoutes(
   // Add email contact
   app.post('/api/email/contacts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const contact = await storage.createEmailContact({ ...req.body, userId });
       res.json(contact);
     } catch (error) {
@@ -3045,7 +3046,7 @@ export async function registerRoutes(
   // Update email contact
   app.patch('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const contact = await storage.updateEmailContact(req.params.id, userId, req.body);
       if (!contact) {
         return res.status(404).json({ message: 'Contact not found' });
@@ -3060,7 +3061,7 @@ export async function registerRoutes(
   // Delete email contact
   app.delete('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       await storage.deleteEmailContact(req.params.id, userId);
       res.json({ success: true });
     } catch (error) {
@@ -3072,7 +3073,7 @@ export async function registerRoutes(
   // Get email templates
   app.get('/api/email/templates', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const templates = await storage.getEmailTemplates(userId);
       res.json(templates);
     } catch (error) {
@@ -3084,7 +3085,7 @@ export async function registerRoutes(
   // Create email template
   app.post('/api/email/templates', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const template = await storage.createEmailTemplate({ ...req.body, userId });
       res.json(template);
     } catch (error) {
@@ -3096,7 +3097,7 @@ export async function registerRoutes(
   // Delete email template
   app.delete('/api/email/templates/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       await storage.deleteEmailTemplate(req.params.id, userId);
       res.json({ success: true });
     } catch (error) {
@@ -3108,7 +3109,7 @@ export async function registerRoutes(
   // Get email campaigns
   app.get('/api/email/campaigns', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const campaigns = await storage.getEmailCampaigns(userId);
       res.json(campaigns);
     } catch (error) {
@@ -3120,7 +3121,7 @@ export async function registerRoutes(
   // Create email campaign
   app.post('/api/email/campaigns', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const campaign = await storage.createEmailCampaign({ ...req.body, userId });
       res.json(campaign);
     } catch (error) {
@@ -3132,7 +3133,7 @@ export async function registerRoutes(
   // Update email campaign
   app.patch('/api/email/campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const campaign = await storage.updateEmailCampaign(req.params.id, userId, req.body);
       if (!campaign) {
         return res.status(404).json({ message: 'Campaign not found' });
@@ -3147,7 +3148,7 @@ export async function registerRoutes(
   // Send email campaign
   app.post('/api/email/campaigns/:id/send', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.session.userId!;
       const { recipientIds } = req.body;
       const result = await sendEmailCampaign(req.params.id, userId, recipientIds);
       res.json(result);
@@ -3205,7 +3206,7 @@ export async function registerRoutes(
   // YouTube Video Analysis Routes
   app.get('/api/video-analysis', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const analyses = await storage.getVideoAnalysesByUser(userId);
       res.json(analyses);
     } catch (error) {
@@ -3216,7 +3217,7 @@ export async function registerRoutes(
 
   app.post('/api/video-analysis', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const { videoUrl } = req.body;
 
       if (!videoUrl) {
@@ -3252,7 +3253,7 @@ export async function registerRoutes(
 
   app.get('/api/video-analysis/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const { id } = req.params;
       const analysis = await storage.getVideoAnalysis(id);
       if (!analysis || analysis.userId !== userId) {
@@ -3396,7 +3397,7 @@ Respond in this exact JSON format:
   // Create Upload-Post profile for user (called on first connect)
   app.post('/api/upload-post/create-profile', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
 
       const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users`, {
@@ -3428,7 +3429,7 @@ Respond in this exact JSON format:
   // Generate secure connection URL for OAuth
   app.post('/api/upload-post/connect-url', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
       const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'] } = req.body;
 
@@ -3471,7 +3472,7 @@ Respond in this exact JSON format:
   // Get connected accounts from Upload-Post
   app.get('/api/upload-post/accounts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
 
       const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users?username=${uploadPostUsername}`, {
@@ -3519,7 +3520,7 @@ Respond in this exact JSON format:
   // Get local cached accounts
   app.get('/api/upload-post/local-accounts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const accounts = await storage.getUploadPostAccountsByUser(userId);
       res.json({ accounts });
     } catch (error) {
@@ -3531,7 +3532,7 @@ Respond in this exact JSON format:
   // Create a post via Upload-Post
   app.post('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
       const { platforms, content, mediaUrl, scheduledAt } = req.body;
 
@@ -3591,7 +3592,7 @@ Respond in this exact JSON format:
   // Get user's posts
   app.get('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const posts = await storage.getUploadPostPostsByUser(userId);
       res.json({ posts });
     } catch (error) {
@@ -3680,7 +3681,7 @@ Respond in this exact JSON format:
   // Get analytics for all user's connected accounts
   app.get('/api/social-analytics/my-accounts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId!;
       const accounts = await storage.getUploadPostAccountsByUser(userId);
       
       if (!accounts || accounts.length === 0) {
@@ -4425,7 +4426,7 @@ Respond in this exact JSON format:
   // Get all saved creators for the current user
   app.get('/api/client-portal/saved-creators', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.session.userId!;
       const creators = await db
         .select()
         .from(clientSavedCreators)
@@ -4442,7 +4443,7 @@ Respond in this exact JSON format:
   // Save a new creator
   app.post('/api/client-portal/saved-creators', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.session.userId!;
       const finiteInt = z.number().optional().transform(val => {
         if (val === undefined || val === null) return undefined;
         if (!isFinite(val)) return undefined;
@@ -4514,7 +4515,7 @@ Respond in this exact JSON format:
   // Update a saved creator
   app.patch('/api/client-portal/saved-creators/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.session.userId!;
       const { id } = req.params;
 
       const schema = z.object({
@@ -4554,7 +4555,7 @@ Respond in this exact JSON format:
   // Delete a saved creator
   app.delete('/api/client-portal/saved-creators/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.session.userId!;
       const { id } = req.params;
 
       const [deleted] = await db
