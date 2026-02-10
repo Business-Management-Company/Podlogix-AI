@@ -138,6 +138,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { data: adminCheck } = useQuery<AdminCheck>({
     queryKey: ["/api/admin/check"],
     enabled: isAuthenticated,
+    queryFn: async () => {
+      const res = await fetch("/api/admin/check", { credentials: "include" });
+      if (!res.ok) return { isAdmin: false, isSuperAdmin: false, role: "user" };
+      return res.json();
+    },
+    retry: 1,
   });
 
   const style = {
