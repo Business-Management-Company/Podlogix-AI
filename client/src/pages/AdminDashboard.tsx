@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -240,7 +240,15 @@ interface TeamInvitation {
 
 export default function AdminDashboard() {
   const { toast } = useToast();
-  const [selectedTab, setSelectedTab] = useState("overview");
+  const getTabFromUrl = () => new URLSearchParams(window.location.search).get("tab") || "overview";
+  const [selectedTab, setSelectedTab] = useState(getTabFromUrl);
+
+  useEffect(() => {
+    const tab = getTabFromUrl();
+    if (tab !== selectedTab) {
+      setSelectedTab(tab);
+    }
+  }, [window.location.search]);
   const [youtubeQuery, setYoutubeQuery] = useState("");
   const [instagramHashtag, setInstagramHashtag] = useState("");
   const [linkedinQuery, setLinkedinQuery] = useState("");

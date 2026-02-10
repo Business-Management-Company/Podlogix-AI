@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,6 +16,11 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +45,8 @@ import {
   Building2,
   BarChart3,
   Briefcase,
+  ChevronRight,
+  UserPlus,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -80,6 +88,7 @@ const brandMenuItems = [
 
 const adminMenuItems = [
   { title: "Admin Panel", url: "/admin", icon: ShieldCheck },
+  { title: "Team", url: "/admin?tab=team", icon: UserPlus },
 ];
 
 const saasAdminMenuItems = [
@@ -92,6 +101,34 @@ const settingsMenuItems = [
 
 interface AppLayoutProps {
   children: React.ReactNode;
+}
+
+interface CollapsibleSectionProps {
+  label: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  testId?: string;
+}
+
+function CollapsibleSection({ label, defaultOpen = true, children, testId }: CollapsibleSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
+      <SidebarGroup>
+        <CollapsibleTrigger asChild>
+          <SidebarGroupLabel className="cursor-pointer select-none" data-testid={testId}>
+            <span>{label}</span>
+            <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarGroupLabel>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            {children}
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
+  );
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -114,6 +151,21 @@ export function AppLayout({ children }: AppLayoutProps) {
     return false;
   };
 
+  const renderMenuItems = (items: { title: string; url: string; icon: any }[]) => (
+    <SidebarMenu>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.title}>
+          <SidebarMenuButton asChild isActive={isActive(item.url)}>
+            <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
+              <item.icon className="h-4 w-4" />
+              <span>{item.title}</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  );
+
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
@@ -128,143 +180,56 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           <SidebarContent className="overflow-y-auto">
-            <SidebarGroup>
-              <SidebarGroupLabel>Creator</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {creatorMenuItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <CollapsibleSection label="Creator" testId="section-creator">
+              {renderMenuItems(creatorMenuItems)}
+            </CollapsibleSection>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Podcast</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {podcastMenuItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <CollapsibleSection label="Podcast" testId="section-podcast">
+              {renderMenuItems(podcastMenuItems)}
+            </CollapsibleSection>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Voice Protection</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {voiceProtectionItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <CollapsibleSection label="Voice Protection" testId="section-voice-protection">
+              {renderMenuItems(voiceProtectionItems)}
+            </CollapsibleSection>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Listener</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {listenerMenuItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <CollapsibleSection label="Listener" testId="section-listener">
+              {renderMenuItems(listenerMenuItems)}
+            </CollapsibleSection>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Brand</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {brandMenuItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <CollapsibleSection label="Brand" testId="section-brand">
+              {renderMenuItems(brandMenuItems)}
+            </CollapsibleSection>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Settings</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {settingsMenuItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <CollapsibleSection label="Settings" testId="section-settings">
+              {renderMenuItems(settingsMenuItems)}
+            </CollapsibleSection>
 
             {adminCheck?.isAdmin && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Administration</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {adminMenuItems.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                          <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                    {adminCheck.isSuperAdmin && saasAdminMenuItems.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                          <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                            <Badge variant="secondary" className="ml-auto text-xs">Owner</Badge>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
+              <CollapsibleSection label="Administration" testId="section-administration">
+                <SidebarMenu>
+                  {adminMenuItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                  {adminCheck.isSuperAdmin && saasAdminMenuItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, '-')}`}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                          <Badge variant="secondary" className="ml-auto text-xs">Owner</Badge>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </CollapsibleSection>
             )}
 
             <SidebarGroup>
