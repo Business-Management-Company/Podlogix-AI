@@ -36,10 +36,16 @@ export function getSession() {
 async function ensureSuperadminPassword() {
   try {
     const superadmin = await authStorage.getUserByEmail("andrew@podlogix.co");
-    if (superadmin && !superadmin.passwordHash) {
-      const hash = await bcrypt.hash("podlogix2024", 10);
-      await authStorage.setPassword(superadmin.id, hash);
-      console.log("[Auth] Set temporary password for superadmin account");
+    if (superadmin) {
+      if (!superadmin.passwordHash) {
+        const hash = await bcrypt.hash("podlogix2024", 10);
+        await authStorage.setPassword(superadmin.id, hash);
+        console.log("[Auth] Set temporary password for superadmin account");
+      }
+      if (superadmin.role !== "superadmin") {
+        await authStorage.updateUserRole(superadmin.id, "superadmin");
+        console.log("[Auth] Restored superadmin role for andrew@podlogix.co");
+      }
     }
   } catch (err) {
     console.error("[Auth] Failed to ensure superadmin password:", err);
