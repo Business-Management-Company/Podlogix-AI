@@ -24,6 +24,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import logoImg from "@assets/Seeksy_logo_1771103113779.png";
 import {
   Mic,
   LayoutDashboard,
@@ -177,9 +178,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Sidebar>
           <SidebarHeader className="p-4 border-b">
             <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg">
-                <Mic className="w-5 h-5" />
-              </div>
+              <img src={logoImg} alt="Podlogix" className="w-8 h-8 rounded-lg shadow-lg" />
               <span className="font-bold text-lg">Podlogix</span>
             </Link>
           </SidebarHeader>

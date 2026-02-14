@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
+import logoImg from "@assets/Seeksy_logo_1771103113779.png";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -100,9 +101,7 @@ export default function AuthPage() {
           className="w-full max-w-md"
         >
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg">
-              <Mic className="w-6 h-6" />
-            </div>
+            <img src={logoImg} alt="Podlogix" className="w-10 h-10 rounded-lg shadow-lg" />
             <span className="font-bold text-2xl">Podlogix</span>
           </div>
 
@@ -308,7 +307,7 @@ export default function AuthPage() {
           className="max-w-lg text-center space-y-6"
         >
           <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-            <Mic className="w-10 h-10 text-primary" />
+            <img src={logoImg} alt="Podlogix" className="w-12 h-12 rounded-xl" />
           </div>
           <h2 className="text-3xl font-bold">AI-Powered Podcast Platform</h2>
           <p className="text-muted-foreground text-lg">
