@@ -3,7 +3,7 @@ import { storage } from '../storage';
 import type { SubscriptionEpisode, UserInterest, InsertEpisodeBriefing } from '@shared/schema';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || "sk-not-configured",
 });
 
 interface BriefingContent {

@@ -7,7 +7,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  // Fall back to a placeholder so the server can boot without a key;
+  // AI features return an auth error until a real key is configured.
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "sk-not-configured",
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 

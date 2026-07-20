@@ -3,7 +3,9 @@ import OpenAI from "openai";
 import { chatStorage } from "./storage";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  // Fall back to a placeholder so the server can boot without a key;
+  // AI features return an auth error until a real key is configured.
+  apiKey: process.env.OPENAI_API_KEY || "sk-not-configured",
 });
 
 const PODLOGIX_SYSTEM_PROMPT = `You are Podlogix AI, an expert podcast assistant. You help podcasters with:
