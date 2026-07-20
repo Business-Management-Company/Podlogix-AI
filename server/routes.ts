@@ -24,6 +24,8 @@ import {
   addEpisodeToPlaylist
 } from "./services/spotifyService";
 import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssService";
+import { generatePodcastFeedXml } from "./services/feedService";
+import { insertEpisodeSchema } from "@shared/schema";
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
 import { syncAllSubscriptionsForUser, processAutoBriefingsForUser } from "./services/episodeSyncService";
@@ -154,6 +156,15 @@ async function sendEmailCampaign(campaignId: string, userId: string, recipientId
   }
 
   return { success: successCount > 0, sent: successCount, failed: failCount };
+}
+
+/**
+ * Public base URL for hosted feeds and media enclosures.
+ * Set PUBLIC_BASE_URL in production (e.g. https://podlogix.io); falls back to the request host.
+ */
+function getPublicBaseUrl(req: any): string {
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  return `${req.protocol}://${req.get("host")}`;
 }
 
 export async function registerRoutes(
@@ -1386,9 +1397,13 @@ export async function registerRoutes(
   app.post(api.rss.validate.path, async (req, res) => {
     try {
       const { feedUrl } = api.rss.validate.input.parse(req.body);
-      // Simple validation - in production would parse RSS feed
-      const isValid = feedUrl.startsWith('http') && (feedUrl.includes('rss') || feedUrl.includes('feed') || feedUrl.includes('xml'));
-      res.json({ valid: isValid, episodeCount: isValid ? Math.floor(Math.random() * 50) + 5 : 0, title: isValid ? 'Your Podcast' : undefined });
+      // Real validation: fetch and parse the feed
+      try {
+        const parsed = await parseFeed(feedUrl);
+        res.json({ valid: true, episodeCount: parsed.episodes.length, title: parsed.title });
+      } catch {
+        res.json({ valid: false, episodeCount: 0 });
+      }
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
@@ -1403,10 +1418,125 @@ export async function registerRoutes(
     if (!podcast) {
       return res.status(404).json({ message: 'Podcast not found' });
     }
-    // Generate a Podlogix-hosted RSS URL
-    const feedUrl = `https://feeds.podlogix.com/${podcastId}/feed.xml`;
+    if (podcast.userId !== req.session.userId) {
+      return res.status(403).json({ message: 'Not your podcast' });
+    }
+    // Real Podlogix-hosted RSS URL, served by GET /feeds/:podcastId/feed.xml below
+    const baseUrl = getPublicBaseUrl(req);
+    const feedUrl = `${baseUrl}/feeds/${podcastId}/feed.xml`;
+    const existing = (await storage.getRssFeedsByPodcast(podcastId)).find(f => f.sourceType === 'podlogix');
+    if (existing) {
+      const updated = await storage.updateRssFeed(existing.id, { feedUrl, status: 'active' });
+      return res.status(201).json(updated);
+    }
     const feed = await storage.createRssFeed({ podcastId, feedUrl, sourceType: 'podlogix', status: 'active' });
     res.status(201).json(feed);
+  });
+
+  // ============ HOSTED PODCAST FEED (public, Apple-spec RSS 2.0) ============
+  app.get('/feeds/:podcastId/feed.xml', async (req, res) => {
+    const podcast = await storage.getPodcast(req.params.podcastId);
+    if (!podcast) {
+      return res.status(404).type('text/plain').send('Feed not found');
+    }
+    const publishedEpisodes = await storage.getPublishedEpisodesByPodcast(podcast.id);
+    const xml = generatePodcastFeedXml(podcast, publishedEpisodes, getPublicBaseUrl(req));
+    res.set('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300'); // 5 min — podcast apps poll feeds
+    res.send(xml);
+  });
+
+  // ============ CREATOR EPISODES (hosted) ============
+  const requirePodcastOwnership = async (req: any, res: any): Promise<any | null> => {
+    const podcast = await storage.getPodcast(req.params.podcastId);
+    if (!podcast) {
+      res.status(404).json({ message: 'Podcast not found' });
+      return null;
+    }
+    if (podcast.userId !== req.session.userId) {
+      res.status(403).json({ message: 'Not your podcast' });
+      return null;
+    }
+    return podcast;
+  };
+
+  app.get('/api/podcasts/:podcastId/episodes', isAuthenticated, async (req: any, res) => {
+    const podcast = await requirePodcastOwnership(req, res);
+    if (!podcast) return;
+    const list = await storage.getEpisodesByPodcast(podcast.id);
+    res.json(list);
+  });
+
+  app.post('/api/podcasts/:podcastId/episodes', isAuthenticated, async (req: any, res) => {
+    try {
+      const podcast = await requirePodcastOwnership(req, res);
+      if (!podcast) return;
+      const input = insertEpisodeSchema.parse({ ...req.body, podcastId: podcast.id });
+      const episode = await storage.createEpisode(input);
+      res.status(201).json(episode);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      throw err;
+    }
+  });
+
+  const requireEpisodeOwnership = async (req: any, res: any) => {
+    const episode = await storage.getEpisode(req.params.id);
+    if (!episode) {
+      res.status(404).json({ message: 'Episode not found' });
+      return null;
+    }
+    const podcast = await storage.getPodcast(episode.podcastId);
+    if (!podcast || podcast.userId !== req.session.userId) {
+      res.status(403).json({ message: 'Not your episode' });
+      return null;
+    }
+    return episode;
+  };
+
+  app.get('/api/episodes/:id', isAuthenticated, async (req: any, res) => {
+    const episode = await requireEpisodeOwnership(req, res);
+    if (!episode) return;
+    res.json(episode);
+  });
+
+  app.patch('/api/episodes/:id', isAuthenticated, async (req: any, res) => {
+    const episode = await requireEpisodeOwnership(req, res);
+    if (!episode) return;
+    // Never allow changing ownership or identity via PATCH
+    const { id, podcastId, createdAt, updatedAt, ...updates } = req.body ?? {};
+    const updated = await storage.updateEpisode(episode.id, updates);
+    res.json(updated);
+  });
+
+  app.delete('/api/episodes/:id', isAuthenticated, async (req: any, res) => {
+    const episode = await requireEpisodeOwnership(req, res);
+    if (!episode) return;
+    await storage.deleteEpisode(episode.id);
+    res.status(204).end();
+  });
+
+  app.post('/api/episodes/:id/publish', isAuthenticated, async (req: any, res) => {
+    const episode = await requireEpisodeOwnership(req, res);
+    if (!episode) return;
+    if (!episode.audioUrl) {
+      return res.status(400).json({ message: 'Episode needs an audio file before it can be published' });
+    }
+    const updated = await storage.updateEpisode(episode.id, {
+      status: 'published',
+      publishedAt: episode.publishedAt ?? new Date(),
+      guid: episode.guid ?? episode.id,
+    });
+    res.json(updated);
+  });
+
+  app.post('/api/episodes/:id/unpublish', isAuthenticated, async (req: any, res) => {
+    const episode = await requireEpisodeOwnership(req, res);
+    if (!episode) return;
+    const updated = await storage.updateEpisode(episode.id, { status: 'draft' });
+    res.json(updated);
   });
 
   // Distribution endpoints

@@ -1,13 +1,13 @@
 import { db } from "./db";
 import { 
-  subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions,
+  subscribers, messages, identityAssets, profiles, profileLinks, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
-  type RssFeed, type InsertRssFeed, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
+  type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
   type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
   type Notification, type InsertNotification, type SpotifyConnection,
@@ -53,6 +53,14 @@ export interface IStorage {
   createRssFeed(feed: InsertRssFeed): Promise<RssFeed>;
   getRssFeedsByPodcast(podcastId: string): Promise<RssFeed[]>;
   updateRssFeed(id: string, updates: Partial<RssFeed>): Promise<RssFeed | undefined>;
+
+  // Creator Episodes (hosted)
+  createEpisode(episode: InsertEpisode): Promise<Episode>;
+  getEpisodesByPodcast(podcastId: string): Promise<Episode[]>;
+  getPublishedEpisodesByPodcast(podcastId: string): Promise<Episode[]>;
+  getEpisode(id: string): Promise<Episode | undefined>;
+  updateEpisode(id: string, updates: Partial<Episode>): Promise<Episode | undefined>;
+  deleteEpisode(id: string): Promise<void>;
   // Distribution
   getDistributionChannels(): Promise<DistributionChannel[]>;
   getChannelSubmissions(podcastId: string): Promise<ChannelSubmission[]>;
@@ -284,6 +292,36 @@ export class DatabaseStorage implements IStorage {
   async updateRssFeed(id: string, updates: Partial<RssFeed>): Promise<RssFeed | undefined> {
     const [updated] = await db.update(rssFeeds).set(updates).where(eq(rssFeeds.id, id)).returning();
     return updated;
+  }
+
+  // Creator Episodes (hosted)
+  async createEpisode(insertEpisode: InsertEpisode): Promise<Episode> {
+    const [episode] = await db.insert(episodes).values(insertEpisode).returning();
+    return episode;
+  }
+
+  async getEpisodesByPodcast(podcastId: string): Promise<Episode[]> {
+    return await db.select().from(episodes).where(eq(episodes.podcastId, podcastId)).orderBy(desc(episodes.createdAt));
+  }
+
+  async getPublishedEpisodesByPodcast(podcastId: string): Promise<Episode[]> {
+    return await db.select().from(episodes)
+      .where(and(eq(episodes.podcastId, podcastId), eq(episodes.status, 'published')))
+      .orderBy(desc(episodes.publishedAt));
+  }
+
+  async getEpisode(id: string): Promise<Episode | undefined> {
+    const [episode] = await db.select().from(episodes).where(eq(episodes.id, id));
+    return episode;
+  }
+
+  async updateEpisode(id: string, updates: Partial<Episode>): Promise<Episode | undefined> {
+    const [updated] = await db.update(episodes).set({ ...updates, updatedAt: new Date() }).where(eq(episodes.id, id)).returning();
+    return updated;
+  }
+
+  async deleteEpisode(id: string): Promise<void> {
+    await db.delete(episodes).where(eq(episodes.id, id));
   }
 
   // Distribution

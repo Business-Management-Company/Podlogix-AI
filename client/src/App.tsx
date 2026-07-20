@@ -15,6 +15,7 @@ import Dashboard from "@/pages/Dashboard";
 import ProfileEditor from "@/pages/ProfileEditor";
 import PublicProfile from "@/pages/PublicProfile";
 import RssManagement from "@/pages/RssManagement";
+import Episodes from "@/pages/Episodes";
 import Distribution from "@/pages/Distribution";
 import AiAssistant from "@/pages/AiAssistant";
 import DashboardCertify from "@/pages/DashboardCertify";
@@ -42,6 +43,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/profile" component={ProfileEditor} />
         <Route path="/dashboard/podcast" component={ProfileEditor} />
         <Route path="/dashboard/rss" component={RssManagement} />
+        <Route path="/dashboard/episodes" component={Episodes} />
         <Route path="/dashboard/distribution" component={Distribution} />
         <Route path="/dashboard/email" component={EmailHub} />
         <Route path="/dashboard/ai" component={AiAssistant} />

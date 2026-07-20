@@ -170,6 +170,35 @@ export const podcasts = pgTable("podcasts", {
   language: varchar("language").default("en"),
   category: varchar("category"),
   isExplicit: boolean("is_explicit").default(false),
+  // Apple Podcasts spec fields (required for a valid hosted feed)
+  author: varchar("author"), // itunes:author
+  ownerName: varchar("owner_name"), // itunes:owner > itunes:name
+  ownerEmail: varchar("owner_email"), // itunes:owner > itunes:email
+  websiteUrl: text("website_url"), // channel <link>
+  copyright: varchar("copyright"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Creator Episodes (episodes hosted by Podlogix for creator podcasts)
+export const episodes = pgTable("episodes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  podcastId: varchar("podcast_id").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  showNotes: text("show_notes"),
+  audioUrl: text("audio_url"), // object storage path (/objects/...) or absolute URL
+  fileSizeBytes: integer("file_size_bytes"),
+  mimeType: varchar("mime_type").default("audio/mpeg"),
+  durationSeconds: integer("duration_seconds"),
+  episodeNumber: integer("episode_number"),
+  seasonNumber: integer("season_number"),
+  episodeType: varchar("episode_type").default("full"), // full | trailer | bonus
+  isExplicit: boolean("is_explicit").default(false),
+  artworkUrl: text("artwork_url"),
+  guid: varchar("guid"),
+  status: varchar("status").notNull().default("draft"), // draft | published
+  publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -230,6 +259,13 @@ export const insertRssFeedSchema = createInsertSchema(rssFeeds).omit({
   id: true,
   createdAt: true,
   lastValidatedAt: true,
+});
+
+export const insertEpisodeSchema = createInsertSchema(episodes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  publishedAt: true,
 });
 
 export const insertChannelSubmissionSchema = createInsertSchema(channelSubmissions).omit({
@@ -470,6 +506,8 @@ export type Podcast = typeof podcasts.$inferSelect;
 export type InsertPodcast = z.infer<typeof insertPodcastSchema>;
 export type RssFeed = typeof rssFeeds.$inferSelect;
 export type InsertRssFeed = z.infer<typeof insertRssFeedSchema>;
+export type Episode = typeof episodes.$inferSelect;
+export type InsertEpisode = z.infer<typeof insertEpisodeSchema>;
 export type DistributionChannel = typeof distributionChannels.$inferSelect;
 export type ChannelSubmission = typeof channelSubmissions.$inferSelect;
 export type InsertChannelSubmission = z.infer<typeof insertChannelSubmissionSchema>;

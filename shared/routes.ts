@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { 
   insertSubscriberSchema, insertMessageSchema, insertIdentityAssetSchema, 
-  insertProfileSchema, insertProfileLinkSchema, insertPodcastSchema, insertRssFeedSchema,
-  subscribers, messages, identityAssets, profiles, profileLinks, podcasts, rssFeeds, distributionChannels, channelSubmissions 
+  insertProfileSchema, insertProfileLinkSchema, insertPodcastSchema, insertRssFeedSchema, insertEpisodeSchema,
+  subscribers, messages, identityAssets, profiles, profileLinks, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions
 } from './schema';
 
 export const errorSchemas = {
@@ -241,6 +241,69 @@ export const api = {
       responses: {
         201: z.custom<typeof rssFeeds.$inferSelect>(),
         400: errorSchemas.validation,
+      },
+    },
+  },
+  // Creator Episodes (hosted by Podlogix)
+  episodes: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/podcasts/:podcastId/episodes',
+      responses: {
+        200: z.array(z.custom<typeof episodes.$inferSelect>()),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/podcasts/:podcastId/episodes',
+      input: insertEpisodeSchema,
+      responses: {
+        201: z.custom<typeof episodes.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/episodes/:id',
+      responses: {
+        200: z.custom<typeof episodes.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/episodes/:id',
+      input: insertEpisodeSchema.partial(),
+      responses: {
+        200: z.custom<typeof episodes.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    remove: {
+      method: 'DELETE' as const,
+      path: '/api/episodes/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    publish: {
+      method: 'POST' as const,
+      path: '/api/episodes/:id/publish',
+      responses: {
+        200: z.custom<typeof episodes.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    unpublish: {
+      method: 'POST' as const,
+      path: '/api/episodes/:id/unpublish',
+      responses: {
+        200: z.custom<typeof episodes.$inferSelect>(),
+        404: errorSchemas.notFound,
       },
     },
   },
