@@ -39,7 +39,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import type { UploadResult } from "@uppy/core";
 
 const certificationSchema = z.object({
   likenessName: z.string().min(2, "Name must be at least 2 characters"),
@@ -196,7 +195,7 @@ export default function DashboardCertifyLikeness() {
     createAssetMutation.mutate(values);
   };
 
-  const handleUploadComplete = useCallback((result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+  const handleUploadComplete = useCallback((result: { successful: Array<{ uploadURL?: string; response?: { uploadURL?: string } }> }) => {
     const successfulFiles = result.successful || [];
     const newPaths = successfulFiles
       .map(file => {
