@@ -16,6 +16,9 @@ import ProfileEditor from "@/pages/ProfileEditor";
 import PublicProfile from "@/pages/PublicProfile";
 import RssManagement from "@/pages/RssManagement";
 import Episodes from "@/pages/Episodes";
+import Features from "@/pages/Features";
+import Pricing from "@/pages/Pricing";
+import About from "@/pages/About";
 import Distribution from "@/pages/Distribution";
 import AiAssistant from "@/pages/AiAssistant";
 import DashboardCertify from "@/pages/DashboardCertify";
@@ -71,6 +74,9 @@ function PublicRoutes() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/features" component={Features} />
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/about" component={About} />
       <Route path="/login" component={AuthPage} />
       <Route path="/signup" component={AuthPage} />
       <Route path="/p/:slug" component={PublicProfile} />
@@ -87,7 +93,7 @@ function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
 
-  const publicPaths = ["/", "/login", "/signup", "/p/", "/voice-certification", "/certificate/", "/privacy", "/terms"];
+  const publicPaths = ["/", "/features", "/pricing", "/about", "/login", "/signup", "/p/", "/voice-certification", "/certificate/", "/privacy", "/terms"];
   const isPublicPath = publicPaths.some(path =>
     location === path || location.startsWith("/p/") || location.startsWith("/certificate/")
   );

@@ -52,7 +52,7 @@ export function Footer() {
           <div>
             <h2 className="text-3xl font-display font-bold mb-4">Ready to <span className="text-gradient-primary">level up?</span></h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-md">
-              Join 5,000+ podcasters using AI to grow their audience faster. Get early access today.
+              Join the beta and be one of the first creators on Podlogix. Early feedback shapes the platform.
             </p>
             
             <Form {...subForm}>
@@ -90,15 +90,15 @@ export function Footer() {
             <div>
               <h3 className="font-bold mb-4 text-foreground">Product</h3>
               <ul className="space-y-3">
-                <li><a href="#features" className="text-muted-foreground hover:text-primary transition-colors">Features</a></li>
-                <li><a href="#pricing" className="text-muted-foreground hover:text-primary transition-colors">Pricing</a></li>
-                <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Changelog</a></li>
+                <li><a href="/features" className="text-muted-foreground hover:text-primary transition-colors">Features</a></li>
+                <li><a href="/pricing" className="text-muted-foreground hover:text-primary transition-colors">Pricing</a></li>
+                
               </ul>
             </div>
             <div>
               <h3 className="font-bold mb-4 text-foreground">Company</h3>
               <ul className="space-y-3">
-                <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">About Us</a></li>
+                <li><a href="/about" className="text-muted-foreground hover:text-primary transition-colors">About Us</a></li>
                 <li>
                   <Dialog open={open} onOpenChange={setOpen}>
                     <DialogTrigger asChild>
