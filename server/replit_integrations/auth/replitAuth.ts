@@ -39,7 +39,7 @@ export function getSession() {
 
 async function ensureSuperadminPassword() {
   try {
-    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.co");
+    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.io");
     if (superadmin) {
       if (!superadmin.passwordHash) {
         const hash = await bcrypt.hash("podlogix2024", 10);
@@ -48,7 +48,7 @@ async function ensureSuperadminPassword() {
       }
       if (superadmin.role !== "superadmin") {
         await authStorage.updateUserRole(superadmin.id, "superadmin");
-        console.log("[Auth] Restored superadmin role for andrew@podlogix.co");
+        console.log("[Auth] Restored superadmin role for andrew@podlogix.io");
       }
     }
   } catch (err) {
@@ -62,7 +62,7 @@ async function seedBuildPlanDocument() {
     const hasBuildPlan = existing.some((d: { title: string | null }) => d.title?.includes("BUILD PLAN"));
     if (hasBuildPlan) return;
 
-    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.co");
+    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.io");
     if (!superadmin) return;
 
     await db.insert(adminDevDocuments).values({

@@ -6,7 +6,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -220,7 +220,42 @@ export async function registerRoutes(
   registerChatRoutes(app);
   
   // Register object storage routes for file uploads
-  registerObjectStorageRoutes(app);
+  // ============ MEDIA UPLOADS (Supabase Storage) ============
+  // Same contract the old Replit object storage exposed:
+  // returns { uploadURL, objectPath } — client PUTs the file to uploadURL
+  // and stores objectPath (now a public Supabase URL) in the database.
+  app.post("/api/uploads/request-url", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isSupabaseStorageConfigured()) {
+        return res.status(503).json({
+          error: "File storage is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+        });
+      }
+      const { name, size, contentType } = req.body ?? {};
+      if (!name) {
+        return res.status(400).json({ error: "Missing required field: name" });
+      }
+      const { uploadURL, objectPath } = await createUploadUrl(String(name));
+      res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+    } catch (error) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  // Legacy compatibility: /objects/<key> paths redirect to the public Supabase URL.
+  app.get(/^\/objects\/(.+)$/, async (req, res) => {
+    try {
+      if (!isSupabaseStorageConfigured()) {
+        return res.status(503).json({ error: "File storage is not configured" });
+      }
+      const objectKey = (req.params as any)[0] as string;
+      return res.redirect(302, publicUrlForKey(objectKey));
+    } catch (error) {
+      console.error("Error resolving object:", error);
+      return res.status(404).json({ error: "Object not found" });
+    }
+  });
 
   // Subscribers endpoint
   app.post(api.subscribers.create.path, async (req, res) => {
