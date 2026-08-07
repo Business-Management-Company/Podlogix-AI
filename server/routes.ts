@@ -1796,13 +1796,11 @@ export async function registerRoutes(
     try {
       const userId = req.session.userId!;
       const playlist = await createOrGetBriefingsPlaylist(userId);
-      if (!playlist) {
-        return res.status(500).json({ message: 'Failed to create playlist' });
-      }
       res.json(playlist);
-    } catch (error) {
-      console.error('Error creating playlist:', error);
-      res.status(500).json({ message: 'Failed to create playlist' });
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('Error creating playlist:', msg);
+      res.status(500).json({ message: msg });
     }
   });
 
@@ -1811,11 +1809,8 @@ export async function registerRoutes(
     try {
       const userId = req.session.userId!;
       const { episodeId, podcastName, episodeTitle } = req.body;
-      
+
       const playlist = await createOrGetBriefingsPlaylist(userId);
-      if (!playlist) {
-        return res.status(400).json({ message: 'No Spotify playlist found. Connect Spotify first.' });
-      }
 
       const episodeUri = await searchSpotifyEpisode(userId, podcastName, episodeTitle);
       if (!episodeUri) {
@@ -1828,9 +1823,10 @@ export async function registerRoutes(
       }
 
       res.json({ success: true, playlistUrl: playlist.externalUrl });
-    } catch (error) {
-      console.error('Error adding to playlist:', error);
-      res.status(500).json({ message: 'Failed to add to playlist' });
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('Error adding to playlist:', msg);
+      res.status(500).json({ message: msg });
     }
   });
 
@@ -1838,11 +1834,8 @@ export async function registerRoutes(
   app.post('/api/listener/spotify/playlist/add-new', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      
+
       const playlist = await createOrGetBriefingsPlaylist(userId);
-      if (!playlist) {
-        return res.status(400).json({ message: 'No Spotify playlist found. Connect Spotify first.' });
-      }
 
       // Get all new (unread) episodes with their subscription info
       const episodes = await storage.getSubscriptionEpisodesByUser(userId);
@@ -1877,9 +1870,10 @@ export async function registerRoutes(
         playlistUrl: playlist.externalUrl,
         errors: errors.length > 0 ? errors : undefined
       });
-    } catch (error) {
-      console.error('Error adding new episodes to playlist:', error);
-      res.status(500).json({ message: 'Failed to add episodes to playlist' });
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('Error adding new episodes to playlist:', msg);
+      res.status(500).json({ message: msg });
     }
   });
 
@@ -2019,15 +2013,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Episode has no audio URL' });
       }
       
-      // Start transcription in background
-      transcribeEpisode(req.params.id, userId).catch(err => {
-        console.error('Background transcription error:', err);
-      });
-      
-      res.json({ message: 'Transcription started', status: 'processing' });
-    } catch (error) {
-      console.error('Error starting transcription:', error);
-      res.status(500).json({ message: 'Failed to start transcription' });
+      // Run transcription synchronously — Vercel kills background tasks after response is sent
+      await transcribeEpisode(req.params.id, userId);
+      const updated = await storage.getSubscriptionEpisode(req.params.id);
+      res.json({ message: 'Transcription complete', status: updated?.transcriptStatus || 'complete' });
+    } catch (error: any) {
+      console.error('Error transcribing episode:', error);
+      res.status(500).json({ message: error?.message || 'Failed to transcribe episode' });
     }
   });
 
@@ -2036,24 +2028,22 @@ export async function registerRoutes(
     try {
       const userId = req.session.userId!;
       const episode = await storage.getSubscriptionEpisode(req.params.id);
-      
+
       if (!episode || episode.userId !== userId) {
         return res.status(404).json({ message: 'Episode not found' });
       }
-      
+
       if (!episode.transcript) {
         return res.status(400).json({ message: 'Episode must be transcribed first' });
       }
-      
-      // Start briefing generation in background
-      processEpisodeBriefing(req.params.id, userId).catch(err => {
-        console.error('Background briefing generation error:', err);
-      });
-      
-      res.json({ message: 'Briefing generation started', status: 'processing' });
-    } catch (error) {
-      console.error('Error starting briefing generation:', error);
-      res.status(500).json({ message: 'Failed to generate briefing' });
+
+      // Run briefing synchronously — Vercel kills background tasks after response is sent
+      await processEpisodeBriefing(req.params.id, userId);
+      const updated = await storage.getSubscriptionEpisode(req.params.id);
+      res.json({ message: 'Briefing complete', status: updated?.briefingStatus || 'complete' });
+    } catch (error: any) {
+      console.error('Error generating briefing:', error);
+      res.status(500).json({ message: error?.message || 'Failed to generate briefing' });
     }
   });
 

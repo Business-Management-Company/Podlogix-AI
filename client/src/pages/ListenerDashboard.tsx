@@ -340,37 +340,54 @@ export default function ListenerDashboard() {
 
   const createPlaylistMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/listener/spotify/playlist');
-      return res.json();
+      const res = await fetch('/api/listener/spotify/playlist', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create playlist');
+      return data;
     },
     onSuccess: (data: { externalUrl: string }) => {
-      toast({ 
-        title: "Playlist created!", 
-        description: "Podlogix Recommendations playlist is ready in Spotify" 
+      toast({
+        title: "Playlist created!",
+        description: "Podlogix Recommendations playlist is ready in Spotify"
       });
     },
-    onError: () => {
-      toast({ title: "Failed to create playlist", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ title: "Spotify playlist error", description: error.message, variant: "destructive" });
     },
   });
 
   const addToPlaylistMutation = useMutation({
     mutationFn: async ({ episodeId, podcastName, episodeTitle }: { episodeId: string; podcastName: string; episodeTitle: string }) => {
-      const res = await apiRequest('POST', '/api/listener/spotify/playlist/add', { episodeId, podcastName, episodeTitle });
-      return res.json();
+      const res = await fetch('/api/listener/spotify/playlist/add', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ episodeId, podcastName, episodeTitle }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add to playlist');
+      return data;
     },
     onSuccess: () => {
       toast({ title: "Added to playlist!", description: "Episode added to Podlogix Recommendations" });
     },
-    onError: () => {
-      toast({ title: "Failed to add to playlist", description: "Episode may not be available on Spotify", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ title: "Failed to add to playlist", description: error.message, variant: "destructive" });
     },
   });
 
   const addNewEpisodesToPlaylistMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/listener/spotify/playlist/add-new');
-      return res.json();
+      const res = await fetch('/api/listener/spotify/playlist/add-new', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add episodes');
+      return data;
     },
     onSuccess: (data: { addedCount: number; totalAttempted: number; playlistUrl: string }) => {
       toast({ 
@@ -378,8 +395,8 @@ export default function ListenerDashboard() {
         description: `Added ${data.addedCount} of ${data.totalAttempted} new episodes to your playlist` 
       });
     },
-    onError: () => {
-      toast({ title: "Failed to add episodes", description: "Could not add episodes to playlist", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ title: "Failed to add episodes", description: error.message, variant: "destructive" });
     },
   });
 
