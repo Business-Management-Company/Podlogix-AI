@@ -1658,9 +1658,11 @@ export async function registerRoutes(
       });
 
       res.redirect('/listener?spotify_connected=true');
-    } catch (error) {
-      console.error('Spotify callback error:', error);
-      res.redirect('/listener?spotify_error=auth_failed');
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('Spotify callback error:', msg);
+      const encoded = encodeURIComponent(msg.slice(0, 120));
+      res.redirect(`/listener?spotify_error=auth_failed&spotify_error_detail=${encoded}`);
     }
   });
 

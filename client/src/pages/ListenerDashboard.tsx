@@ -116,7 +116,7 @@ interface SpotifyShow {
 }
 
 export default function ListenerDashboard() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { user, isLoading: authLoading, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -409,13 +409,18 @@ export default function ListenerDashboard() {
     }
     if (params.get('spotify_error')) {
       const errorType = params.get('spotify_error');
-      const message = errorType === 'missing_params' 
-        ? 'Authorization parameters missing' 
+      const detail = params.get('spotify_error_detail');
+      const message = errorType === 'missing_params'
+        ? 'Authorization parameters missing'
+        : errorType === 'not_authenticated'
+        ? 'Session expired — please log in again'
+        : detail
+        ? decodeURIComponent(detail)
         : 'Failed to connect Spotify account';
       toast({ title: "Spotify connection failed", description: message, variant: "destructive" });
       window.history.replaceState({}, '', '/listener');
     }
-  }, [toast, refetchSpotifyStatus]);
+  }, [location, toast, refetchSpotifyStatus]);
 
   if (authLoading) {
     return (
