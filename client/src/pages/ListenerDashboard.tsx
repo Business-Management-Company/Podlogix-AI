@@ -16,11 +16,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  Mic, 
+import {
+  Mic,
   Headphones,
-  Rss, 
-  Sparkles, 
+  Rss,
+  Sparkles,
   Plus,
   CheckCircle2,
   Clock,
@@ -45,7 +45,10 @@ import {
   RefreshCw,
   Loader2,
   ExternalLink,
-  HelpCircle
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  ListMusic
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
@@ -130,6 +133,15 @@ export default function ListenerDashboard() {
   const [episodeSort, setEpisodeSort] = useState<'newest' | 'oldest' | 'unread'>('newest');
   const [episodeFilter, setEpisodeFilter] = useState<string>('all');
   const [selectedEpisodeIds, setSelectedEpisodeIds] = useState<Set<string>>(new Set());
+  const [expandedPodcastId, setExpandedPodcastId] = useState<string | null>(null);
+  const [spotifyPlaylistPodcasts, setSpotifyPlaylistPodcasts] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('spotifyPlaylistPodcasts');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   const { data: subscriptions = [], isLoading: subsLoading } = useQuery<PodcastSubscription[]>({
     queryKey: ['/api/listener/subscriptions'],
@@ -399,6 +411,44 @@ export default function ListenerDashboard() {
       toast({ title: "Failed to add episodes", description: error.message, variant: "destructive" });
     },
   });
+
+  const syncSmartPlaylistMutation = useMutation({
+    mutationFn: async (subscriptionIds: string[]) => {
+      const res = await fetch('/api/listener/spotify/playlist/sync-smart', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to sync playlist');
+      return data;
+    },
+    onSuccess: (data: { addedCount: number; playlistUrl: string }) => {
+      toast({
+        title: "Smart playlist synced!",
+        description: `Added ${data.addedCount} episode${data.addedCount !== 1 ? 's' : ''} from your marked podcasts`,
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Sync failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const togglePlaylistPodcast = (subId: string) => {
+    setSpotifyPlaylistPodcasts(prev => {
+      const next = new Set(prev);
+      if (next.has(subId)) {
+        next.delete(subId);
+      } else {
+        next.add(subId);
+      }
+      try {
+        localStorage.setItem('spotifyPlaylistPodcasts', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  };
 
   const toggleBookmarkMutation = useMutation({
     mutationFn: async (briefingId: string) => {
@@ -774,19 +824,19 @@ export default function ListenerDashboard() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <Tabs defaultValue="episodes" className="w-full">
+            <Tabs defaultValue="subscriptions" className="w-full">
               <TabsList className="grid grid-cols-3 w-full max-w-md">
-                <TabsTrigger value="episodes" data-testid="tab-episodes">
-                  <Play className="h-4 w-4 mr-2" />
-                  Episodes
+                <TabsTrigger value="subscriptions" data-testid="tab-subscriptions">
+                  <Rss className="h-4 w-4 mr-2" />
+                  Podcasts
                 </TabsTrigger>
                 <TabsTrigger value="briefings" data-testid="tab-briefings">
                   <BookOpen className="h-4 w-4 mr-2" />
                   Briefings
                 </TabsTrigger>
-                <TabsTrigger value="subscriptions" data-testid="tab-subscriptions">
-                  <Rss className="h-4 w-4 mr-2" />
-                  Podcasts
+                <TabsTrigger value="episodes" data-testid="tab-episodes">
+                  <Play className="h-4 w-4 mr-2" />
+                  Episodes
                 </TabsTrigger>
               </TabsList>
 
@@ -1017,10 +1067,16 @@ export default function ListenerDashboard() {
                 )}
               </TabsContent>
 
-              <TabsContent value="subscriptions" className="mt-6 space-y-4">
+              <TabsContent value="subscriptions" className="mt-6 space-y-3">
+                {spotifyStatus?.connected && subscriptions.length > 0 && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-muted-foreground">
+                    <ListMusic className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    <span>Toggle <SiSpotify className="inline h-3 w-3 mx-0.5 text-green-600" /> on each podcast to include its latest episode in your smart Spotify playlist.</span>
+                  </div>
+                )}
                 {subsLoading ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
                   </div>
                 ) : subscriptions.length === 0 ? (
                   <Card className="p-8 text-center">
@@ -1033,37 +1089,133 @@ export default function ListenerDashboard() {
                     </Button>
                   </Card>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {subscriptions.map((sub) => (
-                      <Card key={sub.id} className="hover-elevate">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="h-12 w-12 rounded">
-                              <AvatarImage src={sub.artworkUrl || undefined} />
-                              <AvatarFallback><Mic className="h-5 w-5" /></AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold truncate">{sub.title}</h3>
-                              <p className="text-sm text-muted-foreground truncate">{sub.author}</p>
-                              {sub.spotifyShowId && (
-                                <Badge variant="secondary" className="mt-2 text-xs">
-                                  <SiSpotify className="h-3 w-3 mr-1" />
-                                  Spotify
-                                </Badge>
-                              )}
-                            </div>
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              onClick={() => unsubscribeMutation.mutate(sub.id)}
-                              data-testid={`button-unsubscribe-${sub.id}`}
+                  <div className="space-y-3">
+                    {subscriptions.map((sub) => {
+                      const isExpanded = expandedPodcastId === sub.id;
+                      const subEpisodes = episodes
+                        .filter(e => e.subscriptionId === sub.id)
+                        .sort((a, b) => {
+                          const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+                          const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+                          return db - da;
+                        });
+                      const inPlaylist = spotifyPlaylistPodcasts.has(sub.id);
+
+                      return (
+                        <Card key={sub.id} className={`transition-all ${isExpanded ? 'ring-2 ring-primary/30' : 'hover-elevate'}`}>
+                          <CardContent className="p-0">
+                            {/* Podcast header row — clicking expands */}
+                            <div
+                              className="flex items-center gap-3 p-4 cursor-pointer select-none"
+                              onClick={() => setExpandedPodcastId(isExpanded ? null : sub.id)}
                             >
-                              <Trash2 className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                              <Avatar className="h-12 w-12 rounded flex-shrink-0">
+                                <AvatarImage src={sub.artworkUrl || undefined} />
+                                <AvatarFallback><Mic className="h-5 w-5" /></AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold truncate">{sub.title}</h3>
+                                <p className="text-sm text-muted-foreground truncate">{sub.author}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-muted-foreground">{subEpisodes.length} episode{subEpisodes.length !== 1 ? 's' : ''}</span>
+                                  {sub.spotifyShowId && (
+                                    <Badge variant="secondary" className="text-xs py-0">
+                                      <SiSpotify className="h-3 w-3 mr-1" />
+                                      Spotify
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                {spotifyStatus?.connected && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant={inPlaylist ? "default" : "outline"}
+                                        className={inPlaylist ? "bg-green-500 hover:bg-green-600 text-white border-green-500" : ""}
+                                        onClick={() => togglePlaylistPodcast(sub.id)}
+                                        data-testid={`button-playlist-toggle-${sub.id}`}
+                                      >
+                                        <SiSpotify className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{inPlaylist ? 'Remove from smart playlist' : 'Add to smart playlist'}</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => unsubscribeMutation.mutate(sub.id)}
+                                      data-testid={`button-unsubscribe-${sub.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Unsubscribe</TooltipContent>
+                                </Tooltip>
+                                {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                              </div>
+                            </div>
+
+                            {/* Expanded episodes list */}
+                            {isExpanded && (
+                              <div className="border-t px-4 pb-4 pt-3 space-y-2">
+                                {subEpisodes.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground text-center py-3">No episodes yet — try syncing</p>
+                                ) : (
+                                  subEpisodes.slice(0, 8).map(ep => (
+                                    <div key={ep.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors">
+                                      <button
+                                        onClick={() => togglePlayEpisode(ep)}
+                                        disabled={!ep.audioUrl}
+                                        className="flex-shrink-0 w-8 h-8 bg-background rounded-md flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      >
+                                        {playingEpisodeId === ep.id ? (
+                                          <Pause className="h-4 w-4 text-primary" />
+                                        ) : (
+                                          <Play className="h-4 w-4 text-muted-foreground" />
+                                        )}
+                                      </button>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{ep.title}</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          {ep.publishedAt && (
+                                            <span className="text-xs text-muted-foreground">
+                                              {new Date(ep.publishedAt).toLocaleDateString()}
+                                            </span>
+                                          )}
+                                          {ep.duration && <span className="text-xs text-muted-foreground">{formatDuration(ep.duration)}</span>}
+                                          {!ep.isRead && <Badge className="text-xs py-0 px-1">New</Badge>}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        {ep.transcriptStatus === 'completed' && ep.briefingStatus === 'completed' ? (
+                                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setSelectedEpisode(ep)}>
+                                            <BookOpen className="h-3.5 w-3.5" />
+                                          </Button>
+                                        ) : ep.transcriptStatus !== 'completed' && ep.transcriptStatus !== 'processing' ? (
+                                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => transcribeMutation.mutate(ep.id)} disabled={!ep.audioUrl || transcribeMutation.isPending}>
+                                            <FileText className="h-3.5 w-3.5" />
+                                          </Button>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                                {subEpisodes.length > 8 && (
+                                  <p className="text-xs text-muted-foreground text-center pt-1">
+                                    + {subEpisodes.length - 8} more — see Episodes tab for full list
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
@@ -1243,9 +1395,9 @@ export default function ListenerDashboard() {
                         )}
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       variant="default"
-                      size="sm" 
+                      size="sm"
                       className="w-full bg-green-500 text-white"
                       onClick={() => createPlaylistMutation.mutate()}
                       disabled={createPlaylistMutation.isPending}
@@ -1258,21 +1410,28 @@ export default function ListenerDashboard() {
                       )}
                       Create Playlist
                     </Button>
-                    <Button 
-                      variant="outline"
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => addNewEpisodesToPlaylistMutation.mutate()}
-                      disabled={addNewEpisodesToPlaylistMutation.isPending || episodes.filter(e => !e.isRead).length === 0}
-                      data-testid="button-add-new-to-playlist"
-                    >
-                      {addNewEpisodesToPlaylistMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Plus className="h-4 w-4 mr-2" />
-                      )}
-                      Add New Episodes ({episodes.filter(e => !e.isRead).length})
-                    </Button>
+                    <div className="space-y-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => syncSmartPlaylistMutation.mutate([...spotifyPlaylistPodcasts])}
+                        disabled={syncSmartPlaylistMutation.isPending || spotifyPlaylistPodcasts.size === 0}
+                        data-testid="button-sync-smart-playlist"
+                      >
+                        {syncSmartPlaylistMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <ListMusic className="h-4 w-4 mr-2" />
+                        )}
+                        Sync Smart Playlist
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center">
+                        {spotifyPlaylistPodcasts.size === 0
+                          ? 'Mark podcasts in the Podcasts tab'
+                          : `${spotifyPlaylistPodcasts.size} podcast${spotifyPlaylistPodcasts.size !== 1 ? 's' : ''} selected — adds latest episode from each`}
+                      </p>
+                    </div>
                     <Button 
                       variant="ghost" 
                       size="sm" 

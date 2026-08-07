@@ -1877,6 +1877,58 @@ export async function registerRoutes(
     }
   });
 
+  // Sync smart playlist: add the latest episode from each marked podcast
+  app.post('/api/listener/spotify/playlist/sync-smart', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { subscriptionIds } = req.body;
+
+      if (!subscriptionIds || !Array.isArray(subscriptionIds) || subscriptionIds.length === 0) {
+        return res.status(400).json({ message: 'No podcasts selected — mark at least one podcast for the smart playlist' });
+      }
+
+      const playlist = await createOrGetBriefingsPlaylist(userId);
+      const allEpisodes = await storage.getSubscriptionEpisodesByUser(userId);
+      const subs = await storage.getPodcastSubscriptionsByUserId(userId);
+      const subsMap = new Map(subs.map(s => [s.id, s]));
+
+      let addedCount = 0;
+
+      for (const subId of subscriptionIds) {
+        const subscription = subsMap.get(subId);
+        if (!subscription) continue;
+
+        // Get the most recent episode for this subscription
+        const subEpisodes = allEpisodes
+          .filter(e => e.subscriptionId === subId)
+          .sort((a, b) => {
+            const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+            const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+            return db - da;
+          });
+
+        const latestEpisode = subEpisodes[0];
+        if (!latestEpisode) continue;
+
+        try {
+          const episodeUri = await searchSpotifyEpisode(userId, subscription.title, latestEpisode.title);
+          if (episodeUri) {
+            const added = await addEpisodeToPlaylist(userId, playlist.id, episodeUri);
+            if (added) addedCount++;
+          }
+        } catch (err) {
+          console.error(`Error adding episode for ${subscription.title}:`, err);
+        }
+      }
+
+      res.json({ success: true, addedCount, playlistUrl: playlist.externalUrl });
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('Error syncing smart playlist:', msg);
+      res.status(500).json({ message: msg });
+    }
+  });
+
   // Get user's podcast subscriptions
   app.get('/api/listener/subscriptions', isAuthenticated, async (req: any, res) => {
     try {
