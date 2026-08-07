@@ -48,7 +48,14 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
-  ListMusic
+  ListMusic,
+  MessageCircle,
+  X,
+  Send,
+  Command,
+  Home,
+  Layers,
+  ChevronRight
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
@@ -143,6 +150,16 @@ export default function ListenerDashboard() {
     }
   });
 
+  const [activeTab, setActiveTab] = useState('subscriptions');
+  const [cmdKOpen, setCmdKOpen] = useState(false);
+  const [cmdKQuery, setCmdKQuery] = useState('');
+  const [cmdKSelectedIdx, setCmdKSelectedIdx] = useState(0);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [aiInput, setAiInput] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiEndRef = useRef<HTMLDivElement | null>(null);
+
   const { data: subscriptions = [], isLoading: subsLoading } = useQuery<PodcastSubscription[]>({
     queryKey: ['/api/listener/subscriptions'],
     enabled: isAuthenticated,
@@ -168,8 +185,8 @@ export default function ListenerDashboard() {
     enabled: isAuthenticated,
   });
 
-  const { data: spotifyStatus, refetch: refetchSpotifyStatus } = useQuery<{ 
-    connected: boolean; 
+  const { data: spotifyStatus, refetch: refetchSpotifyStatus } = useQuery<{
+    connected: boolean;
     displayName: string | null;
     spotifyUserId: string | null;
   }>({
@@ -321,9 +338,9 @@ export default function ListenerDashboard() {
     onSuccess: (data: { synced: number; newEpisodes: number }) => {
       queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
       queryClient.invalidateQueries({ queryKey: ['/api/listener/subscriptions'] });
-      toast({ 
-        title: "Sync complete", 
-        description: `Found ${data.newEpisodes} new episodes from ${data.synced} podcasts` 
+      toast({
+        title: "Sync complete",
+        description: `Found ${data.newEpisodes} new episodes from ${data.synced} podcasts`
       });
     },
     onError: () => {
@@ -340,9 +357,9 @@ export default function ListenerDashboard() {
       queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
       queryClient.invalidateQueries({ queryKey: ['/api/listener/briefings'] });
       queryClient.invalidateQueries({ queryKey: ['/api/listener/notifications'] });
-      toast({ 
-        title: "Auto-briefings complete", 
-        description: `Generated ${data.briefings} briefings from ${data.processed} episodes` 
+      toast({
+        title: "Auto-briefings complete",
+        description: `Generated ${data.briefings} briefings from ${data.processed} episodes`
       });
     },
     onError: () => {
@@ -402,9 +419,9 @@ export default function ListenerDashboard() {
       return data;
     },
     onSuccess: (data: { addedCount: number; totalAttempted: number; playlistUrl: string }) => {
-      toast({ 
-        title: "Episodes added!", 
-        description: `Added ${data.addedCount} of ${data.totalAttempted} new episodes to your playlist` 
+      toast({
+        title: "Episodes added!",
+        description: `Added ${data.addedCount} of ${data.totalAttempted} new episodes to your playlist`
       });
     },
     onError: (error: any) => {
@@ -457,7 +474,7 @@ export default function ListenerDashboard() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/listener/briefings'] });
-      toast({ 
+      toast({
         title: data.isBookmarked ? "Briefing saved!" : "Briefing unsaved",
         description: data.isBookmarked ? "Added to your saved briefings" : "Removed from saved briefings"
       });
@@ -489,6 +506,27 @@ export default function ListenerDashboard() {
     }
   }, [location, toast, refetchSpotifyStatus]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCmdKOpen(prev => !prev);
+        setCmdKQuery('');
+        setCmdKSelectedIdx(0);
+      }
+      if (e.key === 'Escape') {
+        setCmdKOpen(false);
+        setAiChatOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (aiEndRef.current) aiEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [aiMessages]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -510,7 +548,7 @@ export default function ListenerDashboard() {
 
   const togglePlayEpisode = (episode: SubscriptionEpisode) => {
     if (!episode.audioUrl) return;
-    
+
     if (playingEpisodeId === episode.id) {
       audioRef.current?.pause();
       setPlayingEpisodeId(null);
@@ -578,71 +616,139 @@ export default function ListenerDashboard() {
     },
   });
 
+  const commandItems = [
+    { group: 'Navigate', label: 'Podcasts', icon: Rss, action: () => setActiveTab('subscriptions') },
+    { group: 'Navigate', label: 'Briefings', icon: BookOpen, action: () => setActiveTab('briefings') },
+    { group: 'Navigate', label: 'Episodes', icon: Play, action: () => setActiveTab('episodes') },
+    { group: 'Navigate', label: 'Creator Dashboard', icon: Mic, action: () => navigate('/dashboard') },
+    { group: 'Navigate', label: 'Analytics', icon: BarChart3, action: () => navigate('/listener/analytics') },
+    { group: 'Navigate', label: 'Help & Docs', icon: HelpCircle, action: () => navigate('/help') },
+    { group: 'Actions', label: 'Sync Episodes', icon: RefreshCw, action: () => syncEpisodesMutation.mutate() },
+    { group: 'Actions', label: 'Add Podcast', icon: Plus, action: () => setIsAddPodcastOpen(true) },
+    { group: 'Actions', label: 'Auto Briefings', icon: Sparkles, action: () => autoBriefingsMutation.mutate() },
+    { group: 'Actions', label: 'Sync Smart Playlist', icon: ListMusic, action: () => spotifyPlaylistPodcasts.size > 0 && syncSmartPlaylistMutation.mutate([...spotifyPlaylistPodcasts]) },
+    { group: 'Actions', label: 'Ask Podlogix AI', icon: MessageCircle, action: () => setAiChatOpen(true) },
+    { group: 'Settings', label: 'Manage Interests', icon: Tag, action: () => setIsAddInterestOpen(true) },
+    { group: 'Settings', label: 'Notifications', icon: Bell, action: () => markNotificationsReadMutation.mutate() },
+    { group: 'Settings', label: 'Sign Out', icon: LogOut, action: () => logout() },
+  ];
+
+  const sendAiMessage = async () => {
+    if (!aiInput.trim() || aiLoading) return;
+    const userMsg = aiInput.trim();
+    setAiInput('');
+    setAiMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setAiLoading(true);
+    try {
+      const context = `The user listens to these podcasts: ${subscriptions.map(s => s.title).join(', ')}. They have ${briefings.length} briefings and ${episodes.filter(e => !e.isRead).length} unread episodes. Their tracked interests: ${interests.map(i => i.topic).join(', ')}.`;
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg, context, history: aiMessages.slice(-10) }),
+      });
+      const data = await res.json();
+      setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.message || data.reply || 'Sorry, I could not process that.' }]);
+    } catch {
+      setAiMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
-              <Headphones className="w-5 h-5" />
+      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-[9999]">
+        <div className="container mx-auto px-4 h-14 flex items-center gap-3">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 mr-2 flex-shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-white">
+              <Headphones className="w-4 h-4" />
             </div>
-            <span className="font-display font-bold text-xl">Podlogix Listener</span>
+            <span className="font-bold text-base hidden sm:block">Podlogix</span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          {/* Cmd+K Search trigger */}
+          <button
+            onClick={() => { setCmdKOpen(true); setCmdKQuery(''); }}
+            className="flex-1 max-w-sm flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors text-sm text-muted-foreground group"
+          >
+            <Search className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="flex-1 text-left text-xs">Search or run a command...</span>
+            <kbd className="hidden sm:flex items-center gap-0.5 text-xs bg-background border rounded px-1 py-0.5 font-mono">
+              <Command className="h-2.5 w-2.5" />K
+            </kbd>
+          </button>
+
+          {/* Right-side icons */}
+          <div className="flex items-center gap-1 ml-auto">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" asChild data-testid="link-creator-dashboard">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => syncEpisodesMutation.mutate()}
+                  disabled={syncEpisodesMutation.isPending}
+                  data-testid="button-sync-header"
+                >
+                  <RefreshCw className={`h-4 w-4 ${syncEpisodesMutation.isPending ? 'animate-spin' : ''}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sync Episodes</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                   <Link href="/dashboard">
-                    <Mic className="h-4 w-4 mr-2" />
-                    Creator Mode
+                    <Mic className="h-4 w-4" />
                   </Link>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Switch to podcast creator tools</TooltipContent>
+              <TooltipContent>Creator Mode</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" asChild data-testid="link-analytics">
-                  <Link href="/listener/analytics">
-                    <BarChart3 className="h-4 w-4" />
-                  </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 relative"
+                  onClick={() => markNotificationsReadMutation.mutate()}
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadNotifications.length > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Analytics</TooltipContent>
+              <TooltipContent>Notifications {unreadNotifications.length > 0 ? `(${unreadNotifications.length})` : ''}</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" asChild data-testid="link-help">
+                <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                   <Link href="/help">
                     <HelpCircle className="h-4 w-4" />
                   </Link>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Help & Knowledge Base</TooltipContent>
+              <TooltipContent>Help</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="relative cursor-pointer">
-                  <Bell className="h-5 w-5 text-muted-foreground" />
-                  {unreadNotifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {unreadNotifications.length}
-                    </span>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Notifications</TooltipContent>
-            </Tooltip>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.profileImageUrl || undefined} />
-              <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
-            </Avatar>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
-                  <LogOut className="h-4 w-4" />
-                </Button>
+                <button
+                  onClick={() => logout()}
+                  className="flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full bg-muted/60 hover:bg-muted transition-colors"
+                >
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={user?.profileImageUrl || undefined} />
+                    <AvatarFallback className="text-xs">{user?.firstName?.[0] || 'U'}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs font-medium hidden sm:block">{user?.firstName || 'Account'}</span>
+                </button>
               </TooltipTrigger>
               <TooltipContent>Sign out</TooltipContent>
             </Tooltip>
@@ -654,177 +760,88 @@ export default function ListenerDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-accent/10 via-primary/10 to-accent/5 rounded-2xl p-6 md:p-8"
+          className="bg-gradient-to-r from-accent/10 via-primary/10 to-accent/5 rounded-2xl p-5 md:p-6"
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-2" data-testid="text-welcome">
-                Your Podcast Briefings
+              <h1 className="text-xl md:text-2xl font-bold mb-1" data-testid="text-welcome">
+                Your Podcast Hub
               </h1>
-              <p className="text-muted-foreground">
-                AI-powered insights from {subscriptions.length} podcast{subscriptions.length !== 1 ? 's' : ''} you follow
+              <p className="text-muted-foreground text-sm">
+                {subscriptions.length} podcast{subscriptions.length !== 1 ? 's' : ''} · {episodes.filter(e => !e.isRead).length} new episodes · {briefings.length} briefings
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => syncEpisodesMutation.mutate()}
-                    disabled={syncEpisodesMutation.isPending}
-                    data-testid="button-sync"
-                  >
-                    {syncEpisodesMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    Sync Episodes
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Check all podcasts for new episodes</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline"
-                    onClick={() => autoBriefingsMutation.mutate()}
-                    disabled={autoBriefingsMutation.isPending || interests.length === 0}
-                    data-testid="button-auto-briefings"
-                  >
-                    {autoBriefingsMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4 mr-2" />
-                    )}
-                    Auto Briefings
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {interests.length === 0 
-                    ? "Add interests first to generate briefings" 
-                    : "Automatically transcribe and generate briefings for new episodes"}
-                </TooltipContent>
-              </Tooltip>
-              <Dialog open={isAddPodcastOpen} onOpenChange={setIsAddPodcastOpen}>
-                <DialogTrigger asChild>
-                  <Button data-testid="button-add-podcast">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Podcast
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Add Podcast</DialogTitle>
-                    <DialogDescription>
-                      Import from Spotify or subscribe via RSS feed
-                    </DialogDescription>
-                  </DialogHeader>
-                  <Tabs defaultValue="rss" className="mt-4">
-                    <TabsList className="grid grid-cols-2 w-full">
-                      <TabsTrigger value="rss">
-                        <Rss className="h-4 w-4 mr-2" />
-                        RSS Feed
-                      </TabsTrigger>
-                      <TabsTrigger value="spotify" disabled={!spotifyStatus?.connected}>
-                        <SiSpotify className="h-4 w-4 mr-2" />
-                        Spotify
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="rss" className="space-y-4 mt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="rss-url">RSS Feed URL</Label>
-                        <Input
-                          id="rss-url"
-                          placeholder="https://example.com/feed.xml"
-                          value={rssFeedUrl}
-                          onChange={(e) => setRssFeedUrl(e.target.value)}
-                          data-testid="input-rss-url"
-                        />
-                      </div>
-                      <Button 
-                        onClick={() => subscribeRssMutation.mutate(rssFeedUrl)}
-                        disabled={!rssFeedUrl || subscribeRssMutation.isPending}
-                        className="w-full"
-                        data-testid="button-subscribe-rss"
-                      >
-                        {subscribeRssMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        Subscribe
-                      </Button>
-                    </TabsContent>
-                    <TabsContent value="spotify" className="space-y-4 mt-4">
-                      {spotifyStatus?.connected ? (
-                        <>
-                          <div className="space-y-2">
-                            <Label>Search Spotify</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                placeholder="Search podcasts..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                data-testid="input-spotify-search"
-                              />
-                              <Button 
-                                variant="outline" 
-                                onClick={() => searchSpotifyMutation.mutate(searchQuery)}
-                                disabled={!searchQuery || searchSpotifyMutation.isPending}
-                              >
-                                <Search className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <ScrollArea className="h-64">
-                            <div className="space-y-2">
-                              {(searchSpotifyMutation.data as SpotifyShow[] || spotifyShows).map((show: SpotifyShow) => (
-                                <div key={show.id} className="flex items-center gap-3 p-2 rounded-lg border hover-elevate">
-                                  <Avatar className="h-10 w-10 rounded">
-                                    <AvatarImage src={show.imageUrl || undefined} />
-                                    <AvatarFallback><Mic className="h-4 w-4" /></AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{show.name}</p>
-                                    <p className="text-xs text-muted-foreground truncate">{show.publisher}</p>
-                                  </div>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => importFromSpotifyMutation.mutate(show.id)}
-                                    disabled={importFromSpotifyMutation.isPending}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          </ScrollArea>
-                        </>
-                      ) : (
-                        <div className="text-center py-8">
-                          <SiSpotify className="h-12 w-12 mx-auto text-green-500 mb-4" />
-                          <p className="text-muted-foreground mb-4">Connect your Spotify account to import podcasts</p>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => connectSpotifyMutation.mutate()}
-                            disabled={connectSpotifyMutation.isPending}
-                            data-testid="button-connect-spotify"
-                          >
-                            {connectSpotifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            <SiSpotify className="h-4 w-4 mr-2" />
-                            Connect Spotify
-                          </Button>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </DialogContent>
-              </Dialog>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => autoBriefingsMutation.mutate()}
+                disabled={autoBriefingsMutation.isPending || interests.length === 0}
+                data-testid="button-auto-briefings"
+              >
+                {autoBriefingsMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-2" />}
+                Auto Briefings
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setIsAddPodcastOpen(true)}
+                data-testid="button-add-podcast"
+              >
+                <Plus className="h-3.5 w-3.5 mr-2" />
+                Add Podcast
+              </Button>
             </div>
           </div>
         </motion.div>
 
+        {/* Stats cards row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="hover-elevate cursor-pointer" onClick={() => setActiveTab('episodes')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <Play className="h-4 w-4 text-primary" />
+                <Badge variant="secondary" className="text-xs">{episodes.filter(e => !e.isRead).length} new</Badge>
+              </div>
+              <p className="text-2xl font-bold">{episodes.length}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Episodes</p>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate cursor-pointer" onClick={() => setActiveTab('briefings')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                <Badge variant="secondary" className="text-xs">{briefings.filter((b: EpisodeBriefing) => b.isBookmarked).length} saved</Badge>
+              </div>
+              <p className="text-2xl font-bold">{briefings.length}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Briefings</p>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate cursor-pointer" onClick={() => setActiveTab('subscriptions')}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <Rss className="h-4 w-4 text-primary" />
+              </div>
+              <p className="text-2xl font-bold">{subscriptions.length}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Podcasts</p>
+            </CardContent>
+          </Card>
+          <Card className={`hover-elevate cursor-pointer ${spotifyStatus?.connected ? 'border-green-500/30' : ''}`} onClick={() => spotifyStatus?.connected ? syncSmartPlaylistMutation.mutate([...spotifyPlaylistPodcasts]) : connectSpotifyMutation.mutate()}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <SiSpotify className={`h-4 w-4 ${spotifyStatus?.connected ? 'text-green-500' : 'text-muted-foreground'}`} />
+                {spotifyStatus?.connected && spotifyPlaylistPodcasts.size > 0 && (
+                  <Badge className="text-xs bg-green-500/20 text-green-700 border-green-500/30">{spotifyPlaylistPodcasts.size} tracked</Badge>
+                )}
+              </div>
+              <p className="text-sm font-semibold">{spotifyStatus?.connected ? 'Spotify' : 'Connect'}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{spotifyStatus?.connected ? (spotifyPlaylistPodcasts.size > 0 ? 'Tap to sync playlist' : 'Smart playlist ready') : 'Link your account'}</p>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <Tabs defaultValue="subscriptions" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-3 w-full max-w-md">
                 <TabsTrigger value="subscriptions" data-testid="tab-subscriptions">
                   <Rss className="h-4 w-4 mr-2" />
@@ -868,8 +885,8 @@ export default function ListenerDashboard() {
                     </SelectContent>
                   </Select>
 
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={selectAllEpisodes}
                     data-testid="button-select-all"
@@ -879,7 +896,7 @@ export default function ListenerDashboard() {
                   </Button>
 
                   {selectedEpisodeIds.size > 0 && (
-                    <Button 
+                    <Button
                       onClick={() => batchBriefingMutation.mutate(Array.from(selectedEpisodeIds))}
                       disabled={batchBriefingMutation.isPending}
                       data-testid="button-batch-brief"
@@ -915,7 +932,7 @@ export default function ListenerDashboard() {
                               onCheckedChange={() => toggleEpisodeSelection(episode.id)}
                               data-testid={`checkbox-episode-${episode.id}`}
                             />
-                            <button 
+                            <button
                               onClick={() => togglePlayEpisode(episode)}
                               disabled={!episode.audioUrl}
                               className="flex-shrink-0 w-12 h-12 bg-muted rounded-lg flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1284,7 +1301,7 @@ export default function ListenerDashboard() {
                         </div>
                       </div>
                       <DialogFooter className="mt-4">
-                        <Button 
+                        <Button
                           onClick={() => addInterestMutation.mutate({
                             topic: newInterest.topic,
                             keywords: newInterest.keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -1313,16 +1330,16 @@ export default function ListenerDashboard() {
                       <div key={interest.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                         <div className="flex items-center gap-2">
                           <Badge variant={
-                            interest.priority === 'high' ? 'default' : 
+                            interest.priority === 'high' ? 'default' :
                             interest.priority === 'medium' ? 'secondary' : 'outline'
                           } className="text-xs">
                             {interest.priority}
                           </Badge>
                           <span className="text-sm font-medium">{interest.topic}</span>
                         </div>
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           onClick={() => deleteInterestMutation.mutate(interest.id)}
                         >
                           <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -1357,8 +1374,8 @@ export default function ListenerDashboard() {
                   <ScrollArea className="h-64">
                     <div className="space-y-2">
                       {notifications.slice(0, 10).map((notif) => (
-                        <div 
-                          key={notif.id} 
+                        <div
+                          key={notif.id}
                           className={`p-3 rounded-lg border ${!notif.isRead ? 'bg-primary/5 border-primary/20' : ''}`}
                         >
                           <div className="flex items-center gap-2 mb-1">
@@ -1432,9 +1449,9 @@ export default function ListenerDashboard() {
                           : `${spotifyPlaylistPodcasts.size} podcast${spotifyPlaylistPodcasts.size !== 1 ? 's' : ''} selected — adds latest episode from each`}
                       </p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="w-full"
                       onClick={() => disconnectSpotifyMutation.mutate()}
                       disabled={disconnectSpotifyMutation.isPending}
@@ -1449,7 +1466,7 @@ export default function ListenerDashboard() {
                     <p className="text-sm text-muted-foreground">
                       Connect Spotify to import your followed podcasts
                     </p>
-                    <Button 
+                    <Button
                       onClick={() => connectSpotifyMutation.mutate()}
                       disabled={connectSpotifyMutation.isPending}
                       className="w-full bg-green-500 text-white"
@@ -1509,7 +1526,7 @@ export default function ListenerDashboard() {
                         <Badge key={i} variant="outline">{interest}</Badge>
                       ))}
                     </div>
-                    
+
                     <div>
                       <h4 className="font-semibold mb-2 flex items-center gap-2">
                         <BookOpen className="h-4 w-4" />
@@ -1573,15 +1590,256 @@ export default function ListenerDashboard() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Add Podcast Dialog */}
+        <Dialog open={isAddPodcastOpen} onOpenChange={setIsAddPodcastOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add Podcast</DialogTitle>
+              <DialogDescription>
+                Import from Spotify or subscribe via RSS feed
+              </DialogDescription>
+            </DialogHeader>
+            <Tabs defaultValue="rss" className="mt-4">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="rss">
+                  <Rss className="h-4 w-4 mr-2" />
+                  RSS Feed
+                </TabsTrigger>
+                <TabsTrigger value="spotify" disabled={!spotifyStatus?.connected}>
+                  <SiSpotify className="h-4 w-4 mr-2" />
+                  Spotify
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="rss" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rss-url">RSS Feed URL</Label>
+                  <Input
+                    id="rss-url"
+                    placeholder="https://example.com/feed.xml"
+                    value={rssFeedUrl}
+                    onChange={(e) => setRssFeedUrl(e.target.value)}
+                    data-testid="input-rss-url"
+                  />
+                </div>
+                <Button
+                  onClick={() => subscribeRssMutation.mutate(rssFeedUrl)}
+                  disabled={!rssFeedUrl || subscribeRssMutation.isPending}
+                  className="w-full"
+                  data-testid="button-subscribe-rss"
+                >
+                  {subscribeRssMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Subscribe
+                </Button>
+              </TabsContent>
+              <TabsContent value="spotify" className="space-y-4 mt-4">
+                {spotifyStatus?.connected ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Search Spotify</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search podcasts..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          data-testid="input-spotify-search"
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={() => searchSpotifyMutation.mutate(searchQuery)}
+                          disabled={!searchQuery || searchSpotifyMutation.isPending}
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-64">
+                      <div className="space-y-2">
+                        {(searchSpotifyMutation.data as SpotifyShow[] || spotifyShows).map((show: SpotifyShow) => (
+                          <div key={show.id} className="flex items-center gap-3 p-2 rounded-lg border hover-elevate">
+                            <Avatar className="h-10 w-10 rounded">
+                              <AvatarImage src={show.imageUrl || undefined} />
+                              <AvatarFallback><Mic className="h-4 w-4" /></AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{show.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{show.publisher}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => importFromSpotifyMutation.mutate(show.id)}
+                              disabled={importFromSpotifyMutation.isPending}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <SiSpotify className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                    <p className="text-muted-foreground mb-4">Connect your Spotify account to import podcasts</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => connectSpotifyMutation.mutate()}
+                      disabled={connectSpotifyMutation.isPending}
+                      data-testid="button-connect-spotify"
+                    >
+                      {connectSpotifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      <SiSpotify className="h-4 w-4 mr-2" />
+                      Connect Spotify
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </DialogContent>
+        </Dialog>
       </main>
-      
+
       {/* Hidden audio element for playback */}
-      <audio 
-        ref={audioRef} 
+      <audio
+        ref={audioRef}
         onEnded={() => setPlayingEpisodeId(null)}
         onPause={() => setPlayingEpisodeId(null)}
         className="hidden"
       />
+
+      {/* Floating AI Chat Button */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        {aiChatOpen && (
+          <div className="w-80 md:w-96 h-[480px] bg-card border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-3 border-b bg-primary">
+              <div className="flex items-center gap-2 text-white">
+                <Sparkles className="h-4 w-4" />
+                <span className="font-semibold text-sm">Ask Podlogix AI</span>
+              </div>
+              <button onClick={() => setAiChatOpen(false)} className="text-white/80 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ScrollArea className="flex-1 p-4">
+              {aiMessages.length === 0 && (
+                <div className="text-center text-muted-foreground text-sm py-6">
+                  <Sparkles className="h-8 w-8 mx-auto mb-3 text-primary/40" />
+                  <p className="mb-4 text-xs">Ask me about your podcasts, briefings, or anything else.</p>
+                  <div className="space-y-2">
+                    {['What did YC cover this week?', 'Summarize my top briefings', 'Which podcasts cover AI?'].map(s => (
+                      <button key={s} onClick={() => setAiInput(s)} className="block w-full text-left text-xs p-2 rounded-lg bg-muted hover:bg-muted/70 transition-colors">{s}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aiMessages.map((msg, i) => (
+                <div key={i} className={`mb-3 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-primary text-white rounded-br-sm' : 'bg-muted rounded-bl-sm'}`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {aiLoading && (
+                <div className="flex justify-start mb-3">
+                  <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2.5">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={aiEndRef} />
+            </ScrollArea>
+            <div className="p-3 border-t flex gap-2">
+              <input
+                className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 ring-primary/30 min-w-0"
+                placeholder="Ask about your podcasts..."
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAiMessage(); } }}
+              />
+              <button
+                onClick={sendAiMessage}
+                disabled={!aiInput.trim() || aiLoading}
+                className="w-9 h-9 rounded-lg bg-primary text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0 hover:bg-primary/90 transition-colors"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setAiChatOpen(prev => !prev)}
+          className={`w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center ${aiChatOpen ? 'bg-muted text-foreground' : 'bg-primary text-white'}`}
+        >
+          {aiChatOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Cmd+K Command Palette */}
+      {cmdKOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-[15vh] px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCmdKOpen(false)} />
+          <div className="relative bg-card border rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 border-b">
+              <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <input
+                autoFocus
+                className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+                placeholder="Type to search or run a command..."
+                value={cmdKQuery}
+                onChange={e => { setCmdKQuery(e.target.value); setCmdKSelectedIdx(0); }}
+                onKeyDown={e => {
+                  const filtered = commandItems.filter(item => !cmdKQuery || item.label.toLowerCase().includes(cmdKQuery.toLowerCase()));
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setCmdKSelectedIdx(i => Math.min(i + 1, filtered.length - 1)); }
+                  if (e.key === 'ArrowUp') { e.preventDefault(); setCmdKSelectedIdx(i => Math.max(i - 1, 0)); }
+                  if (e.key === 'Enter' && filtered[cmdKSelectedIdx]) { filtered[cmdKSelectedIdx].action(); setCmdKOpen(false); setCmdKQuery(''); }
+                }}
+              />
+              <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded border font-mono">ESC</kbd>
+            </div>
+            <ScrollArea className="max-h-72">
+              {(() => {
+                const filtered = commandItems.filter(item => !cmdKQuery || item.label.toLowerCase().includes(cmdKQuery.toLowerCase()) || item.group.toLowerCase().includes(cmdKQuery.toLowerCase()));
+                const groups = [...new Set(filtered.map(i => i.group))];
+                let globalIdx = 0;
+                return groups.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">No results for "{cmdKQuery}"</p>
+                ) : groups.map(group => (
+                  <div key={group}>
+                    <div className="px-4 pt-3 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group}</div>
+                    {filtered.filter(i => i.group === group).map((item) => {
+                      const idx = globalIdx++;
+                      const Icon = item.icon as any;
+                      const isSelected = idx === cmdKSelectedIdx;
+                      return (
+                        <button
+                          key={item.label}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left ${isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted/60'}`}
+                          onClick={() => { item.action(); setCmdKOpen(false); setCmdKQuery(''); }}
+                          onMouseEnter={() => setCmdKSelectedIdx(idx)}
+                        >
+                          <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                          <span className="text-sm">{item.label}</span>
+                          <ChevronRight className="h-3 w-3 ml-auto text-muted-foreground opacity-50" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ));
+              })()}
+            </ScrollArea>
+            <div className="px-4 py-2 border-t flex items-center gap-4 text-xs text-muted-foreground bg-muted/30">
+              <span className="flex items-center gap-1"><kbd className="bg-background border rounded px-1 font-mono text-xs">↑↓</kbd> Navigate</span>
+              <span className="flex items-center gap-1"><kbd className="bg-background border rounded px-1 font-mono text-xs">↵</kbd> Select</span>
+              <span className="flex items-center gap-1"><kbd className="bg-background border rounded px-1 font-mono text-xs">ESC</kbd> Close</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
