@@ -47,7 +47,7 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string): 
   if (!response.ok) {
     const error = await response.text();
     console.error('Spotify token exchange error:', error);
-    throw new Error('Failed to exchange code for tokens');
+    throw new Error(`Failed to exchange code for tokens: ${error}`);
   }
 
   const data = await response.json();
