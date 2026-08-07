@@ -8,8 +8,8 @@ if (!process.env.DATABASE_URL) {
   console.error("WARNING: DATABASE_URL is not set. Database features will be unavailable.");
 }
 
-export const pool = process.env.DATABASE_URL 
-  ? new Pool({ connectionString: process.env.DATABASE_URL })
+export const pool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL, max: 1 })
   : null;
 
 export const db = pool ? drizzle(pool, { schema }) : null as any;
