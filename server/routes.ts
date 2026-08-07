@@ -1888,6 +1888,10 @@ export async function registerRoutes(
       }
 
       const playlist = await createOrGetBriefingsPlaylist(userId);
+      if (!playlist) {
+        return res.status(500).json({ message: 'Could not get or create your Podlogix Recommendations playlist — try clicking "Create Playlist" first, then sync again.' });
+      }
+
       const allEpisodes = await storage.getSubscriptionEpisodesByUser(userId);
       const subs = await storage.getPodcastSubscriptionsByUserId(userId);
       const subsMap = new Map(subs.map(s => [s.id, s]));
@@ -1921,11 +1925,61 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ success: true, addedCount, playlistUrl: playlist.externalUrl });
+      res.json({ success: true, addedCount, playlistUrl: playlist.externalUrl || null });
     } catch (error: any) {
       const msg = error?.message || String(error);
       console.error('Error syncing smart playlist:', msg);
       res.status(500).json({ message: msg });
+    }
+  });
+
+  // Podcast-aware AI chat for the listener dashboard
+  app.post('/api/listener/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const { message, context, history = [] } = req.body;
+      if (!message) return res.status(400).json({ message: 'No message provided' });
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ message: 'AI chat is not configured — OPENAI_API_KEY missing' });
+      }
+
+      const systemPrompt = `You are Podlogix AI, a helpful assistant for podcast listeners. ${context || ''}
+Help users discover insights from their podcasts, summarize topics, suggest new shows, and answer questions about their listening habits.
+Keep responses concise and conversational (2-4 sentences max unless more detail is needed).`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history.map((m: any) => ({ role: m.role, content: m.content })),
+        { role: 'user', content: message },
+      ];
+
+      const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 400,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        console.error('OpenAI error:', err);
+        return res.status(502).json({ message: 'AI service error, please try again' });
+      }
+
+      const data = await aiRes.json() as any;
+      const response = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
+      res.json({ response });
+    } catch (error: any) {
+      console.error('Listener chat error:', error);
+      res.status(500).json({ message: 'Something went wrong' });
     }
   });
 

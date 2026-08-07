@@ -284,63 +284,68 @@ export interface SpotifyPlaylist {
 
 export async function createOrGetBriefingsPlaylist(userId: string): Promise<SpotifyPlaylist | null> {
   const accessToken = await getValidAccessToken(userId);
-  if (!accessToken) return null;
-
-  try {
-    const existingPlaylists = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    
-    if (!existingPlaylists.ok) return null;
-    
-    const playlistsData = await existingPlaylists.json();
-    const podlogixPlaylist = playlistsData.items?.find((p: any) => p.name === 'Podlogix Recommendations');
-    
-    if (podlogixPlaylist) {
-      return {
-        id: podlogixPlaylist.id,
-        name: podlogixPlaylist.name,
-        description: podlogixPlaylist.description,
-        imageUrl: podlogixPlaylist.images?.[0]?.url || null,
-        tracksTotal: podlogixPlaylist.tracks?.total || 0,
-        externalUrl: podlogixPlaylist.external_urls?.spotify,
-      };
-    }
-
-    const connection = await storage.getSpotifyConnection(userId);
-    if (!connection?.spotifyUserId) return null;
-
-    const createResponse = await fetch(`https://api.spotify.com/v1/users/${connection.spotifyUserId}/playlists`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: 'Podlogix Recommendations',
-        description: 'Episodes recommended by Podlogix based on your interests',
-        public: false,
-      }),
-    });
-
-    if (!createResponse.ok) {
-      console.error('Failed to create playlist:', await createResponse.text());
-      return null;
-    }
-
-    const newPlaylist = await createResponse.json();
-    return {
-      id: newPlaylist.id,
-      name: newPlaylist.name,
-      description: newPlaylist.description,
-      imageUrl: newPlaylist.images?.[0]?.url || null,
-      tracksTotal: 0,
-      externalUrl: newPlaylist.external_urls?.spotify,
-    };
-  } catch (error) {
-    console.error('Error creating/getting playlist:', error);
-    return null;
+  if (!accessToken) {
+    throw new Error('No valid Spotify access token — try disconnecting and reconnecting Spotify');
   }
+
+  // Fetch existing playlists
+  const existingPlaylists = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+
+  if (!existingPlaylists.ok) {
+    const body = await existingPlaylists.text();
+    console.error(`Spotify GET /me/playlists failed (${existingPlaylists.status}):`, body);
+    throw new Error(`Spotify playlist fetch failed (${existingPlaylists.status}): ${body.slice(0, 200)}`);
+  }
+
+  const playlistsData = await existingPlaylists.json();
+  const podlogixPlaylist = playlistsData.items?.find((p: any) => p.name === 'Podlogix Recommendations');
+
+  if (podlogixPlaylist) {
+    return {
+      id: podlogixPlaylist.id,
+      name: podlogixPlaylist.name,
+      description: podlogixPlaylist.description || null,
+      imageUrl: podlogixPlaylist.images?.[0]?.url || null,
+      tracksTotal: podlogixPlaylist.tracks?.total || 0,
+      externalUrl: podlogixPlaylist.external_urls?.spotify || '',
+    };
+  }
+
+  const connection = await storage.getSpotifyConnection(userId);
+  if (!connection?.spotifyUserId) {
+    throw new Error('Spotify user ID not stored — please disconnect and reconnect Spotify');
+  }
+
+  const createResponse = await fetch(`https://api.spotify.com/v1/users/${connection.spotifyUserId}/playlists`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'Podlogix Recommendations',
+      description: 'Episodes recommended by Podlogix based on your interests',
+      public: false,
+    }),
+  });
+
+  if (!createResponse.ok) {
+    const body = await createResponse.text();
+    console.error(`Spotify POST /users/.../playlists failed (${createResponse.status}):`, body);
+    throw new Error(`Spotify playlist creation failed (${createResponse.status}): ${body.slice(0, 200)}`);
+  }
+
+  const newPlaylist = await createResponse.json();
+  return {
+    id: newPlaylist.id,
+    name: newPlaylist.name,
+    description: newPlaylist.description || null,
+    imageUrl: newPlaylist.images?.[0]?.url || null,
+    tracksTotal: 0,
+    externalUrl: newPlaylist.external_urls?.spotify || '',
+  };
 }
 
 export async function searchSpotifyEpisode(userId: string, podcastName: string, episodeTitle: string): Promise<string | null> {
