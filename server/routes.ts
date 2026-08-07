@@ -1611,9 +1611,7 @@ export async function registerRoutes(
   app.get('/api/listener/spotify/auth', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.headers.host;
-      const redirectUri = `${protocol}://${host}/api/listener/spotify/callback`;
+      const redirectUri = `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}/api/listener/spotify/callback`;
       
       const authUrl = getSpotifyAuthUrl(redirectUri, userId);
       res.json({ authUrl });
@@ -1642,9 +1640,7 @@ export async function registerRoutes(
         return res.redirect('/listener?spotify_error=auth_failed');
       }
 
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.headers.host;
-      const redirectUri = `${protocol}://${host}/api/listener/spotify/callback`;
+      const redirectUri = `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}/api/listener/spotify/callback`;
 
       const tokens = await exchangeCodeForTokens(code as string, redirectUri);
       const profile = await getSpotifyUserProfile(tokens.accessToken);
