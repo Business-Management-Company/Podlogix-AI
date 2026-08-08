@@ -37,6 +37,7 @@ import VideoAnalysis from "@/pages/VideoAnalysis";
 import SocialHub from "@/pages/SocialHub";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import ClientPortal from "@/pages/ClientPortal";
+import AccountSettings from "@/pages/AccountSettings";
 
 function AuthenticatedRoutes() {
   return (
@@ -64,6 +65,7 @@ function AuthenticatedRoutes() {
         <Route path="/connectors" component={Connectors} />
         <Route path="/identity" component={IdentityHub} />
         <Route path="/help" component={KnowledgeBase} />
+        <Route path="/settings" component={AccountSettings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

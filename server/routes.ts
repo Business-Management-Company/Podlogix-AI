@@ -215,7 +215,57 @@ export async function registerRoutes(
   // Setup auth before other routes
   await setupAuth(app);
   registerAuthRoutes(app);
-  
+
+  // ── User profile self-service routes ──────────────────────────────────────
+  // PATCH /api/user/profile — update own name or profileImageUrl
+  app.patch("/api/user/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const { firstName, lastName, profileImageUrl } = req.body ?? {};
+      const updated = await authStorage.updateUserProfile(userId, {
+        ...(firstName !== undefined ? { firstName } : {}),
+        ...(lastName !== undefined ? { lastName } : {}),
+        ...(profileImageUrl !== undefined ? { profileImageUrl } : {}),
+      });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating user profile:", err);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // POST /api/user/change-password — change own password (requires current password)
+  app.post("/api/user/change-password", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const { currentPassword, newPassword } = req.body ?? {};
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "currentPassword and newPassword are required" });
+      }
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+      const user = await authStorage.getUser(userId);
+      if (!user?.passwordHash) {
+        return res.status(400).json({ message: "No password set on this account" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+      const hash = await bcrypt.hash(newPassword, 10);
+      await authStorage.setPassword(userId, hash);
+      res.json({ message: "Password changed successfully" });
+    } catch (err) {
+      console.error("Error changing password:", err);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
   // Register AI chat routes
   registerChatRoutes(app);
   
