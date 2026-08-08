@@ -221,7 +221,7 @@ export async function registerRoutes(
   // PATCH /api/user/profile — update own name or profileImageUrl
   app.patch("/api/user/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.id ?? req.user?.claims?.sub;
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       if (!userId) return res.status(401).json({ message: "Unauthorized" });
       const { firstName, lastName, profileImageUrl, phone, zipCode, bio } = req.body ?? {};
       const updated = await authStorage.updateUserProfile(userId, {
@@ -243,7 +243,7 @@ export async function registerRoutes(
   // POST /api/user/change-password — change own password (requires current password)
   app.post("/api/user/change-password", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.id ?? req.user?.claims?.sub;
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       if (!userId) return res.status(401).json({ message: "Unauthorized" });
       const { currentPassword, newPassword } = req.body ?? {};
       if (!currentPassword || !newPassword) {
