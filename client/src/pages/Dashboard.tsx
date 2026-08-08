@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Rss,
@@ -19,12 +18,9 @@ import {
   Share2,
   Mic,
   BarChart3,
-  ChevronRight,
-  Play,
   TrendingUp,
-  Users,
+  ChevronRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
 
 interface DashboardData {
   profile: {
@@ -33,108 +29,53 @@ interface DashboardData {
     displayName: string;
     isPublished: boolean;
   } | null;
-  podcasts: Array<{
-    id: string;
-    title: string;
-  }>;
+  podcasts: Array<{ id: string; title: string }>;
   hasRssFeed: boolean;
   distributionStatus: Record<string, string>;
 }
 
 const SETUP_STEPS = [
   {
-    id: 'profile',
-    title: 'Create your Link Page',
-    description: 'Set up your public profile with links and social channels',
-    href: '/dashboard/profile',
+    id: "profile",
+    title: "Create your Link Page",
+    description: "Set up your public profile with links and social channels",
+    href: "/dashboard/profile",
     icon: Link2,
-    color: 'text-violet-500',
-    bg: 'bg-violet-500/10',
+    accent: "#6366f1",
   },
   {
-    id: 'rss',
-    title: 'Connect your RSS feed',
-    description: 'Import your podcast episodes from your RSS feed',
-    href: '/dashboard/rss',
+    id: "rss",
+    title: "Connect an RSS feed",
+    description: "Import your podcast episodes from your RSS feed",
+    href: "/dashboard/rss",
     icon: Rss,
-    color: 'text-orange-500',
-    bg: 'bg-orange-500/10',
+    accent: "#f97316",
   },
   {
-    id: 'distribution',
-    title: 'Distribute to platforms',
-    description: 'Submit your podcast to Spotify, Apple, YouTube and more',
-    href: '/dashboard/distribution',
+    id: "distribution",
+    title: "Distribute to platforms",
+    description: "Submit your podcast to Spotify, Apple, YouTube and more",
+    href: "/dashboard/distribution",
     icon: Share2,
-    color: 'text-sky-500',
-    bg: 'bg-sky-500/10',
+    accent: "#0ea5e9",
   },
   {
-    id: 'voice',
-    title: 'Protect your voice',
-    description: 'Certify your voice on the blockchain',
-    href: '/dashboard/certify',
+    id: "voice",
+    title: "Protect your voice",
+    description: "Certify your voice identity on the blockchain",
+    href: "/dashboard/certify",
     icon: Shield,
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/10',
+    accent: "#10b981",
   },
 ];
 
-const QUICK_ACTIONS = [
-  {
-    title: 'AI Assistant',
-    description: 'Generate show notes, transcripts & clips',
-    href: '/dashboard/ai',
-    icon: Sparkles,
-    color: 'text-violet-500',
-    bg: 'from-violet-500/10 to-violet-500/5',
-    border: 'border-violet-500/20',
-  },
-  {
-    title: 'RSS Feeds',
-    description: 'Manage your podcast feeds',
-    href: '/dashboard/rss',
-    icon: Rss,
-    color: 'text-orange-500',
-    bg: 'from-orange-500/10 to-orange-500/5',
-    border: 'border-orange-500/20',
-  },
-  {
-    title: 'Social Hub',
-    description: 'Post across all platforms at once',
-    href: '/dashboard/social-hub',
-    icon: Share2,
-    color: 'text-sky-500',
-    bg: 'from-sky-500/10 to-sky-500/5',
-    border: 'border-sky-500/20',
-  },
-  {
-    title: 'Email Hub',
-    description: 'Email guests, subscribers & sponsors',
-    href: '/dashboard/email',
-    icon: Mail,
-    color: 'text-rose-500',
-    bg: 'from-rose-500/10 to-rose-500/5',
-    border: 'border-rose-500/20',
-  },
-  {
-    title: 'Distribution',
-    description: 'Submit to Spotify, Apple & more',
-    href: '/dashboard/distribution',
-    icon: TrendingUp,
-    color: 'text-emerald-500',
-    bg: 'from-emerald-500/10 to-emerald-500/5',
-    border: 'border-emerald-500/20',
-  },
-  {
-    title: 'Voice Protection',
-    description: 'Blockchain-certified voice identity',
-    href: '/identity',
-    icon: Shield,
-    color: 'text-amber-500',
-    bg: 'from-amber-500/10 to-amber-500/5',
-    border: 'border-amber-500/20',
-  },
+const TOOLS = [
+  { title: "RSS Feeds", description: "Manage your podcast feeds", href: "/dashboard/rss", icon: Rss },
+  { title: "Distribution", description: "Submit to Spotify, Apple & more", href: "/dashboard/distribution", icon: TrendingUp },
+  { title: "Social Hub", description: "Post across all platforms at once", href: "/dashboard/social-hub", icon: Share2 },
+  { title: "Email Hub", description: "Email guests, subscribers & sponsors", href: "/dashboard/email", icon: Mail },
+  { title: "Analytics", description: "Track your audience growth", href: "/listener/analytics", icon: BarChart3 },
+  { title: "Voice Protection", description: "Blockchain-certified voice identity", href: "/identity", icon: Shield },
 ];
 
 export default function Dashboard() {
@@ -143,73 +84,81 @@ export default function Dashboard() {
   const { toast } = useToast();
 
   const { data: dashboardData, isLoading: dataLoading } = useQuery<DashboardData>({
-    queryKey: ['/api/dashboard'],
+    queryKey: ["/api/dashboard"],
     enabled: isAuthenticated,
   });
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      toast({ title: "Please log in", description: "Redirecting to login...", variant: "destructive" });
+      toast({ title: "Please log in", variant: "destructive" });
       setTimeout(() => { window.location.href = "/login"; }, 500);
     }
   }, [authLoading, isAuthenticated, toast]);
 
   if (authLoading || dataLoading) {
     return (
-      <div className="p-8 space-y-6">
-        <Skeleton className="h-24 w-full rounded-2xl" />
+      <div className="p-8 space-y-4">
+        <Skeleton className="h-10 w-64" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
       </div>
     );
   }
 
-  const checklistItems = SETUP_STEPS.map(step => ({
+  const checklistItems = SETUP_STEPS.map((step) => ({
     ...step,
-    completed: step.id === 'profile'
-      ? !!dashboardData?.profile
-      : step.id === 'rss'
-      ? !!dashboardData?.hasRssFeed
-      : step.id === 'distribution'
-      ? Object.values(dashboardData?.distributionStatus || {}).some(s => s === 'submitted' || s === 'approved')
-      : false,
+    completed:
+      step.id === "profile"
+        ? !!dashboardData?.profile
+        : step.id === "rss"
+        ? !!dashboardData?.hasRssFeed
+        : step.id === "distribution"
+        ? Object.values(dashboardData?.distributionStatus || {}).some(
+            (s) => s === "submitted" || s === "approved"
+          )
+        : false,
   }));
 
-  const completedCount = checklistItems.filter(i => i.completed).length;
+  const completedCount = checklistItems.filter((i) => i.completed).length;
   const allDone = completedCount === 4;
   const progressPct = Math.round((completedCount / 4) * 100);
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full bg-background">
 
-      {/* Hero banner */}
-      <div className="bg-gradient-to-br from-[#0D1B2A] to-[#1a2e45] border-b border-white/[0.06] px-8 py-7">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ── Page header ─────────────────────────────────────────────────── */}
+      <div className="px-8 pt-8 pb-6 border-b">
+        <div className="max-w-5xl mx-auto flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">
-              {allDone ? `Welcome back, ${user?.firstName || 'Podcaster'}!` : `Hey ${user?.firstName || 'Podcaster'} 👋`}
+            <h1 className="text-xl font-semibold tracking-tight">
+              {allDone
+                ? `Welcome back, ${user?.firstName || "Podcaster"}`
+                : `Hey ${user?.firstName || "Podcaster"}`}
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="text-sm text-muted-foreground mt-0.5">
               {allDone
                 ? "You're fully set up. Keep creating."
-                : `${completedCount} of 4 setup steps complete — let's get your podcast live.`}
+                : `${completedCount} of 4 steps complete`}
             </p>
+
+            {/* Inline progress bar — only while setup is incomplete */}
             {!allDone && (
-              <div className="mt-3 flex items-center gap-3">
-                <div className="w-40 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="flex items-center gap-3 mt-3">
+                <div className="w-36 h-1 bg-border rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-all duration-700"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
-                <span className="text-xs text-slate-400">{progressPct}%</span>
+                <span className="text-xs text-muted-foreground">{progressPct}%</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2 shrink-0">
             {dashboardData?.profile && (
-              <Button size="sm" variant="outline" asChild className="border-white/20 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/30">
+              <Button size="sm" variant="outline" asChild>
                 <Link href={`/p/${dashboardData.profile.slug}`}>
                   <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                   View Profile
@@ -217,114 +166,101 @@ export default function Dashboard() {
               </Button>
             )}
             <Button size="sm" asChild>
-              <Link href="/dashboard/ai">
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                AI Assistant
+              <Link href="/dashboard/rss">
+                <Rss className="h-3.5 w-3.5 mr-1.5" />
+                Add Podcast
               </Link>
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 px-8 py-6 max-w-6xl mx-auto w-full space-y-7">
+      <div className="flex-1 px-8 py-7 max-w-5xl mx-auto w-full space-y-8">
 
-        {/* Setup checklist — only shown until complete */}
+        {/* ── Setup checklist ─────────────────────────────────────────────── */}
         {!allDone && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
               Get started
             </h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {checklistItems.map((item, i) => {
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {checklistItems.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Link href={item.href}>
-                      <div className={`
-                        relative flex flex-col gap-3 p-4 rounded-xl border cursor-pointer transition-all duration-150 h-full
+                  <Link key={item.id} href={item.href}>
+                    <div
+                      className={`
+                        group relative flex flex-col gap-3 p-4 rounded-xl border cursor-pointer h-full
+                        transition-all duration-150
                         ${item.completed
-                          ? 'border-border bg-muted/30 opacity-60'
-                          : 'border-border bg-card hover:border-primary/40 hover:shadow-sm'
+                          ? "border-border bg-muted/40 opacity-50 pointer-events-none"
+                          : "border-border bg-card hover:border-foreground/20 hover:shadow-sm"
                         }
-                      `}>
-                        <div className="flex items-start justify-between">
-                          <div className={`w-8 h-8 rounded-lg ${item.bg} flex items-center justify-center`}>
-                            <Icon className={`h-4 w-4 ${item.color}`} />
-                          </div>
-                          {item.completed
-                            ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                            : <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                          }
-                        </div>
-                        <div>
-                          <p className={`text-sm font-semibold leading-snug ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
-                            {item.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{item.description}</p>
-                        </div>
-                        {!item.completed && (
-                          <div className="flex items-center gap-1 text-xs text-primary font-medium mt-auto">
-                            <span>Start</span>
-                            <ChevronRight className="h-3 w-3" />
-                          </div>
-                        )}
+                      `}
+                    >
+                      {/* Left accent bar */}
+                      {!item.completed && (
+                        <span
+                          className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
+                          style={{ backgroundColor: item.accent }}
+                        />
+                      )}
+
+                      <div className="flex items-start justify-between pl-1">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                        {item.completed
+                          ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                          : <Circle className="h-4 w-4 text-border shrink-0" />
+                        }
                       </div>
-                    </Link>
-                  </motion.div>
+
+                      <div className="pl-1">
+                        <p className={`text-sm font-medium leading-snug ${item.completed ? "line-through text-muted-foreground" : ""}`}>
+                          {item.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {item.description}
+                        </p>
+                      </div>
+
+                      {!item.completed && (
+                        <div className="pl-1 flex items-center gap-1 text-xs font-medium text-foreground mt-auto">
+                          Start <ChevronRight className="h-3 w-3" />
+                        </div>
+                      )}
+                    </div>
+                  </Link>
                 );
               })}
             </div>
-          </motion.div>
+          </section>
         )}
 
-        {/* Quick actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Your tools
+        {/* ── Tools ───────────────────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Tools
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {QUICK_ACTIONS.map((action, i) => {
-              const Icon = action.icon;
+          <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+            {TOOLS.map((tool) => {
+              const Icon = tool.icon;
               return (
-                <motion.div
-                  key={action.href}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + i * 0.04 }}
-                >
-                  <Link href={action.href}>
-                    <div className={`
-                      group flex items-center gap-4 p-4 rounded-xl border ${action.border}
-                      bg-gradient-to-br ${action.bg}
-                      cursor-pointer hover:shadow-sm transition-all duration-150 hover:scale-[1.01]
-                    `}>
-                      <div className={`w-10 h-10 rounded-xl bg-background/60 border ${action.border} flex items-center justify-center shrink-0`}>
-                        <Icon className={`h-5 w-5 ${action.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold">{action.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">{action.description}</p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
+                <Link key={tool.href} href={tool.href}>
+                  <div className="group flex items-center gap-4 px-5 py-3.5 bg-card hover:bg-muted/50 transition-colors cursor-pointer">
+                    <div className="w-8 h-8 rounded-lg border border-border flex items-center justify-center shrink-0 bg-background">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
                     </div>
-                  </Link>
-                </motion.div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{tool.title}</p>
+                      <p className="text-xs text-muted-foreground">{tool.description}</p>
+                    </div>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
+                  </div>
+                </Link>
               );
             })}
           </div>
-        </motion.div>
+        </section>
 
       </div>
     </div>
