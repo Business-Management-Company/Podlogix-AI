@@ -41,6 +41,7 @@ export default function AccountSettings() {
       const updateRes = await fetch("/api/user/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ profileImageUrl: response.objectPath }),
       });
       if (!updateRes.ok) {
@@ -79,6 +80,7 @@ export default function AccountSettings() {
       const res = await fetch("/api/user/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),

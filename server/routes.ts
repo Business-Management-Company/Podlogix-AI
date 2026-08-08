@@ -223,11 +223,14 @@ export async function registerRoutes(
     try {
       const userId = req.user?.id ?? req.user?.claims?.sub;
       if (!userId) return res.status(401).json({ message: "Unauthorized" });
-      const { firstName, lastName, profileImageUrl } = req.body ?? {};
+      const { firstName, lastName, profileImageUrl, phone, zipCode, bio } = req.body ?? {};
       const updated = await authStorage.updateUserProfile(userId, {
         ...(firstName !== undefined ? { firstName } : {}),
         ...(lastName !== undefined ? { lastName } : {}),
         ...(profileImageUrl !== undefined ? { profileImageUrl } : {}),
+        ...(phone !== undefined ? { phone } : {}),
+        ...(zipCode !== undefined ? { zipCode } : {}),
+        ...(bio !== undefined ? { bio } : {}),
       });
       if (!updated) return res.status(404).json({ message: "User not found" });
       res.json(updated);
