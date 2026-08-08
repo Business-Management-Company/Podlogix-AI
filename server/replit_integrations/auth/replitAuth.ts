@@ -7,6 +7,8 @@ import { z } from "zod";
 import { db } from "../../db";
 import { adminDevDocuments } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import crypto from "crypto";
+import { Resend } from "resend";
 
 declare module "express-session" {
   interface SessionData {
@@ -37,18 +39,44 @@ export function getSession() {
   });
 }
 
+const SUPERADMIN_EMAIL = "andrew@podlogix.co";
+
 async function ensureSuperadminPassword() {
   try {
-    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.io");
+    let superadmin = await authStorage.getUserByEmail(SUPERADMIN_EMAIL);
+
+    // Legacy: migrate from old .io address if needed
+    if (!superadmin) {
+      const legacy = await authStorage.getUserByEmail("andrew@podlogix.io");
+      if (legacy) {
+        superadmin = legacy;
+        console.log("[Auth] Found legacy superadmin at .io address");
+      }
+    }
+
     if (superadmin) {
       if (!superadmin.passwordHash) {
-        const hash = await bcrypt.hash("podlogix2024", 10);
+        const hash = await bcrypt.hash("Podlogix2024!", 10);
         await authStorage.setPassword(superadmin.id, hash);
-        console.log("[Auth] Set temporary password for superadmin account");
+        console.log("[Auth] Set default password for superadmin account");
       }
       if (superadmin.role !== "superadmin") {
         await authStorage.updateUserRole(superadmin.id, "superadmin");
-        console.log("[Auth] Restored superadmin role for andrew@podlogix.io");
+        console.log("[Auth] Restored superadmin role");
+      }
+    } else {
+      // Create fresh superadmin account at .co address
+      const hash = await bcrypt.hash("Podlogix2024!", 10);
+      await authStorage.createUserWithPassword({
+        email: SUPERADMIN_EMAIL,
+        passwordHash: hash,
+        firstName: "Andrew",
+        lastName: "Appleton",
+      });
+      const created = await authStorage.getUserByEmail(SUPERADMIN_EMAIL);
+      if (created) {
+        await authStorage.updateUserRole(created.id, "superadmin");
+        console.log("[Auth] Created superadmin account for", SUPERADMIN_EMAIL);
       }
     }
   } catch (err) {
@@ -62,7 +90,8 @@ async function seedBuildPlanDocument() {
     const hasBuildPlan = existing.some((d: { title: string | null }) => d.title?.includes("BUILD PLAN"));
     if (hasBuildPlan) return;
 
-    const superadmin = await authStorage.getUserByEmail("andrew@podlogix.io");
+    const superadmin = await authStorage.getUserByEmail(SUPERADMIN_EMAIL)
+      ?? await authStorage.getUserByEmail("andrew@podlogix.io");
     if (!superadmin) return;
 
     await db.insert(adminDevDocuments).values({
@@ -450,6 +479,114 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // ── Forgot / reset password ───────────────────────────────────────────────
+  const RESET_SECRET = process.env.SESSION_SECRET || "reset-secret-change-me";
+  const RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+  function generateResetToken(userId: string, email: string): string {
+    const expiry = Date.now() + RESET_EXPIRY_MS;
+    const payload = `${userId}.${email}.${expiry}`;
+    const sig = crypto.createHmac("sha256", RESET_SECRET).update(payload).digest("hex");
+    return Buffer.from(`${payload}.${sig}`).toString("base64url");
+  }
+
+  function verifyResetToken(token: string): { userId: string; email: string } | null {
+    try {
+      const decoded = Buffer.from(token, "base64url").toString("utf8");
+      const parts = decoded.split(".");
+      if (parts.length < 4) return null;
+      const sig = parts.pop()!;
+      const expiry = Number(parts.pop()!);
+      const email = parts.pop()!;
+      const userId = parts.join(".");
+      if (Date.now() > expiry) return null;
+      const payload = `${userId}.${email}.${expiry}`;
+      const expected = crypto.createHmac("sha256", RESET_SECRET).update(payload).digest("hex");
+      if (sig !== expected) return null;
+      return { userId, email };
+    } catch {
+      return null;
+    }
+  }
+
+  async function sendResetEmail(to: string, token: string): Promise<boolean> {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      // Dev fallback: print the reset link to server logs
+      const link = `${process.env.APP_URL || "https://podlogix.io"}/reset-password?token=${token}`;
+      console.log(`[Auth] Password reset link for ${to}: ${link}`);
+      return true;
+    }
+    try {
+      const resend = new Resend(apiKey);
+      const link = `${process.env.APP_URL || "https://podlogix.io"}/reset-password?token=${token}`;
+      await resend.emails.send({
+        from: "Podlogix <no-reply@podlogix.io>",
+        to,
+        subject: "Reset your Podlogix password",
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+            <img src="https://podlogix.io/favicon.ico" width="40" style="margin-bottom:16px;border-radius:8px;" />
+            <h2 style="margin:0 0 8px;color:#111;font-size:22px;">Reset your password</h2>
+            <p style="color:#555;margin:0 0 24px;">Click the button below to set a new password. This link expires in 1 hour.</p>
+            <a href="${link}" style="display:inline-block;background:#e85d26;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Reset password</a>
+            <p style="color:#999;font-size:12px;margin:24px 0 0;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+          </div>
+        `,
+        text: `Reset your Podlogix password by visiting this link (expires in 1 hour):\n\n${link}`,
+      });
+      return true;
+    } catch (err) {
+      console.error("[Auth] Failed to send reset email:", err);
+      return false;
+    }
+  }
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body ?? {};
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      // Always respond with success to prevent email enumeration
+      const user = await authStorage.getUserByEmail(email.toLowerCase().trim());
+      if (user) {
+        const token = generateResetToken(user.id, user.email!);
+        await sendResetEmail(user.email!, token);
+      }
+      res.json({ message: "If an account with that email exists, a reset link has been sent." });
+    } catch (err) {
+      console.error("Forgot password error:", err);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body ?? {};
+      if (!token || !password) {
+        return res.status(400).json({ message: "Token and password are required" });
+      }
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+      const payload = verifyResetToken(token);
+      if (!payload) {
+        return res.status(400).json({ message: "This reset link is invalid or has expired. Please request a new one." });
+      }
+      const user = await authStorage.getUser(payload.userId);
+      if (!user) {
+        return res.status(400).json({ message: "Account not found" });
+      }
+      const hash = await bcrypt.hash(password, 10);
+      await authStorage.setPassword(user.id, hash);
+      res.json({ message: "Password updated successfully. You can now log in." });
+    } catch (err) {
+      console.error("Reset password error:", err);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
 

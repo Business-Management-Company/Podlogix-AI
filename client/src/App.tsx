@@ -38,6 +38,8 @@ import SocialHub from "@/pages/SocialHub";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import ClientPortal from "@/pages/ClientPortal";
 import AccountSettings from "@/pages/AccountSettings";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 function AuthenticatedRoutes() {
   return (
@@ -86,6 +88,8 @@ function PublicRoutes() {
       <Route path="/certificate/:id" component={Certificate} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -95,7 +99,7 @@ function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
 
-  const publicPaths = ["/", "/features", "/pricing", "/about", "/login", "/signup", "/p/", "/voice-certification", "/certificate/", "/privacy", "/terms"];
+  const publicPaths = ["/", "/features", "/pricing", "/about", "/login", "/signup", "/p/", "/voice-certification", "/certificate/", "/privacy", "/terms", "/forgot-password", "/reset-password"];
   const isPublicPath = publicPaths.some(path =>
     location === path || location.startsWith("/p/") || location.startsWith("/certificate/")
   );
