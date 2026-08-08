@@ -164,10 +164,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [location, navigate] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const [panelOpen, setPanelOpen] = useState(true);
+  const [railExpanded, setRailExpanded] = useState(false);
   const [activeMode, setActiveMode] = useState(() => getModeFromPath(location));
 
-  // Auto-switch mode when URL changes
+  // Auto-switch mode when URL changes — but don't reset mode for /help
   useEffect(() => {
+    if (location === "/help") return; // keep current mode when viewing Help
     const detected = getModeFromPath(location);
     setActiveMode(detected);
   }, [location]);
@@ -195,105 +197,142 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="flex h-screen w-full overflow-hidden bg-background">
 
       {/* ── Mode Rail ─────────────────────────────────────────────────────── */}
-      <nav className="flex flex-col w-14 shrink-0 bg-[#0D1B2A] border-r border-white/[0.06] z-20">
+      <nav className={`flex flex-col shrink-0 bg-[#0D1B2A] border-r border-white/[0.06] z-20 transition-all duration-200 overflow-hidden ${railExpanded ? "w-44" : "w-14"}`}>
 
         {/* Logo */}
-        <div className="flex items-center justify-center h-14 border-b border-white/[0.06] shrink-0">
-          <Link href="/dashboard">
-            <img src={logoImg} alt="Podlogix" className="w-7 h-7 rounded-lg" />
+        <div className="flex items-center h-14 border-b border-white/[0.06] shrink-0 px-3">
+          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+            <img src={logoImg} alt="Podlogix" className="w-7 h-7 rounded-lg shrink-0" />
+            {railExpanded && (
+              <span className="text-white text-sm font-semibold truncate">Podlogix</span>
+            )}
           </Link>
         </div>
 
         {/* Mode icons */}
-        <div className="flex flex-col items-center gap-1 py-3 flex-1">
+        <div className={`flex flex-col gap-1 py-3 flex-1 ${railExpanded ? "px-2" : "items-center"}`}>
           {MODES.map((mode) => {
             const isActive = activeMode === mode.id;
             const Icon = mode.icon;
-            return (
+            const btn = (
+              <button
+                onClick={() => {
+                  navigate(mode.items[0].url);
+                  if (!panelOpen) setPanelOpen(true);
+                }}
+                className={`
+                  relative flex items-center h-10 rounded-xl transition-all duration-150
+                  ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
+                  ${isActive ? "bg-white/10 shadow-sm" : "hover:bg-white/[0.06]"}
+                `}
+                aria-label={mode.label}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
+                )}
+                <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? mode.activeColor : "text-slate-500"}`} />
+                {railExpanded && (
+                  <span className={`text-sm truncate ${isActive ? "text-white font-medium" : "text-slate-400"}`}>
+                    {mode.label}
+                  </span>
+                )}
+              </button>
+            );
+            return railExpanded ? (
+              <div key={mode.id}>{btn}</div>
+            ) : (
               <Tooltip key={mode.id} delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => {
-                      navigate(mode.items[0].url);
-                      if (!panelOpen) setPanelOpen(true);
-                    }}
-                    className={`
-                      relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150
-                      ${isActive
-                        ? "bg-white/10 shadow-sm"
-                        : "hover:bg-white/[0.06]"
-                      }
-                    `}
-                    aria-label={mode.label}
-                  >
-                    {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
-                    )}
-                    <Icon
-                      className={`h-[18px] w-[18px] transition-colors ${isActive ? mode.activeColor : "text-slate-500 group-hover:text-slate-300"}`}
-                    />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">
-                  {mode.label}
-                </TooltipContent>
+                <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                <TooltipContent side="right" className="text-xs font-medium">{mode.label}</TooltipContent>
               </Tooltip>
             );
           })}
         </div>
 
         {/* Bottom icons */}
-        <div className="flex flex-col items-center gap-1 py-3 border-t border-white/[0.06]">
+        <div className={`flex flex-col gap-1 py-3 border-t border-white/[0.06] ${railExpanded ? "px-2" : "items-center"}`}>
+
+          {/* Expand / collapse toggle */}
+          <button
+            onClick={() => setRailExpanded(!railExpanded)}
+            className={`flex items-center h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}`}
+            aria-label={railExpanded ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            {railExpanded ? (
+              <ChevronLeft className="h-[18px] w-[18px] text-slate-500 shrink-0" />
+            ) : (
+              <ChevronRight className="h-[18px] w-[18px] text-slate-500 shrink-0" />
+            )}
+            {railExpanded && <span className="text-sm text-slate-400">Collapse</span>}
+          </button>
+
           {BOTTOM_MODES.map((item) => {
             const isActive = location.startsWith(item.urlPrefixes[0]);
             const Icon = item.icon;
-            return (
+            const btn = (
+              <Link href={item.url}>
+                <button
+                  className={`
+                    flex items-center h-10 rounded-xl transition-all duration-150
+                    ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
+                    ${isActive ? "bg-white/10" : "hover:bg-white/[0.06]"}
+                  `}
+                  aria-label={item.label}
+                >
+                  <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-slate-200" : "text-slate-500"}`} />
+                  {railExpanded && (
+                    <span className={`text-sm truncate ${isActive ? "text-slate-200" : "text-slate-400"}`}>{item.label}</span>
+                  )}
+                </button>
+              </Link>
+            );
+            return railExpanded ? (
+              <div key={item.id}>{btn}</div>
+            ) : (
               <Tooltip key={item.id} delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Link href={item.url}>
-                    <button
-                      className={`
-                        flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150
-                        ${isActive ? "bg-white/10" : "hover:bg-white/[0.06]"}
-                      `}
-                      aria-label={item.label}
-                    >
-                      <Icon className={`h-[18px] w-[18px] ${isActive ? "text-slate-200" : "text-slate-500"}`} />
-                    </button>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">
-                  {item.label}
-                </TooltipContent>
+                <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                <TooltipContent side="right" className="text-xs font-medium">{item.label}</TooltipContent>
               </Tooltip>
             );
           })}
 
           {/* Admin — only visible to admins */}
           {adminCheck?.isAdmin && (
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Link href="/admin">
-                  <button className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
-                    <ShieldCheck className="h-[18px] w-[18px] text-slate-500" />
-                  </button>
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">Admin</TooltipContent>
-            </Tooltip>
+            railExpanded ? (
+              <Link href="/admin">
+                <button className="flex items-center gap-2.5 px-3 w-full h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
+                  <ShieldCheck className="h-[18px] w-[18px] shrink-0 text-slate-500" />
+                  <span className="text-sm text-slate-400">Admin</span>
+                </button>
+              </Link>
+            ) : (
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Link href="/admin">
+                    <button className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
+                      <ShieldCheck className="h-[18px] w-[18px] text-slate-500" />
+                    </button>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs font-medium">Admin</TooltipContent>
+              </Tooltip>
+            )
           )}
 
-          {/* User avatar at the very bottom */}
+          {/* User avatar */}
           <div className="mt-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150">
-                  <Avatar className="h-7 w-7">
+                <button className={`flex items-center h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 ${railExpanded ? "gap-2.5 px-2 w-full" : "justify-center w-10"}`}>
+                  <Avatar className="h-7 w-7 shrink-0">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
                     <AvatarFallback className="text-[10px] bg-primary text-white font-semibold">
                       {user?.firstName?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
+                  {railExpanded && (
+                    <span className="text-sm text-slate-300 truncate">{user?.firstName || "Account"}</span>
+                  )}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="right" align="end" className="w-56 mb-2">
