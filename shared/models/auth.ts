@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
@@ -22,6 +22,9 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  phone: varchar("phone"),
+  zipCode: varchar("zip_code"),
+  bio: text("bio"),
   role: varchar("role").default("user"), // user, admin, superadmin
   isActive: varchar("is_active").default("true"), // true, false - for account suspension
   createdAt: timestamp("created_at").defaultNow(),
