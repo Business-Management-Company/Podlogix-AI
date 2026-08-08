@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, Loader2, User, Mail, Lock, CheckCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useUpload } from "@/hooks/use-upload";
 
 export default function AccountSettings() {
   const { user } = useAuth();
@@ -20,7 +21,6 @@ export default function AccountSettings() {
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [profileSaving, setProfileSaving] = useState(false);
-  const [photoUploading, setPhotoUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Password form state
@@ -28,6 +28,27 @@ export default function AccountSettings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: async (response) => {
+      // Save the public objectPath to the user record
+      const updateRes = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileImageUrl: response.objectPath }),
+      });
+      if (!updateRes.ok) {
+        toast({ title: "Photo uploaded but failed to save — try again", variant: "destructive" });
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Photo updated" });
+    },
+    onError: (err) => {
+      setPreviewUrl(null);
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const initials = [user?.firstName, user?.lastName]
     .filter(Boolean)
@@ -42,44 +63,8 @@ export default function AccountSettings() {
     if (!file) return;
 
     // Show local preview immediately
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-    setPhotoUploading(true);
-
-    try {
-      // 1. Get a pre-signed upload URL from our server
-      const res = await fetch("/api/uploads/request-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-      });
-      if (!res.ok) throw new Error("Could not get upload URL");
-      const { uploadURL, objectPath } = await res.json();
-
-      // 2. PUT the file directly to Supabase Storage
-      const putRes = await fetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error("Upload failed");
-
-      // 3. Save the public URL (objectPath) on the user record
-      const updateRes = await fetch("/api/user/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileImageUrl: objectPath }),
-      });
-      if (!updateRes.ok) throw new Error("Could not save photo");
-
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      toast({ title: "Photo updated" });
-    } catch (err: any) {
-      setPreviewUrl(null);
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
-    } finally {
-      setPhotoUploading(false);
-    }
+    setPreviewUrl(URL.createObjectURL(file));
+    await uploadFile(file);
   }
 
   // ── Name / profile save ───────────────────────────────────────────────────────
@@ -92,7 +77,10 @@ export default function AccountSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstName: firstName.trim(), lastName: lastName.trim() }),
       });
-      if (!res.ok) throw new Error("Could not save profile");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? "Could not save profile");
+      }
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "Profile saved" });
     } catch (err: any) {
@@ -154,7 +142,7 @@ export default function AccountSettings() {
               Profile Photo
             </CardTitle>
             <CardDescription>
-              This photo appears in the navigation bar and notifications. It's separate from your public link page photo.
+              This photo appears in the navigation bar. It's separate from your public link page photo.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-6">
@@ -167,10 +155,10 @@ export default function AccountSettings() {
               </Avatar>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={photoUploading}
+                disabled={isUploading}
                 className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
-                {photoUploading ? (
+                {isUploading ? (
                   <Loader2 className="h-5 w-5 text-white animate-spin" />
                 ) : (
                   <Camera className="h-5 w-5 text-white" />
@@ -191,10 +179,10 @@ export default function AccountSettings() {
                 variant="outline"
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={photoUploading}
+                disabled={isUploading}
                 className="mt-2"
               >
-                {photoUploading ? (
+                {isUploading ? (
                   <>
                     <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
                     Uploading…

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured } from "./services/supabaseStorageService";
@@ -252,13 +253,12 @@ export async function registerRoutes(
       if (!user?.passwordHash) {
         return res.status(400).json({ message: "No password set on this account" });
       }
-      const bcrypt = await import("bcryptjs");
       const valid = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!valid) {
         return res.status(401).json({ message: "Current password is incorrect" });
       }
-      const hash = await bcrypt.hash(newPassword, 10);
-      await authStorage.setPassword(userId, hash);
+      const newHash = await bcrypt.hash(newPassword, 10);
+      await authStorage.setPassword(userId, newHash);
       res.json({ message: "Password changed successfully" });
     } catch (err) {
       console.error("Error changing password:", err);
