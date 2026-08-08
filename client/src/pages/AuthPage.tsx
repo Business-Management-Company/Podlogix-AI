@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import logoImg from "@assets/Seeksy_logo_1771103113779.png";
 
@@ -30,6 +30,8 @@ type SignupValues = z.infer<typeof signupSchema>;
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [showLoginPw, setShowLoginPw] = useState(false);
+  const [showSignupPw, setShowSignupPw] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -145,12 +147,24 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Password</FormLabel>
                           <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Your password"
-                              data-testid="input-password"
-                              {...field}
-                            />
+                            <div className="relative">
+                              <Input
+                                type={showLoginPw ? "text" : "password"}
+                                placeholder="Your password"
+                                data-testid="input-password"
+                                className="pr-10"
+                                {...field}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowLoginPw((v) => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                tabIndex={-1}
+                                aria-label={showLoginPw ? "Hide password" : "Show password"}
+                              >
+                                {showLoginPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -237,12 +251,24 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Password</FormLabel>
                           <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="At least 6 characters"
-                              data-testid="input-password"
-                              {...field}
-                            />
+                            <div className="relative">
+                              <Input
+                                type={showSignupPw ? "text" : "password"}
+                                placeholder="At least 6 characters"
+                                data-testid="input-password"
+                                className="pr-10"
+                                {...field}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowSignupPw((v) => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                tabIndex={-1}
+                                aria-label={showSignupPw ? "Hide password" : "Show password"}
+                              >
+                                {showSignupPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
