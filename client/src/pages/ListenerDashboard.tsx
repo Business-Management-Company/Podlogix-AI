@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Mic,
+  PanelLeft,
   Headphones,
   Rss,
   Sparkles,
@@ -617,19 +618,27 @@ export default function ListenerDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+      {/* Thin collapsible icon rail */}
+      <aside className="hidden md:flex fixed inset-y-0 left-0 w-14 flex-col items-center border-r border-border bg-card z-[10000]">
+        <div className="h-14 w-full flex items-center justify-center border-b border-border">
+          <PanelLeft className="h-4 w-4 text-foreground" />
+        </div>
+      </aside>
+
+      <div className="md:pl-14">
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-[9999]">
+        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4 max-w-7xl">
           <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
+            <div className="w-8 h-8 rounded-[9px] bg-primary flex items-center justify-center text-primary-foreground">
               <Headphones className="w-5 h-5" />
             </div>
-            <span className="font-display font-bold text-xl">Podlogix Listener</span>
+            <span className="font-display font-bold text-xl text-foreground tracking-tight">Podlogix Listener</span>
           </Link>
 
           <div className="flex items-center gap-4">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" asChild data-testid="link-creator-dashboard">
+                <Button variant="outline" size="sm" asChild className="!border-[#053876]" data-testid="link-creator-dashboard">
                   <Link href="/dashboard">
                     <Mic className="h-4 w-4 mr-2" />
                     Creator Mode
@@ -677,7 +686,7 @@ export default function ListenerDashboard() {
             </Avatar>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
+                <Button variant="outline" size="sm" onClick={() => logout()} className="!border-[#053876]" data-testid="button-logout">
                   <LogOut className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -690,13 +699,14 @@ export default function ListenerDashboard() {
       <main className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
         {/* Compact action row */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h1 className="text-xl font-bold" data-testid="text-welcome">Podcast Briefings</h1>
+          <h1 className="text-xl font-bold text-foreground" data-testid="text-welcome">Podcast Briefings</h1>
           <div className="flex items-center gap-2 flex-wrap">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="!border-[#053876]"
                   onClick={() => syncEpisodesMutation.mutate()}
                   disabled={syncEpisodesMutation.isPending}
                   data-testid="button-sync"
@@ -716,6 +726,7 @@ export default function ListenerDashboard() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="!border-[#053876]"
                   onClick={() => autoBriefingsMutation.mutate()}
                   disabled={autoBriefingsMutation.isPending || interests.length === 0}
                   data-testid="button-auto-briefings"
@@ -1129,7 +1140,7 @@ export default function ListenerDashboard() {
                       const inPlaylist = spotifyPlaylistPodcasts.has(sub.id);
 
                       return (
-                        <Card key={sub.id} className={`transition-all ${isExpanded ? 'ring-2 ring-primary/30' : 'hover-elevate'}`}>
+                        <Card key={sub.id} className={`!border-[#053876] rounded-xl transition-all ${isExpanded ? 'ring-2 ring-primary/30' : 'hover-elevate'}`}>
                           <CardContent className="p-0">
                             {/* Podcast header row — clicking expands */}
                             <div
@@ -1146,7 +1157,7 @@ export default function ListenerDashboard() {
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className="text-xs text-muted-foreground">{subEpisodes.length} episode{subEpisodes.length !== 1 ? 's' : ''}</span>
                                   {sub.spotifyShowId && (
-                                    <Badge variant="secondary" className="text-xs py-0">
+                                    <Badge variant="secondary" className="text-xs py-0 font-semibold">
                                       <SiSpotify className="h-3 w-3 mr-1" />
                                       Spotify
                                     </Badge>
@@ -1160,7 +1171,7 @@ export default function ListenerDashboard() {
                                       <Button
                                         size="sm"
                                         variant={inPlaylist ? "default" : "outline"}
-                                        className={inPlaylist ? "bg-green-500 hover:bg-green-600 text-white border-green-500" : ""}
+                                        className={inPlaylist ? "bg-green-500 hover:bg-green-600 text-white border-green-500" : "!border-[#053876]"}
                                         onClick={() => togglePlaylistPodcast(sub.id)}
                                         data-testid={`button-playlist-toggle-${sub.id}`}
                                       >
@@ -1250,10 +1261,10 @@ export default function ListenerDashboard() {
           </div>
 
           <div className="space-y-6">
-            <Card>
+            <Card className="!border-[#053876]">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
+                  <CardTitle className="text-lg flex items-center gap-2 font-display tracking-tight">
                     <Tag className="h-5 w-5" />
                     Your Interests
                   </CardTitle>
@@ -1261,7 +1272,7 @@ export default function ListenerDashboard() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" data-testid="button-add-interest">
+                          <Button size="sm" variant="outline" className="!border-[#053876]" data-testid="button-add-interest">
                             <Plus className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
@@ -1340,9 +1351,9 @@ export default function ListenerDashboard() {
                       <div key={interest.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                         <div className="flex items-center gap-2">
                           <Badge variant={
-                            interest.priority === 'high' ? 'default' : 
+                            interest.priority === 'high' ? 'default' :
                             interest.priority === 'medium' ? 'secondary' : 'outline'
-                          } className="text-xs">
+                          } className="text-xs font-semibold">
                             {interest.priority}
                           </Badge>
                           <span className="text-sm font-medium">{interest.topic}</span>
@@ -1361,9 +1372,9 @@ export default function ListenerDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="!border-[#053876]">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
+                <CardTitle className="text-lg flex items-center gap-2 font-display tracking-tight">
                   <SiSpotify className="h-5 w-5 text-green-500" />
                   Spotify
                 </CardTitle>
@@ -1399,7 +1410,7 @@ export default function ListenerDashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full"
+                        className="w-full !border-[#053876]"
                         onClick={() => syncSmartPlaylistMutation.mutate([...spotifyPlaylistPodcasts])}
                         disabled={syncSmartPlaylistMutation.isPending || spotifyPlaylistPodcasts.size === 0}
                         data-testid="button-sync-smart-playlist"
@@ -1612,6 +1623,7 @@ export default function ListenerDashboard() {
         >
           {aiChatOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         </button>
+      </div>
       </div>
     </div>
   );
