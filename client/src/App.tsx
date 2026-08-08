@@ -5,6 +5,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { AppLayout } from "@/components/AppLayout";
+import { PlaceholderPage } from "@/components/kit";
+import {
+  Mic,
+  LayoutDashboard,
+  List,
+  Megaphone,
+  Users,
+  Briefcase,
+  Fingerprint,
+  Settings2,
+  Library,
+  Users2,
+} from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import AuthPage from "@/pages/AuthPage";
@@ -46,53 +59,15 @@ import Connectors from "@/pages/Connectors";
 import IdentityHub from "@/pages/IdentityHub";
 import ClientPortal from "@/pages/ClientPortal";
 
-// ─── Stub pages for new nav sections ─────────────────────────────────────────
-
-function StubPage({ title, description }: { title: string; description: string }) {
-  return (
-    <div
-      style={{
-        maxWidth: 520,
-        margin: "80px auto",
-        padding: "0 32px",
-        textAlign: "center",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 14,
-          background: "rgba(16,185,129,0.08)",
-          border: "1px solid rgba(16,185,129,0.15)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          margin: "0 auto 20px",
-        }}
-      >
-        <span style={{ fontSize: 22 }}>🚧</span>
-      </div>
-      <h2
-        style={{
-          fontSize: 20,
-          fontWeight: 600,
-          color: "#09090b",
-          letterSpacing: "-0.03em",
-          marginBottom: 8,
-        }}
-      >
-        {title}
-      </h2>
-      <p style={{ fontSize: 14, color: "#71717a", lineHeight: 1.6 }}>{description}</p>
-    </div>
-  );
-}
+// ─── Placeholder pages for new nav sections ───────────────────────────────────
+// Every one of these is a real destination in the information architecture —
+// they just don't have a built experience yet. PlaceholderPage keeps them
+// feeling intentional instead of broken.
 
 function PodcastsPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Mic}
       title="Podcasts"
       description="Your shows will live here. Each podcast is a first-class object with its own episodes, audience, and business relationships."
     />
@@ -101,7 +76,8 @@ function PodcastsPage() {
 
 function ShowOverviewPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={LayoutDashboard}
       title="Show Overview"
       description="Performance at a glance — recent episode metrics, distribution status, audience growth, and active campaigns for this show."
     />
@@ -110,7 +86,8 @@ function ShowOverviewPage() {
 
 function ShowEpisodesPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={List}
       title="Episodes"
       description="All episodes for this show in list, pipeline, and calendar views. Full lifecycle management from idea to published."
     />
@@ -119,7 +96,8 @@ function ShowEpisodesPage() {
 
 function ShowCampaignsPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Megaphone}
       title="Campaigns"
       description="Promotional campaigns scoped to this show — social posts, newsletters, clips, and cross-promotions."
     />
@@ -128,7 +106,8 @@ function ShowCampaignsPage() {
 
 function ShowAudiencePage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Users}
       title="Audience"
       description="This show's listeners, download trends, subscriber growth, and audience segments."
     />
@@ -137,7 +116,8 @@ function ShowAudiencePage() {
 
 function ShowBusinessPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Briefcase}
       title="Business"
       description="Guests booked and appeared on this show, sponsors running on this show, and revenue attributed to it."
     />
@@ -146,7 +126,8 @@ function ShowBusinessPage() {
 
 function ShowIdentityPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Fingerprint}
       title="Identity"
       description="Voice certification and likeness protection for this show's hosts."
     />
@@ -155,7 +136,8 @@ function ShowIdentityPage() {
 
 function ShowSettingsPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Settings2}
       title="Show Settings"
       description="Show name, description, categories, artwork, and your podcast host connection."
     />
@@ -164,7 +146,8 @@ function ShowSettingsPage() {
 
 function CampaignsPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Megaphone}
       title="Campaigns"
       description="Workspace-level campaigns spanning multiple shows — social content, email, clips, sponsorship activations, and launch campaigns."
     />
@@ -173,7 +156,8 @@ function CampaignsPage() {
 
 function AudiencePage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Users}
       title="Audience"
       description="Your total audience across all shows. Downloads, platform breakdown, subscriber data, segments, and engagement analytics."
     />
@@ -182,7 +166,8 @@ function AudiencePage() {
 
 function BusinessPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Briefcase}
       title="Business"
       description="Guests, sponsors, and revenue relationships across your entire podcast operation."
     />
@@ -191,7 +176,8 @@ function BusinessPage() {
 
 function LibraryPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Library}
       title="Library"
       description="Assets and documents — artwork, audio files, templates, SOPs, show notes, contracts, and briefs."
     />
@@ -200,7 +186,8 @@ function LibraryPage() {
 
 function TeamPage() {
   return (
-    <StubPage
+    <PlaceholderPage
+      icon={Users2}
       title="Team"
       description="Workspace members, roles, and permissions. Invite producers, editors, and collaborators."
     />

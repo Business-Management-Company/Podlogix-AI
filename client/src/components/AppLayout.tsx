@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Zap,
@@ -19,12 +20,34 @@ import {
   Settings2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
   Send,
   Headphones,
+  Search,
+  Bell,
+  LogOut,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { pageIn } from "@/components/kit";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -90,6 +113,28 @@ function isActive(location: string, href: string, exact?: boolean): boolean {
   return location.startsWith(href);
 }
 
+// ─── Page title lookup (top bar) ───────────────────────────────────────────────
+
+const EXTRA_TITLES: Record<string, string> = {
+  "/settings": "Account Settings",
+  "/help": "Help Center",
+  "/admin": "Admin",
+  "/saas-admin": "SaaS Admin",
+  "/client": "Client Portal",
+  "/brand": "Brand Dashboard",
+};
+
+function getPageTitle(location: string): string {
+  const navItem = [...WORKSPACE_MAIN, ...WORKSPACE_UTIL].find((item) =>
+    isActive(location, item.href, item.exact)
+  );
+  return navItem?.label ?? EXTRA_TITLES[location] ?? "Podlogix";
+}
+
+// ─── Command palette items ─────────────────────────────────────────────────────
+
+const PALETTE_ITEMS: NavItem[] = [...WORKSPACE_MAIN, ...WORKSPACE_UTIL];
+
 // ─── SidebarItem ─────────────────────────────────────────────────────────────
 
 function SbItem({
@@ -118,8 +163,7 @@ function SbItem({
           height: 34,
           borderRadius: 7,
           cursor: "pointer",
-          transition: `background 120ms, color 120ms`,
-          background: active ? SB_ACTIVE : hover && !active ? SB_HOVER : "transparent",
+          transition: "color 120ms",
           color: active ? SB_TEXT_ACT : hover ? SB_TEXT_H : SB_TEXT,
           margin: "1px 6px",
           overflow: "hidden",
@@ -127,7 +171,19 @@ function SbItem({
           position: "relative",
         }}
       >
-        {/* Active indicator */}
+        {/* Sliding active/hover background — shares a layoutId so it glides
+            between nav items instead of popping when the route changes. */}
+        {active ? (
+          <motion.span
+            layoutId="sb-active-pill"
+            transition={{ type: "spring", stiffness: 500, damping: 40, mass: 0.4 }}
+            style={{ position: "absolute", inset: 0, borderRadius: 7, background: SB_ACTIVE }}
+          />
+        ) : hover ? (
+          <span style={{ position: "absolute", inset: 0, borderRadius: 7, background: SB_HOVER }} />
+        ) : null}
+
+        {/* Active indicator bar */}
         {active && (
           <span
             style={{
@@ -139,6 +195,7 @@ function SbItem({
               height: 16,
               borderRadius: 1,
               background: GREEN,
+              zIndex: 1,
             }}
           />
         )}
@@ -148,6 +205,10 @@ function SbItem({
             flexShrink: 0,
             color: active ? GREEN : "inherit",
             marginLeft: active && !collapsed ? 2 : 0,
+            position: "relative",
+            zIndex: 1,
+            transition: "transform 150ms",
+            transform: hover && !active ? "scale(1.08)" : "scale(1)",
           }}
         />
         {!collapsed && (
@@ -159,6 +220,8 @@ function SbItem({
               flex: 1,
               overflow: "hidden",
               textOverflow: "ellipsis",
+              position: "relative",
+              zIndex: 1,
             }}
           >
             {item.label}
@@ -350,10 +413,28 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
-  const { user } = useAuth();
+  const [location, setLocation] = useLocation();
+  const { user, logout, isLoggingOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // ⌘K / Ctrl+K opens the quick-nav palette from anywhere in the app.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  function goTo(href: string) {
+    setPaletteOpen(false);
+    setLocation(href);
+  }
 
   // Detect show context from URL: /podcasts/:id or /podcasts/:id/*
   const showMatch = location.match(/^\/podcasts\/([^/]+)(?:\/|$)/);
@@ -621,56 +702,97 @@ export function AppLayout({ children }: AppLayoutProps) {
             ))}
 
           {/* User avatar */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              padding: collapsed ? "6px 8px" : "6px 10px",
-              margin: "4px 6px 2px",
-              borderRadius: 7,
-              cursor: "pointer",
-              transition: "background 120ms",
-            }}
-            onMouseEnter={e =>
-              ((e.currentTarget as HTMLElement).style.background = SB_HOVER)
-            }
-            onMouseLeave={e =>
-              ((e.currentTarget as HTMLElement).style.background = "transparent")
-            }
-          >
-            <Avatar style={{ width: 24, height: 24, flexShrink: 0 }}>
-              <AvatarFallback
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div
                 style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
-                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  padding: collapsed ? "6px 8px" : "6px 10px",
+                  margin: "4px 6px 2px",
+                  borderRadius: 7,
+                  cursor: "pointer",
+                  transition: "background 120ms",
                 }}
+                onMouseEnter={e =>
+                  ((e.currentTarget as HTMLElement).style.background = SB_HOVER)
+                }
+                onMouseLeave={e =>
+                  ((e.currentTarget as HTMLElement).style.background = "transparent")
+                }
               >
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            {!collapsed && (
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: SB_TEXT_ACT,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  {user?.firstName
-                    ? `${user.firstName} ${user.lastName ?? ""}`.trim()
-                    : (user?.email ?? "Account")}
-                </p>
+                <Avatar style={{ width: 24, height: 24, flexShrink: 0 }}>
+                  <AvatarFallback
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
+                      color: "white",
+                    }}
+                  >
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                {!collapsed && (
+                  <>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: SB_TEXT_ACT,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          letterSpacing: "-0.01em",
+                        }}
+                      >
+                        {user?.firstName
+                          ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+                          : (user?.email ?? "Account")}
+                      </p>
+                    </div>
+                    <ChevronDown size={12} style={{ color: SB_TEXT, flexShrink: 0 }} />
+                  </>
+                )}
               </div>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <p className="text-xs text-zinc-400">Signed in as</p>
+                <p className="truncate text-sm font-medium text-zinc-950">
+                  {user?.email ?? "—"}
+                </p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <span className="flex w-full cursor-pointer items-center gap-2">
+                    <UserCog size={14} />
+                    Account settings
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/help">
+                  <span className="flex w-full cursor-pointer items-center gap-2">
+                    <HelpCircle size={14} />
+                    Help center
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => logout()}
+                disabled={isLoggingOut}
+                className="cursor-pointer text-red-600 focus:text-red-600"
+              >
+                <LogOut size={14} />
+                {isLoggingOut ? "Logging out…" : "Log out"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -690,16 +812,16 @@ export function AppLayout({ children }: AppLayoutProps) {
             height: 52,
             display: "flex",
             alignItems: "center",
-            padding: "0 20px",
+            padding: "0 16px 0 20px",
             borderBottom: "1px solid #e4e4e7",
             flexShrink: 0,
-            gap: 8,
+            gap: 10,
             background: "#ffffff",
           }}
         >
-          {/* Breadcrumb / context label */}
-          <div style={{ flex: 1 }}>
-            {isShowContext && (
+          {/* Page title / breadcrumb */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {isShowContext ? (
               <div
                 style={{
                   display: "flex",
@@ -727,8 +849,102 @@ export function AppLayout({ children }: AppLayoutProps) {
                   {podcast?.title ?? "My Podcast"}
                 </span>
               </div>
+            ) : (
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#09090b",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {getPageTitle(location)}
+              </span>
             )}
           </div>
+
+          {/* Search / quick-nav (⌘K) */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "0 10px",
+              height: 32,
+              width: 200,
+              borderRadius: 8,
+              border: "1px solid #e4e4e7",
+              background: "#fafafa",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "background 120ms, border-color 120ms",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = "#f4f4f5";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = "#fafafa";
+            }}
+          >
+            <Search size={13} style={{ color: "#a1a1aa", flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: "#a1a1aa", flex: 1, textAlign: "left" }}>
+              Jump to…
+            </span>
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 500,
+                color: "#a1a1aa",
+                border: "1px solid #e4e4e7",
+                borderRadius: 4,
+                padding: "1px 5px",
+                flexShrink: 0,
+                background: "#ffffff",
+              }}
+            >
+              ⌘K
+            </span>
+          </button>
+
+          {/* Notifications */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: "1px solid #e4e4e7",
+                  background: "#fafafa",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#52525b",
+                  flexShrink: 0,
+                  transition: "background 120ms, color 120ms",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = "#f4f4f5";
+                  (e.currentTarget as HTMLElement).style.color = "#09090b";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = "#fafafa";
+                  (e.currentTarget as HTMLElement).style.color = "#52525b";
+                }}
+              >
+                <Bell size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-6 text-center">
+                <p className="text-xs text-zinc-400">You're all caught up.</p>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* AI button */}
           <button
@@ -751,6 +967,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               fontFamily: "inherit",
               transition: "background 120ms, color 120ms, border-color 120ms",
               borderColor: aiOpen ? "rgba(16,185,129,0.3)" : "#e4e4e7",
+              flexShrink: 0,
             }}
             onMouseEnter={e => {
               if (!aiOpen) {
@@ -778,12 +995,33 @@ export function AppLayout({ children }: AppLayoutProps) {
             background: "#ffffff",
           }}
         >
-          {children}
+          <motion.div key={location} variants={pageIn} initial="hidden" animate="show">
+            {children}
+          </motion.div>
         </div>
       </div>
 
       {/* ── AI Panel ─────────────────────────────────────────────────────── */}
       <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+
+      {/* ── Quick-nav command palette (⌘K) ──────────────────────────────────── */}
+      <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
+        <CommandInput placeholder="Jump to…" />
+        <CommandList>
+          <CommandEmpty>No matches.</CommandEmpty>
+          <CommandGroup heading="Navigate">
+            {PALETTE_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <CommandItem key={item.href} onSelect={() => goTo(item.href)}>
+                  <Icon size={14} />
+                  <span>{item.label}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </div>
   );
 }
