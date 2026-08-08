@@ -617,76 +617,6 @@ export default function ListenerDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
-              <Headphones className="w-5 h-5" />
-            </div>
-            <span className="font-display font-bold text-xl">Podlogix Listener</span>
-          </Link>
-
-          <div className="flex items-center gap-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" asChild data-testid="link-creator-dashboard">
-                  <Link href="/dashboard">
-                    <Mic className="h-4 w-4 mr-2" />
-                    Creator Mode
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Switch to podcast creator tools</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" asChild data-testid="link-analytics">
-                  <Link href="/listener/analytics">
-                    <BarChart3 className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Analytics</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" asChild data-testid="link-help">
-                  <Link href="/help">
-                    <HelpCircle className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Help & Knowledge Base</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="relative cursor-pointer">
-                  <Bell className="h-5 w-5 text-muted-foreground" />
-                  {unreadNotifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {unreadNotifications.length}
-                    </span>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Notifications</TooltipContent>
-            </Tooltip>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.profileImageUrl || undefined} />
-              <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
-            </Avatar>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => logout()} data-testid="button-logout">
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Sign out</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </header>
-
       <main className="px-6 py-6 space-y-6">
         {/* Compact action row */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -852,62 +782,50 @@ export default function ListenerDashboard() {
         {/* Stat cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div
-            className="relative overflow-hidden rounded-2xl border bg-card p-5 cursor-pointer hover:shadow-md transition-shadow group"
+            className="rounded-xl border bg-card p-4 cursor-pointer hover:border-primary/40 transition-colors"
             onClick={() => {/* navigate to podcasts tab */}}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Rss className="h-4 w-4 text-primary" />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Podcasts</span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Rss className="h-4 w-4 text-primary" />
               </div>
-              <p className="text-4xl font-black text-foreground leading-none">{subscriptions.length}</p>
-              <p className="text-sm text-muted-foreground mt-1">subscribed</p>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Podcasts</span>
             </div>
+            <p className="text-4xl font-black text-foreground leading-none">{subscriptions.length}</p>
+            <p className="text-sm text-muted-foreground mt-1">subscribed</p>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border bg-card p-5 cursor-pointer hover:shadow-md transition-shadow group">
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 rounded-lg bg-orange-500/10">
-                  <Play className="h-4 w-4 text-orange-500" />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Episodes</span>
+          <div className="rounded-xl border bg-card p-4 cursor-pointer hover:border-orange-400/40 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-orange-500/10">
+                <Play className="h-4 w-4 text-orange-500" />
               </div>
-              <p className="text-4xl font-black text-foreground leading-none">{episodes.filter(e => !e.isRead).length}</p>
-              <p className="text-sm text-muted-foreground mt-1">unread</p>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Episodes</span>
             </div>
+            <p className="text-4xl font-black text-foreground leading-none">{episodes.filter(e => !e.isRead).length}</p>
+            <p className="text-sm text-muted-foreground mt-1">unread</p>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border bg-card p-5 cursor-pointer hover:shadow-md transition-shadow group">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent" />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 rounded-lg bg-violet-500/10">
-                  <Sparkles className="h-4 w-4 text-violet-500" />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Briefings</span>
+          <div className="rounded-xl border bg-card p-4 cursor-pointer hover:border-violet-400/40 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-violet-500/10">
+                <Sparkles className="h-4 w-4 text-violet-500" />
               </div>
-              <p className="text-4xl font-black text-foreground leading-none">{briefings.length}</p>
-              <p className="text-sm text-muted-foreground mt-1">generated</p>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Briefings</span>
             </div>
+            <p className="text-4xl font-black text-foreground leading-none">{briefings.length}</p>
+            <p className="text-sm text-muted-foreground mt-1">generated</p>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border bg-card p-5 cursor-pointer hover:shadow-md transition-shadow group">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent" />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 rounded-lg bg-green-500/10">
-                  <SiSpotify className="h-4 w-4 text-green-500" />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Spotify</span>
+          <div className="rounded-xl border bg-card p-4 cursor-pointer hover:border-green-400/40 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <SiSpotify className="h-4 w-4 text-green-500" />
               </div>
-              <p className="text-4xl font-black text-foreground leading-none">{spotifyPlaylistPodcasts.size}</p>
-              <p className="text-sm text-muted-foreground mt-1">in smart playlist</p>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Spotify</span>
             </div>
+            <p className="text-4xl font-black text-foreground leading-none">{spotifyPlaylistPodcasts.size}</p>
+            <p className="text-sm text-muted-foreground mt-1">in smart playlist</p>
           </div>
         </div>
 
@@ -1195,12 +1113,12 @@ export default function ListenerDashboard() {
                           <CardContent className="p-0">
                             {/* Podcast header row — clicking expands */}
                             <div
-                              className="flex items-center gap-3 p-4 cursor-pointer select-none"
+                              className="flex items-center gap-3 p-3 cursor-pointer select-none"
                               onClick={() => setExpandedPodcastId(isExpanded ? null : sub.id)}
                             >
-                              <Avatar className="h-12 w-12 rounded flex-shrink-0">
+                              <Avatar className="h-9 w-9 rounded flex-shrink-0">
                                 <AvatarImage src={sub.artworkUrl || undefined} />
-                                <AvatarFallback><Mic className="h-5 w-5" /></AvatarFallback>
+                                <AvatarFallback><Mic className="h-4 w-4" /></AvatarFallback>
                               </Avatar>
                               <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold truncate">{sub.title}</h3>

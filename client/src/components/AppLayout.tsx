@@ -24,6 +24,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import logoImg from "@assets/Seeksy_logo_1771103113779.png";
 import {
   Mic,
@@ -47,7 +55,8 @@ import {
   BarChart3,
   Briefcase,
   ChevronRight,
-  UserPlus,
+  Search,
+  Bell,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -254,32 +263,79 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <SidebarFooter className="p-4 border-t">
             <div className="flex items-center gap-3">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
-              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
                   {user?.firstName} {user?.lastName}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => logout()}
-                data-testid="button-logout"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
             </div>
           </SidebarFooter>
         </Sidebar>
 
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center h-14 px-4 border-b bg-background shrink-0">
+          {/* Global top header — appears on every page */}
+          <header className="flex items-center h-14 px-4 border-b bg-background shrink-0 gap-3">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+
+            {/* Search bar */}
+            <div className="flex-1 max-w-sm">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Search..."
+                  className="pl-9 h-9 bg-muted/40 border-0 focus-visible:ring-1 focus-visible:bg-background"
+                />
+              </div>
+            </div>
+
+            {/* Right side icons */}
+            <div className="flex items-center gap-1 ml-auto">
+              <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+                <Link href="/help">
+                  <HelpCircle className="h-4 w-4" />
+                </Link>
+              </Button>
+
+              <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Bell className="h-4 w-4" />
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ml-1">
+                    <Avatar className="h-8 w-8 cursor-pointer">
+                      <AvatarImage src={user?.profileImageUrl || undefined} />
+                      <AvatarFallback className="text-xs">{user?.firstName?.[0] || 'U'}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <div className="px-2 py-2">
+                    <p className="text-sm font-medium">{user?.firstName} {user?.lastName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard/profile" className="cursor-pointer">
+                      <User className="h-4 w-4 mr-2" />
+                      Edit Profile & Photo
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => logout()}
+                    className="text-red-500 focus:text-red-500 cursor-pointer"
+                    data-testid="button-logout"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </header>
+
           <main className="flex-1 overflow-auto">
             {children}
           </main>
