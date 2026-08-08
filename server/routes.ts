@@ -288,8 +288,9 @@ export async function registerRoutes(
       const { uploadURL, objectPath } = await createUploadUrl(String(name));
       res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
     } catch (error) {
-      console.error("Error generating upload URL:", error);
-      res.status(500).json({ error: "Failed to generate upload URL" });
+      const msg = error instanceof Error ? error.message : "Failed to generate upload URL";
+      console.error("Error generating upload URL:", msg);
+      res.status(500).json({ error: msg });
     }
   });
 
