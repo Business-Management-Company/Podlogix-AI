@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Rss,
-  Sparkles,
   ArrowRight,
   CheckCircle2,
   Circle,
@@ -19,8 +18,11 @@ import {
   Mic,
   BarChart3,
   TrendingUp,
-  ChevronRight,
+  Plus,
+  Headphones,
 } from "lucide-react";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface DashboardData {
   profile: {
@@ -34,56 +36,90 @@ interface DashboardData {
   distributionStatus: Record<string, string>;
 }
 
-const SETUP_STEPS = [
-  {
-    id: "profile",
-    title: "Create your Link Page",
-    description: "Set up your public profile with links and social channels",
-    href: "/dashboard/profile",
-    icon: Link2,
-    accent: "#6366f1",
-  },
-  {
-    id: "rss",
-    title: "Connect an RSS feed",
-    description: "Import your podcast episodes from your RSS feed",
-    href: "/dashboard/rss",
-    icon: Rss,
-    accent: "#f97316",
-  },
-  {
-    id: "distribution",
-    title: "Distribute to platforms",
-    description: "Submit your podcast to Spotify, Apple, YouTube and more",
-    href: "/dashboard/distribution",
-    icon: Share2,
-    accent: "#0ea5e9",
-  },
-  {
-    id: "voice",
-    title: "Protect your voice",
-    description: "Certify your voice identity on the blockchain",
-    href: "/dashboard/certify",
-    icon: Shield,
-    accent: "#10b981",
-  },
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const TOOLS = [
-  { title: "RSS Feeds", description: "Manage your podcast feeds", href: "/dashboard/rss", icon: Rss },
-  { title: "Distribution", description: "Submit to Spotify, Apple & more", href: "/dashboard/distribution", icon: TrendingUp },
-  { title: "Social Hub", description: "Post across all platforms at once", href: "/dashboard/social-hub", icon: Share2 },
-  { title: "Email Hub", description: "Email guests, subscribers & sponsors", href: "/dashboard/email", icon: Mail },
-  { title: "Analytics", description: "Track your audience growth", href: "/listener/analytics", icon: BarChart3 },
-  { title: "Voice Protection", description: "Blockchain-certified voice identity", href: "/identity", icon: Shield },
-];
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function getTodayString(): string {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+const PLATFORM_DISPLAY: Record<string, { label: string; color: string }> = {
+  spotify:    { label: "Spotify",      color: "#1DB954" },
+  apple:      { label: "Apple Podcasts", color: "#bc55e6" },
+  youtube:    { label: "YouTube",      color: "#FF0000" },
+  amazon:     { label: "Amazon Music", color: "#00A8E1" },
+  google:     { label: "Google",       color: "#4285F4" },
+  iheartradio:{ label: "iHeartRadio",  color: "#CC0000" },
+};
+
+// ─── Focus step list ─────────────────────────────────────────────────────────
+
+interface FocusItem {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+  done: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+function buildFocusItems(data: DashboardData | undefined): FocusItem[] {
+  return [
+    {
+      id: "profile",
+      label: "Create your Link Page",
+      description: "Set up your public profile with links and social channels",
+      href: "/dashboard/profile",
+      done: !!data?.profile,
+      icon: Link2,
+    },
+    {
+      id: "rss",
+      label: "Connect an RSS feed",
+      description: "Import episodes from your podcast host",
+      href: "/dashboard/rss",
+      done: !!data?.hasRssFeed,
+      icon: Rss,
+    },
+    {
+      id: "distribution",
+      label: "Distribute to platforms",
+      description: "Submit to Spotify, Apple Podcasts, YouTube and more",
+      href: "/dashboard/distribution",
+      done: Object.values(data?.distributionStatus || {}).some(
+        (s) => s === "submitted" || s === "approved"
+      ),
+      icon: Share2,
+    },
+    {
+      id: "voice",
+      label: "Protect your voice",
+      description: "Certify your voice identity on the blockchain",
+      href: "/dashboard/certify",
+      done: false,
+      icon: Shield,
+    },
+  ];
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
-  const { data: dashboardData, isLoading: dataLoading } = useQuery<DashboardData>({
+  const { data, isLoading: dataLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
     enabled: isAuthenticated,
   });
@@ -97,172 +133,199 @@ export default function Dashboard() {
 
   if (authLoading || dataLoading) {
     return (
-      <div className="p-8 space-y-4">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+      <div className="max-w-2xl mx-auto px-8 pt-10 pb-16 space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-32" />
+        <div className="space-y-2 pt-4">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
         </div>
       </div>
     );
   }
 
-  const checklistItems = SETUP_STEPS.map((step) => ({
-    ...step,
-    completed:
-      step.id === "profile"
-        ? !!dashboardData?.profile
-        : step.id === "rss"
-        ? !!dashboardData?.hasRssFeed
-        : step.id === "distribution"
-        ? Object.values(dashboardData?.distributionStatus || {}).some(
-            (s) => s === "submitted" || s === "approved"
-          )
-        : false,
-  }));
+  const focusItems = buildFocusItems(data);
+  const pendingItems = focusItems.filter((i) => !i.done);
+  const doneCount = focusItems.filter((i) => i.done).length;
+  const allDone = doneCount === focusItems.length;
 
-  const completedCount = checklistItems.filter((i) => i.completed).length;
-  const allDone = completedCount === 4;
-  const progressPct = Math.round((completedCount / 4) * 100);
+  const platforms = Object.entries(data?.distributionStatus || {});
+  const hasShows = (data?.podcasts || []).length > 0;
 
   return (
-    <div className="flex flex-col min-h-full bg-background">
+    <div className="max-w-2xl mx-auto px-8 pt-10 pb-16">
 
-      {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="px-8 pt-8 pb-6 border-b">
-        <div className="max-w-5xl mx-auto flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              {allDone
-                ? `Welcome back, ${user?.firstName || "Podcaster"}`
-                : `Hey ${user?.firstName || "Podcaster"}`}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {allDone
-                ? "You're fully set up. Keep creating."
-                : `${completedCount} of 4 steps complete`}
-            </p>
-
-            {/* Inline progress bar — only while setup is incomplete */}
-            {!allDone && (
-              <div className="flex items-center gap-3 mt-3">
-                <div className="w-36 h-1 bg-border rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all duration-700"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-                <span className="text-xs text-muted-foreground">{progressPct}%</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {dashboardData?.profile && (
-              <Button size="sm" variant="outline" asChild>
-                <Link href={`/p/${dashboardData.profile.slug}`}>
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                  View Profile
-                </Link>
-              </Button>
-            )}
-            <Button size="sm" asChild>
-              <Link href="/dashboard/rss">
-                <Rss className="h-3.5 w-3.5 mr-1.5" />
-                Add Podcast
-              </Link>
-            </Button>
-          </div>
-        </div>
+      {/* ── Greeting ──────────────────────────────────────────────────────── */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {getGreeting()}, {user?.firstName || "Podcaster"}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">{getTodayString()}</p>
       </div>
 
-      <div className="flex-1 px-8 py-7 max-w-5xl mx-auto w-full space-y-8">
-
-        {/* ── Setup checklist ─────────────────────────────────────────────── */}
-        {!allDone && (
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+      {/* ── Setup focus (while incomplete) ────────────────────────────────── */}
+      {!allDone && (
+        <section className="mb-8">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Get started
             </h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {checklistItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link key={item.id} href={item.href}>
-                    <div
-                      className={`
-                        group relative flex flex-col gap-3 p-4 rounded-xl border cursor-pointer h-full
-                        transition-all duration-150
-                        ${item.completed
-                          ? "border-border bg-muted/40 opacity-50 pointer-events-none"
-                          : "border-border bg-card hover:border-foreground/20 hover:shadow-sm"
-                        }
-                      `}
-                    >
-                      {/* Left accent bar */}
-                      {!item.completed && (
-                        <span
-                          className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                          style={{ backgroundColor: item.accent }}
-                        />
-                      )}
+            <span className="text-xs text-muted-foreground">{doneCount} / {focusItems.length}</span>
+          </div>
 
-                      <div className="flex items-start justify-between pl-1">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                        {item.completed
-                          ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                          : <Circle className="h-4 w-4 text-border shrink-0" />
-                        }
-                      </div>
-
-                      <div className="pl-1">
-                        <p className={`text-sm font-medium leading-snug ${item.completed ? "line-through text-muted-foreground" : ""}`}>
-                          {item.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                          {item.description}
-                        </p>
-                      </div>
-
-                      {!item.completed && (
-                        <div className="pl-1 flex items-center gap-1 text-xs font-medium text-foreground mt-auto">
-                          Start <ChevronRight className="h-3 w-3" />
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* ── Tools ───────────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            Tools
-          </h2>
           <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
-            {TOOLS.map((tool) => {
-              const Icon = tool.icon;
+            {focusItems.map((item) => {
+              const Icon = item.icon;
               return (
-                <Link key={tool.href} href={tool.href}>
-                  <div className="group flex items-center gap-4 px-5 py-3.5 bg-card hover:bg-muted/50 transition-colors cursor-pointer">
-                    <div className="w-8 h-8 rounded-lg border border-border flex items-center justify-center shrink-0 bg-background">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{tool.title}</p>
-                      <p className="text-xs text-muted-foreground">{tool.description}</p>
-                    </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-4 px-5 py-4 ${
+                    item.done
+                      ? "bg-muted/30 cursor-default"
+                      : "bg-card hover:bg-muted/40 cursor-pointer transition-colors"
+                  }`}
+                  onClick={() => !item.done && navigate(item.href)}
+                >
+                  {item.done
+                    ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500 shrink-0" />
+                    : <Circle className="h-[18px] w-[18px] text-border shrink-0" />
+                  }
+                  <Icon className={`h-4 w-4 shrink-0 ${item.done ? "text-muted-foreground/40" : "text-muted-foreground"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium leading-snug ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {item.label}
+                    </p>
+                    {!item.done && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                    )}
                   </div>
-                </Link>
+                  {!item.done && (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                  )}
+                </div>
               );
             })}
           </div>
         </section>
+      )}
 
-      </div>
+      {/* ── My Shows ──────────────────────────────────────────────────────── */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            My Shows
+          </h2>
+          <Button size="sm" variant="ghost" asChild className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground">
+            <Link href="/listener">
+              View all <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+        </div>
+
+        {hasShows ? (
+          <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+            {(data?.podcasts || []).slice(0, 4).map((podcast) => (
+              <Link key={podcast.id} href={`/listener`}>
+                <div className="flex items-center gap-4 px-5 py-3.5 bg-card hover:bg-muted/40 transition-colors cursor-pointer">
+                  <div className="w-8 h-8 rounded-lg border border-border bg-muted flex items-center justify-center shrink-0">
+                    <Headphones className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium flex-1 truncate">{podcast.title}</p>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="border border-dashed border-border rounded-xl px-6 py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-3">No shows yet</p>
+            <Button size="sm" asChild>
+              <Link href="/dashboard/rss">
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add your first podcast
+              </Link>
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {/* ── Distribution status ────────────────────────────────────────────── */}
+      {platforms.length > 0 && (
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Distribution
+            </h2>
+            <Button size="sm" variant="ghost" asChild className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground">
+              <Link href="/dashboard/distribution">
+                Manage <ArrowRight className="h-3 w-3 ml-1" />
+              </Link>
+            </Button>
+          </div>
+
+          <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+            {platforms.map(([platform, status]) => {
+              const display = PLATFORM_DISPLAY[platform] || { label: platform, color: "#888" };
+              const statusLabel =
+                status === "approved" ? "Live"
+                : status === "submitted" ? "Pending review"
+                : status === "not_submitted" ? "Not submitted"
+                : status;
+              const isLive = status === "approved";
+
+              return (
+                <div key={platform} className="flex items-center gap-4 px-5 py-3.5 bg-card">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: isLive ? display.color : "#d1d5db" }}
+                  />
+                  <p className="text-sm font-medium flex-1">{display.label}</p>
+                  <span className={`text-xs ${isLive ? "text-emerald-600 font-medium" : "text-muted-foreground"}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── Quick links ───────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+          Quick access
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "Social Hub",    icon: Share2,    href: "/dashboard/social-hub" },
+            { label: "Email Hub",     icon: Mail,      href: "/dashboard/email" },
+            { label: "Analytics",     icon: BarChart3, href: "/listener/analytics" },
+            { label: "Voice Identity",icon: Shield,    href: "/identity" },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors cursor-pointer">
+                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Link Page shortcut ────────────────────────────────────────────── */}
+      {data?.profile && (
+        <div className="mt-6">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/p/${data.profile.slug}`}>
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              View your Link Page
+            </Link>
+          </Button>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -393,6 +393,9 @@ export async function setupAuth(app: Express) {
           firstName: updatedUser!.firstName,
           lastName: updatedUser!.lastName,
           profileImageUrl: updatedUser!.profileImageUrl,
+          phone: updatedUser!.phone,
+          zipCode: updatedUser!.zipCode,
+          bio: updatedUser!.bio,
           role: updatedUser!.role,
         });
       }
@@ -412,6 +415,9 @@ export async function setupAuth(app: Express) {
         firstName: user.firstName,
         lastName: user.lastName,
         profileImageUrl: user.profileImageUrl,
+        phone: user.phone,
+        zipCode: user.zipCode,
+        bio: user.bio,
         role: user.role,
       });
     } catch (error) {
@@ -450,6 +456,9 @@ export async function setupAuth(app: Express) {
         firstName: user.firstName,
         lastName: user.lastName,
         profileImageUrl: user.profileImageUrl,
+        phone: user.phone,
+        zipCode: user.zipCode,
+        bio: user.bio,
         role: user.role,
       });
     } catch (error) {
@@ -474,6 +483,9 @@ export async function setupAuth(app: Express) {
         firstName: user.firstName,
         lastName: user.lastName,
         profileImageUrl: user.profileImageUrl,
+        phone: user.phone,
+        zipCode: user.zipCode,
+        bio: user.bio,
         role: user.role,
       });
     } catch (error) {

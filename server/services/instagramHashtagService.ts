@@ -1,5 +1,3 @@
-import fetch from 'node-fetch';
-
 /**
  * Converts a natural language phrase into hashtag format
  * Examples:

@@ -1,4 +1,4 @@
-import { useCreateSubscriber, useCreateMessage } from "@/hooks/use-subscribers";
+import { useCreateSubscriber } from "@/hooks/use-subscribers";
 import { useCreateMessage as useCreateMsg } from "@/hooks/use-messages"; // Correct import usage
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import { api, type InsertSubscriber } from "@shared/routes";
+import { api } from "@shared/routes";
+import type { InsertSubscriber } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 

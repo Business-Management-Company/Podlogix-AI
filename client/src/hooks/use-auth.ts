@@ -6,6 +6,9 @@ interface AuthUser {
   firstName: string | null;
   lastName: string | null;
   profileImageUrl: string | null;
+  phone: string | null;
+  zipCode: string | null;
+  bio: string | null;
   role: string | null;
 }
 

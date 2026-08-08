@@ -1,635 +1,791 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import logoImg from "@assets/Seeksy_logo_1771103113779.png";
-import {
-  LayoutDashboard,
-  Headphones,
-  Shield,
-  ShieldCheck,
-  Link2,
-  Rss,
-  Share2,
-  Sparkles,
-  User,
-  HelpCircle,
-  LogOut,
-  Radio,
-  Users,
-  Mail,
-  Plug,
-  Youtube,
-  Building2,
-  BarChart3,
-  Search,
-  Bell,
+  Zap,
   Mic,
+  Megaphone,
+  Users,
+  Briefcase,
+  Library,
+  Users2,
   Settings,
+  HelpCircle,
+  Sparkles,
+  LayoutDashboard,
+  List,
+  Fingerprint,
+  Settings2,
   ChevronLeft,
   ChevronRight,
-  Home,
   X,
+  Send,
+  Headphones,
+  type LucideIcon,
 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-interface AdminCheck {
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-  role: string;
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const SB_BG        = "#111111";
+const SB_W         = 220;
+const SB_W_MIN     = 52;
+const SB_TEXT      = "rgba(255,255,255,0.46)";
+const SB_TEXT_H    = "rgba(255,255,255,0.84)";
+const SB_TEXT_ACT  = "#ffffff";
+const SB_HOVER     = "rgba(255,255,255,0.055)";
+const SB_ACTIVE    = "rgba(255,255,255,0.10)";
+const SB_BORDER    = "rgba(255,255,255,0.072)";
+const GREEN        = "#10b981";
+const SPRING       = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  exact?: boolean;
 }
 
-// ─── Mode definitions ────────────────────────────────────────────────────────
+// ─── Nav definitions ──────────────────────────────────────────────────────────
 
-const MODES = [
-  {
-    id: "home",
-    label: "Home",
-    icon: Home,
-    color: "text-slate-400",
-    activeColor: "text-white",
-    urlPrefixes: ["/dashboard"],
-    items: [
-      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-      { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
-    ],
-  },
-  {
-    id: "studio",
-    label: "Studio",
-    icon: Mic,
-    color: "text-slate-400",
-    activeColor: "text-orange-400",
-    urlPrefixes: ["/dashboard/rss", "/dashboard/distribution", "/dashboard/episodes", "/dashboard/podcast"],
-    items: [
-      { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
-      { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
-    ],
-  },
-  {
-    id: "listen",
-    label: "Listen",
-    icon: Headphones,
-    color: "text-slate-400",
-    activeColor: "text-sky-400",
-    urlPrefixes: ["/listener"],
-    items: [
-      { title: "My Podcasts", url: "/listener", icon: Headphones },
-      { title: "Analytics", url: "/listener/analytics", icon: Radio },
-    ],
-  },
-  {
-    id: "audience",
-    label: "Audience",
-    icon: Users,
-    color: "text-slate-400",
-    activeColor: "text-violet-400",
-    urlPrefixes: ["/dashboard/social-hub", "/dashboard/social-analytics", "/dashboard/email", "/dashboard/video-analysis"],
-    items: [
-      { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },
-      { title: "Social Analytics", url: "/dashboard/social-analytics", icon: BarChart3 },
-      { title: "Email Hub", url: "/dashboard/email", icon: Mail },
-      { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Youtube },
-    ],
-  },
-  {
-    id: "identity",
-    label: "Identity",
-    icon: Shield,
-    color: "text-slate-400",
-    activeColor: "text-emerald-400",
-    urlPrefixes: ["/identity", "/dashboard/certify"],
-    items: [
-      { title: "My Certificates", url: "/identity", icon: Shield },
-      { title: "Certify Voice", url: "/dashboard/certify", icon: Mic },
-      { title: "Certify Likeness", url: "/dashboard/certify-likeness", icon: User },
-    ],
-  },
-] as const;
+const WORKSPACE_MAIN: NavItem[] = [
+  { label: "Activity",  icon: Zap,       href: "/activity",  exact: true },
+  { label: "Podcasts",  icon: Mic,       href: "/podcasts" },
+  { label: "Campaigns", icon: Megaphone, href: "/campaigns" },
+  { label: "Audience",  icon: Users,     href: "/audience" },
+  { label: "Business",  icon: Briefcase, href: "/business" },
+  { label: "Library",   icon: Library,   href: "/library" },
+];
 
-const BOTTOM_MODES = [
-  {
-    id: "connectors",
-    label: "Connectors",
-    icon: Plug,
-    url: "/connectors",
-    urlPrefixes: ["/connectors"],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
-    url: "/settings",
-    urlPrefixes: ["/settings"],
-  },
-] as const;
+const WORKSPACE_UTIL: NavItem[] = [
+  { label: "Team",     icon: Users2,    href: "/team" },
+  { label: "Settings", icon: Settings,  href: "/settings" },
+  { label: "Help",     icon: HelpCircle, href: "/help" },
+];
+
+function buildShowNav(podcastId: string): { main: NavItem[]; util: NavItem[] } {
+  const base = `/podcasts/${podcastId}`;
+  return {
+    main: [
+      { label: "Overview",  icon: LayoutDashboard, href: base,              exact: true },
+      { label: "Episodes",  icon: List,            href: `${base}/episodes` },
+      { label: "Campaigns", icon: Megaphone,       href: `${base}/campaigns` },
+      { label: "Audience",  icon: Users,           href: `${base}/audience` },
+      { label: "Business",  icon: Briefcase,       href: `${base}/business` },
+    ],
+    util: [
+      { label: "Identity",  icon: Fingerprint,     href: `${base}/identity` },
+      { label: "Settings",  icon: Settings2,       href: `${base}/settings` },
+    ],
+  };
+}
+
+// ─── isActive helper ──────────────────────────────────────────────────────────
+
+function isActive(location: string, href: string, exact?: boolean): boolean {
+  if (exact) return location === href;
+  return location.startsWith(href);
+}
+
+// ─── SidebarItem ─────────────────────────────────────────────────────────────
+
+function SbItem({
+  item,
+  location,
+  collapsed,
+}: {
+  item: NavItem;
+  location: string;
+  collapsed: boolean;
+}) {
+  const active = isActive(location, item.href, item.exact);
+  const Icon = item.icon;
+  const [hover, setHover] = useState(false);
+
+  return (
+    <Link href={item.href}>
+      <div
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: collapsed ? "0 14px" : "0 10px",
+          height: 34,
+          borderRadius: 7,
+          cursor: "pointer",
+          transition: `background 120ms, color 120ms`,
+          background: active ? SB_ACTIVE : hover && !active ? SB_HOVER : "transparent",
+          color: active ? SB_TEXT_ACT : hover ? SB_TEXT_H : SB_TEXT,
+          margin: "1px 6px",
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          position: "relative",
+        }}
+      >
+        {/* Active indicator */}
+        {active && (
+          <span
+            style={{
+              position: "absolute",
+              left: 0,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 2,
+              height: 16,
+              borderRadius: 1,
+              background: GREEN,
+            }}
+          />
+        )}
+        <Icon
+          size={15}
+          style={{
+            flexShrink: 0,
+            color: active ? GREEN : "inherit",
+            marginLeft: active && !collapsed ? 2 : 0,
+          }}
+        />
+        {!collapsed && (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: active ? 500 : 400,
+              letterSpacing: "-0.01em",
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {item.label}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// ─── SidebarDivider ───────────────────────────────────────────────────────────
+
+function SbDivider() {
+  return (
+    <div style={{ height: 1, background: SB_BORDER, margin: "5px 6px" }} />
+  );
+}
+
+// ─── AI Slide-out Panel ───────────────────────────────────────────────────────
+
+function AiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <>
+      {/* Backdrop */}
+      {open && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.18)",
+            zIndex: 40,
+            opacity: open ? 1 : 0,
+            transition: `opacity 200ms ${SPRING}`,
+          }}
+        />
+      )}
+
+      {/* Panel */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 380,
+          background: "#ffffff",
+          borderLeft: "1px solid #e4e4e7",
+          display: "flex",
+          flexDirection: "column",
+          zIndex: 50,
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: `transform 280ms ${SPRING}`,
+          boxShadow: "-8px 0 32px rgba(0,0,0,0.08)",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: "1px solid #f0f0f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "linear-gradient(135deg, rgba(16,185,129,0.04) 0%, rgba(14,165,233,0.03) 100%)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Sparkles size={15} style={{ color: "white" }} />
+            </div>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#09090b", lineHeight: 1.2 }}>
+                Podlogix AI
+              </p>
+              <p style={{ fontSize: 11, color: "#a1a1aa" }}>Your creative assistant</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#a1a1aa",
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Suggestions */}
+        <div style={{ padding: "16px 20px 0", display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {["Draft show notes", "Write episode title", "Plan next episode", "Social post ideas"].map((s) => (
+            <button
+              key={s}
+              style={{
+                padding: "5px 10px",
+                borderRadius: 20,
+                border: "1px solid #e4e4e7",
+                background: "#fafafa",
+                fontSize: 12,
+                color: "#52525b",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* Messages area */}
+        <div style={{ flex: 1, padding: "16px 20px", overflowY: "auto" }}>
+          <p style={{ fontSize: 13, color: "#a1a1aa", textAlign: "center", marginTop: 40 }}>
+            How can I help you today?
+          </p>
+        </div>
+
+        {/* Input */}
+        <div
+          style={{
+            padding: "12px 16px",
+            borderTop: "1px solid #f0f0f0",
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-end",
+          }}
+        >
+          <textarea
+            placeholder="Ask anything about your podcast…"
+            rows={1}
+            style={{
+              flex: 1,
+              resize: "none",
+              border: "1px solid #e4e4e7",
+              borderRadius: 10,
+              padding: "9px 12px",
+              fontSize: 13,
+              fontFamily: "inherit",
+              color: "#09090b",
+              background: "#fafafa",
+              outline: "none",
+              lineHeight: 1.5,
+            }}
+          />
+          <button
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 9,
+              border: "none",
+              background: GREEN,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Send size={14} style={{ color: "white" }} />
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Main AppLayout ───────────────────────────────────────────────────────────
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-function getModeFromPath(path: string): string {
-  let bestId = "home";
-  let bestLen = -1;
-  for (const mode of MODES) {
-    for (const prefix of mode.urlPrefixes) {
-      if (path.startsWith(prefix) && prefix.length > bestLen) {
-        bestId = mode.id;
-        bestLen = prefix.length;
-      }
-    }
-  }
-  return bestId;
-}
-
 export function AppLayout({ children }: AppLayoutProps) {
-  const [location, navigate] = useLocation();
-  const { user, isAuthenticated, logout } = useAuth();
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [railExpanded, setRailExpanded] = useState(false);
+  const [location] = useLocation();
+  const { user } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const [activeMode, setActiveMode] = useState(() => getModeFromPath(location));
 
-  // Auto-switch mode when URL changes — but preserve mode when viewing Help
-  useEffect(() => {
-    if (location === "/help") return;
-    const detected = getModeFromPath(location);
-    setActiveMode(detected);
-  }, [location]);
+  // Detect show context from URL: /podcasts/:id or /podcasts/:id/*
+  const showMatch = location.match(/^\/podcasts\/([^/]+)(?:\/|$)/);
+  const podcastId = showMatch ? showMatch[1] : null;
+  const isShowContext = !!podcastId;
 
-  const { data: adminCheck } = useQuery<AdminCheck>({
-    queryKey: ["/api/admin/check"],
-    enabled: isAuthenticated,
-    queryFn: async () => {
-      const res = await fetch("/api/admin/check", { credentials: "include" });
-      if (!res.ok) return { isAdmin: false, isSuperAdmin: false, role: "user" };
-      return res.json();
-    },
-    retry: 1,
+  // Fetch podcast name when in show context
+  const { data: podcast } = useQuery<{ title: string; id: string } | null>({
+    queryKey: [`/api/podcasts/${podcastId}`],
+    enabled: !!podcastId,
   });
 
-  const currentMode = MODES.find((m) => m.id === activeMode) ?? MODES[0];
+  // Determine which nav to show
+  const showNavItems = podcastId ? buildShowNav(podcastId) : null;
 
-  const isItemActive = (url: string) => {
-    if (url === "/dashboard" && location === "/dashboard") return true;
-    if (url !== "/dashboard" && location.startsWith(url)) return true;
-    return false;
-  };
+  // User initials for avatar
+  const initials = user
+    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U"
+    : "U";
+
+  const sbWidth = collapsed ? SB_W_MIN : SB_W;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-
-      {/* ── Mode Rail ─────────────────────────────────────────────────────── */}
-      <nav className={`flex flex-col shrink-0 bg-[#0D1B2A] border-r border-white/[0.06] z-20 transition-all duration-200 overflow-hidden ${railExpanded ? "w-44" : "w-14"}`}>
-
-        {/* Logo row — collapse button appears here when expanded */}
-        <div className={`flex items-center h-14 border-b border-white/[0.06] shrink-0 ${railExpanded ? "px-3 justify-between" : "justify-center"}`}>
-          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
-            <img src={logoImg} alt="Podlogix" className="w-7 h-7 rounded-lg shrink-0" />
-            {railExpanded && (
-              <span className="text-white text-sm font-semibold truncate">Podlogix</span>
-            )}
-          </Link>
-          {railExpanded && (
-            <button
-              onClick={() => setRailExpanded(false)}
-              className="p-1.5 rounded-lg hover:bg-white/[0.06] text-slate-400 hover:text-white transition-colors shrink-0 ml-1"
-              aria-label="Collapse sidebar"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Mode icons */}
-        <div className={`flex flex-col gap-1 py-3 flex-1 ${railExpanded ? "px-2" : "items-center"}`}>
-
-          {/* Expand button — only shown when collapsed */}
-          {!railExpanded && (
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setRailExpanded(true)}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 mb-1"
-                  aria-label="Expand sidebar"
-                >
-                  <ChevronRight className="h-[18px] w-[18px] text-slate-500" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">Expand</TooltipContent>
-            </Tooltip>
-          )}
-
-          {MODES.map((mode) => {
-            const isActive = activeMode === mode.id;
-            const Icon = mode.icon;
-            const btn = (
-              <button
-                onClick={() => {
-                  navigate(mode.items[0].url);
-                  if (!panelOpen) setPanelOpen(true);
-                }}
-                className={`
-                  relative flex items-center h-10 rounded-xl transition-all duration-150
-                  ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
-                  ${isActive ? "bg-white/10 shadow-sm" : "hover:bg-white/[0.06]"}
-                `}
-                aria-label={mode.label}
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
-                )}
-                <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? mode.activeColor : "text-slate-500"}`} />
-                {railExpanded && (
-                  <span className={`text-sm truncate ${isActive ? "text-white font-medium" : "text-slate-400"}`}>
-                    {mode.label}
-                  </span>
-                )}
-              </button>
-            );
-            return railExpanded ? (
-              <div key={mode.id}>{btn}</div>
-            ) : (
-              <Tooltip key={mode.id} delayDuration={300}>
-                <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">{mode.label}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </div>
-
-        {/* Bottom icons */}
-        <div className={`flex flex-col gap-1 py-3 border-t border-white/[0.06] ${railExpanded ? "px-2" : "items-center"}`}>
-
-          {BOTTOM_MODES.map((item) => {
-            const isActive = location.startsWith(item.urlPrefixes[0]);
-            const Icon = item.icon;
-            const btn = (
-              <Link href={item.url}>
-                <button
-                  className={`
-                    flex items-center h-10 rounded-xl transition-all duration-150
-                    ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
-                    ${isActive ? "bg-white/10" : "hover:bg-white/[0.06]"}
-                  `}
-                  aria-label={item.label}
-                >
-                  <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-slate-200" : "text-slate-500"}`} />
-                  {railExpanded && (
-                    <span className={`text-sm truncate ${isActive ? "text-slate-200" : "text-slate-400"}`}>{item.label}</span>
-                  )}
-                </button>
-              </Link>
-            );
-            return railExpanded ? (
-              <div key={item.id}>{btn}</div>
-            ) : (
-              <Tooltip key={item.id} delayDuration={300}>
-                <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">{item.label}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-
-          {/* Admin — only visible to admins */}
-          {adminCheck?.isAdmin && (
-            railExpanded ? (
-              <Link href="/admin">
-                <button className="flex items-center gap-2.5 px-3 w-full h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
-                  <ShieldCheck className="h-[18px] w-[18px] shrink-0 text-slate-500" />
-                  <span className="text-sm text-slate-400">Admin</span>
-                </button>
-              </Link>
-            ) : (
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Link href="/admin">
-                    <button className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
-                      <ShieldCheck className="h-[18px] w-[18px] text-slate-500" />
-                    </button>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">Admin</TooltipContent>
-              </Tooltip>
-            )
-          )}
-
-          {/* User avatar */}
-          <div className="mt-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className={`flex items-center h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 ${railExpanded ? "gap-2.5 px-2 w-full" : "justify-center w-10"}`}>
-                  <Avatar className="h-7 w-7 shrink-0">
-                    <AvatarImage src={user?.profileImageUrl || undefined} />
-                    <AvatarFallback className="text-[10px] bg-primary text-white font-semibold">
-                      {user?.firstName?.[0] || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  {railExpanded && (
-                    <span className="text-sm text-slate-300 truncate">{user?.firstName || "Account"}</span>
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="end" className="w-56 mb-2">
-                <div className="px-3 py-2">
-                  <p className="text-sm font-medium leading-none">{user?.firstName} {user?.lastName}</p>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer">
-                    <User className="h-4 w-4 mr-2" />
-                    Account Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/profile" className="cursor-pointer">
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Edit Link Page
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => logout()}
-                  className="text-red-500 focus:text-red-500 cursor-pointer"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </nav>
-
-      {/* ── Mode Panel ────────────────────────────────────────────────────── */}
-      {panelOpen && (
-        <aside className="w-52 shrink-0 bg-background border-r flex flex-col z-10">
-          {/* Mode header */}
-          <div className="flex items-center justify-between px-4 h-14 border-b shrink-0">
-            <div className="flex items-center gap-2">
-              <currentMode.icon className={`h-4 w-4 ${currentMode.activeColor}`} />
-              <span className="text-sm font-semibold tracking-tight">{currentMode.label}</span>
-            </div>
-            <button
-              onClick={() => setPanelOpen(false)}
-              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Collapse panel"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Nav items */}
-          <nav className="flex-1 overflow-y-auto py-2 px-2 flex flex-col">
-            <div className="flex-1">
-              {currentMode.items.map((item) => {
-                const isActive = isItemActive(item.url);
-                const Icon = item.icon;
-                return (
-                  <Link key={item.url} href={item.url}>
-                    <div
-                      className={`
-                        flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer
-                        ${isActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }
-                      `}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{item.title}</span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Help — always at bottom, always shown */}
-            <div className="pt-4 pb-1">
-              <Link href="/help">
-                <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/help") ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                  <HelpCircle className="h-4 w-4 shrink-0" />
-                  <span>Help Center</span>
-                </div>
-              </Link>
-
-              {/* Admin-only items — below Help */}
-              {adminCheck?.isSuperAdmin && activeMode === "home" && (
-                <>
-                  <div className="px-3 pt-4 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Admin</p>
-                  </div>
-                  <Link href="/admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/admin") ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                      <ShieldCheck className="h-4 w-4 shrink-0" />
-                      <span>Admin Panel</span>
-                    </div>
-                  </Link>
-                  <Link href="/saas-admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/saas-admin") ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                      <Building2 className="h-4 w-4 shrink-0" />
-                      <span>SaaS Portal</span>
-                    </div>
-                  </Link>
-                </>
-              )}
-            </div>
-          </nav>
-        </aside>
-      )}
-
-      {/* ── Main Content ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-
-        {/* Global top bar */}
-        <header className="flex items-center h-14 px-4 border-b bg-background shrink-0 gap-3">
-          {!panelOpen && (
-            <button
-              onClick={() => setPanelOpen(true)}
-              className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              aria-label="Open panel"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          )}
-
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Search anything..."
-                className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1 focus-visible:bg-background rounded-lg"
-              />
-            </div>
-          </div>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-1 ml-auto">
-            {/* AI Assistant */}
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setAiOpen(!aiOpen)}
-                  className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${aiOpen ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
-                >
-                  <Sparkles className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>AI Assistant</TooltipContent>
-            </Tooltip>
-
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Link href="/help">
-                  <button className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                    <HelpCircle className="h-4 w-4" />
-                  </button>
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>Help Center</TooltipContent>
-            </Tooltip>
-
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                  <Bell className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Notifications</TooltipContent>
-            </Tooltip>
-
-            {/* Avatar dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center rounded-full ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-7 w-7 cursor-pointer">
-                    <AvatarImage src={user?.profileImageUrl || undefined} />
-                    <AvatarFallback className="text-[10px] bg-primary text-white font-semibold">
-                      {user?.firstName?.[0] || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="px-3 py-2">
-                  <p className="text-sm font-medium leading-none">{user?.firstName} {user?.lastName}</p>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer">
-                    <User className="h-4 w-4 mr-2" />
-                    Account Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/profile" className="cursor-pointer">
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Edit Link Page
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => logout()}
-                  className="text-red-500 focus:text-red-500 cursor-pointer"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      </div>
-
-      {/* ── AI Assistant Slide-out Panel ──────────────────────────────────── */}
-
-      {/* Backdrop — click to close */}
-      {aiOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
-          onClick={() => setAiOpen(false)}
-        />
-      )}
-
-      {/* Full-height right slide-out */}
+    <div
+      style={{
+        display: "flex",
+        height: "100vh",
+        overflow: "hidden",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      }}
+    >
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <div
-        className={`fixed inset-y-0 right-0 w-[380px] bg-background border-l shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${aiOpen ? "translate-x-0" : "translate-x-full"}`}
+        style={{
+          width: sbWidth,
+          flexShrink: 0,
+          background: SB_BG,
+          display: "flex",
+          flexDirection: "column",
+          transition: `width 220ms ${SPRING}`,
+          overflow: "hidden",
+          position: "relative",
+          zIndex: 20,
+        }}
       >
-        {/* Panel header */}
-        <div className="flex items-center justify-between h-14 px-4 border-b shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-            <span className="text-sm font-semibold">AI Assistant</span>
-          </div>
-          <button
-            onClick={() => setAiOpen(false)}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close AI Assistant"
+        {/* Header / Logo */}
+        <div
+          style={{
+            height: 52,
+            display: "flex",
+            alignItems: "center",
+            padding: "0 10px",
+            gap: 8,
+            borderBottom: `1px solid ${SB_BORDER}`,
+            flexShrink: 0,
+          }}
+        >
+          {/* Logo mark */}
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              flexShrink: 0,
+              background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <X className="h-4 w-4" />
+            <Mic size={13} style={{ color: "white" }} />
+          </div>
+
+          {!collapsed && (
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: SB_TEXT_ACT,
+                letterSpacing: "-0.02em",
+                flex: 1,
+                overflow: "hidden",
+              }}
+            >
+              Podlogix
+            </span>
+          )}
+
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 5,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: SB_TEXT,
+              flexShrink: 0,
+              transition: "color 120ms, background 120ms",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.color = SB_TEXT_H;
+              (e.currentTarget as HTMLElement).style.background = SB_HOVER;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.color = SB_TEXT;
+              (e.currentTarget as HTMLElement).style.background = "transparent";
+            }}
+          >
+            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
           </button>
         </div>
 
-        {/* Chat area */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-          {/* Welcome / empty state */}
-          <div className="flex flex-col items-center justify-center flex-1 text-center py-12 gap-4">
-            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10">
-              <Sparkles className="h-7 w-7 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">AI Assistant</p>
-              <p className="text-xs text-muted-foreground mt-1.5 max-w-[240px] leading-relaxed">
-                Ask me anything about your podcast — analytics, content ideas, distribution tips, and more.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 w-full max-w-[260px] mt-2">
-              {["Summarize my top episodes", "Write show notes for my last recording", "How do I grow my audience?"].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  className="text-xs text-left px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        {/* ── Show context pill ─────────────────────────────────────────── */}
+        {isShowContext && !collapsed && (
+          <div style={{ padding: "8px 6px 0" }}>
+            <Link href="/podcasts">
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 9,
+                  background: "rgba(255,255,255,0.048)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  cursor: "pointer",
+                  transition: "background 120ms",
+                  border: `1px solid rgba(255,255,255,0.06)`,
+                }}
+                onMouseEnter={e =>
+                  ((e.currentTarget as HTMLElement).style.background =
+                    "rgba(255,255,255,0.08)")
+                }
+                onMouseLeave={e =>
+                  ((e.currentTarget as HTMLElement).style.background =
+                    "rgba(255,255,255,0.048)")
+                }
+              >
+                {/* Show artwork placeholder */}
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
                 >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
+                  <Headphones size={13} style={{ color: "white" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: SB_TEXT_ACT,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {podcast?.title ?? "My Podcast"}
+                  </p>
+                  <p style={{ fontSize: 10.5, color: SB_TEXT, marginTop: 1 }}>
+                    ← All Podcasts
+                  </p>
+                </div>
+              </div>
+            </Link>
           </div>
-        </div>
+        )}
 
-        {/* Input area */}
-        <div className="p-4 border-t shrink-0">
-          <div className="relative">
-            <Input
-              placeholder="Ask AI anything..."
-              className="pr-10 h-10 text-sm bg-muted/40 border-0 focus-visible:ring-1 rounded-xl"
-            />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors">
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+        {/* Show context collapsed pill */}
+        {isShowContext && collapsed && (
+          <div style={{ padding: "8px 6px 0" }}>
+            <Link href="/podcasts">
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 9,
+                  background: "rgba(255,255,255,0.048)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  margin: "0 auto",
+                }}
+              >
+                <Headphones size={14} style={{ color: SB_TEXT_H }} />
+              </div>
+            </Link>
           </div>
-          <p className="text-[10px] text-muted-foreground/60 text-center mt-2">AI may make mistakes — verify important information.</p>
+        )}
+
+        {/* ── Nav items ─────────────────────────────────────────────────── */}
+        <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto", overflowX: "hidden" }}>
+          {isShowContext && showNavItems ? (
+            <>
+              {showNavItems.main.map((item) => (
+                <SbItem
+                  key={item.href}
+                  item={item}
+                  location={location}
+                  collapsed={collapsed}
+                />
+              ))}
+              <SbDivider />
+              {showNavItems.util.map((item) => (
+                <SbItem
+                  key={item.href}
+                  item={item}
+                  location={location}
+                  collapsed={collapsed}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              {/* Activity sits above the divider alone */}
+              <SbItem
+                item={WORKSPACE_MAIN[0]}
+                location={location}
+                collapsed={collapsed}
+              />
+              <SbDivider />
+              {/* Podcasts through Library */}
+              {WORKSPACE_MAIN.slice(1).map((item) => (
+                <SbItem
+                  key={item.href}
+                  item={item}
+                  location={location}
+                  collapsed={collapsed}
+                />
+              ))}
+            </>
+          )}
+        </nav>
+
+        {/* ── Bottom utility row ─────────────────────────────────────────── */}
+        <div
+          style={{
+            borderTop: `1px solid ${SB_BORDER}`,
+            padding: "6px 0",
+            flexShrink: 0,
+          }}
+        >
+          {!isShowContext &&
+            WORKSPACE_UTIL.map((item) => (
+              <SbItem
+                key={item.href}
+                item={item}
+                location={location}
+                collapsed={collapsed}
+              />
+            ))}
+
+          {/* User avatar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: collapsed ? "6px 8px" : "6px 10px",
+              margin: "4px 6px 2px",
+              borderRadius: 7,
+              cursor: "pointer",
+              transition: "background 120ms",
+            }}
+            onMouseEnter={e =>
+              ((e.currentTarget as HTMLElement).style.background = SB_HOVER)
+            }
+            onMouseLeave={e =>
+              ((e.currentTarget as HTMLElement).style.background = "transparent")
+            }
+          >
+            <Avatar style={{ width: 24, height: 24, flexShrink: 0 }}>
+              <AvatarFallback
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
+                  color: "white",
+                }}
+              >
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            {!collapsed && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: SB_TEXT_ACT,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {user?.firstName
+                    ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+                    : (user?.email ?? "Account")}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* ── Main content area ─────────────────────────────────────────────── */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          overflow: "hidden",
+        }}
+      >
+        {/* Top bar */}
+        <div
+          style={{
+            height: 52,
+            display: "flex",
+            alignItems: "center",
+            padding: "0 20px",
+            borderBottom: "1px solid #e4e4e7",
+            flexShrink: 0,
+            gap: 8,
+            background: "#ffffff",
+          }}
+        >
+          {/* Breadcrumb / context label */}
+          <div style={{ flex: 1 }}>
+            {isShowContext && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  color: "#a1a1aa",
+                }}
+              >
+                <Link href="/podcasts">
+                  <span
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={e =>
+                      ((e.currentTarget as HTMLElement).style.color = "#52525b")
+                    }
+                    onMouseLeave={e =>
+                      ((e.currentTarget as HTMLElement).style.color = "#a1a1aa")
+                    }
+                  >
+                    Podcasts
+                  </span>
+                </Link>
+                <span style={{ color: "#d4d4d8" }}>/</span>
+                <span style={{ color: "#09090b", fontWeight: 500 }}>
+                  {podcast?.title ?? "My Podcast"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* AI button */}
+          <button
+            onClick={() => setAiOpen(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "0 12px",
+              height: 32,
+              borderRadius: 8,
+              border: "1px solid #e4e4e7",
+              background: aiOpen
+                ? "rgba(16,185,129,0.06)"
+                : "#fafafa",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 500,
+              color: aiOpen ? GREEN : "#52525b",
+              fontFamily: "inherit",
+              transition: "background 120ms, color 120ms, border-color 120ms",
+              borderColor: aiOpen ? "rgba(16,185,129,0.3)" : "#e4e4e7",
+            }}
+            onMouseEnter={e => {
+              if (!aiOpen) {
+                (e.currentTarget as HTMLElement).style.background = "#f4f4f5";
+                (e.currentTarget as HTMLElement).style.color = "#09090b";
+              }
+            }}
+            onMouseLeave={e => {
+              if (!aiOpen) {
+                (e.currentTarget as HTMLElement).style.background = "#fafafa";
+                (e.currentTarget as HTMLElement).style.color = "#52525b";
+              }
+            }}
+          >
+            <Sparkles size={13} />
+            <span>Ask AI</span>
+          </button>
+        </div>
+
+        {/* Page content */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            background: "#ffffff",
+          }}
+        >
+          {children}
+        </div>
+      </div>
+
+      {/* ── AI Panel ─────────────────────────────────────────────────────── */}
+      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   );
 }
+
+export default AppLayout;

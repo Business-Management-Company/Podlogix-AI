@@ -1865,6 +1865,9 @@ export async function registerRoutes(
       const { episodeId, podcastName, episodeTitle } = req.body;
 
       const playlist = await createOrGetBriefingsPlaylist(userId);
+      if (!playlist) {
+        return res.status(500).json({ message: 'Could not get or create your Podlogix Recommendations playlist — try clicking "Create Playlist" first.' });
+      }
 
       const episodeUri = await searchSpotifyEpisode(userId, podcastName, episodeTitle);
       if (!episodeUri) {
@@ -1890,6 +1893,9 @@ export async function registerRoutes(
       const userId = req.session.userId!;
 
       const playlist = await createOrGetBriefingsPlaylist(userId);
+      if (!playlist) {
+        return res.status(500).json({ message: 'Could not get or create your Podlogix Recommendations playlist — try clicking "Create Playlist" first.' });
+      }
 
       // Get all new (unread) episodes with their subscription info
       const episodes = await storage.getSubscriptionEpisodesByUser(userId);
