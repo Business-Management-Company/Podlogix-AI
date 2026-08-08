@@ -96,7 +96,7 @@ const MODES = [
     icon: Users,
     color: "text-slate-400",
     activeColor: "text-violet-400",
-    urlPrefixes: ["/dashboard/social", "/dashboard/email", "/dashboard/video"],
+    urlPrefixes: ["/dashboard/social-hub", "/dashboard/social-analytics", "/dashboard/email", "/dashboard/video-analysis"],
     items: [
       { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },
       { title: "Social Analytics", url: "/dashboard/social-analytics", icon: BarChart3 },
@@ -145,22 +145,23 @@ interface AppLayoutProps {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getModeFromPath(path: string): string {
+  let bestId = "home";
+  let bestLen = -1;
   for (const mode of MODES) {
-    if (mode.urlPrefixes.some((prefix) => path.startsWith(prefix))) {
-      return mode.id;
+    for (const prefix of mode.urlPrefixes) {
+      if (path.startsWith(prefix) && prefix.length > bestLen) {
+        bestId = mode.id;
+        bestLen = prefix.length;
+      }
     }
   }
-  // Default to home for dashboard root
-  if (path === "/dashboard" || path.startsWith("/dashboard/profile") || path.startsWith("/dashboard/ai")) {
-    return "home";
-  }
-  return "home";
+  return bestId;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const [panelOpen, setPanelOpen] = useState(true);
   const [activeMode, setActiveMode] = useState(() => getModeFromPath(location));
@@ -213,7 +214,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => {
-                      setActiveMode(mode.id);
+                      navigate(mode.items[0].url);
                       if (!panelOpen) setPanelOpen(true);
                     }}
                     className={`
