@@ -909,3 +909,74 @@ export const insertTeamInvitationSchema = createInsertSchema(teamInvitations).om
 
 export type TeamInvitation = typeof teamInvitations.$inferSelect;
 export type InsertTeamInvitation = z.infer<typeof insertTeamInvitationSchema>;
+
+// ─── Buzzsprout Integration ────────────────────────────────────────────────────
+// One connection per user (Buzzsprout uses static API tokens, not OAuth).
+// Episodes are stored in a separate table so they don't pollute the creator's
+// own `episodes` table — imported data and native data are clearly separated.
+
+export const buzzsproutConnections = pgTable("buzzsprout_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  // Stored as-is. Treat as sensitive — never expose to client.
+  apiToken: text("api_token").notNull(),
+  // The Buzzsprout podcast_id (numeric string, e.g. "12345").
+  podcastId: varchar("podcast_id").notNull(),
+  // Metadata cached from the last successful /podcasts.json call.
+  podcastTitle: varchar("podcast_title"),
+  podcastArtworkUrl: text("podcast_artwork_url"),
+  podcastAuthor: varchar("podcast_author"),
+  podcastCategory: varchar("podcast_category"),
+  // "connected" | "error" | "syncing"
+  status: varchar("status").notNull().default("connected"),
+  episodeCount: integer("episode_count").default(0),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const buzzsproutEpisodes = pgTable("buzzsprout_episodes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: varchar("connection_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  // Buzzsprout's own episode id — used as the upsert key.
+  externalId: varchar("external_id").notNull(),
+  title: varchar("title").notNull(),
+  // Buzzsprout `summary` = short blurb; `description` = full HTML show notes.
+  description: text("description"),
+  showNotes: text("show_notes"),
+  audioUrl: text("audio_url"),
+  artworkUrl: text("artwork_url"),
+  durationSeconds: integer("duration_seconds"),
+  episodeNumber: integer("episode_number"),
+  seasonNumber: integer("season_number"),
+  tags: text("tags"),
+  totalPlays: integer("total_plays").default(0),
+  // "draft" | "scheduled" | "published" | "archived"
+  status: varchar("status").notNull().default("published"),
+  publishedAt: timestamp("published_at"),
+  guid: varchar("guid"),
+  isExplicit: boolean("is_explicit").default(false),
+  isPrivate: boolean("is_private").default(false),
+  syncedAt: timestamp("synced_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertBuzzsproutConnectionSchema = createInsertSchema(buzzsproutConnections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSyncedAt: true,
+  episodeCount: true,
+});
+
+export const insertBuzzsproutEpisodeSchema = createInsertSchema(buzzsproutEpisodes).omit({
+  id: true,
+  syncedAt: true,
+  updatedAt: true,
+});
+
+export type BuzzsproutConnection = typeof buzzsproutConnections.$inferSelect;
+export type InsertBuzzsproutConnection = z.infer<typeof insertBuzzsproutConnectionSchema>;
+export type BuzzsproutEpisode = typeof buzzsproutEpisodes.$inferSelect;
+export type InsertBuzzsproutEpisode = z.infer<typeof insertBuzzsproutEpisodeSchema>;

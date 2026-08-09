@@ -88,6 +88,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from "./services/aiEmailService";
 import { sendEmail, isEmailConfigured } from "./services/emailService";
 import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
+import { registerConnectorRoutes } from "./connectorRoutes";
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
   // Check if email is configured first
@@ -271,6 +272,9 @@ export async function registerRoutes(
 
   // Register AI chat routes
   registerChatRoutes(app);
+
+  // Register connector routes (Buzzsprout, etc.)
+  registerConnectorRoutes(app);
   
   // Register object storage routes for file uploads
   // ============ MEDIA UPLOADS (Supabase Storage) ============
