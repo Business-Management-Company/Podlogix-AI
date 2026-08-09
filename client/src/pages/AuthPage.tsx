@@ -120,7 +120,7 @@ export default function AuthPage() {
             </CardHeader>
             <CardContent>
               {mode === "login" ? (
-                <Form {...loginForm}>
+                <Form {...loginForm} key="login">
                   <form onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))} className="space-y-4">
                     <FormField
                       control={loginForm.control}
@@ -197,7 +197,7 @@ export default function AuthPage() {
                   </form>
                 </Form>
               ) : (
-                <Form {...signupForm}>
+                <Form {...signupForm} key="signup">
                   <form onSubmit={signupForm.handleSubmit((values) => signupMutation.mutate(values))} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
