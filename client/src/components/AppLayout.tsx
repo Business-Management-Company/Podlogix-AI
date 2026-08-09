@@ -75,12 +75,13 @@ interface NavItem {
 // ─── Nav definitions ──────────────────────────────────────────────────────────
 
 const WORKSPACE_MAIN: NavItem[] = [
-  { label: "Activity",     icon: Zap,    href: "/activity",               exact: true },
-  { label: "Podcasts",     icon: Mic,    href: "/dashboard/episodes" },
-  { label: "Distribution", icon: Share2, href: "/dashboard/distribution" },
-  { label: "Connectors",   icon: Plug,   href: "/connectors" },
-  { label: "Social",       icon: Users,  href: "/dashboard/social-hub" },
-  { label: "RSS Feeds",    icon: Rss,    href: "/dashboard/rss" },
+  { label: "Activity",     icon: Zap,        href: "/activity",               exact: true },
+  { label: "Podcasts",     icon: Mic,        href: "/dashboard/episodes" },
+  { label: "Listen",       icon: Headphones, href: "/listener" },
+  { label: "Distribution", icon: Share2,     href: "/dashboard/distribution" },
+  { label: "Connectors",   icon: Plug,       href: "/connectors" },
+  { label: "Social",       icon: Users,      href: "/dashboard/social-hub" },
+  { label: "RSS Feeds",    icon: Rss,        href: "/dashboard/rss" },
 ];
 
 const WORKSPACE_UTIL: NavItem[] = [
@@ -119,6 +120,8 @@ const EXTRA_TITLES: Record<string, string> = {
   "/settings": "Account Settings",
   "/help": "Help Center",
   "/connectors": "Connectors",
+  "/listener": "Listen",
+  "/listener/analytics": "Listener Analytics",
   "/dashboard/episodes": "Podcasts",
   "/dashboard/distribution": "Distribution",
   "/dashboard/social-hub": "Social Hub",
