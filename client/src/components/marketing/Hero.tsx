@@ -38,7 +38,7 @@ export function Hero() {
   const photoY = useTransform(
     scrollYProgress,
     [0, 1],
-    reduceMotion ? [0, 0] : [0, 120]
+    reduceMotion ? [0, 0] : [0, 100]
   );
 
   return (
@@ -61,13 +61,13 @@ export function Hero() {
       </motion.div>
 
       {/* ── Gradient overlays ─────────────────────────────────────────────── */}
-      {/* Deep vignette so text is always readable */}
+      {/* Dark left panel so text pops */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to right, rgba(10,4,2,0.92) 0%, rgba(10,4,2,0.70) 42%, rgba(10,4,2,0.30) 72%, rgba(10,4,2,0.10) 100%)",
+            "linear-gradient(to right, rgba(10,4,2,0.95) 0%, rgba(10,4,2,0.88) 35%, rgba(10,4,2,0.55) 58%, rgba(10,4,2,0.10) 100%)",
         }}
       />
       {/* Bottom fade into page background */}
@@ -75,11 +75,10 @@ export function Hero() {
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
         style={{
-          background:
-            "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
+          background: "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
         }}
       />
-      {/* Warm orange ambient glow (mirrors the brand color) */}
+      {/* Warm orange ambient glow */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-[-10%] top-[30%] h-[600px] w-[600px] rounded-full opacity-20"
@@ -90,10 +89,15 @@ export function Hero() {
       />
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
-      <div className="container relative z-10 mx-auto flex flex-1 flex-col justify-center px-6 pb-24 pt-36 lg:max-w-3xl lg:pt-44">
+      <div className="container relative z-10 mx-auto flex flex-1 items-center gap-16 px-6 pb-24 pt-36 lg:px-10 lg:pt-40 xl:gap-24">
 
-        <motion.div variants={stagger} initial="hidden" animate="show">
-
+        {/* ── LEFT: headline + CTA ───────────────────────────────────────── */}
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+          className="w-full max-w-lg shrink-0 xl:max-w-[520px]"
+        >
           {/* Beta pill */}
           <motion.div
             variants={item}
@@ -107,9 +111,7 @@ export function Hero() {
           </motion.div>
 
           {/* Headline */}
-          <h1
-            className="font-display text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-[4.8rem] lg:leading-[0.96]"
-          >
+          <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-[4.2rem] lg:leading-[0.97]">
             {[
               "Run your entire",
               "podcast business",
@@ -126,7 +128,7 @@ export function Hero() {
           {/* Subheadline */}
           <motion.p
             variants={item}
-            className="mt-7 max-w-lg text-lg leading-relaxed text-white/60"
+            className="mt-7 text-lg leading-relaxed text-white/60"
           >
             Episodes, audience, sponsors, distribution, and your team —
             connected in one place.{" "}
@@ -172,20 +174,88 @@ export function Hero() {
             </Magnetic>
           </motion.div>
 
-          <motion.p
-            variants={item}
-            className="mt-5 text-xs text-white/30"
-          >
+          <motion.p variants={item} className="mt-5 text-xs text-white/30">
             No credit card required · Free during the beta
           </motion.p>
         </motion.div>
+
+        {/* ── RIGHT: browser mockup with dashboard screenshot ───────────── */}
+        <motion.div
+          initial={{ opacity: 0, x: reduceMotion ? 0 : 48, y: reduceMotion ? 0 : 16 }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          transition={{ duration: 1.1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="hidden flex-1 lg:block"
+          style={{ perspective: "1400px", perspectiveOrigin: "50% 40%" }}
+        >
+          <motion.div
+            initial={{ rotateX: reduceMotion ? 4 : 12, rotateY: reduceMotion ? -2 : -6 }}
+            animate={{ rotateX: 4, rotateY: -2 }}
+            transition={{ duration: 1.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            style={{ transformStyle: "preserve-3d" }}
+          >
+            {/* Drop shadow beneath the tilted screen */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-8 -bottom-8 h-16 rounded-full bg-black/70 blur-3xl"
+            />
+
+            {/* Outer glow halo */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl opacity-25"
+              style={{
+                background: "radial-gradient(ellipse at center, #D97706 0%, transparent 70%)",
+                filter: "blur(40px)",
+              }}
+            />
+
+            {/* Browser frame */}
+            <div className="overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_40px_100px_rgba(0,0,0,0.8)]">
+              {/* Browser chrome / title bar */}
+              <div className="flex h-9 items-center gap-3 border-b border-white/[0.06] bg-[#141414] px-4">
+                <div className="flex items-center gap-[5px] shrink-0">
+                  <span className="h-[9px] w-[9px] rounded-full bg-[#FF5F57]" />
+                  <span className="h-[9px] w-[9px] rounded-full bg-[#FEBC2E]" />
+                  <span className="h-[9px] w-[9px] rounded-full bg-[#28C840]" />
+                </div>
+                <div className="mx-auto max-w-[180px] flex-1 rounded-md bg-white/[0.06] px-3 py-[3px] text-center text-[10px] text-muted-foreground/40">
+                  podlogix.io/activity
+                </div>
+                <div className="flex items-center gap-2 shrink-0 opacity-30">
+                  <span className="h-[9px] w-[9px] rounded-sm border border-white/20" />
+                  <span className="h-[9px] w-[9px] rounded-sm border border-white/20" />
+                </div>
+              </div>
+
+              {/* Dashboard screenshot */}
+              <img
+                src="/images/dashboard-preview.jpg"
+                alt="Podlogix dashboard"
+                className="block w-full select-none"
+                draggable={false}
+              />
+
+              {/* Top gloss */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-9 h-20 bg-gradient-to-b from-white/[0.03] to-transparent"
+              />
+              {/* Bottom fog */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/70 to-transparent"
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+
       </div>
 
       {/* ── Scroll cue ────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.6, duration: 0.6 }}
+        transition={{ delay: 1.8, duration: 0.6 }}
         className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2"
       >
         <motion.div
