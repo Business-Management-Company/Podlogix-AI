@@ -1,231 +1,172 @@
 import { useRef } from "react";
-import { motion, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
-import { Mic, CheckCircle2, Mail } from "lucide-react";
-import {
-  SiSpotify,
-  SiApplepodcasts,
-  SiYoutube,
-  SiAmazonmusic,
-  SiInstagram,
-  SiTiktok,
-  SiLinkedin,
-} from "react-icons/si";
+import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 import { easing } from "@/lib/design-tokens";
 import { SectionKicker } from "./SectionKicker";
-import { fadeUp, viewportOnce, cursorSpring } from "./motion";
-
-// The same eight platforms PlatformsStrip lists — deliberately reused so
-// this section reads as "the very things mentioned above, now converging"
-// rather than introducing a second, unrelated set of icons.
-const NODES = [
-  { Icon: SiSpotify, x: 0.06, y: 0.15 },
-  { Icon: SiApplepodcasts, x: 0.04, y: 0.52 },
-  { Icon: SiYoutube, x: 0.16, y: 0.85 },
-  { Icon: SiAmazonmusic, x: 0.32, y: 0.08 },
-  { Icon: SiInstagram, x: 0.36, y: 0.6 },
-  { Icon: SiTiktok, x: 0.2, y: 0.35 },
-  { Icon: SiLinkedin, x: 0.1, y: 0.94 },
-  { Icon: Mail, x: 0.4, y: 0.88 },
-];
-
-const HUB = { x: 0.88, y: 0.5 };
-
-// Short forms of the six WorkspacePillars titles — this panel is depicting
-// the same workspace, not inventing new language for it.
-const OUTCOMES = ["Episodes", "Audience", "Sponsors", "Distribution"];
+import { fadeUp, viewportOnce } from "./motion";
 
 /**
- * The page's "everything converges" moment: the platforms from PlatformsStrip
- * scatter, draw lines into a single Podlogix hub, and a compact "one view"
- * panel builds itself — original visual storytelling in place of a generic
- * dashboard screenshot. Tilts gently toward the cursor; no-ops under
- * prefers-reduced-motion.
+ * Section 2 — "See the workspace" moment.
+ * Shows the real Podlogix dashboard in a 3-D browser mockup that
+ * parallax-scrolls upward as the user enters the section.
  */
 export function WorkspaceShowcase() {
-  const cardRef = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion();
-  const rotateXRaw = useMotionValue(0);
-  const rotateYRaw = useMotionValue(0);
-  const rotateX = useSpring(rotateXRaw, cursorSpring);
-  const rotateY = useSpring(rotateYRaw, cursorSpring);
 
-  const lineDuration = reduceMotion ? 0 : 0.6;
-  const lineStagger = reduceMotion ? 0 : 0.07;
-  const hubDelay = reduceMotion ? 0 : NODES.length * lineStagger + 0.2;
-  const panelDelay = hubDelay + (reduceMotion ? 0 : 0.4);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
 
-  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
-    if (reduceMotion) return;
-    const el = cardRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-    rotateYRaw.set(px * 6);
-    rotateXRaw.set(py * -6);
-  }
-
-  function handleMouseLeave() {
-    rotateXRaw.set(0);
-    rotateYRaw.set(0);
-  }
+  // Mockup drifts up gently as you scroll into view — gives it weight
+  const mockupY = useTransform(
+    scrollYProgress,
+    [0, 1],
+    reduceMotion ? [0, 0] : [40, -40]
+  );
 
   return (
-    <section id="workspace-showcase" className="py-28 lg:py-36">
-      <div className="container mx-auto px-6">
+    <section
+      id="workspace-showcase"
+      ref={ref}
+      className="relative overflow-hidden py-24 lg:py-36"
+    >
+      {/* Warm ambient glow behind the mockup */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute left-1/2 top-1/2 h-[600px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20"
+          style={{
+            background: "radial-gradient(circle, #D97706 0%, transparent 65%)",
+            filter: "blur(100px)",
+          }}
+        />
+      </div>
+
+      <div className="container relative z-10 mx-auto px-6">
+        {/* ── Section header ── */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           whileInView="show"
           viewport={viewportOnce}
-          className="mx-auto mb-14 max-w-xl text-center"
+          className="mx-auto mb-16 max-w-xl text-center"
         >
-          <SectionKicker className="text-center">One workspace</SectionKicker>
+          <SectionKicker className="text-center">The workspace</SectionKicker>
           <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">
-            Not five tabs. One place.
+            Everything in one place.
           </h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Episodes, distribution, audience, campaigns — one dashboard,
+            no tab-switching.
+          </p>
         </motion.div>
 
+        {/* ── Browser mockup ── */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           whileInView="show"
           viewport={viewportOnce}
-          style={{ perspective: 1200 }}
-          className="mx-auto max-w-3xl"
+          style={{ y: mockupY }}
+          className="mx-auto max-w-5xl"
         >
-          <motion.div
-            ref={cardRef}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] shadow-2xl shadow-black/40"
-          >
-            {/* Header — a label, not a fake browser chrome */}
-            <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-              <span className="text-xs font-medium text-muted-foreground">Your workspace</span>
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                </span>
-                Live
-              </span>
-            </div>
+          {/* Outer glow halo */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl opacity-30"
+            style={{
+              background: "radial-gradient(ellipse at center, #D97706 0%, transparent 70%)",
+              filter: "blur(40px)",
+            }}
+          />
 
-            <div className="flex flex-col gap-6 p-5 sm:p-6 lg:flex-row lg:items-stretch">
-              {/* Convergence diagram */}
-              <div className="relative min-h-[240px] flex-1 sm:min-h-[280px]">
-                <svg
-                  className="absolute inset-0 h-full w-full"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  role="img"
-                  aria-label="Eight connected platforms converging into a single Podlogix workspace"
-                >
-                  <defs>
-                    <linearGradient id="convergence-line" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#10b981" />
-                      <stop offset="100%" stopColor="#0ea5e9" />
-                    </linearGradient>
-                  </defs>
-                  {NODES.map((n, i) => (
-                    <motion.line
-                      key={i}
-                      x1={n.x * 100}
-                      y1={n.y * 100}
-                      x2={HUB.x * 100}
-                      y2={HUB.y * 100}
-                      stroke="url(#convergence-line)"
-                      strokeWidth={0.4}
-                      vectorEffect="non-scaling-stroke"
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      whileInView={{ pathLength: 1, opacity: 0.5 }}
-                      viewport={viewportOnce}
-                      transition={{ duration: lineDuration, delay: i * lineStagger, ease: easing.spring }}
-                    />
-                  ))}
-                </svg>
+          {/*
+            3-D perspective wrapper — same tilt as the original hero mockup
+            so the dashboard feels like a physical screen floating in space.
+          */}
+          <div style={{ perspective: "1600px", perspectiveOrigin: "50% 40%" }}>
+            <motion.div
+              initial={{ rotateX: reduceMotion ? 6 : 14, opacity: 0 }}
+              whileInView={{ rotateX: 6, opacity: 1 }}
+              viewport={viewportOnce}
+              transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              {/* Drop shadow beneath the tilted screen */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-16 -bottom-10 h-20 rounded-full bg-black/60 blur-3xl"
+              />
 
-                {NODES.map((n, i) => (
-                  <div
-                    key={i}
-                    className="absolute -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${n.x * 100}%`, top: `${n.y * 100}%` }}
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={viewportOnce}
-                      transition={{ duration: 0.3, delay: i * lineStagger, ease: easing.spring }}
-                      className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-muted-foreground"
-                    >
-                      <n.Icon className="h-3.5 w-3.5" />
-                    </motion.div>
+              {/* Browser frame */}
+              <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_60px_120px_rgba(0,0,0,0.8)]">
+
+                {/* Browser chrome / title bar */}
+                <div className="flex h-10 items-center gap-3 border-b border-white/[0.06] bg-[#141414] px-5">
+                  <div className="flex items-center gap-[6px] shrink-0">
+                    <span className="h-[10px] w-[10px] rounded-full bg-[#FF5F57]" />
+                    <span className="h-[10px] w-[10px] rounded-full bg-[#FEBC2E]" />
+                    <span className="h-[10px] w-[10px] rounded-full bg-[#28C840]" />
                   </div>
-                ))}
-
-                <div
-                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${HUB.x * 100}%`, top: `${HUB.y * 100}%` }}
-                >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={viewportOnce}
-                    transition={{ duration: 0.5, delay: hubDelay, ease: easing.spring }}
-                    className="relative flex h-11 w-11 items-center justify-center"
-                  >
-                    <span
-                      aria-hidden
-                      className="absolute inset-0 rounded-full blur-lg"
-                      style={{
-                        background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
-                        opacity: 0.4,
-                      }}
-                    />
-                    <span
-                      className="relative flex h-9 w-9 items-center justify-center rounded-full"
-                      style={{ background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)" }}
-                    >
-                      <Mic className="h-4 w-4 text-white" />
-                    </span>
-                  </motion.div>
+                  <div className="mx-auto max-w-[200px] flex-1 rounded-md bg-white/[0.06] px-3 py-[3px] text-center text-[10px] text-muted-foreground/40">
+                    podlogix.io/activity
+                  </div>
+                  {/* Fake right-side browser controls */}
+                  <div className="flex items-center gap-2 shrink-0 opacity-30">
+                    <span className="h-3 w-3 rounded-sm border border-white/20" />
+                    <span className="h-3 w-3 rounded-sm border border-white/20" />
+                  </div>
                 </div>
-              </div>
 
-              {/* One view panel */}
-              <motion.div
-                initial={{ opacity: 0, x: reduceMotion ? 0 : 12 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={viewportOnce}
-                transition={{ duration: 0.4, delay: panelDelay, ease: easing.spring }}
-                className="flex-none rounded-xl border border-white/10 bg-white/[0.03] p-5 lg:w-[190px]"
+                {/* Dashboard screenshot */}
+                <img
+                  src="/images/dashboard-preview.jpg"
+                  alt="Podlogix Activity dashboard — stat tiles, setup checklist, show list, and quick access panel"
+                  className="block w-full select-none"
+                  draggable={false}
+                />
+
+                {/* Top gloss — catches ambient light */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-10 h-24 bg-gradient-to-b from-white/[0.03] to-transparent"
+                />
+
+                {/* Bottom fog — blends into page bg */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background/80 to-transparent"
+                />
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Feature bullets below the mockup */}
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
+            viewport={viewportOnce}
+            className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4"
+          >
+            {[
+              { label: "Shows", value: "All in one feed" },
+              { label: "Distribution", value: "6+ platforms" },
+              { label: "Analytics", value: "Real-time stats" },
+              { label: "Voice Identity", value: "Blockchain certified" },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 text-center"
               >
-                <p className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                  One view
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                  {stat.label}
                 </p>
-                <ul className="space-y-2.5">
-                  {OUTCOMES.map((label, i) => (
-                    <motion.li
-                      key={label}
-                      initial={{ opacity: 0, y: 6 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={viewportOnce}
-                      transition={{
-                        duration: 0.3,
-                        delay: panelDelay + i * (reduceMotion ? 0 : 0.09),
-                        ease: easing.spring,
-                      }}
-                      className="flex items-center gap-2 text-sm text-foreground"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                      {label}
-                    </motion.li>
-                  ))}
-                </ul>
-              </motion.div>
-            </div>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {stat.value}
+                </p>
+              </div>
+            ))}
           </motion.div>
         </motion.div>
       </div>

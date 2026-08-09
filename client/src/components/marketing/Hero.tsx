@@ -265,7 +265,32 @@ export function Hero() {
                 minHeight: 420,
               }}
             >
-              {/* Decorative orb inside the card */}
+              {/*
+                HERO HOST IMAGE — drop a photo at /images/hero-host.jpg (or .png/.webp)
+                and it will appear on the right half of this card, blending into the
+                gradient on the left. Remove the `hidden` class once the image is ready.
+                Ideal specs: portrait orientation, 800×1000px min, subject facing left,
+                warm studio or natural lighting. Try Unsplash, Pexels, or Midjourney.
+              */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 right-0 w-[58%]"
+                style={{
+                  backgroundImage: "url('/images/hero-host.jpg')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center top",
+                }}
+              />
+              {/* Left-side gradient overlay so text is always readable over the photo */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: "linear-gradient(to right, #7C2D12 30%, rgba(194,65,12,0.85) 55%, rgba(217,119,6,0.3) 80%, transparent 100%)",
+                }}
+              />
+
+              {/* Decorative orb inside the card (shows when no photo is present) */}
               <div
                 aria-hidden
                 className="pointer-events-none absolute right-0 top-0 h-56 w-56 rounded-full opacity-30"
