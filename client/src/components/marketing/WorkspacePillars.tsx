@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Mic2, TrendingUp, Handshake, Globe2, Users2, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Mic2, Sparkles, Fingerprint, Globe2, type LucideIcon } from "lucide-react";
 import { SpotlightCard } from "./SpotlightCard";
 import { SectionKicker } from "./SectionKicker";
 import { fadeUp, stagger, staggerItem, viewportOnce } from "./motion";
@@ -13,33 +13,23 @@ interface Pillar {
 const PILLARS: Pillar[] = [
   {
     icon: Mic2,
-    title: "Episodes & Production",
-    body: "Upload, transcribe, and generate show notes and clips — AI handles the busywork behind every episode.",
+    title: "Podcast Management",
+    body: "Episodes, RSS, and every show detail — organized, not scattered across five tools.",
   },
   {
-    icon: TrendingUp,
-    title: "Audience & Insights",
-    body: "Downloads, growth, and listener behavior in one view, across every show you run.",
+    icon: Sparkles,
+    title: "AI Assistant",
+    body: "Show notes, titles, and clip ideas drafted for you. You approve, you ship.",
   },
   {
-    icon: Handshake,
-    title: "Business & Sponsors",
-    body: "Media kits, sponsorship conversations, and revenue — the business side of the show, handled properly.",
+    icon: Fingerprint,
+    title: "Voice Identity",
+    body: "Certify your voice. Get alerted the moment an AI clone of you shows up anywhere.",
   },
   {
     icon: Globe2,
     title: "Distribution",
-    body: "Hosting, an Apple-spec RSS feed, and syndication to every platform your audience already listens on.",
-  },
-  {
-    icon: Users2,
-    title: "Team & Workflow",
-    body: "Bring in producers and collaborators, assign roles, and run multiple shows without the chaos.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Identity Protection",
-    body: "Certify your voice and likeness, and get alerted if an AI impersonation shows up anywhere online.",
+    body: "One Apple-spec feed, syndicated everywhere your audience already listens.",
   },
 ];
 
@@ -77,7 +67,7 @@ export function WorkspacePillars() {
           initial="hidden"
           whileInView="show"
           viewport={viewportOnce}
-          className="grid gap-5 md:grid-cols-2 lg:grid-cols-3"
+          className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4"
         >
           {PILLARS.map((p, i) => (
             <motion.div key={p.title} variants={staggerItem}>

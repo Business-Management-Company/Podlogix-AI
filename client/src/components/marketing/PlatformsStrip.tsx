@@ -30,14 +30,14 @@ const PLATFORMS = [
  */
 export function PlatformsStrip() {
   return (
-    <section className="overflow-hidden border-y border-white/5 py-14">
+    <section className="overflow-hidden border-y border-white/5 py-10">
       <div className="container mx-auto px-6">
         <motion.p
           variants={fadeUp}
           initial="hidden"
           whileInView="show"
           viewport={viewportOnce}
-          className="mb-8 text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+          className="mb-6 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70"
         >
           Connects to everywhere your business already runs
         </motion.p>
@@ -58,10 +58,10 @@ export function PlatformsStrip() {
           {[...PLATFORMS, ...PLATFORMS].map(({ Icon, label }, i) => (
             <div
               key={`${label}-${i}`}
-              className="flex items-center gap-2 whitespace-nowrap text-muted-foreground/70 transition-colors duration-200 hover:text-foreground"
+              className="flex items-center gap-2 whitespace-nowrap text-muted-foreground/60 transition-colors duration-200 hover:text-foreground"
             >
-              <Icon className="h-4 w-4" />
-              <span className="text-sm font-medium">{label}</span>
+              <Icon className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{label}</span>
             </div>
           ))}
         </div>
