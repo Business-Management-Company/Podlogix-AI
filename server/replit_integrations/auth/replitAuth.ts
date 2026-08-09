@@ -526,8 +526,6 @@ export async function setupAuth(app: Express) {
 
   async function sendResetEmail(to: string, token: string): Promise<boolean> {
     const apiKey = process.env.RESEND_API_KEY;
-    // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-    console.log(`[Auth][DIAG] RESEND_API_KEY exists: ${Boolean(apiKey)}`);
     if (!apiKey) {
       // Dev fallback: print the reset link to server logs
       const link = `${process.env.APP_URL || "https://podlogix.io"}/reset-password?token=${token}`;
@@ -535,14 +533,9 @@ export async function setupAuth(app: Express) {
       return true;
     }
     const from = "Podlogix <no-reply@podlogix.io>";
-    // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-    console.log(`[Auth][DIAG] Sender address: ${from}`);
-    console.log(`[Auth][DIAG] Recipient: ${to}`);
     try {
       const resend = new Resend(apiKey);
       const link = `${process.env.APP_URL || "https://podlogix.io"}/reset-password?token=${token}`;
-      // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-      console.log("[Auth][DIAG] Calling resend.emails.send()...");
       const result = await resend.emails.send({
         from,
         to,
@@ -558,15 +551,8 @@ export async function setupAuth(app: Express) {
         `,
         text: `Reset your Podlogix password by visiting this link (expires in 1 hour):\n\n${link}`,
       });
-      // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-      console.log("[Auth][DIAG] Resend response:", JSON.stringify(result));
       return true;
     } catch (err: any) {
-      // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-      console.error("[Auth][DIAG] Exception calling Resend:", {
-        statusCode: err?.statusCode ?? err?.status ?? null,
-        message: err?.message ?? String(err),
-      });
       console.error("[Auth] Failed to send reset email:", err);
       return false;
     }
@@ -582,12 +568,7 @@ export async function setupAuth(app: Express) {
       const user = await authStorage.getUserByEmail(email.toLowerCase().trim());
       if (user) {
         const token = generateResetToken(user.id, user.email!);
-        // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-        console.log(`[Auth][DIAG] Forgot-password matched user ${user.id} — invoking sendResetEmail()`);
         await sendResetEmail(user.email!, token);
-      } else {
-        // TEMP DIAGNOSTIC — remove once the forgot-password email issue is found.
-        console.log("[Auth][DIAG] Forgot-password requested for an email with no matching account — sendResetEmail() will not be called");
       }
       res.json({ message: "If an account with that email exists, a reset link has been sent." });
     } catch (err) {
