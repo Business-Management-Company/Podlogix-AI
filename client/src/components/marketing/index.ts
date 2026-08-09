@@ -3,6 +3,7 @@ export { PlatformsStrip } from "./PlatformsStrip";
 export { WorkspacePillars } from "./WorkspacePillars";
 export { EditorialStatement } from "./EditorialStatement";
 export { WorkspaceShowcase } from "./WorkspaceShowcase";
+export { ConnectorsSection } from "./ConnectorsSection";
 export { SocialProof } from "./SocialProof";
 export { PricingPreview } from "./PricingPreview";
 export { FinalCTA } from "./FinalCTA";

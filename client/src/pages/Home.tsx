@@ -10,6 +10,7 @@ import {
   WorkspacePillars,
   EditorialStatement,
   WorkspaceShowcase,
+  ConnectorsSection,
   SocialProof,
   PricingPreview,
   FinalCTA,
@@ -44,6 +45,8 @@ export default function Home() {
         <WorkspacePillars />
         {/* Trust — tangible proof */}
         <WorkspaceShowcase />
+        {/* Integrations / Connected apps */}
+        <ConnectorsSection />
         {/* Social proof */}
         <SocialProof />
         {/* Pricing */}

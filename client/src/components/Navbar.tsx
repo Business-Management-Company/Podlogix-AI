@@ -18,7 +18,7 @@ interface AdminCheck {
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const { user, isAuthenticated, isLoading, login, logout } = useAuth();
-  
+
   const { data: adminCheck } = useQuery<AdminCheck>({
     queryKey: ["/api/admin/check"],
     enabled: isAuthenticated,
@@ -50,6 +50,21 @@ export function Navbar() {
 
         <div className="hidden md:flex items-center gap-8">
           <Link href="/features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</Link>
+          {/* Integrations scrolls to the #integrations section on the homepage.
+              The href fallback handles navigation from other pages. */}
+          <a
+            href="/#integrations"
+            onClick={(e) => {
+              // If already on the homepage, scroll smoothly instead of navigating
+              if (window.location.pathname === "/") {
+                e.preventDefault();
+                scrollToSection("integrations");
+              }
+            }}
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          >
+            Integrations
+          </a>
           <Link href="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
           <Link href="/about" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">About</Link>
         </div>
@@ -133,8 +148,8 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={login}
                 data-testid="button-login"
@@ -142,8 +157,8 @@ export function Navbar() {
                 <LogIn className="h-4 w-4 mr-2" />
                 Log In
               </Button>
-              <Button 
-                variant="default" 
+              <Button
+                variant="default"
                 size="sm"
                 onClick={login}
                 className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300"
