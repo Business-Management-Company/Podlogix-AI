@@ -11,7 +11,6 @@ const HEADLINE = ["Run your entire", "podcast business", "from one workspace."];
 
 const WAVEFORM_HEIGHTS = [45, 85, 55, 70, 40, 65];
 
-/** Small animated waveform used inside the hero's floating "recording" card. */
 function WaveformBars({ reduceMotion }: { reduceMotion: boolean | null }) {
   return (
     <div className="flex h-6 items-end gap-[3px]">
@@ -36,7 +35,6 @@ function WaveformBars({ reduceMotion }: { reduceMotion: boolean | null }) {
   );
 }
 
-/** Live-recording indicator dot — a soft pulse + glow, static under reduced motion. */
 function PulsingDot({ reduceMotion }: { reduceMotion: boolean | null }) {
   if (reduceMotion) {
     return <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />;
@@ -57,7 +55,6 @@ function PulsingDot({ reduceMotion }: { reduceMotion: boolean | null }) {
   );
 }
 
-/** Wraps hero-card content in a continuous, gentle vertical float. */
 function FloatWrapper({
   reduceMotion,
   duration,
@@ -71,7 +68,7 @@ function FloatWrapper({
 }) {
   return (
     <motion.div
-      animate={reduceMotion ? undefined : { y: [0, -10, 0] }}
+      animate={reduceMotion ? undefined : { y: [0, -8, 0] }}
       transition={reduceMotion ? undefined : { duration, repeat: Infinity, ease: "easeInOut", delay }}
     >
       {children}
@@ -79,38 +76,24 @@ function FloatWrapper({
   );
 }
 
-/** Counts up from 0 to target on mount. */
 function StatCounter({ target, suffix, reduceMotion }: { target: number; suffix: string; reduceMotion: boolean | null }) {
   const [value, setValue] = useState(reduceMotion ? target : 0);
 
   useEffect(() => {
-    if (reduceMotion) {
-      setValue(target);
-      return;
-    }
+    if (reduceMotion) { setValue(target); return; }
     let frame: number;
     const start = performance.now();
-    const durationMs = 1000;
-
+    const dur = 1200;
     function tick(now: number) {
-      const progress = Math.min((now - start) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(target * eased);
-      if (progress < 1) {
-        frame = requestAnimationFrame(tick);
-      }
+      const p = Math.min((now - start) / dur, 1);
+      setValue(target * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) frame = requestAnimationFrame(tick);
     }
-
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [target, reduceMotion]);
 
-  return (
-    <>
-      {value.toFixed(1)}
-      {suffix}
-    </>
-  );
+  return <>{value.toFixed(1)}{suffix}</>;
 }
 
 const heroStagger = {
@@ -119,21 +102,23 @@ const heroStagger = {
 };
 
 const heroItem = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: easing.spring } },
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: easing.spring } },
 };
 
 const heroLineReveal = {
   hidden: { y: "100%" },
-  show: { y: "0%", transition: { duration: 0.32, ease: easing.spring } },
+  show: { y: "0%", transition: { duration: 0.34, ease: easing.spring } },
 };
 
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const glowScrollOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.2]);
-  const glowScrollY = useTransform(scrollYProgress, [0, 1], reduceMotion ? [0, 0] : [0, 120]);
+  const glowOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.15]);
+  const glowY = useTransform(scrollYProgress, [0, 1], reduceMotion ? [0, 0] : [0, 100]);
+  // Parallax — mockup drifts up slightly slower than the page scroll
+  const mockupY = useTransform(scrollYProgress, [0, 1], reduceMotion ? [0, 0] : [0, 60]);
 
   const glowX = useMotionValue(0);
   const springGlowX = useSpring(glowX, cursorSpring);
@@ -141,7 +126,7 @@ export function Hero() {
   function handleMouseMove(e: React.MouseEvent<HTMLElement>) {
     if (reduceMotion) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    glowX.set(((e.clientX - rect.left) / rect.width - 0.5) * 40);
+    glowX.set(((e.clientX - rect.left) / rect.width - 0.5) * 30);
   }
 
   function scrollToWorkspace(e: React.MouseEvent) {
@@ -155,42 +140,43 @@ export function Hero() {
     <section
       ref={ref}
       onMouseMove={handleMouseMove}
-      className="relative overflow-hidden pb-20 pt-32 lg:pb-28 lg:pt-40"
+      className="relative overflow-hidden pb-16 pt-28 lg:pb-24 lg:pt-36"
     >
-      {/* Background glow — positioned to light up the right-side mockup */}
+      {/* ── Ambient glow ─────────────────────────────────────────────────── */}
       <motion.div
         aria-hidden
-        style={{ opacity: glowScrollOpacity, y: glowScrollY, x: springGlowX }}
+        style={{ opacity: glowOpacity, y: glowY, x: springGlowX }}
         className="pointer-events-none absolute inset-0"
       >
-        <div className="absolute right-[10%] top-[-5%] h-[600px] w-[700px] rounded-full bg-primary/[0.12] blur-[160px]" />
-        <div className="absolute left-[5%] top-[30%] h-[400px] w-[500px] rounded-full bg-primary/[0.06] blur-[120px]" />
+        {/* Primary glow — sits behind and to the right to light the mockup */}
+        <div className="absolute right-[8%] top-[-8%] h-[650px] w-[750px] rounded-full bg-primary/[0.15] blur-[180px]" />
+        {/* Secondary cool fill on the left so the text isn't too dark */}
+        <div className="absolute left-[-5%] top-[20%] h-[500px] w-[600px] rounded-full bg-primary/[0.05] blur-[130px]" />
       </motion.div>
 
       <div className="container relative z-10 mx-auto px-6">
-        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-14 xl:gap-20">
+        <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1fr_1.25fr] lg:gap-10 xl:gap-16">
 
-          {/* ── Left column: text content ──────────────────────────────────── */}
+          {/* ── LEFT: headline + CTAs ─────────────────────────────────────── */}
           <motion.div
             variants={heroStagger}
             initial="hidden"
             animate="show"
-            className="max-w-xl"
           >
             {/* Beta badge */}
             <motion.div
               variants={heroItem}
-              className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium tracking-wide text-muted-foreground backdrop-blur-sm"
+              className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-medium tracking-wide text-muted-foreground backdrop-blur-sm"
             >
               <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
               </span>
               Now in public beta
             </motion.div>
 
             {/* Headline */}
-            <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-[4.2rem] xl:text-[4.8rem] lg:leading-[0.98]">
+            <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-[4rem] xl:text-[4.6rem] lg:leading-[0.98]">
               {HEADLINE.map((line) => (
                 <span key={line} className="block overflow-hidden">
                   <motion.span variants={heroLineReveal} className="block">
@@ -200,10 +186,10 @@ export function Hero() {
               ))}
             </h1>
 
-            {/* Sub-headline */}
+            {/* Sub */}
             <motion.p
               variants={heroItem}
-              className="mt-7 text-lg leading-relaxed text-muted-foreground md:text-xl"
+              className="mt-7 max-w-md text-lg leading-relaxed text-muted-foreground"
             >
               Episodes, audience, sponsors, distribution, and your team — connected in one place.{" "}
               <span className="font-semibold text-foreground">
@@ -211,15 +197,15 @@ export function Hero() {
               </span>
             </motion.p>
 
-            {/* CTA buttons */}
+            {/* CTAs */}
             <motion.div
               variants={heroItem}
-              className="mt-10 flex flex-col gap-4 sm:flex-row"
+              className="mt-10 flex flex-col gap-3 sm:flex-row"
             >
               <Magnetic className="inline-block">
                 <Button
                   size="lg"
-                  className="h-14 rounded-full px-8 text-base shadow-xl shadow-primary/20 transition-shadow duration-300 hover:shadow-primary/35"
+                  className="h-13 rounded-full px-7 text-base shadow-xl shadow-primary/25 transition-shadow duration-300 hover:shadow-primary/40"
                   asChild
                   data-testid="button-hero-start"
                 >
@@ -232,7 +218,7 @@ export function Hero() {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="h-14 rounded-full border-white/10 px-8 text-base hover:bg-white/5"
+                  className="h-13 rounded-full border-white/10 px-7 text-base hover:bg-white/5"
                   onClick={scrollToWorkspace}
                   data-testid="button-hero-workspace"
                 >
@@ -241,94 +227,128 @@ export function Hero() {
               </Magnetic>
             </motion.div>
 
-            <motion.p variants={heroItem} className="mt-5 text-xs text-muted-foreground/60">
+            <motion.p variants={heroItem} className="mt-5 text-xs text-muted-foreground/50">
               No credit card required · Free during the beta
             </motion.p>
           </motion.div>
 
-          {/* ── Right column: product mockup ───────────────────────────────── */}
+          {/* ── RIGHT: 3D perspective product mockup ─────────────────────── */}
           <motion.div
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 36 }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 48 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 1.1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            style={{ y: mockupY }}
             className="relative hidden lg:block"
           >
-            {/* Outer glow behind the mockup frame */}
+            {/*
+              Perspective wrapper — gives the 3-D tilt effect.
+              rotateY(-14deg): left edge comes toward viewer, right recedes.
+              rotateX(4deg):  top tilts very slightly back for a "looking up at it" feel.
+              This mirrors the Whispr editorial product-on-a-pedestal treatment.
+            */}
             <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 -z-10 scale-105 rounded-3xl bg-primary/[0.08] blur-3xl"
-            />
+              style={{
+                perspective: "1400px",
+                perspectiveOrigin: "60% 50%",
+              }}
+            >
+              <motion.div
+                initial={{ rotateY: reduceMotion ? -14 : -22, rotateX: reduceMotion ? 4 : 8 }}
+                animate={{ rotateY: -14, rotateX: 4 }}
+                transition={{ duration: 1.4, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                style={{ transformStyle: "preserve-3d" }}
+              >
+                {/* Drop shadow beneath the tilted screen */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-8 -bottom-8 h-16 rounded-full bg-black/50 blur-2xl"
+                />
 
-            {/* Browser mockup frame */}
-            <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_32px_80px_rgba(0,0,0,0.6)]">
-              {/* Browser chrome / title bar */}
-              <div className="flex h-9 items-center gap-3 border-b border-white/[0.06] bg-[#161616] px-4">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="h-[10px] w-[10px] rounded-full bg-[#FF5F57]" />
-                  <span className="h-[10px] w-[10px] rounded-full bg-[#FEBC2E]" />
-                  <span className="h-[10px] w-[10px] rounded-full bg-[#28C840]" />
+                {/* Glow halo behind the screen */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-6 -z-10 rounded-3xl bg-primary/[0.1] blur-3xl"
+                />
+
+                {/* Browser mockup frame */}
+                <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_40px_100px_rgba(0,0,0,0.7)]">
+                  {/* Title bar */}
+                  <div className="flex h-9 items-center gap-3 border-b border-white/[0.06] bg-[#141414] px-4">
+                    <div className="flex items-center gap-[6px] shrink-0">
+                      <span className="h-[10px] w-[10px] rounded-full bg-[#FF5F57]" />
+                      <span className="h-[10px] w-[10px] rounded-full bg-[#FEBC2E]" />
+                      <span className="h-[10px] w-[10px] rounded-full bg-[#28C840]" />
+                    </div>
+                    <div className="mx-auto max-w-[180px] flex-1 rounded-md bg-white/[0.06] px-3 py-[3px] text-center text-[10px] text-muted-foreground/40">
+                      podlogix.io/activity
+                    </div>
+                  </div>
+
+                  {/* Dashboard screenshot */}
+                  <img
+                    src="/images/dashboard-preview.jpg"
+                    alt="Podlogix dashboard — Activity view"
+                    className="block w-full select-none"
+                    draggable={false}
+                  />
+
+                  {/* Subtle reflection: a gentle white gloss at the top */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-9 h-32 bg-gradient-to-b from-white/[0.04] to-transparent"
+                  />
+
+                  {/* Bottom fade so it bleeds into the page background */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/70 to-transparent"
+                  />
                 </div>
-                <div className="mx-auto flex-1 max-w-[200px] rounded-md bg-white/[0.06] px-3 py-[3px] text-center text-[10px] text-muted-foreground/40">
-                  podlogix.io/activity
-                </div>
-              </div>
-
-              {/* Dashboard screenshot */}
-              <img
-                src="/images/dashboard-preview.jpg"
-                alt="Podlogix dashboard — Activity view showing stat tiles, show checklist, and quick access panel"
-                className="block w-full select-none"
-                draggable={false}
-              />
-
-              {/* Subtle vignette fade at the bottom */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
+              </motion.div>
             </div>
 
-            {/* Floating card — "Recording" — top right corner of mockup */}
+            {/* Floating card — "Recording" — top-right, outside the tilted frame */}
             <motion.div
               aria-hidden
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
-              style={{ transform: "rotate(3deg)" }}
-              className="pointer-events-none absolute -right-6 top-10 w-[200px] rounded-2xl border border-white/10 bg-[#0e0e0e]/90 p-4 shadow-2xl shadow-black/40 backdrop-blur-md"
+              initial={{ opacity: 0, x: reduceMotion ? 0 : 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.7, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
+              className="pointer-events-none absolute -right-10 top-6 w-[196px] rounded-2xl border border-white/10 bg-[#0d0d0d]/90 p-4 shadow-2xl shadow-black/50 backdrop-blur-md"
             >
-              <FloatWrapper reduceMotion={reduceMotion} duration={3.4} delay={0}>
+              <FloatWrapper reduceMotion={reduceMotion} duration={3.6} delay={0}>
                 <div className="mb-3 flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                     <PulsingDot reduceMotion={reduceMotion} />
                     Recording
                   </span>
-                  <span className="text-[11px] text-muted-foreground/60">04:12</span>
+                  <span className="text-[11px] tabular-nums text-muted-foreground/50">04:12</span>
                 </div>
-                <p className="mb-3 text-sm font-semibold leading-tight">Ep. 42 — Scaling a Solo Show</p>
+                <p className="mb-3 text-sm font-semibold leading-snug">Ep. 42 — Scaling a Solo Show</p>
                 <WaveformBars reduceMotion={reduceMotion} />
               </FloatWrapper>
             </motion.div>
 
-            {/* Floating card — weekly plays stat — bottom left of mockup */}
+            {/* Floating card — weekly plays — bottom-left */}
             <motion.div
               aria-hidden
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.85, ease: [0.16, 1, 0.3, 1] }}
-              style={{ transform: "rotate(-2deg)" }}
-              className="pointer-events-none absolute -left-6 bottom-16 w-[175px] rounded-2xl border border-white/10 bg-[#0e0e0e]/90 p-4 shadow-2xl shadow-black/40 backdrop-blur-md"
+              initial={{ opacity: 0, x: reduceMotion ? 0 : -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.7, delay: 1.05, ease: [0.16, 1, 0.3, 1] }}
+              className="pointer-events-none absolute -left-10 bottom-20 w-[168px] rounded-2xl border border-white/10 bg-[#0d0d0d]/90 p-4 shadow-2xl shadow-black/50 backdrop-blur-md"
             >
-              <FloatWrapper reduceMotion={reduceMotion} duration={3.4} delay={1.7}>
-                <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+              <FloatWrapper reduceMotion={reduceMotion} duration={3.6} delay={1.8}>
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
                   This week
                 </p>
-                <p className="mt-1.5 font-display text-2xl font-bold">
-                  <StatCounter target={12.4} suffix="K" reduceMotion={reduceMotion} />{" "}
-                  <span className="text-sm font-medium text-primary">plays</span>
+                <p className="mt-1.5 font-display text-[1.6rem] font-bold leading-none">
+                  <StatCounter target={12.4} suffix="K" reduceMotion={reduceMotion} />
+                  <span className="ml-1 text-sm font-semibold text-primary">plays</span>
                 </p>
-                <p className="mt-1 text-[10px] text-muted-foreground/70">↑ 18% vs last week</p>
+                <p className="mt-1.5 text-[10px] text-muted-foreground/60">↑ 18% vs last week</p>
               </FloatWrapper>
             </motion.div>
-          </motion.div>
 
+          </motion.div>
         </div>
       </div>
     </section>
