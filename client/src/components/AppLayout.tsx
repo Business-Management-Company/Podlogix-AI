@@ -992,7 +992,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           style={{
             flex: 1,
             overflowY: "auto",
-            background: "#ffffff",
+            background: "#f6f7f9",
           }}
         >
           <motion.div key={location} variants={pageIn} initial="hidden" animate="show">

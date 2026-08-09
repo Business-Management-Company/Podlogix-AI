@@ -1,73 +1,45 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Link } from "wouter";
-import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Card,
-  CardRow,
-  SectionHeader,
-  StatusPill,
-  StatTile,
-  EmptyState,
-  SkeletonRows,
-  staggerContainer,
-  staggerItem,
-} from "@/components/kit";
-import { status as statusTokens } from "@/lib/design-tokens";
-import {
-  AlertCircle,
-  AlertTriangle,
-  Info,
-  ArrowRight,
   Mic,
-  Calendar,
+  Rss,
+  Share2,
+  Shield,
+  Link2,
+  ArrowRight,
+  BarChart3,
   TrendingUp,
-  Users,
-  Megaphone,
-  CheckCircle2,
-  Clock,
   Radio,
+  CheckCircle2,
+  Circle,
+  Plus,
+  Zap,
+  Headphones,
+  ExternalLink,
+  Mail,
 } from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-interface AttentionItem {
-  id: string;
-  type: "error" | "warning" | "info";
-  title: string;
-  description: string;
-  action?: { label: string; href: string };
-}
-
-interface FeedEvent {
-  id: string;
-  category: "episode" | "audience" | "revenue" | "campaign" | "system";
-  title: string;
-  time: string;
-  href?: string;
-}
-
-interface UpcomingItem {
-  id: string;
-  type: "episode" | "campaign" | "task";
-  title: string;
-  date: string;
-  show?: string;
-}
-
-interface ActivityData {
+interface DashboardData {
+  profile: {
+    id: string;
+    slug: string;
+    displayName: string;
+    isPublished: boolean;
+  } | null;
   podcasts: Array<{ id: string; title: string }>;
   hasRssFeed: boolean;
+  distributionStatus: Record<string, string>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getGreeting(): string {
+function getGreeting(name?: string | null): string {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  const salutation = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return name ? `${salutation}, ${name}` : salutation;
 }
 
 function getTodayString(): string {
@@ -78,309 +50,650 @@ function getTodayString(): string {
   });
 }
 
-// ─── Attention card ───────────────────────────────────────────────────────────
+// ─── Setup steps ─────────────────────────────────────────────────────────────
 
-const ATTENTION_ICONS = {
-  error: AlertCircle,
-  warning: AlertTriangle,
-  info: Info,
-};
+interface SetupStep {
+  id: string;
+  label: string;
+  hint: string;
+  href: string;
+  done: boolean;
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+}
 
-function AttentionCard({ item }: { item: AttentionItem }) {
-  const Icon = ATTENTION_ICONS[item.type];
-  const c = statusTokens[item.type];
+function buildSetupSteps(data: DashboardData | undefined): SetupStep[] {
+  return [
+    {
+      id: "profile",
+      label: "Create your Link Page",
+      hint: "Set up your public profile with links and social channels",
+      href: "/dashboard/profile",
+      done: !!data?.profile,
+      icon: Link2,
+    },
+    {
+      id: "rss",
+      label: "Connect an RSS feed",
+      hint: "Import episodes from your podcast host",
+      href: "/dashboard/rss",
+      done: !!data?.hasRssFeed,
+      icon: Rss,
+    },
+    {
+      id: "distribute",
+      label: "Distribute to platforms",
+      hint: "Submit to Spotify, Apple Podcasts, YouTube, and more",
+      href: "/dashboard/distribution",
+      done: Object.values(data?.distributionStatus || {}).some(
+        (s) => s === "submitted" || s === "approved"
+      ),
+      icon: Share2,
+    },
+    {
+      id: "voice",
+      label: "Protect your voice",
+      hint: "Certify your voice identity on the blockchain",
+      href: "/dashboard/certify",
+      done: false,
+      icon: Shield,
+    },
+  ];
+}
 
+// ─── Design constants ─────────────────────────────────────────────────────────
+
+const GREEN = "#10b981";
+const CARD_BORDER = "1px solid #e4e4e7";
+const CARD_RADIUS = 12;
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  accent?: boolean;
+}) {
   return (
-    <motion.div variants={staggerItem}>
-      <Card
-        padding="md"
-        className="flex items-start gap-3"
-        style={{ background: c.bg, borderColor: c.border, borderLeft: `3px solid ${c.dot}` }}
-      >
-        <Icon size={15} style={{ color: c.dot, flexShrink: 0, marginTop: 1 }} />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-zinc-950">{item.title}</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-zinc-600">{item.description}</p>
-          {item.action && (
-            <Link href={item.action.href}>
-              <span className="mt-1.5 inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-zinc-950 underline underline-offset-2">
-                {item.action.label}
-                <ArrowRight size={11} />
-              </span>
-            </Link>
-          )}
+    <div
+      style={{
+        flex: 1,
+        background: "#ffffff",
+        border: CARD_BORDER,
+        borderRadius: CARD_RADIUS,
+        padding: "16px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 12, color: "#71717a", fontWeight: 500, letterSpacing: "-0.01em" }}>
+          {label}
+        </span>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 7,
+            background: accent ? "rgba(16,185,129,0.08)" : "#f4f4f5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon size={13} style={{ color: accent ? GREEN : "#52525b" }} />
         </div>
-      </Card>
-    </motion.div>
-  );
-}
-
-// ─── Feed event dot color ─────────────────────────────────────────────────────
-
-const FEED_COLORS: Record<string, string> = {
-  episode: "#10b981",
-  audience: "#8b5cf6",
-  revenue: "#f59e0b",
-  campaign: "#3b82f6",
-  system: "#a1a1aa",
-};
-
-// ─── Stub data builders (replace with real API data) ─────────────────────────
-
-function buildAttentionItems(data: ActivityData | undefined): AttentionItem[] {
-  const items: AttentionItem[] = [];
-
-  if (!data?.hasRssFeed) {
-    items.push({
-      id: "no-rss",
-      type: "warning",
-      title: "No podcast connected",
-      description: "Connect your podcast host to start managing episodes, audience, and distribution.",
-      action: { label: "Connect your podcast", href: "/podcasts" },
-    });
-  }
-
-  if ((data?.podcasts?.length ?? 0) === 0 && data?.hasRssFeed) {
-    items.push({
-      id: "no-shows",
-      type: "info",
-      title: "Import your episodes",
-      description: "Your RSS feed is connected. Import episodes to see them in Podlogix.",
-      action: { label: "Go to Podcasts", href: "/podcasts" },
-    });
-  }
-
-  return items;
-}
-
-const STUB_FEED: FeedEvent[] = [
-  { id: "1", category: "episode",  title: "Episode 48 published to all platforms",       time: "2 hours ago" },
-  { id: "2", category: "audience", title: "+312 new downloads this week",                time: "6 hours ago" },
-  { id: "3", category: "campaign", title: "LinkedIn post scheduled for tomorrow at 9am",  time: "Yesterday" },
-  { id: "4", category: "revenue",  title: "Sponsor invoice sent — Acme Co. ($1,200)",     time: "2 days ago" },
-  { id: "5", category: "episode",  title: "Episode 47 reached 1,000 downloads",           time: "3 days ago" },
-  { id: "6", category: "system",   title: "Spotify connection refreshed",                 time: "4 days ago" },
-];
-
-const STUB_UPCOMING: UpcomingItem[] = [
-  { id: "1", type: "episode",  title: "Ep 49 — The Delegation Trap", date: "Tomorrow, 9am", show: "Build in Public" },
-  { id: "2", type: "campaign", title: "Newsletter — August recap",   date: "Aug 14, 10am",  show: "Build in Public" },
-  { id: "3", type: "task",     title: "Record Episode 50 intro",     date: "Aug 16" },
-];
-
-const UPCOMING_ICONS = {
-  episode: Radio,
-  campaign: Megaphone,
-  task: CheckCircle2,
-};
-
-const UPCOMING_COLORS = {
-  episode: "#10b981",
-  campaign: "#3b82f6",
-  task: "#a1a1aa",
-};
-
-// ─── Loading state ──────────────────────────────────────────────────────────────
-
-function ActivitySkeleton() {
-  return (
-    <div className="mx-auto max-w-[680px] space-y-7 px-8 pb-16 pt-10">
-      <Skeleton className="h-[132px] w-full rounded-2xl" />
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-16 rounded" />
-        <SkeletonRows count={2} />
       </div>
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-16 rounded" />
-        <SkeletonRows count={3} />
-      </div>
+      <span
+        style={{
+          fontSize: 24,
+          fontWeight: 700,
+          color: "#09090b",
+          letterSpacing: "-0.03em",
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: "#a1a1aa",
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        marginBottom: 10,
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border: CARD_BORDER,
+        borderRadius: CARD_RADIUS,
+        overflow: "hidden",
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Platform display map ─────────────────────────────────────────────────────
+
+const PLATFORM_DISPLAY: Record<string, { label: string; color: string }> = {
+  spotify:      { label: "Spotify",         color: "#1DB954" },
+  apple:        { label: "Apple Podcasts",  color: "#bc55e6" },
+  youtube:      { label: "YouTube",         color: "#FF0000" },
+  amazon:       { label: "Amazon Music",    color: "#00A8E1" },
+  google:       { label: "Google",          color: "#4285F4" },
+  iheartradio:  { label: "iHeartRadio",     color: "#CC0000" },
+};
+
+// ─── Quick actions ────────────────────────────────────────────────────────────
+
+const QUICK_ACTIONS = [
+  { label: "Add a podcast",      icon: Mic,      href: "/dashboard/rss",            hint: "Connect via RSS" },
+  { label: "Social Hub",         icon: Share2,   href: "/dashboard/social-hub",     hint: "Schedule posts" },
+  { label: "Email Hub",          icon: Mail,     href: "/dashboard/email",          hint: "Newsletters" },
+  { label: "Analytics",          icon: BarChart3, href: "/listener/analytics",      hint: "Downloads & growth" },
+  { label: "Voice Identity",     icon: Shield,   href: "/identity",                 hint: "AI protection" },
+];
+
+// ─── Activity.tsx ─────────────────────────────────────────────────────────────
 
 export default function Activity() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
 
-  const { data, isLoading } = useQuery<ActivityData>({
+  const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
   });
 
-  if (isLoading) return <ActivitySkeleton />;
+  const steps = buildSetupSteps(data);
+  const doneCount = steps.filter((s) => s.done).length;
+  const allDone = doneCount === steps.length;
+  const pendingSteps = steps.filter((s) => !s.done);
 
-  const attentionItems = buildAttentionItems(data);
-  const hasShows = (data?.podcasts?.length ?? 0) > 0;
-  const firstName = user?.firstName ?? "there";
-
-  const focusLine =
-    attentionItems.length > 0
-      ? `${attentionItems.length} thing${attentionItems.length > 1 ? "s" : ""} need${attentionItems.length > 1 ? "" : "s"} your attention`
-      : "You're all caught up — nothing urgent today.";
-
-  const stats = [
-    { label: "Downloads this week", value: "4,312", icon: TrendingUp, color: "#10b981" },
-    { label: "Active podcasts", value: String(data?.podcasts?.length ?? 0), icon: Mic, color: "#8b5cf6" },
-    { label: "Audience growth", value: "+8.2%", icon: Users, color: "#3b82f6" },
-  ];
+  const showCount = data?.podcasts?.length ?? 0;
+  const platformEntries = Object.entries(data?.distributionStatus || {});
+  const liveCount = platformEntries.filter(([, s]) => s === "approved").length;
 
   return (
-    <div className="mx-auto max-w-[680px] px-8 pb-16 pt-10">
-      {/* ── Briefing hero ──────────────────────────────────────────────────── */}
-      <Card
-        tone="default"
-        padding="lg"
-        className="mb-8"
+    <div
+      style={{
+        height: "100%",
+        overflowY: "auto",
+        padding: "24px 28px",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 22 }}>
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 700,
+            color: "#09090b",
+            letterSpacing: "-0.025em",
+            margin: 0,
+          }}
+        >
+          {getGreeting(user?.firstName)}
+        </h1>
+        <p style={{ fontSize: 13, color: "#71717a", marginTop: 3 }}>{getTodayString()}</p>
+      </div>
+
+      {/* ── Stat tiles row ────────────────────────────────────────────────── */}
+      <div
         style={{
-          background:
-            "linear-gradient(135deg, rgba(16,185,129,0.045) 0%, rgba(14,165,233,0.02) 100%)",
-          borderColor: "rgba(16,185,129,0.12)",
+          display: "flex",
+          gap: 12,
+          marginBottom: 24,
+          flexWrap: "wrap",
         }}
       >
-        <div className="flex items-start justify-between gap-3">
+        <StatCard label="Shows"      value={isLoading ? "—" : showCount}    icon={Mic}      accent={showCount > 0} />
+        <StatCard label="Live on"    value={isLoading ? "—" : `${liveCount} platforms`} icon={Radio}  />
+        <StatCard label="Setup"      value={isLoading ? "—" : `${doneCount} / ${steps.length}`} icon={CheckCircle2} accent={allDone} />
+        <StatCard label="Listeners"  value="—"                               icon={Headphones} />
+        <StatCard label="Downloads"  value="—"                               icon={TrendingUp} />
+      </div>
+
+      {/* ── Main two-column layout ────────────────────────────────────────── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 300px",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        {/* ── Left column ──────────────────────────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+          {/* Setup checklist — only shown when incomplete */}
+          {!allDone && (
+            <div>
+              <SectionLabel>Getting started — {doneCount} of {steps.length} complete</SectionLabel>
+              <Card>
+                {steps.map((step, i) => {
+                  const Icon = step.icon;
+                  const isLast = i === steps.length - 1;
+                  return (
+                    <div
+                      key={step.id}
+                      onClick={() => !step.done && navigate(step.href)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        padding: "14px 18px",
+                        borderBottom: isLast ? "none" : CARD_BORDER,
+                        cursor: step.done ? "default" : "pointer",
+                        background: step.done ? "#fafafa" : "#ffffff",
+                        transition: "background 120ms",
+                      }}
+                      onMouseEnter={e => {
+                        if (!step.done) (e.currentTarget as HTMLElement).style.background = "#f9fafb";
+                      }}
+                      onMouseLeave={e => {
+                        if (!step.done) (e.currentTarget as HTMLElement).style.background = "#ffffff";
+                      }}
+                    >
+                      {step.done ? (
+                        <CheckCircle2 size={16} style={{ color: GREEN, flexShrink: 0 }} />
+                      ) : (
+                        <Circle size={16} style={{ color: "#d4d4d8", flexShrink: 0 }} />
+                      )}
+                      <div
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 7,
+                          background: step.done ? "#f4f4f5" : "rgba(16,185,129,0.07)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={13} style={{ color: step.done ? "#a1a1aa" : GREEN }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p
+                          style={{
+                            fontSize: 13,
+                            fontWeight: step.done ? 400 : 500,
+                            color: step.done ? "#a1a1aa" : "#09090b",
+                            textDecoration: step.done ? "line-through" : "none",
+                            letterSpacing: "-0.01em",
+                          }}
+                        >
+                          {step.label}
+                        </p>
+                        {!step.done && (
+                          <p style={{ fontSize: 12, color: "#71717a", marginTop: 2 }}>{step.hint}</p>
+                        )}
+                      </div>
+                      {!step.done && (
+                        <ArrowRight size={14} style={{ color: "#d4d4d8", flexShrink: 0 }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </Card>
+            </div>
+          )}
+
+          {/* My Shows */}
           <div>
-            <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.03em] text-zinc-950">
-              {getGreeting()}, {firstName}
-            </h1>
-            <p className="mt-1 flex items-center gap-1.5 text-[13px] text-zinc-400">
-              <Calendar size={12} />
-              {getTodayString()}
-            </p>
-          </div>
-          <StatusPill tone={attentionItems.length > 0 ? "warning" : "success"} pulse>
-            {focusLine}
-          </StatusPill>
-        </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+            >
+              <SectionLabel>My Shows</SectionLabel>
+              <Link href="/podcasts">
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#71717a",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#09090b")}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#71717a")}
+                >
+                  All podcasts
+                  <ArrowRight size={11} />
+                </span>
+              </Link>
+            </div>
 
-        {hasShows && (
-          <motion.div
-            variants={staggerContainer}
-            initial="hidden"
-            animate="show"
-            className="mt-5 flex gap-7 border-t pt-4"
-            style={{ borderColor: "rgba(16,185,129,0.1)" }}
-          >
-            {stats.map((s) => (
-              <StatTile key={s.label} {...s} />
-            ))}
-          </motion.div>
-        )}
-      </Card>
-
-      {/* ── Attention items ─────────────────────────────────────────────────── */}
-      {attentionItems.length > 0 && (
-        <motion.section
-          variants={staggerContainer}
-          initial="hidden"
-          animate="show"
-          className="mb-8 flex flex-col gap-2"
-        >
-          {attentionItems.map((item) => (
-            <AttentionCard key={item.id} item={item} />
-          ))}
-        </motion.section>
-      )}
-
-      {/* ── My Podcasts ─────────────────────────────────────────────────────── */}
-      <section className="mb-8">
-        <SectionHeader title="Podcasts" action={{ label: "View all", href: "/podcasts" }} />
-
-        {hasShows ? (
-          <Card tone="default" padding="none" className="divide-y divide-zinc-100 overflow-hidden">
-            {(data?.podcasts ?? []).slice(0, 3).map((podcast) => (
-              <Link key={podcast.id} href={`/podcasts/${podcast.id}`}>
-                <CardRow className="cursor-pointer transition-colors hover:bg-zinc-50">
+            {showCount > 0 ? (
+              <Card>
+                {(data?.podcasts || []).slice(0, 5).map((podcast, i, arr) => (
+                  <Link key={podcast.id} href={`/podcasts/${podcast.id}`}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 18px",
+                        borderBottom: i === arr.length - 1 ? "none" : CARD_BORDER,
+                        cursor: "pointer",
+                        transition: "background 120ms",
+                      }}
+                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#f9fafb")}
+                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "")}
+                    >
+                      <div
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 8,
+                          background: "linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Mic size={14} style={{ color: "white" }} />
+                      </div>
+                      <p
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "#09090b",
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          letterSpacing: "-0.01em",
+                        }}
+                      >
+                        {podcast.title}
+                      </p>
+                      <ArrowRight size={13} style={{ color: "#d4d4d8", flexShrink: 0 }} />
+                    </div>
+                  </Link>
+                ))}
+              </Card>
+            ) : (
+              <Card>
+                <div
+                  style={{
+                    padding: "36px 24px",
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
                   <div
-                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-zinc-200"
                     style={{
-                      background:
-                        "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(14,165,233,0.12) 100%)",
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: "rgba(16,185,129,0.08)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <Mic size={15} className="text-emerald-600" />
+                    <Mic size={20} style={{ color: GREEN }} />
                   </div>
-                  <p className="flex-1 truncate text-[13px] font-medium text-zinc-950">
-                    {podcast.title}
-                  </p>
-                  <ArrowRight size={13} className="flex-shrink-0 text-zinc-300" />
-                </CardRow>
-              </Link>
-            ))}
-          </Card>
-        ) : (
-          <EmptyState
-            icon={Mic}
-            title="No podcasts yet"
-            description="Connect your podcast host or create a new show to get started."
-            action={{ label: "Add your first podcast", href: "/podcasts" }}
-          />
-        )}
-      </section>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "#09090b" }}>No shows yet</p>
+                    <p style={{ fontSize: 13, color: "#71717a", marginTop: 4 }}>
+                      Connect your RSS feed to import episodes
+                    </p>
+                  </div>
+                  <Link href="/dashboard/rss">
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        background: GREEN,
+                        color: "white",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      <Plus size={13} />
+                      Add your first podcast
+                    </div>
+                  </Link>
+                </div>
+              </Card>
+            )}
+          </div>
 
-      {/* ── Upcoming ────────────────────────────────────────────────────────── */}
-      {hasShows && (
-        <section className="mb-8">
-          <SectionHeader title="Upcoming" />
-          <Card tone="default" padding="none" className="divide-y divide-zinc-100 overflow-hidden">
-            {STUB_UPCOMING.map((item) => {
-              const Icon = UPCOMING_ICONS[item.type];
-              const dotColor = UPCOMING_COLORS[item.type];
-              return (
-                <CardRow key={item.id}>
-                  <div
-                    className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-lg"
-                    style={{ background: `${dotColor}12` }}
-                  >
-                    <Icon size={13} style={{ color: dotColor }} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-zinc-950">{item.title}</p>
-                    {item.show && <p className="mt-px text-[11px] text-zinc-400">{item.show}</p>}
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    <Clock size={11} className="text-zinc-300" />
-                    <span className="text-[11px] text-zinc-400">{item.date}</span>
-                  </div>
-                </CardRow>
-              );
-            })}
-          </Card>
-        </section>
-      )}
-
-      {/* ── Live activity feed ─────────────────────────────────────────────────── */}
-      {hasShows && (
-        <section>
-          <SectionHeader
-            title="Recent"
-            right={
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-400">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                </span>
-                Live
-              </span>
-            }
-          />
-          <motion.div variants={staggerContainer} initial="hidden" animate="show">
-            {STUB_FEED.map((event) => (
-              <motion.div
-                key={event.id}
-                variants={staggerItem}
-                className="flex items-center gap-3 border-b border-zinc-100 py-2.5 last:border-b-0"
+          {/* Recent activity placeholder */}
+          <div>
+            <SectionLabel>Recent activity</SectionLabel>
+            <Card>
+              <div
+                style={{
+                  padding: "28px 24px",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                }}
               >
-                <span
-                  className="ml-1 h-[7px] w-[7px] flex-shrink-0 rounded-full"
-                  style={{ background: FEED_COLORS[event.category] ?? "#a1a1aa" }}
-                />
-                <p className="flex-1 text-[13px] text-zinc-950">{event.title}</p>
-                <span className="flex-shrink-0 text-[11px] text-zinc-400">{event.time}</span>
-              </motion.div>
-            ))}
-          </motion.div>
-        </section>
-      )}
+                <Zap size={18} style={{ color: "#d4d4d8" }} />
+                <p style={{ fontSize: 13, color: "#a1a1aa" }}>
+                  Activity from your shows and campaigns will appear here.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* ── Right column ─────────────────────────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+          {/* Quick actions */}
+          <div>
+            <SectionLabel>Quick access</SectionLabel>
+            <Card>
+              {QUICK_ACTIONS.map((action, i) => {
+                const Icon = action.icon;
+                return (
+                  <Link key={action.href} href={action.href}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "11px 16px",
+                        borderBottom: i === QUICK_ACTIONS.length - 1 ? "none" : CARD_BORDER,
+                        cursor: "pointer",
+                        transition: "background 120ms",
+                      }}
+                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#f9fafb")}
+                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "")}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 7,
+                          background: "#f4f4f5",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={13} style={{ color: "#52525b" }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: "#09090b", letterSpacing: "-0.01em" }}>
+                          {action.label}
+                        </p>
+                        <p style={{ fontSize: 11, color: "#a1a1aa", marginTop: 1 }}>{action.hint}</p>
+                      </div>
+                      <ArrowRight size={12} style={{ color: "#d4d4d8", flexShrink: 0 }} />
+                    </div>
+                  </Link>
+                );
+              })}
+            </Card>
+          </div>
+
+          {/* Distribution status */}
+          {platformEntries.length > 0 && (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                }}
+              >
+                <SectionLabel>Distribution</SectionLabel>
+                <Link href="/dashboard/distribution">
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "#71717a",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#09090b")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#71717a")}
+                  >
+                    Manage
+                    <ArrowRight size={11} />
+                  </span>
+                </Link>
+              </div>
+              <Card>
+                {platformEntries.map(([platform, status], i) => {
+                  const display = PLATFORM_DISPLAY[platform] || { label: platform, color: "#888" };
+                  const isLive = status === "approved";
+                  const label =
+                    status === "approved" ? "Live"
+                    : status === "submitted" ? "Pending"
+                    : "Not submitted";
+                  return (
+                    <div
+                      key={platform}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 16px",
+                        borderBottom: i === platformEntries.length - 1 ? "none" : CARD_BORDER,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          flexShrink: 0,
+                          background: isLive ? display.color : "#d4d4d8",
+                        }}
+                      />
+                      <p style={{ fontSize: 13, color: "#09090b", flex: 1, fontWeight: 500 }}>
+                        {display.label}
+                      </p>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: isLive ? "#10b981" : "#a1a1aa",
+                        }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </Card>
+            </div>
+          )}
+
+          {/* Link page shortcut */}
+          {data?.profile && (
+            <div>
+              <SectionLabel>Your Link Page</SectionLabel>
+              <Card>
+                <Link href={`/p/${data.profile.slug}`}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      transition: "background 120ms",
+                    }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#f9fafb")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "")}
+                  >
+                    <ExternalLink size={13} style={{ color: "#71717a", flexShrink: 0 }} />
+                    <p style={{ fontSize: 13, fontWeight: 500, color: "#09090b", flex: 1 }}>
+                      podlogix.io/p/{data.profile.slug}
+                    </p>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: data.profile.isPublished ? "#10b981" : "#a1a1aa",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {data.profile.isPublished ? "Live" : "Draft"}
+                    </span>
+                  </div>
+                </Link>
+              </Card>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
