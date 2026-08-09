@@ -10,6 +10,8 @@ import {
   WorkspacePillars,
   EditorialStatement,
   WorkspaceShowcase,
+  SocialProof,
+  PricingPreview,
   FinalCTA,
   Grain,
 } from "@/components/marketing";
@@ -42,6 +44,10 @@ export default function Home() {
         <WorkspacePillars />
         {/* Trust — tangible proof */}
         <WorkspaceShowcase />
+        {/* Social proof */}
+        <SocialProof />
+        {/* Pricing */}
+        <PricingPreview />
         {/* CTA */}
         <FinalCTA />
         <Footer />
