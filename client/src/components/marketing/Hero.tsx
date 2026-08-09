@@ -95,7 +95,7 @@ function EpisodeCard({
   reduceMotion,
 }: {
   color: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   accent: string;
   category: string;
   duration: string;

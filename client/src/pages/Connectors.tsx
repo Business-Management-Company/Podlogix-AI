@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { BuzzsproutConnect } from "@/components/settings/BuzzsproutConnect";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -344,6 +345,15 @@ export default function Connectors() {
         <Link2 className="h-8 w-8 text-primary" />
         <h1 className="text-3xl font-bold">Integrations</h1>
       </div>
+
+      {/* Podcast Hosting Section */}
+      <section>
+        <h2 className="text-xl font-semibold mb-2">Podcast Hosting</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Connect your podcast host to import episodes, sync analytics, and manage your shows from Podlogix.
+        </p>
+        <BuzzsproutConnect />
+      </section>
 
       {/* Podlogix Managed Section */}
       <section>
