@@ -180,7 +180,6 @@ export default function AiAssistant() {
         <div className="w-64 border-r bg-card/30 hidden md:flex flex-col">
           <div className="p-4 border-b">
             <Button 
-              className="w-full" 
               onClick={() => {
                 setActiveConversationId(null);
                 setStreamingContent("");
@@ -310,7 +309,7 @@ export default function AiAssistant() {
               />
               <Button
                 size="icon"
-                className="h-[60px] w-[60px]"
+                className="self-end"
                 onClick={sendMessage}
                 disabled={!input.trim() || isStreaming}
                 data-testid="button-send"

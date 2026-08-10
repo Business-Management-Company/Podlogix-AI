@@ -653,8 +653,8 @@ export default function SocialAnalytics() {
                   <Loader2 className="w-8 h-8 animate-spin" />
                 </div>
               ) : myAccounts.length === 0 ? (
-                <div className="text-center py-12 space-y-4">
-                  <BarChart3 className="w-16 h-16 mx-auto text-muted-foreground" />
+                <div className="text-center py-10 space-y-4">
+                  <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground" />
                   <div>
                     <p className="font-medium">No analytics available</p>
                     <p className="text-sm text-muted-foreground">Connect your social accounts in the Social Hub to see analytics</p>

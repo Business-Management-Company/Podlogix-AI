@@ -60,12 +60,12 @@ export default function IdentityHub() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center space-y-4"
+          className="space-y-2"
         >
           <h1 className="text-2xl font-semibold tracking-tight">
-            Protect Your <span className="text-primary">Voice Identity</span>
+            Protect Your Voice Identity
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-sm text-muted-foreground max-w-2xl">
             Register your authentic voice on the Polygon blockchain. Create an immutable certificate 
             that proves ownership and protects against AI impersonation.
           </p>
@@ -176,7 +176,6 @@ export default function IdentityHub() {
                 ) : (
                   <Button 
                     onClick={() => navigate("/voice-certification")}
-                    className="w-full"
                     data-testid="button-start-verification"
                   >
                     <Mic className="h-4 w-4 mr-2" />
@@ -198,7 +197,7 @@ export default function IdentityHub() {
         </motion.div>
 
         {/* Identity Promise */}
-        <Card className="border-primary/20 bg-primary/5">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
@@ -218,7 +217,7 @@ export default function IdentityHub() {
         </Card>
 
         {/* Blockchain Explainer */}
-        <Card className="bg-primary/5 border-2 border-primary/20">
+        <Card>
           <CardContent className="pt-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">

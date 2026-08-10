@@ -254,7 +254,6 @@ export default function SocialMonitoring() {
           ) : (
             <Button 
               onClick={() => setShowPlatformSelect(true)} 
-              className="w-full"
               data-testid="button-add-platform"
             >
               <Plus className="h-4 w-4 mr-2" />

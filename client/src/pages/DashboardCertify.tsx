@@ -236,7 +236,7 @@ export default function DashboardCertify() {
             <p className="text-sm font-medium text-muted-foreground mb-1">
               Step {currentStep} of {STEPS.length}
             </p>
-            <h2 className="text-2xl md:text-3xl font-bold">
+            <h2 className="text-lg font-semibold">
               {STEPS[currentStep - 1].label}
             </h2>
           </div>

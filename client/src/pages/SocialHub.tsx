@@ -285,7 +285,7 @@ export default function SocialHub() {
                 })}
                 <Button 
                   variant="outline" 
-                  className="w-full mt-4" 
+                  className="mt-4" 
                   onClick={handleConnect}
                   disabled={isConnecting}
                   data-testid="button-connect-more"

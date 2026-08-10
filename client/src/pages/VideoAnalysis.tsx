@@ -358,8 +358,8 @@ export default function VideoAnalysis() {
             ))}
           </div>
         ) : (
-          <Card className="border-dashed">
-            <CardContent className="py-12 text-center">
+          <Card className="border-dashed border-border">
+            <CardContent className="py-10 text-center">
               <Youtube className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="font-medium mb-2">No analyses yet</h3>
               <p className="text-sm text-muted-foreground">

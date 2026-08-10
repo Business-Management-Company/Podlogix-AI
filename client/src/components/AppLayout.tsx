@@ -405,7 +405,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       className={`
                         flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer
                         ${isActive
-                          ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium"
+                          ? "bg-muted text-foreground font-medium"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                         }
                       `}
@@ -421,7 +421,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Help — always at bottom, always shown */}
             <div className="pt-4 pb-1">
               <Link href="/help">
-                <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/help") ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/help") ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   <HelpCircle className="h-4 w-4 shrink-0" />
                   <span>Help Center</span>
                 </div>
@@ -434,13 +434,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Admin</p>
                   </div>
                   <Link href="/admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/admin") ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/admin") ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                       <ShieldCheck className="h-4 w-4 shrink-0" />
                       <span>Admin Panel</span>
                     </div>
                   </Link>
                   <Link href="/saas-admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/saas-admin") ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/saas-admin") ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                       <Building2 className="h-4 w-4 shrink-0" />
                       <span>SaaS Portal</span>
                     </div>
