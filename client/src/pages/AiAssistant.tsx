@@ -165,8 +165,8 @@ export default function AiAssistant() {
 
   if (authLoading || conversationsLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
+      <div className="min-h-full bg-background">
+        <div className="mx-auto w-full max-w-6xl px-6 py-8">
           <Skeleton className="h-[600px] w-full rounded-xl" />
         </div>
       </div>
@@ -174,23 +174,7 @@ export default function AiAssistant() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Button variant="ghost" asChild data-testid="button-back">
-            <Link href="/dashboard">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Dashboard
-            </Link>
-          </Button>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <span className="font-display font-bold text-xl">Podlogix AI</span>
-          </div>
-        </div>
-      </header>
-
+    <div className="h-full min-h-full bg-background flex flex-col">
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Conversations */}
         <div className="w-64 border-r bg-card/30 hidden md:flex flex-col">

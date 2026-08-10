@@ -340,10 +340,10 @@ export default function Connectors() {
   const managedProfile = managePlatform ? getProfileByPlatform(managePlatform) : null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
+    <div className="mx-auto w-full max-w-6xl px-6 py-8 space-y-8">
       <div className="flex items-center gap-3">
         <Link2 className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">Integrations</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Integrations</h1>
       </div>
 
       {/* Podcast Hosting Section */}

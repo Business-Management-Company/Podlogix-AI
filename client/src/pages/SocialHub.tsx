@@ -194,10 +194,10 @@ export default function SocialHub() {
   const connectedPlatforms = accounts.map((a) => a.platform.toLowerCase());
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Social Hub</h1>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Social Hub</h1>
           <p className="text-muted-foreground">Connect your social accounts and post across platforms</p>
         </div>
         <Button 

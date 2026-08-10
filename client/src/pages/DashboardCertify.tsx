@@ -221,32 +221,16 @@ export default function DashboardCertify() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-full bg-background py-8 flex justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate("/dashboard")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-green-600" />
-            <span className="font-display font-bold text-xl">Voice Certification</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-12 max-w-2xl">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto w-full max-w-6xl px-6 py-8">
+        <h1 className="text-2xl font-semibold tracking-tight mb-6">Voice Certification</h1>
         <div className="mb-12">
           <div className="text-center mb-6">
             <p className="text-sm font-medium text-muted-foreground mb-1">

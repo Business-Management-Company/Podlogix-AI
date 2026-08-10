@@ -500,7 +500,7 @@ export default function ListenerDashboard() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-full bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -616,7 +616,7 @@ export default function ListenerDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-full bg-background">
       <main className="px-6 py-6 space-y-6">
         {/* Compact action row */}
         <div className="flex items-center justify-between gap-3 flex-wrap">

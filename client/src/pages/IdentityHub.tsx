@@ -54,33 +54,15 @@ export default function IdentityHub() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate("/")}
-            data-testid="button-back-home"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Home
-          </Button>
-          <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            <span className="font-display font-bold text-xl">Identity Hub</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-12 max-w-4xl space-y-8">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto w-full max-w-6xl px-6 py-8 space-y-8">
         {/* Hero Section */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center space-y-4"
         >
-          <h1 className="text-4xl md:text-5xl font-display font-bold">
+          <h1 className="text-2xl font-semibold tracking-tight">
             Protect Your <span className="text-primary">Voice Identity</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">

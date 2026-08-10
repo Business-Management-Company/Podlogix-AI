@@ -132,7 +132,7 @@ export default function EmailHub() {
 
   if (authLoading) {
     return (
-      <div className="p-6">
+      <div className="mx-auto w-full max-w-6xl px-6 py-8">
         <Skeleton className="h-96 w-full rounded-xl" />
       </div>
     );
@@ -147,7 +147,7 @@ export default function EmailHub() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

@@ -391,14 +391,14 @@ export default function ProfileEditor() {
 
   if (authLoading || profileLoading) {
     return (
-      <div className="p-6">
+      <div className="mx-auto w-full max-w-6xl px-6 py-8">
         <Skeleton className="h-96 w-full rounded-xl" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-full bg-background">
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
         <div className="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">

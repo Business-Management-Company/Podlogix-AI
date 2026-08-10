@@ -136,7 +136,7 @@ export default function AccountSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-full bg-background">
       <div className="w-full px-6 py-8 space-y-6">
         {/* Header */}
         <div className="border-b pb-4">

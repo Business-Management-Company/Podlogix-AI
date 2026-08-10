@@ -131,7 +131,7 @@ export default function ListenerAnalytics() {
 
   if (!user && !authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-full flex items-center justify-center py-8">
         <Card className="p-8 text-center">
           <h2 className="text-xl font-semibold mb-4">Sign in to view analytics</h2>
           <Button asChild>
@@ -143,7 +143,7 @@ export default function ListenerAnalytics() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-full bg-background">
       <header className="border-b bg-card/50 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">

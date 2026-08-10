@@ -124,8 +124,8 @@ export default function Distribution() {
 
   if (authLoading || podcastsLoading || channelsLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <div className="min-h-full bg-background">
+        <div className="mx-auto w-full max-w-6xl px-6 py-8">
           <Skeleton className="h-96 w-full rounded-xl" />
         </div>
       </div>
@@ -133,24 +133,9 @@ export default function Distribution() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Button variant="ghost" asChild data-testid="button-back">
-            <Link href="/dashboard">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Link>
-          </Button>
-          <div className="flex items-center gap-2">
-            <Radio className="h-6 w-6 text-primary" />
-            <span className="font-display font-bold text-xl">Distribution</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Distribution</h1>
         {!podcast ? (
           <Card>
             <CardContent className="pt-6 text-center">

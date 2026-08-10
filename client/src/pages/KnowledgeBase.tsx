@@ -296,26 +296,8 @@ export default function KnowledgeBase() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" asChild data-testid="button-back">
-                <Link href="/dashboard">
-                  <ArrowLeft className="h-5 w-5" />
-                </Link>
-              </Button>
-              <div className="flex items-center gap-2">
-                <HelpCircle className="h-6 w-6 text-primary" />
-                <span className="font-display font-bold text-xl">Knowledge Base</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 max-w-5xl">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto w-full max-w-6xl px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -323,7 +305,7 @@ export default function KnowledgeBase() {
         >
           {/* Hero Section */}
           <div className="text-center space-y-4">
-            <h1 className="text-4xl font-display font-bold" data-testid="text-kb-title">
+            <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-kb-title">
               How can we help you?
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">

@@ -118,7 +118,7 @@ function setupSteps(data?: DashboardData): SetupStep[] {
 function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
-      <h2 className="font-podlogix-display text-sm font-bold uppercase tracking-[0.12em] text-[#eadbd4]">
+      <h2 className="font-podlogix-display text-sm font-bold uppercase tracking-[0.12em] text-neutral-500">
         {children}
       </h2>
       {action}
@@ -128,15 +128,15 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 
 function DashboardSkeleton() {
   return (
-    <div className="min-h-full bg-[#170b0d] p-6 lg:p-7">
+    <div className="min-h-full bg-background p-6 lg:p-7">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-5">
-          <Skeleton className="h-[330px] rounded-[22px] bg-white/10" />
-          <Skeleton className="h-64 rounded-[18px] bg-white/10" />
+          <Skeleton className="h-[330px] rounded-[22px] bg-neutral-200" />
+          <Skeleton className="h-64 rounded-[18px] bg-neutral-200" />
         </div>
         <div className="space-y-5">
-          <Skeleton className="h-72 rounded-[18px] bg-white/10" />
-          <Skeleton className="h-56 rounded-[18px] bg-white/10" />
+          <Skeleton className="h-72 rounded-[18px] bg-neutral-200" />
+          <Skeleton className="h-56 rounded-[18px] bg-neutral-200" />
         </div>
       </div>
     </div>
@@ -162,18 +162,18 @@ export default function Activity() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="podlogix-dashboard min-h-full overflow-y-auto bg-[#170b0d] text-[#fff8ed]">
+    <div className="podlogix-dashboard min-h-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-[1480px] p-4 sm:p-5 lg:p-7">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#ff8056]">
               Your creative command center
             </p>
-            <h1 className="font-podlogix-display text-2xl font-bold tracking-tight text-[#fff8ed] sm:text-3xl">
+            <h1 className="font-podlogix-display text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
               {greeting(user?.firstName)}
             </h1>
           </div>
-          <div className="flex items-center gap-2 text-xs text-[#a98d88]">
+          <div className="flex items-center gap-2 text-xs text-neutral-500">
             <span className="h-2 w-2 rounded-full bg-[#7de5c8] shadow-[0_0_0_5px_rgba(125,229,200,0.08)]" />
             Your workspace is live
           </div>
@@ -211,12 +211,12 @@ export default function Activity() {
                         key={action.href}
                         type="button"
                         onClick={() => navigate(action.href)}
-                        className="group flex min-h-[126px] flex-col justify-between rounded-2xl border border-white/[0.045] bg-[#2a1417] p-4 text-left text-[#fff8ed] transition duration-200 hover:-translate-y-0.5 hover:border-white/10 hover:bg-[#32181b]"
+                        className="group flex min-h-[126px] flex-col justify-between rounded-2xl border border-black/[0.06] bg-white shadow-sm p-4 text-left text-neutral-900 transition duration-200 hover:-translate-y-0.5 hover:border-black/[0.12] hover:bg-neutral-50"
                       >
                         <Icon className="h-5 w-5 opacity-85" />
                         <span>
                           <strong className="block font-podlogix-display text-xl font-bold leading-[0.9]">{action.label}</strong>
-                          <small className="mt-1 block text-[9px] text-[#9d817e]">
+                          <small className="mt-1 block text-[9px] text-neutral-500">
                             {action.hint}
                           </small>
                         </span>
@@ -229,7 +229,7 @@ export default function Activity() {
               <section className="min-w-0">
                 <SectionTitle
                   action={
-                    <Link href="/podcasts" className="flex items-center gap-1 text-[10px] font-semibold text-[#9f817d] transition hover:text-white">
+                    <Link href="/podcasts" className="flex items-center gap-1 text-[10px] font-semibold text-neutral-500 transition hover:text-neutral-900">
                       All shows <ArrowRight className="h-3 w-3" />
                     </Link>
                   }
@@ -242,10 +242,10 @@ export default function Activity() {
                     {(data?.podcasts ?? []).slice(0, 6).map((podcast, index) => (
                       <Link key={podcast.id} href={`/podcasts/${podcast.id}`}>
                         <div
-                          className={`group flex h-full min-h-[126px] flex-col justify-between overflow-hidden rounded-2xl border border-white/[0.045] p-4 transition hover:-translate-y-0.5 hover:border-white/10 ${
+                          className={`group flex h-full min-h-[126px] flex-col justify-between overflow-hidden rounded-2xl border border-black/[0.06] p-4 transition hover:-translate-y-0.5 hover:border-black/[0.12] ${
                             index === 0
                               ? "bg-[linear-gradient(180deg,#ff6031,#ff9270)] text-white"
-                              : "bg-[#2a1417] text-[#fff8ed]"
+                              : "bg-white shadow-sm text-neutral-900"
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -254,7 +254,7 @@ export default function Activity() {
                           </div>
                           <div>
                             <p className="line-clamp-2 font-podlogix-display text-lg font-bold leading-[0.95]">{podcast.title}</p>
-                            <p className={`mt-2 text-[9px] ${index === 0 ? "text-white/70" : "text-[#987d79]"}`}>Open workspace</p>
+                            <p className={`mt-2 text-[9px] ${index === 0 ? "text-white/70" : "text-neutral-500"}`}>Open workspace</p>
                           </div>
                         </div>
                       </Link>
@@ -264,7 +264,7 @@ export default function Activity() {
                         key={`empty-${index}`}
                         type="button"
                         onClick={() => navigate("/dashboard/rss")}
-                        className="flex min-h-[126px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-[#211013] text-[#795f5f] transition hover:border-[#ff6031]/50 hover:text-[#ff8056]"
+                        className="flex min-h-[126px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-black/10 bg-neutral-50 text-neutral-500 transition hover:border-[#ff6031]/50 hover:text-[#ff8056]"
                       >
                         <Plus className="h-5 w-5" />
                         <span className="text-[10px] font-semibold">Add a show</span>
@@ -272,12 +272,12 @@ export default function Activity() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex min-h-[264px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#211013] p-7 text-center">
+                  <div className="flex min-h-[264px] flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 bg-neutral-50 p-7 text-center">
                     <span className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-[#ff6031]/10 text-[#ff7045]">
                       <Mic className="h-5 w-5" />
                     </span>
                     <h3 className="font-podlogix-display text-xl font-bold">Bring your first show in</h3>
-                    <p className="mt-1 max-w-[260px] text-xs leading-relaxed text-[#967c78]">Connect an RSS feed and Podlogix will organize your episodes automatically.</p>
+                    <p className="mt-1 max-w-[260px] text-xs leading-relaxed text-neutral-500">Connect an RSS feed and Podlogix will organize your episodes automatically.</p>
                     <Button onClick={() => navigate("/dashboard/rss")} size="sm" className="mt-5 rounded-xl bg-[#ff6031] hover:bg-[#ff7045]">
                       <Plus className="mr-2 h-3.5 w-3.5" /> Add podcast
                     </Button>
@@ -290,7 +290,7 @@ export default function Activity() {
           <aside className="space-y-5">
             <section>
               <SectionTitle>Today&apos;s run</SectionTitle>
-              <div className="overflow-hidden rounded-[18px] border border-white/[0.045] bg-[#251215]">
+              <div className="overflow-hidden rounded-[18px] border border-black/[0.06] bg-white">
                 {steps.map((step, index) => {
                   const Icon = step.icon;
                   return (
@@ -299,20 +299,20 @@ export default function Activity() {
                       type="button"
                       disabled={step.done}
                       onClick={() => navigate(step.href)}
-                      className="group grid w-full grid-cols-[40px_minmax(0,1fr)_28px] items-center gap-3 border-b border-white/[0.045] px-3 py-3 text-left transition last:border-b-0 hover:bg-white/[0.035] disabled:cursor-default disabled:opacity-55"
+                      className="group grid w-full grid-cols-[40px_minmax(0,1fr)_28px] items-center gap-3 border-b border-black/[0.06] px-3 py-3 text-left transition last:border-b-0 hover:bg-neutral-50 disabled:cursor-default disabled:opacity-55"
                     >
                       <span
                         className={`grid h-10 w-10 place-items-center rounded-xl ${
-                          index === 0 ? "bg-[#d8f34c] text-[#28300d]" : index === 1 ? "bg-[#ef5b97] text-white" : index === 2 ? "bg-[#7461dc] text-white" : "bg-[#3a2023] text-[#c9aca6]"
+                          index === 0 ? "bg-[#d8f34c] text-[#28300d]" : index === 1 ? "bg-[#ef5b97] text-white" : index === 2 ? "bg-[#7461dc] text-white" : "bg-neutral-100 text-neutral-500"
                         }`}
                       >
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0">
-                        <strong className="block truncate font-podlogix-display text-sm font-semibold text-[#fff5e9]">{step.label}</strong>
-                        <small className="mt-0.5 block truncate text-[8px] text-[#866e6c]">{step.done ? "Complete" : step.hint}</small>
+                        <strong className="block truncate font-podlogix-display text-sm font-semibold text-neutral-900">{step.label}</strong>
+                        <small className="mt-0.5 block truncate text-[8px] text-neutral-500">{step.done ? "Complete" : step.hint}</small>
                       </span>
-                      <span className={`grid h-7 w-7 place-items-center rounded-full ${step.done ? "bg-[#7de5c8]/10 text-[#7de5c8]" : "text-[#8c7270] group-hover:bg-[#ff6031] group-hover:text-white"}`}>
+                      <span className={`grid h-7 w-7 place-items-center rounded-full ${step.done ? "bg-[#7de5c8]/10 text-[#7de5c8]" : "text-neutral-500 group-hover:bg-[#ff6031] group-hover:text-white"}`}>
                         {step.done ? <Check className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}
                       </span>
                     </button>
@@ -321,15 +321,15 @@ export default function Activity() {
               </div>
             </section>
 
-            <section className="rounded-[18px] border border-white/[0.05] bg-[linear-gradient(140deg,#34181b,#452024)] p-4">
+            <section className="rounded-[18px] border border-black/[0.06] bg-white shadow-sm p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-podlogix-display text-lg font-bold">Workspace setup</h3>
-                  <p className="mt-0.5 text-[9px] text-[#a38782]">{doneCount} of {steps.length} essentials complete</p>
+                  <p className="mt-0.5 text-[9px] text-neutral-500">{doneCount} of {steps.length} essentials complete</p>
                 </div>
                 <span className="font-podlogix-display text-2xl font-bold text-[#ff8056]">{progress}%</span>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/25">
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-100">
                 <div className="h-full rounded-full bg-[linear-gradient(90deg,#ff6031,#ff9a62)] transition-all" style={{ width: `${progress}%` }} />
               </div>
             </section>
@@ -377,16 +377,16 @@ export default function Activity() {
             {platformEntries.length > 0 && (
               <section>
                 <SectionTitle
-                  action={<span className="text-[9px] font-semibold text-[#8d7370]">{liveCount} live</span>}
+                  action={<span className="text-[9px] font-semibold text-neutral-500">{liveCount} live</span>}
                 >
                   Distribution
                 </SectionTitle>
-                <div className="rounded-[18px] border border-white/[0.045] bg-[#251215] p-2">
+                <div className="rounded-[18px] border border-black/[0.06] bg-white p-2">
                   {platformEntries.slice(0, 5).map(([platform, status]) => (
-                    <Link key={platform} href="/dashboard/distribution" className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition hover:bg-white/[0.035]">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status === "approved" ? platformColors[platform] ?? "#ff8056" : "#543438" }} />
-                      <span className="flex-1 text-xs font-medium text-[#eadbd4]">{platformNames[platform] ?? platform}</span>
-                      <span className={`text-[8px] font-bold uppercase tracking-wide ${status === "approved" ? "text-[#7de5c8]" : "text-[#73595a]"}`}>
+                    <Link key={platform} href="/dashboard/distribution" className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition hover:bg-neutral-50">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status === "approved" ? platformColors[platform] ?? "#ff8056" : "#d4d4d4" }} />
+                      <span className="flex-1 text-xs font-medium text-neutral-900">{platformNames[platform] ?? platform}</span>
+                      <span className={`text-[8px] font-bold uppercase tracking-wide ${status === "approved" ? "text-[#7de5c8]" : "text-neutral-500"}`}>
                         {status === "approved" ? "Live" : status === "submitted" ? "Pending" : "Connect"}
                       </span>
                     </Link>
@@ -396,20 +396,20 @@ export default function Activity() {
             )}
 
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-white/[0.045] bg-[#251215] p-3">
+              <div className="rounded-xl border border-black/[0.06] bg-white p-3">
                 <Mic className="mb-2 h-4 w-4 text-[#ff8056]" />
                 <strong className="font-podlogix-display text-xl">{showCount}</strong>
-                <p className="text-[8px] text-[#856d6a]">Shows</p>
+                <p className="text-[8px] text-neutral-500">Shows</p>
               </div>
-              <div className="rounded-xl border border-white/[0.045] bg-[#251215] p-3">
+              <div className="rounded-xl border border-black/[0.06] bg-white p-3">
                 <Radio className="mb-2 h-4 w-4 text-[#7de5c8]" />
                 <strong className="font-podlogix-display text-xl">{liveCount}</strong>
-                <p className="text-[8px] text-[#856d6a]">Live</p>
+                <p className="text-[8px] text-neutral-500">Live</p>
               </div>
-              <div className="rounded-xl border border-white/[0.045] bg-[#251215] p-3">
+              <div className="rounded-xl border border-black/[0.06] bg-white p-3">
                 <Clock3 className="mb-2 h-4 w-4 text-[#77cbe0]" />
                 <strong className="font-podlogix-display text-xl">{doneCount}</strong>
-                <p className="text-[8px] text-[#856d6a]">Ready</p>
+                <p className="text-[8px] text-neutral-500">Ready</p>
               </div>
             </div>
           </aside>

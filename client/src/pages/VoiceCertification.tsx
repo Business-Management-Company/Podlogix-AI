@@ -183,26 +183,9 @@ export default function VoiceCertification() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-[9999]">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate("/identity")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div className="flex items-center gap-2">
-            <Mic className="h-6 w-6 text-primary" />
-            <span className="font-display font-bold text-xl">Voice Certification</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-12 max-w-2xl">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto w-full max-w-6xl px-6 py-8">
+        <h1 className="text-2xl font-semibold tracking-tight mb-6">Voice Certification</h1>
         {/* Progress Stepper */}
         <div className="mb-12">
           <div className="text-center mb-6">

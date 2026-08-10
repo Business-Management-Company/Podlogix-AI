@@ -183,7 +183,7 @@ export default function Episodes() {
 
   if (authLoading || podcastsLoading) {
     return (
-      <div className="min-h-screen bg-background p-8 space-y-4">
+      <div className="min-h-full bg-background mx-auto w-full max-w-6xl px-6 py-8 space-y-4">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-48 w-full max-w-2xl" />
       </div>
@@ -191,21 +191,9 @@ export default function Episodes() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} data-testid="button-back">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <div className="flex items-center gap-2">
-            <Mic className="h-6 w-6 text-primary" />
-            <span className="font-display font-bold text-xl">Episodes</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Episodes</h1>
         {!podcast && (
           <Card>
             <CardHeader>
