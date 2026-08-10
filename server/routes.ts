@@ -731,7 +731,8 @@ export async function registerRoutes(
   // Creator Social Profiles (native API integration)
   app.get("/api/creator/social-profiles", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.session.userId!;
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
       const profiles = await storage.getCreatorSocialProfilesByUser(userId);
       res.json(profiles);
     } catch (error) {
@@ -742,7 +743,8 @@ export async function registerRoutes(
 
   app.post("/api/creator/social-profiles", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.session.userId!;
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
       const { platform, profileUrl } = req.body;
 
       if (!platform || !profileUrl) {
@@ -750,9 +752,6 @@ export async function registerRoutes(
       }
 
       const existing = await storage.getCreatorSocialProfileByPlatform(userId, platform);
-      if (existing) {
-        return res.status(400).json({ error: `You already have a ${platform} profile connected` });
-      }
 
       let profileData: any = {
         userId,
@@ -785,8 +784,12 @@ export async function registerRoutes(
         profileData.verified = true;
       }
 
-      const created = await storage.createCreatorSocialProfile(profileData);
-      res.json(created);
+      // Upsert: reconnecting a platform updates the existing profile instead
+      // of erroring, so users can always refresh/replace a connection.
+      const saved = existing
+        ? await storage.updateCreatorSocialProfile(existing.id, profileData)
+        : await storage.createCreatorSocialProfile(profileData);
+      res.json(saved);
     } catch (error) {
       console.error("Error adding social profile:", error);
       res.status(500).json({ error: 'Failed to add social profile' });
@@ -796,7 +799,8 @@ export async function registerRoutes(
   app.post("/api/creator/social-profiles/:id/sync", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.session.userId!;
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
       
       const profile = await storage.getCreatorSocialProfile(id);
       if (!profile || profile.userId !== userId) {
@@ -830,7 +834,8 @@ export async function registerRoutes(
   app.delete("/api/creator/social-profiles/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.session.userId!;
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
       
       const profile = await storage.getCreatorSocialProfile(id);
       if (!profile || profile.userId !== userId) {
