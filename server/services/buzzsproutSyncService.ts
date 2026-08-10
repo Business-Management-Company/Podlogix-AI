@@ -97,7 +97,22 @@ export async function getConnection(
     .from(buzzsproutConnections)
     .where(eq(buzzsproutConnections.userId, userId))
     .limit(1);
-  return conn ?? null;
+  if (!conn) return null;
+
+  // Self-heal: if a sync died mid-flight (serverless timeout, crash), the
+  // status can be left stuck on "syncing". Treat any sync older than 3
+  // minutes as dead and reset it so the user can retry.
+  if (conn.status === "syncing" && conn.updatedAt) {
+    const ageMs = Date.now() - new Date(conn.updatedAt).getTime();
+    if (ageMs > 3 * 60 * 1000) {
+      await db
+        .update(buzzsproutConnections)
+        .set({ status: "connected", updatedAt: new Date() })
+        .where(eq(buzzsproutConnections.userId, userId));
+      conn.status = "connected";
+    }
+  }
+  return conn;
 }
 
 // ─── Sync ─────────────────────────────────────────────────────────────────────
@@ -131,13 +146,14 @@ export async function syncBuzzsprout(userId: string): Promise<SyncSummary> {
     let episodesAdded = 0;
     let episodesUpdated = 0;
 
-    for (const ep of rawEpisodes) {
-      // Each connector Episode carries its Buzzsprout external ID in .connections
+    // Build all rows first, then upsert in batches — one query per 50
+    // episodes instead of one per episode, so large catalogs finish well
+    // inside the serverless time limit.
+    const rows: InsertBuzzsproutEpisode[] = rawEpisodes.map((ep) => {
       const externalId =
         ep.connections.find((c) => c.provider === "buzzsprout")?.externalId ??
         ep.id.replace("buzzsprout-", "");
-
-      const row: InsertBuzzsproutEpisode = {
+      return {
         connectionId: conn.id,
         userId,
         externalId,
@@ -157,34 +173,32 @@ export async function syncBuzzsprout(userId: string): Promise<SyncSummary> {
         isExplicit: ep.isExplicit,
         isPrivate: false,
       };
+    });
 
-      // Upsert on (connectionId, externalId)
-      const result = await db
+    const BATCH = 50;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const chunk = rows.slice(i, i + BATCH);
+      await db
         .insert(buzzsproutEpisodes)
-        .values(row)
+        .values(chunk)
         .onConflictDoUpdate({
           target: [buzzsproutEpisodes.connectionId, buzzsproutEpisodes.externalId],
           set: {
-            title: row.title,
-            description: row.description,
-            showNotes: row.showNotes,
-            audioUrl: row.audioUrl,
-            artworkUrl: row.artworkUrl,
-            durationSeconds: row.durationSeconds,
-            episodeNumber: row.episodeNumber,
-            seasonNumber: row.seasonNumber,
-            status: row.status,
-            publishedAt: row.publishedAt,
-            isExplicit: row.isExplicit,
+            title: sql`excluded.title`,
+            description: sql`excluded.description`,
+            showNotes: sql`excluded.show_notes`,
+            audioUrl: sql`excluded.audio_url`,
+            artworkUrl: sql`excluded.artwork_url`,
+            durationSeconds: sql`excluded.duration_seconds`,
+            episodeNumber: sql`excluded.episode_number`,
+            seasonNumber: sql`excluded.season_number`,
+            status: sql`excluded.status`,
+            publishedAt: sql`excluded.published_at`,
+            isExplicit: sql`excluded.is_explicit`,
             updatedAt: new Date(),
           },
-        })
-        .returning({ id: buzzsproutEpisodes.id });
-
-      // Drizzle onConflictDoUpdate always returns the row — check if it was
-      // newly inserted by comparing syncedAt vs updatedAt (a rough heuristic).
-      // Simpler: just count both and let the caller care about totals.
-      episodesAdded++;
+        });
+      episodesAdded += chunk.length;
     }
 
     const total = rawEpisodes.length;
