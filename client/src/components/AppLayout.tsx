@@ -61,6 +61,10 @@ const MODES = [
     items: [
       { title: "Dashboard", url: "/activity", icon: LayoutDashboard },
       { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
+      { title: "My Shows", url: "/podcasts", icon: Mic },
+      { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles },
+      { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
+      { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
     ],
   },
   {
@@ -373,16 +377,16 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* ── Mode Panel ────────────────────────────────────────────────────── */}
       {panelOpen && (
-        <aside className="w-52 shrink-0 bg-background border-r flex flex-col z-10">
+        <aside className="w-52 shrink-0 bg-[#0f1924] border-r border-[#1c2a3a] flex flex-col z-10">
           {/* Mode header */}
-          <div className="flex items-center justify-between px-4 h-14 border-b shrink-0">
+          <div className="flex items-center justify-between px-4 h-14 border-b border-[#1c2a3a] shrink-0">
             <div className="flex items-center gap-2">
               <currentMode.icon className={`h-4 w-4 ${currentMode.activeColor}`} />
-              <span className="text-sm font-semibold tracking-tight">{currentMode.label}</span>
+              <span className="text-sm font-semibold tracking-tight text-white/80">{currentMode.label}</span>
             </div>
             <button
               onClick={() => setPanelOpen(false)}
-              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="p-1 rounded-md hover:bg-white/[0.06] text-slate-500 hover:text-slate-200 transition-colors"
               aria-label="Collapse panel"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -401,8 +405,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                       className={`
                         flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer
                         ${isActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium"
+                          : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
                         }
                       `}
                     >
@@ -417,7 +421,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Help — always at bottom, always shown */}
             <div className="pt-4 pb-1">
               <Link href="/help">
-                <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/help") ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/help") ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
                   <HelpCircle className="h-4 w-4 shrink-0" />
                   <span>Help Center</span>
                 </div>
@@ -427,16 +431,16 @@ export function AppLayout({ children }: AppLayoutProps) {
               {adminCheck?.isSuperAdmin && activeMode === "home" && (
                 <>
                   <div className="px-3 pt-4 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Admin</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Admin</p>
                   </div>
                   <Link href="/admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/admin") ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/admin") ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
                       <ShieldCheck className="h-4 w-4 shrink-0" />
                       <span>Admin Panel</span>
                     </div>
                   </Link>
                   <Link href="/saas-admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/saas-admin") ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/saas-admin") ? "bg-[#ff6031]/[0.12] text-[#ff8056] font-medium" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
                       <Building2 className="h-4 w-4 shrink-0" />
                       <span>SaaS Portal</span>
                     </div>
@@ -626,7 +630,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground/60 text-center mt-2">AI may make mistakes — verify important information.</p>
+          <p className="text-[10px] text-slate-600 text-center mt-2">AI may make mistakes — verify important information.</p>
         </div>
       </div>
 

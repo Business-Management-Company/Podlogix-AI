@@ -182,11 +182,11 @@ export default function Activity() {
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-5">
             <section
-              className="relative min-h-[330px] overflow-hidden rounded-[22px] bg-cover bg-center shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[365px]"
+              className="relative min-h-[210px] overflow-hidden rounded-[22px] bg-cover bg-center shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[230px]"
               style={{ backgroundImage: `url(${heroPhoto})` }}
             >
               <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(54,13,12,0.62)_0%,rgba(87,27,19,0.26)_43%,rgba(0,0,0,0)_64%)]" />
-              <div className="relative z-10 flex min-h-[330px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[365px] sm:p-9 lg:p-11">
+              <div className="relative z-10 flex min-h-[210px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[230px] sm:p-8 lg:p-10">
                 <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#51251f]">
                   Podlogix creator spotlight
                 </p>
@@ -196,21 +196,7 @@ export default function Activity() {
                 <p className="mt-5 max-w-[370px] text-sm leading-relaxed text-white/80">
                   Turn one honest conversation into a week of content—without losing the voice that made it yours.
                 </p>
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <Button
-                    className="h-12 rounded-xl bg-white px-3 text-[#291214] shadow-xl hover:bg-[#fff7ec]"
-                    onClick={() => navigate("/dashboard/ai")}
-                  >
-                    <span className="mr-3 grid h-8 w-8 place-items-center rounded-lg bg-[#ff6031] text-white">
-                      <WandSparkles className="h-4 w-4" />
-                    </span>
-                    <span className="text-left">
-                      <span className="block font-podlogix-display text-base font-bold leading-none">Create from an episode</span>
-                      <span className="mt-1 block text-[9px] font-medium text-[#8c7470]">Clips, notes, posts and more</span>
-                    </span>
-                    <ArrowRight className="ml-4 h-4 w-4 text-[#ff6031]" />
-                  </Button>
-                </div>
+
               </div>
             </section>
 
@@ -225,16 +211,12 @@ export default function Activity() {
                         key={action.href}
                         type="button"
                         onClick={() => navigate(action.href)}
-                        className={`group flex min-h-[126px] flex-col justify-between rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 ${
-                          index === 2
-                            ? "border-transparent bg-[linear-gradient(145deg,#98efdc,#43bfe0)] text-[#153135]"
-                            : "border-white/[0.045] bg-[#2a1417] text-[#fff8ed] hover:border-white/10 hover:bg-[#32181b]"
-                        }`}
+                        className="group flex min-h-[126px] flex-col justify-between rounded-2xl border border-white/[0.045] bg-[#2a1417] p-4 text-left text-[#fff8ed] transition duration-200 hover:-translate-y-0.5 hover:border-white/10 hover:bg-[#32181b]"
                       >
                         <Icon className="h-5 w-5 opacity-85" />
                         <span>
                           <strong className="block font-podlogix-display text-xl font-bold leading-[0.9]">{action.label}</strong>
-                          <small className={`mt-1 block text-[9px] ${index === 2 ? "text-[#244f53]" : "text-[#9d817e]"}`}>
+                          <small className="mt-1 block text-[9px] text-[#9d817e]">
                             {action.hint}
                           </small>
                         </span>
