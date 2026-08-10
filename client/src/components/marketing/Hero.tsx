@@ -87,12 +87,13 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
       transition={{ duration: 0.9, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
       className="absolute bottom-[14%] right-6 z-20 sm:right-10 lg:right-[7%] xl:right-[11%]"
     >
-      {/* Card — wider, squarer, more breathing room (matches reference) */}
+      {/* Card — dark frosted glass */}
       <div
-        className="overflow-hidden rounded-3xl border border-white/25 bg-white/92 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-md"
+        className="overflow-hidden rounded-3xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
         style={{
           width: 280,
           padding: "28px 28px 26px",
+          background: "rgba(12, 4, 7, 0.82)",
           fontFamily: "inherit",
         }}
       >
@@ -103,7 +104,7 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
             fontWeight: 600,
             letterSpacing: "0.04em",
             textTransform: "uppercase" as const,
-            color: "#9b8b84",
+            color: "rgba(255,255,255,0.40)",
             marginBottom: 18,
           }}
         >
@@ -123,13 +124,13 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
                   width: 48,
                   height: 48,
                   borderRadius: "50%",
-                  border: "3px solid white",
+                  border: "2px solid rgba(255,255,255,0.15)",
                   overflow: "hidden",
                   marginLeft: i === 0 ? 0 : -14,
                   zIndex: AVATARS.length - i,
                   position: "relative",
                   flexShrink: 0,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                 }}
               >
                 <img
@@ -150,7 +151,7 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
               width: 48,
               height: 48,
               borderRadius: "50%",
-              border: "3px solid white",
+              border: "2px solid rgba(255,255,255,0.15)",
               marginLeft: -14,
               background: "linear-gradient(135deg, #ff6031 0%, #D97706 100%)",
               display: "flex",
@@ -160,7 +161,7 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
               fontWeight: 700,
               color: "white",
               flexShrink: 0,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
             }}
           >
             +10k
@@ -176,7 +177,7 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
                 fontWeight: 700,
                 lineHeight: 1,
                 letterSpacing: "-0.03em",
-                color: "#1a0d10",
+                color: "#ffffff",
               }}
             >
               {formatted}
@@ -185,7 +186,7 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
               style={{
                 marginTop: 6,
                 fontSize: 14,
-                color: "#9b8b84",
+                color: "rgba(255,255,255,0.40)",
                 fontWeight: 400,
               }}
             >
@@ -259,14 +260,16 @@ export function Hero() {
       </motion.div>
 
       {/* ── Gradient overlays ─────────────────────────────────────────────── */}
+      {/* Strong left-side darken so headline is always readable */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to right, rgba(10,4,2,0.95) 0%, rgba(10,4,2,0.88) 38%, rgba(10,4,2,0.55) 62%, rgba(10,4,2,0.10) 100%)",
+            "linear-gradient(to right, rgba(8,2,4,0.97) 0%, rgba(8,2,4,0.92) 32%, rgba(8,2,4,0.65) 58%, rgba(8,2,4,0.15) 100%)",
         }}
       />
+      {/* Bottom fade to page bg */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
@@ -274,6 +277,7 @@ export function Hero() {
           background: "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
         }}
       />
+      {/* Subtle warm glow top-left */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-[-10%] top-[30%] h-[600px] w-[600px] rounded-full opacity-20"
@@ -294,7 +298,7 @@ export function Hero() {
           {/* Beta pill */}
           <motion.div
             variants={item}
-            className="mb-10 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium tracking-wide text-muted-foreground backdrop-blur-sm"
+            className="mb-10 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium tracking-wide text-white/50 backdrop-blur-sm"
           >
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
@@ -303,14 +307,17 @@ export function Hero() {
             Now in public beta
           </motion.div>
 
-          {/* Headline — 2 lines */}
-          <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-[4.6rem] lg:leading-[0.97]">
+          {/* Headline — 2 lines, forced white */}
+          <h1
+            className="font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-[4.6rem] lg:leading-[0.97]"
+            style={{ color: "#ffffff" }}
+          >
             {[
               "Run your entire podcast business",
               "from one workspace.",
             ].map((line) => (
               <span key={line} className="block overflow-hidden">
-                <motion.span variants={lineReveal} className="block">
+                <motion.span variants={lineReveal} className="block" style={{ color: "#ffffff" }}>
                   {line}
                 </motion.span>
               </span>
@@ -320,11 +327,12 @@ export function Hero() {
           {/* Subheadline */}
           <motion.p
             variants={item}
-            className="mt-7 max-w-lg text-lg leading-relaxed text-white/60"
+            className="mt-7 max-w-lg text-lg leading-relaxed"
+            style={{ color: "rgba(255,255,255,0.60)" }}
           >
             Episodes, audience, sponsors, distribution, and your team —
             connected in one place.{" "}
-            <span className="font-semibold text-white/90">
+            <span className="font-semibold" style={{ color: "rgba(255,255,255,0.90)" }}>
               Hosting is included. It's just not the point.
             </span>
           </motion.p>
@@ -366,7 +374,7 @@ export function Hero() {
             </Magnetic>
           </motion.div>
 
-          <motion.p variants={item} className="mt-5 text-xs text-white/30">
+          <motion.p variants={item} className="mt-5 text-xs" style={{ color: "rgba(255,255,255,0.28)" }}>
             No credit card required · Free during the beta
           </motion.p>
         </motion.div>
