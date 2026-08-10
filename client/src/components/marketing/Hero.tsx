@@ -1,11 +1,13 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Link } from "wouter";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { motion, useScroll, useTransform, useReducedMotion, useInView } from "framer-motion";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Magnetic } from "./Magnetic";
 import { easing } from "@/lib/design-tokens";
 import heroPhoto from "@/assets/images/podlogix-hero-photo.jpg";
+
+// ─── Stagger variants ─────────────────────────────────────────────────────────
 
 const stagger = {
   hidden: {},
@@ -22,10 +24,135 @@ const lineReveal = {
   show: { y: "0%", transition: { duration: 0.55, ease: easing.spring } },
 };
 
+// ─── Podcast show avatar data (decorative) ────────────────────────────────────
+
+const SHOW_AVATARS = [
+  { bg: "#E85D26", initials: "TC" },
+  { bg: "#7C3AED", initials: "MW" },
+  { bg: "#0EA5E9", initials: "DP" },
+  { bg: "#D97706", initials: "SH" },
+];
+
+// ─── Count-up hook ────────────────────────────────────────────────────────────
+
+function useCountUp(target: number, duration: number, shouldStart: boolean, reduceMotion: boolean) {
+  const [count, setCount] = useState(reduceMotion ? target : 0);
+
+  useEffect(() => {
+    if (!shouldStart || reduceMotion) {
+      setCount(target);
+      return;
+    }
+    let startTime: number | null = null;
+    const step = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    const raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [shouldStart, target, duration, reduceMotion]);
+
+  return count;
+}
+
+// ─── Floating stats card ──────────────────────────────────────────────────────
+
+function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const count = useCountUp(100000, 2200, inView, !!reduceMotion);
+
+  const formatted =
+    count >= 100000
+      ? "100K+"
+      : count >= 1000
+      ? `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}K`
+      : count.toLocaleString();
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: reduceMotion ? 0 : 24, scale: reduceMotion ? 1 : 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.8, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
+      className="absolute bottom-[18%] right-8 z-20 w-56 sm:right-12 lg:right-[8%] xl:right-[12%]"
+    >
+      {/* Subtle drop shadow + glass card */}
+      <div
+        className="overflow-hidden rounded-2xl border border-white/20 bg-white/90 px-5 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md"
+        style={{ fontFamily: "inherit" }}
+      >
+        {/* Label */}
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-neutral-500">
+          Active Podcasters
+        </p>
+
+        {/* Stacked avatars */}
+        <div className="mb-4 flex items-center">
+          <div className="flex -space-x-2">
+            {SHOW_AVATARS.map((av, i) => (
+              <motion.div
+                key={av.initials}
+                initial={{ opacity: 0, x: reduceMotion ? 0 : -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 1.3 + i * 0.07, ease: "easeOut" }}
+                className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
+                style={{ background: av.bg, zIndex: SHOW_AVATARS.length - i }}
+              >
+                {av.initials}
+              </motion.div>
+            ))}
+          </div>
+          {/* +10k bubble */}
+          <motion.div
+            initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.35, delay: 1.65, ease: "backOut" }}
+            className="-ml-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-primary text-[9px] font-bold text-white shadow-sm"
+          >
+            +10k
+          </motion.div>
+        </div>
+
+        {/* Count-up number */}
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-[2rem] font-bold leading-none tracking-tight text-neutral-900">
+              {formatted}
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">Monthly Listeners</p>
+          </div>
+
+          {/* Arrow button */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 1.8, ease: "backOut" }}
+            className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-full"
+            style={{
+              background: "linear-gradient(135deg, #ff6031 0%, #D97706 100%)",
+            }}
+          >
+            <ArrowRight className="h-4 w-4 text-white" style={{ transform: "rotate(-45deg)" }} />
+          </motion.div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion();
 
+  // Subtle parallax on the photo as you scroll down
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
@@ -41,7 +168,7 @@ export function Hero() {
       ref={ref}
       className="relative flex min-h-screen flex-col overflow-hidden"
     >
-      {/* ── Full-bleed photo ── */}
+      {/* ── Full-bleed photo ──────────────────────────────────────────────── */}
       <motion.div
         aria-hidden
         style={{ y: photoY }}
@@ -55,7 +182,8 @@ export function Hero() {
         />
       </motion.div>
 
-      {/* ── Gradient overlays ── */}
+      {/* ── Gradient overlays ─────────────────────────────────────────────── */}
+      {/* Dark left panel so text pops */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -64,6 +192,7 @@ export function Hero() {
             "linear-gradient(to right, rgba(10,4,2,0.95) 0%, rgba(10,4,2,0.88) 38%, rgba(10,4,2,0.55) 62%, rgba(10,4,2,0.10) 100%)",
         }}
       />
+      {/* Bottom fade into page background */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
@@ -71,6 +200,7 @@ export function Hero() {
           background: "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
         }}
       />
+      {/* Warm orange ambient glow */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-[-10%] top-[30%] h-[600px] w-[600px] rounded-full opacity-20"
@@ -80,7 +210,7 @@ export function Hero() {
         }}
       />
 
-      {/* ── Content ── */}
+      {/* ── Content ───────────────────────────────────────────────────────── */}
       <div className="container relative z-10 mx-auto flex flex-1 flex-col justify-center px-6 pb-28 pt-36 lg:px-10 lg:pt-44">
         <motion.div
           variants={stagger}
@@ -170,7 +300,10 @@ export function Hero() {
         </motion.div>
       </div>
 
-      {/* ── Scroll cue ── */}
+      {/* ── Floating stats card (right side, over the photo) ─────────────── */}
+      <StatsCard reduceMotion={reduceMotion} />
+
+      {/* ── Scroll cue ────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
