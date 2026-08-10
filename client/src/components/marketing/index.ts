@@ -11,3 +11,4 @@ export { Grain } from "./Grain";
 export { Magnetic } from "./Magnetic";
 export { SpotlightCard } from "./SpotlightCard";
 export { SectionKicker } from "./SectionKicker";
+export { PodcasterSpotlight } from "./PodcasterSpotlight";

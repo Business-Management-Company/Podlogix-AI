@@ -15,6 +15,7 @@ import {
   PricingPreview,
   FinalCTA,
   Grain,
+  PodcasterSpotlight,
 } from "@/components/marketing";
 
 export default function Home() {
@@ -29,22 +30,20 @@ export default function Home() {
 
   return (
     <div className="dark min-h-screen bg-background text-foreground selection:bg-primary/30 selection:text-white">
-      {/* Disables transform/filter-based motion for prefers-reduced-motion
-          users across every section in one place; the few imperative
-          cursor-driven effects (Magnetic, tilt, glow parallax) additionally
-          check useReducedMotion() themselves since they bypass variants. */}
       <MotionConfig reducedMotion="user">
         <Grain />
         <Navbar />
         <Hero />
-        {/* "See the workspace" reveal — dashboard mockup in a browser frame */}
+        {/* "See the workspace" reveal — dashboard mockup in browser frame */}
         <WorkspaceShowcase />
         {/* Problem / chaos */}
         <EditorialStatement />
         {/* Cost — everywhere the business already has to run */}
         <PlatformsStrip />
-        {/* Solution */}
+        {/* YOUR SHOW. NO CHAOS. — numbered feature list */}
         <WorkspacePillars />
+        {/* Behind Every Podcast is a Bold Voice — auto-rotating creator cards */}
+        <PodcasterSpotlight />
         {/* Integrations / Connected apps */}
         <ConnectorsSection />
         {/* Social proof */}

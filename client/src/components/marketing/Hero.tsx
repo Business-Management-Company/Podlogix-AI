@@ -24,18 +24,22 @@ const lineReveal = {
   show: { y: "0%", transition: { duration: 0.55, ease: easing.spring } },
 };
 
-// ─── Podcast show avatar data (decorative) ────────────────────────────────────
+// ─── Real face photos (via pravatar — consistent per seed number) ─────────────
 
-const SHOW_AVATARS = [
-  { bg: "#E85D26", initials: "TC" },
-  { bg: "#7C3AED", initials: "MW" },
-  { bg: "#0EA5E9", initials: "DP" },
-  { bg: "#D97706", initials: "SH" },
+const AVATARS = [
+  { src: "https://i.pravatar.cc/120?img=47", alt: "Podcaster" },
+  { src: "https://i.pravatar.cc/120?img=12", alt: "Podcaster" },
+  { src: "https://i.pravatar.cc/120?img=32", alt: "Podcaster" },
 ];
 
 // ─── Count-up hook ────────────────────────────────────────────────────────────
 
-function useCountUp(target: number, duration: number, shouldStart: boolean, reduceMotion: boolean) {
+function useCountUp(
+  target: number,
+  duration: number,
+  shouldStart: boolean,
+  reduceMotion: boolean
+) {
   const [count, setCount] = useState(reduceMotion ? target : 0);
 
   useEffect(() => {
@@ -48,7 +52,7 @@ function useCountUp(target: number, duration: number, shouldStart: boolean, redu
       if (!startTime) startTime = timestamp;
       const elapsed = timestamp - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
+      // ease-out cubic — fast start, slow finish so you can read the number
       const eased = 1 - Math.pow(1 - progress, 3);
       setCount(Math.round(eased * target));
       if (progress < 1) requestAnimationFrame(step);
@@ -64,8 +68,9 @@ function useCountUp(target: number, duration: number, shouldStart: boolean, redu
 
 function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-  const count = useCountUp(100000, 2200, inView, !!reduceMotion);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  // 3.5 second count-up
+  const count = useCountUp(100000, 3500, inView, !!reduceMotion);
 
   const formatted =
     count >= 100000
@@ -77,68 +82,140 @@ function StatsCard({ reduceMotion }: { reduceMotion: boolean | null }) {
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: reduceMotion ? 0 : 24, scale: reduceMotion ? 1 : 0.95 }}
+      initial={{ opacity: 0, y: reduceMotion ? 0 : 30, scale: reduceMotion ? 1 : 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.8, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute bottom-[18%] right-8 z-20 w-56 sm:right-12 lg:right-[8%] xl:right-[12%]"
+      transition={{ duration: 0.9, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
+      className="absolute bottom-[14%] right-6 z-20 sm:right-10 lg:right-[7%] xl:right-[11%]"
     >
-      {/* Subtle drop shadow + glass card */}
+      {/* Card — wider, squarer, more breathing room (matches reference) */}
       <div
-        className="overflow-hidden rounded-2xl border border-white/20 bg-white/90 px-5 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md"
-        style={{ fontFamily: "inherit" }}
+        className="overflow-hidden rounded-3xl border border-white/25 bg-white/92 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-md"
+        style={{
+          width: 280,
+          padding: "28px 28px 26px",
+          fontFamily: "inherit",
+        }}
       >
         {/* Label */}
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-neutral-500">
-          Active Podcasters
+        <p
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase" as const,
+            color: "#9b8b84",
+            marginBottom: 18,
+          }}
+        >
+          Our Members
         </p>
 
-        {/* Stacked avatars */}
-        <div className="mb-4 flex items-center">
-          <div className="flex -space-x-2">
-            {SHOW_AVATARS.map((av, i) => (
+        {/* Stacked face avatars */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 36 }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {AVATARS.map((av, i) => (
               <motion.div
-                key={av.initials}
-                initial={{ opacity: 0, x: reduceMotion ? 0 : -8 }}
+                key={av.src}
+                initial={{ opacity: 0, x: reduceMotion ? 0 : -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 1.3 + i * 0.07, ease: "easeOut" }}
-                className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
-                style={{ background: av.bg, zIndex: SHOW_AVATARS.length - i }}
+                transition={{ duration: 0.4, delay: 1.35 + i * 0.08, ease: "easeOut" }}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  border: "3px solid white",
+                  overflow: "hidden",
+                  marginLeft: i === 0 ? 0 : -14,
+                  zIndex: AVATARS.length - i,
+                  position: "relative",
+                  flexShrink: 0,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                }}
               >
-                {av.initials}
+                <img
+                  src={av.src}
+                  alt={av.alt}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </motion.div>
             ))}
           </div>
+
           {/* +10k bubble */}
           <motion.div
-            initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.7 }}
+            initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35, delay: 1.65, ease: "backOut" }}
-            className="-ml-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-primary text-[9px] font-bold text-white shadow-sm"
+            transition={{ duration: 0.38, delay: 1.62, ease: "backOut" }}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              border: "3px solid white",
+              marginLeft: -14,
+              background: "linear-gradient(135deg, #ff6031 0%, #D97706 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "white",
+              flexShrink: 0,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}
           >
             +10k
           </motion.div>
         </div>
 
-        {/* Count-up number */}
-        <div className="flex items-end justify-between">
+        {/* Count-up number + arrow */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div>
-            <p className="text-[2rem] font-bold leading-none tracking-tight text-neutral-900">
+            <p
+              style={{
+                fontSize: 46,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: "-0.03em",
+                color: "#1a0d10",
+              }}
+            >
               {formatted}
             </p>
-            <p className="mt-1 text-xs text-neutral-500">Monthly Listeners</p>
+            <p
+              style={{
+                marginTop: 6,
+                fontSize: 14,
+                color: "#9b8b84",
+                fontWeight: 400,
+              }}
+            >
+              Monthly Listeners
+            </p>
           </div>
 
           {/* Arrow button */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.6 }}
+            initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, delay: 1.8, ease: "backOut" }}
-            className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-full"
+            transition={{ duration: 0.4, delay: 1.85, ease: "backOut" }}
             style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
               background: "linear-gradient(135deg, #ff6031 0%, #D97706 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              marginBottom: 2,
+              boxShadow: "0 4px 16px rgba(255,96,49,0.35)",
             }}
           >
-            <ArrowRight className="h-4 w-4 text-white" style={{ transform: "rotate(-45deg)" }} />
+            <ArrowRight
+              size={18}
+              color="white"
+              style={{ transform: "rotate(-45deg)" }}
+            />
           </motion.div>
         </div>
       </div>
@@ -152,7 +229,6 @@ export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion();
 
-  // Subtle parallax on the photo as you scroll down
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
@@ -183,7 +259,6 @@ export function Hero() {
       </motion.div>
 
       {/* ── Gradient overlays ─────────────────────────────────────────────── */}
-      {/* Dark left panel so text pops */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -192,7 +267,6 @@ export function Hero() {
             "linear-gradient(to right, rgba(10,4,2,0.95) 0%, rgba(10,4,2,0.88) 38%, rgba(10,4,2,0.55) 62%, rgba(10,4,2,0.10) 100%)",
         }}
       />
-      {/* Bottom fade into page background */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
@@ -200,7 +274,6 @@ export function Hero() {
           background: "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
         }}
       />
-      {/* Warm orange ambient glow */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-[-10%] top-[30%] h-[600px] w-[600px] rounded-full opacity-20"
@@ -216,7 +289,7 @@ export function Hero() {
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="max-w-xl"
+          className="max-w-2xl"
         >
           {/* Beta pill */}
           <motion.div
@@ -230,11 +303,10 @@ export function Hero() {
             Now in public beta
           </motion.div>
 
-          {/* Headline */}
+          {/* Headline — 2 lines */}
           <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-[4.6rem] lg:leading-[0.97]">
             {[
-              "Run your entire",
-              "podcast business",
+              "Run your entire podcast business",
               "from one workspace.",
             ].map((line) => (
               <span key={line} className="block overflow-hidden">
@@ -248,7 +320,7 @@ export function Hero() {
           {/* Subheadline */}
           <motion.p
             variants={item}
-            className="mt-7 text-lg leading-relaxed text-white/60"
+            className="mt-7 max-w-lg text-lg leading-relaxed text-white/60"
           >
             Episodes, audience, sponsors, distribution, and your team —
             connected in one place.{" "}
@@ -300,7 +372,7 @@ export function Hero() {
         </motion.div>
       </div>
 
-      {/* ── Floating stats card (right side, over the photo) ─────────────── */}
+      {/* ── Floating stats card ───────────────────────────────────────────── */}
       <StatsCard reduceMotion={reduceMotion} />
 
       {/* ── Scroll cue ────────────────────────────────────────────────────── */}
