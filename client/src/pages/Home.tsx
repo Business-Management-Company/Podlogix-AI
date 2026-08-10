@@ -37,14 +37,14 @@ export default function Home() {
         <Grain />
         <Navbar />
         <Hero />
+        {/* "See the workspace" reveal — dashboard mockup in a browser frame */}
+        <WorkspaceShowcase />
         {/* Problem / chaos */}
         <EditorialStatement />
         {/* Cost — everywhere the business already has to run */}
         <PlatformsStrip />
         {/* Solution */}
         <WorkspacePillars />
-        {/* Trust — tangible proof */}
-        <WorkspaceShowcase />
         {/* Integrations / Connected apps */}
         <ConnectorsSection />
         {/* Social proof */}
