@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, Redirect } from "wouter";
+import { Switch, Route, useLocation, useParams, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,14 +7,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { AppLayout } from "@/components/AppLayout";
 import { PlaceholderPage } from "@/components/kit";
 import {
-  Mic,
   LayoutDashboard,
-  List,
   Megaphone,
   Users,
   Briefcase,
-  Fingerprint,
-  Settings2,
   Library,
   Users2,
 } from "lucide-react";
@@ -34,16 +30,19 @@ import ResetPassword from "@/pages/ResetPassword";
 
 // ─── New architecture pages ───────────────────────────────────────────────────
 import Activity from "@/pages/Activity";
+import Shows from "@/pages/Shows";
+import ShowSettings from "@/pages/ShowSettings";
 import AccountSettings from "@/pages/AccountSettings";
 import AdminDashboard from "@/pages/AdminDashboard";
 import SaaSAdminPortal from "@/pages/SaaSAdminPortal";
+import IntegrationStatus from "@/pages/IntegrationStatus";
 import KnowledgeBase from "@/pages/KnowledgeBase";
 
 // ─── Legacy pages (kept for backward compat during migration) ─────────────────
-import Dashboard from "@/pages/Dashboard";
 import ProfileEditor from "@/pages/ProfileEditor";
 import RssManagement from "@/pages/RssManagement";
 import Episodes from "@/pages/Episodes";
+import EpisodeDetail from "@/pages/EpisodeDetail";
 import Distribution from "@/pages/Distribution";
 import EmailHub from "@/pages/EmailHub";
 import AiAssistant from "@/pages/AiAssistant";
@@ -59,47 +58,16 @@ import Connectors from "@/pages/Connectors";
 import IdentityHub from "@/pages/IdentityHub";
 import ClientPortal from "@/pages/ClientPortal";
 
-// ─── Placeholder pages for new nav sections ───────────────────────────────────
-// Every one of these is a real destination in the information architecture —
-// they just don't have a built experience yet. PlaceholderPage keeps them
-// feeling intentional instead of broken.
-
-function PodcastsPage() {
-  return (
-    <PlaceholderPage
-      icon={Mic}
-      title="Podcasts"
-      description="Your shows will live here. Each podcast is a first-class object with its own episodes, audience, and business relationships."
-    />
-  );
-}
+// ─── Placeholder pages ────────────────────────────────────────────────────────
+// Real destinations in the information architecture that don't have a built
+// experience yet. PlaceholderPage keeps them feeling intentional, not broken.
 
 function ShowOverviewPage() {
   return (
     <PlaceholderPage
       icon={LayoutDashboard}
-      title="Show Overview"
+      title="Overview"
       description="Performance at a glance — recent episode metrics, distribution status, audience growth, and active campaigns for this show."
-    />
-  );
-}
-
-function ShowEpisodesPage() {
-  return (
-    <PlaceholderPage
-      icon={List}
-      title="Episodes"
-      description="All episodes for this show in list, pipeline, and calendar views. Full lifecycle management from idea to published."
-    />
-  );
-}
-
-function ShowCampaignsPage() {
-  return (
-    <PlaceholderPage
-      icon={Megaphone}
-      title="Campaigns"
-      description="Promotional campaigns scoped to this show — social posts, newsletters, clips, and cross-promotions."
     />
   );
 }
@@ -114,52 +82,13 @@ function ShowAudiencePage() {
   );
 }
 
-function ShowBusinessPage() {
-  return (
-    <PlaceholderPage
-      icon={Briefcase}
-      title="Business"
-      description="Guests booked and appeared on this show, sponsors running on this show, and revenue attributed to it."
-    />
-  );
-}
-
-function ShowIdentityPage() {
-  return (
-    <PlaceholderPage
-      icon={Fingerprint}
-      title="Identity"
-      description="Voice certification and likeness protection for this show's hosts."
-    />
-  );
-}
-
-function ShowSettingsPage() {
-  return (
-    <PlaceholderPage
-      icon={Settings2}
-      title="Show Settings"
-      description="Show name, description, categories, artwork, and your podcast host connection."
-    />
-  );
-}
-
+// Unlinked placeholders — kept routable for later phases, not in the nav.
 function CampaignsPage() {
   return (
     <PlaceholderPage
       icon={Megaphone}
       title="Campaigns"
       description="Workspace-level campaigns spanning multiple shows — social content, email, clips, sponsorship activations, and launch campaigns."
-    />
-  );
-}
-
-function AudiencePage() {
-  return (
-    <PlaceholderPage
-      icon={Users}
-      title="Audience"
-      description="Your total audience across all shows. Downloads, platform breakdown, subscriber data, segments, and engagement analytics."
     />
   );
 }
@@ -194,48 +123,98 @@ function TeamPage() {
   );
 }
 
+// ─── Redirect helpers ─────────────────────────────────────────────────────────
+
+/** Redirects an old /podcasts/:id[/subpath] URL to its /shows/:id equivalent. */
+function PodcastRedirect({ suffix = "" }: { suffix?: string }) {
+  const params = useParams<{ id: string }>();
+  return <Redirect to={`/shows/${params.id}${suffix}`} replace />;
+}
+
 // ─── Authenticated routes ─────────────────────────────────────────────────────
 
 function AuthenticatedRoutes() {
   return (
     <AppLayout>
       <Switch>
-        {/* ── New architecture routes ── */}
-        <Route path="/activity" component={Activity} />
+        {/* ── Workspace ── */}
+        <Route path="/today" component={Activity} />
+        <Route path="/shows" component={Shows} />
+        {/* TODO: filter Episodes by show — currently lists all native episodes */}
+        <Route path="/episodes" component={Episodes} />
+        <Route path="/episodes/:episodeId" component={EpisodeDetail} />
+        {/* TODO Phase 9: split SocialAnalytics into a real Audience experience */}
+        <Route path="/audience" component={SocialAnalytics} />
 
-        {/* Podcasts + show context */}
-        <Route path="/podcasts" component={PodcastsPage} />
-        <Route path="/podcasts/:id" component={ShowOverviewPage} />
-        <Route path="/podcasts/:id/episodes" component={ShowEpisodesPage} />
-        <Route path="/podcasts/:id/campaigns" component={ShowCampaignsPage} />
-        <Route path="/podcasts/:id/audience" component={ShowAudiencePage} />
-        <Route path="/podcasts/:id/business" component={ShowBusinessPage} />
-        <Route path="/podcasts/:id/identity" component={ShowIdentityPage} />
-        <Route path="/podcasts/:id/settings" component={ShowSettingsPage} />
+        {/* ── Show context ── */}
+        <Route path="/shows/:id" component={ShowOverviewPage} />
+        {/* TODO: filter Episodes by show — currently lists all native episodes */}
+        <Route path="/shows/:id/episodes" component={Episodes} />
+        <Route path="/shows/:showId/episodes/:episodeId" component={EpisodeDetail} />
+        {/* TODO: episode-scoped promotion later — SocialHub is workspace-wide */}
+        <Route path="/shows/:id/promotion" component={SocialHub} />
+        <Route path="/shows/:id/distribution" component={Distribution} />
+        <Route path="/shows/:id/audience" component={ShowAudiencePage} />
+        <Route path="/shows/:id/settings" component={ShowSettings} />
 
-        {/* Workspace sections */}
+        {/* ── Unlinked placeholders (later phases) ── */}
         <Route path="/campaigns" component={CampaignsPage} />
-        <Route path="/audience" component={AudiencePage} />
         <Route path="/business" component={BusinessPage} />
         <Route path="/library" component={LibraryPage} />
         <Route path="/team" component={TeamPage} />
+
+        {/* ── Settings cluster ── */}
         <Route path="/settings" component={AccountSettings} />
+        <Route path="/connectors" component={Connectors} />
+        <Route path="/identity" component={IdentityHub} />
         <Route path="/help" component={KnowledgeBase} />
 
-        {/* Admin */}
+        {/* ── Admin ── */}
         <Route path="/admin" component={AdminDashboard} />
+        <Route path="/admin/integrations" component={IntegrationStatus} />
         <Route path="/saas-admin" component={SaaSAdminPortal} />
         <Route path="/client" component={ClientPortal} />
         <Route path="/brand" component={BrandDashboard} />
 
-        {/* ── Legacy routes (backward compat) ── */}
-        <Route path="/dashboard">
-          <Redirect to="/activity" />
+        {/* ── Redirects: old URLs → new ── */}
+        <Route path="/activity">
+          <Redirect to="/today" replace />
         </Route>
+        <Route path="/dashboard">
+          <Redirect to="/today" replace />
+        </Route>
+        <Route path="/dashboard/episodes">
+          <Redirect to="/episodes" replace />
+        </Route>
+        <Route path="/podcasts">
+          <Redirect to="/shows" replace />
+        </Route>
+        <Route path="/podcasts/:id">
+          <PodcastRedirect />
+        </Route>
+        <Route path="/podcasts/:id/episodes">
+          <PodcastRedirect suffix="/episodes" />
+        </Route>
+        <Route path="/podcasts/:id/campaigns">
+          <PodcastRedirect suffix="/promotion" />
+        </Route>
+        <Route path="/podcasts/:id/audience">
+          <PodcastRedirect suffix="/audience" />
+        </Route>
+        <Route path="/podcasts/:id/business">
+          <PodcastRedirect />
+        </Route>
+        <Route path="/podcasts/:id/identity">
+          <PodcastRedirect />
+        </Route>
+        <Route path="/podcasts/:id/settings">
+          <PodcastRedirect suffix="/settings" />
+        </Route>
+
+        {/* ── Legacy routes (backward compat — reachable from show context and settings) ── */}
         <Route path="/dashboard/profile" component={ProfileEditor} />
         <Route path="/dashboard/podcast" component={ProfileEditor} />
         <Route path="/dashboard/rss" component={RssManagement} />
-        <Route path="/dashboard/episodes" component={Episodes} />
         <Route path="/dashboard/distribution" component={Distribution} />
         <Route path="/dashboard/email" component={EmailHub} />
         <Route path="/dashboard/ai" component={AiAssistant} />
@@ -246,8 +225,6 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />
         <Route path="/listener" component={ListenerDashboard} />
         <Route path="/listener/analytics" component={ListenerAnalytics} />
-        <Route path="/connectors" component={Connectors} />
-        <Route path="/identity" component={IdentityHub} />
 
         <Route component={NotFound} />
       </Switch>
@@ -313,7 +290,7 @@ function Router() {
 
   if (isAuthenticated) {
     if (location === "/login" || location === "/signup") {
-      return <Redirect to="/activity" />;
+      return <Redirect to="/today" />;
     }
     if (isPublicPath) {
       return <PublicRoutes />;

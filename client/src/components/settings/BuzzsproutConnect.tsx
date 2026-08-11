@@ -11,6 +11,7 @@
  */
 
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Mic2,
@@ -213,14 +214,16 @@ function EpisodeRow({ ep }: { ep: BuzzsproutEpisode }) {
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-tight">
-          {ep.episodeNumber && (
-            <span className="mr-1.5 text-muted-foreground/60">
-              #{ep.episodeNumber}
-            </span>
-          )}
-          {ep.title}
-        </p>
+        <Link href={`/episodes/bz-${ep.id}`}>
+          <p className="cursor-pointer truncate text-sm font-medium leading-tight hover:underline underline-offset-2">
+            {ep.episodeNumber && (
+              <span className="mr-1.5 text-muted-foreground/60">
+                #{ep.episodeNumber}
+              </span>
+            )}
+            {ep.title}
+          </p>
+        </Link>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/50">
           {ep.publishedAt && <span>{formatDate(ep.publishedAt)}</span>}
           {ep.durationSeconds && (
@@ -266,8 +269,8 @@ export function BuzzsproutConnect() {
 
   const statusQuery = useQuery<BuzzsproutStatus>({
     queryKey: ["/api/connectors/buzzsprout/status"],
-    refetchInterval: (data) =>
-      data?.connection?.status === "syncing" ? 3000 : false,
+    refetchInterval: (query) =>
+      query.state.data?.connection?.status === "syncing" ? 3000 : false,
   });
 
   const episodesQuery = useQuery<{ episodes: BuzzsproutEpisode[] }>({

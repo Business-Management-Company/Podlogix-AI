@@ -2891,6 +2891,48 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+
+  // Integration status (admin only) — env-key presence check, never returns values
+  app.get('/api/admin/integration-status', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      const user = await authStorage.getUser(userId);
+      if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+        return res.status(403).json({ message: 'Forbidden: Admin access required' });
+      }
+
+      const catalog = [
+        { id: "buzzsprout", name: "Buzzsprout", category: "Podcast Hosting", envVars: [], note: "Per-user API token — no server key needed", codeStatus: "ready" },
+        { id: "supabase-storage", name: "Supabase Storage (uploads)", category: "Core", envVars: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"], note: "Artwork & audio uploads", codeStatus: "ready" },
+        { id: "openai", name: "OpenAI (AI features)", category: "AI", envVars: ["OPENAI_API_KEY"], note: "AI Studio, email compose, bio writer, video analysis", codeStatus: "ready" },
+        { id: "influencers-club", name: "Influencers.club (Social Analytics)", category: "Analytics", envVars: ["INFLUENCERS_CLUB_API_KEY"], note: "All 7 Social Analytics tabs", codeStatus: "ready" },
+        { id: "upload-post", name: "Upload-Post (Social Hub posting)", category: "Social", envVars: ["UPLOAD_POST_API_KEY"], note: "Cross-platform posting", codeStatus: "ready" },
+        { id: "spotify", name: "Spotify OAuth", category: "Listener", envVars: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"], note: "Listener show import", codeStatus: "ready" },
+        { id: "youtube", name: "YouTube Data API", category: "Social", envVars: ["YOUTUBE_API_KEY"], note: "Channel stats on creator profiles", codeStatus: "ready" },
+        { id: "meta", name: "Instagram / Facebook (Meta)", category: "Social", envVars: ["META_APP_ID", "META_APP_SECRET"], note: "OAuth connections", codeStatus: "ready" },
+        { id: "linkedin", name: "LinkedIn OAuth", category: "Social", envVars: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"], note: "Profile connection", codeStatus: "ready" },
+        { id: "resend", name: "Resend (email)", category: "Email", envVars: ["RESEND_API_KEY"], note: "Campaign send still uses old Replit connector — needs refactor even with key", codeStatus: "needs-refactor" },
+        { id: "phyllo", name: "Phyllo (impersonation monitoring)", category: "Identity", envVars: ["PHYLLO_CLIENT_ID", "PHYLLO_SECRET"], note: "Currently demo mode", codeStatus: "demo" },
+        { id: "modash", name: "Modash (brand discovery)", category: "Brand", envVars: ["MODASH_API_KEY"], note: "Currently returns demo influencers", codeStatus: "demo" },
+        { id: "blockchain", name: "Polygon (certificates)", category: "Identity", envVars: ["WALLET_PRIVATE_KEY", "INFURA_API_KEY"], note: "Without keys, minting is SIMULATED (fake tx hashes)", codeStatus: "demo" },
+        { id: "github", name: "GitHub connector", category: "Legacy", envVars: [], note: "Replit leftover — no routes; should be removed from Connectors UI", codeStatus: "broken" },
+      ];
+
+      const integrations = catalog.map((entry) => {
+        const missingVars = entry.envVars.filter((v) => !process.env[v] || process.env[v] === '');
+        return { ...entry, configured: missingVars.length === 0, missingVars };
+      });
+
+      res.json({ integrations });
+    } catch (error) {
+      console.error('Error checking integration status:', error);
+      res.status(500).json({ message: 'Failed to check integration status' });
+    }
+  });
+
   // Get all users (admin only)
   app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
@@ -3246,9 +3288,12 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         },
         body: JSON.stringify({
           platform: platform || 'instagram',
-          prompt: prompt || '',
-          filters: filters || {},
-          limit: Math.min(limit, 50),
+          paging: { limit: Math.min(limit, 50), page: 0 },
+          sort: { sort_by: 'relevancy', sort_order: 'desc' },
+          filters: {
+            ai_search: prompt || '',
+            ...(filters || {}),
+          },
         }),
       });
 
@@ -3262,7 +3307,8 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       }
 
       const data = await response.json();
-      res.json(data);
+      const items = data.result?.items || data.results || data.creators || data.items || [];
+      res.json({ creators: items, total: data.result?.total || data.total || items.length });
     } catch (error) {
       console.error('Error with Influencers.club discovery:', error);
       res.status(500).json({ error: 'Failed to search creators' });
@@ -3282,14 +3328,14 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         return res.status(400).json({ error: 'Handle and platform are required' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          handle,
+          handle: normalizeSocialHandle(handle),
           platform,
           email_required: 'preferred',
           include_lookalikes: false,
@@ -3321,7 +3367,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         return res.json({ configured: false });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/account/credits/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/accounts/credits/', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -3930,12 +3976,21 @@ Respond in this exact JSON format:
   });
 
   // ============ SOCIAL ANALYTICS (Influencers.club for user's connected accounts) ============
+
+  // Normalize a pasted profile URL or @handle to a bare handle
+  function normalizeSocialHandle(input: string): string {
+    let h = (input || "").trim();
+    const urlMatch = h.match(/(?:instagram\.com|tiktok\.com|youtube\.com|youtu\.be|x\.com|twitter\.com|twitch\.tv)\/(@?[A-Za-z0-9_.\-]+)/i);
+    if (urlMatch) h = urlMatch[1];
+    return h.replace(/^@/, "").replace(/\/+$/, "");
+  }
+
   
   // Get analytics for a user's connected social account
   app.post('/api/social-analytics/profile', isAuthenticated, async (req: any, res) => {
     try {
       const profileSchema = z.object({
-        handle: z.string().min(1, 'Handle is required').max(100),
+        handle: z.string().min(1, 'Handle is required').max(300),
         platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
       });
 
@@ -3951,14 +4006,14 @@ Respond in this exact JSON format:
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          handle: handle.replace('@', ''),
+          handle: normalizeSocialHandle(handle),
           platform: platform.toLowerCase(),
         }),
       });
@@ -3966,7 +4021,7 @@ Respond in this exact JSON format:
       if (!response.ok) {
         const error = await response.text();
         console.error('Influencers.club enrich error:', error);
-        return res.status(response.status).json({ error: 'Failed to fetch analytics' });
+        return res.status(response.status).json({ error: 'Failed to fetch analytics', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
@@ -4036,14 +4091,14 @@ Respond in this exact JSON format:
         if (!platform || !account.platformUsername) continue;
 
         try {
-          const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+          const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              handle: account.platformUsername.replace('@', ''),
+              handle: normalizeSocialHandle(account.platformUsername),
               platform,
             }),
           });
@@ -4179,24 +4234,24 @@ Respond in this exact JSON format:
       }
 
       const filters = parseResult.data;
-      
-      // Build discovery request
-      const discoveryRequest: Record<string, any> = {
-        limit: filters.limit,
-        offset: filters.offset,
-      };
 
-      if (filters.platform) discoveryRequest.platform = filters.platform;
-      if (filters.minFollowers) discoveryRequest.followers_min = filters.minFollowers;
-      if (filters.maxFollowers) discoveryRequest.followers_max = filters.maxFollowers;
-      if (filters.minEngagement) discoveryRequest.engagement_rate_min = filters.minEngagement;
-      if (filters.maxEngagement) discoveryRequest.engagement_rate_max = filters.maxEngagement;
-      if (filters.location) discoveryRequest.location = filters.location;
-      if (filters.language) discoveryRequest.language = filters.language;
-      if (filters.niche) discoveryRequest.niche = filters.niche;
-      if (filters.hasEmail !== undefined) discoveryRequest.has_email = filters.hasEmail;
-      if (filters.isVerified !== undefined) discoveryRequest.is_verified = filters.isVerified;
-      if (filters.aiPrompt) discoveryRequest.ai_prompt = filters.aiPrompt;
+      // Build discovery request per Influencers.club /public/v1/discovery/ contract
+      // TODO: map minEngagement/maxEngagement, hasEmail, isVerified to documented filter keys
+      // (dropped from the upstream request until the correct keys are confirmed)
+      const limit = filters.limit ?? 25;
+      const discoveryRequest: Record<string, any> = {
+        platform: filters.platform || 'instagram',
+        paging: { limit, page: Math.floor((filters.offset ?? 0) / limit) },
+        sort: { sort_by: 'relevancy', sort_order: 'desc' },
+        filters: {
+          ai_search: [filters.aiPrompt, filters.niche].filter(Boolean).join(', '),
+          ...(filters.minFollowers || filters.maxFollowers
+            ? { number_of_followers: { min: filters.minFollowers ?? null, max: filters.maxFollowers ?? null } }
+            : {}),
+          ...(filters.location ? { location: [filters.location] } : {}),
+          ...(filters.language ? { profile_language: [filters.language] } : {}),
+        },
+      };
 
       const response = await fetch('https://api-dashboard.influencers.club/public/v1/discovery/', {
         method: 'POST',
@@ -4210,12 +4265,12 @@ Respond in this exact JSON format:
       if (!response.ok) {
         const error = await response.text();
         console.error('Discovery API error:', error);
-        return res.status(response.status).json({ error: 'Discovery search failed' });
+        return res.status(response.status).json({ error: 'Discovery search failed', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
       
-      const creators = (data.results || data.creators || []).map((creator: any) => ({
+      const creators = (data.result?.items || data.results || data.creators || data.items || []).map((creator: any) => ({
         handle: creator.handle || creator.username,
         platform: creator.platform,
         name: creator.name || creator.fullname,
@@ -4235,7 +4290,7 @@ Respond in this exact JSON format:
       res.json({
         success: true,
         creators,
-        total: data.total || creators.length,
+        total: data.result?.total || data.total || creators.length,
         offset: filters.offset,
         limit: filters.limit,
       });
@@ -4249,7 +4304,7 @@ Respond in this exact JSON format:
   app.post('/api/social-analytics/lookalikes', isAuthenticated, async (req: any, res) => {
     try {
       const lookalikesSchema = z.object({
-        handle: z.string().min(1).max(100),
+        handle: z.string().min(1).max(300),
         platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
         limit: z.number().min(1).max(50).optional().default(20),
         // Additional filters for lookalikes
@@ -4270,17 +4325,16 @@ Respond in this exact JSON format:
 
       const { handle, platform, limit, minFollowers, maxFollowers, location } = parseResult.data;
 
+      // TODO: map minFollowers/maxFollowers/location to documented similar-creators filter keys
       const requestBody: Record<string, any> = {
-        handle: handle.replace('@', ''),
+        filter_value: normalizeSocialHandle(handle),
+        filter_key: 'handle',
         platform,
-        limit,
+        paging: { limit, page: 0 },
+        filters: { ai_search: '' },
       };
 
-      if (minFollowers) requestBody.followers_min = minFollowers;
-      if (maxFollowers) requestBody.followers_max = maxFollowers;
-      if (location) requestBody.location = location;
-
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/lookalikes/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/discovery/creators/similar/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4292,12 +4346,12 @@ Respond in this exact JSON format:
       if (!response.ok) {
         const error = await response.text();
         console.error('Lookalikes API error:', error);
-        return res.status(response.status).json({ error: 'Failed to find lookalikes' });
+        return res.status(response.status).json({ error: 'Failed to find lookalikes', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
       
-      const lookalikes = (data.results || data.lookalikes || []).map((creator: any) => ({
+      const lookalikes = (data.result?.items || data.results || data.lookalikes || data.items || []).map((creator: any) => ({
         handle: creator.handle || creator.username,
         platform: creator.platform || platform,
         name: creator.name || creator.fullname,
@@ -4342,9 +4396,8 @@ Respond in this exact JSON format:
       }
 
       const { email, mode } = parseResult.data;
-      const endpoint = mode === 'basic' 
-        ? 'https://api-dashboard.influencers.club/public/v1/enrichment/email/basic/'
-        : 'https://api-dashboard.influencers.club/public/v1/enrichment/email/advanced/';
+      // Influencers.club exposes a single email-enrich endpoint (no basic/advanced split)
+      const endpoint = 'https://api-dashboard.influencers.club/public/v1/creators/enrich/email/';
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -4358,7 +4411,7 @@ Respond in this exact JSON format:
       if (!response.ok) {
         const error = await response.text();
         console.error('Email enrichment error:', error);
-        return res.status(response.status).json({ error: 'Email enrichment failed' });
+        return res.status(response.status).json({ error: 'Email enrichment failed', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
@@ -4393,7 +4446,7 @@ Respond in this exact JSON format:
   app.post('/api/social-analytics/posts', isAuthenticated, async (req: any, res) => {
     try {
       const postsSchema = z.object({
-        handle: z.string().min(1).max(100),
+        handle: z.string().min(1).max(300),
         platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
         limit: z.number().min(1).max(50).optional().default(12),
       });
@@ -4410,28 +4463,28 @@ Respond in this exact JSON format:
 
       const { handle, platform, limit } = parseResult.data;
 
-      // First enrich to get posts data
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/handle/full/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/content/posts/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          handle: handle.replace('@', ''),
           platform,
+          handle: normalizeSocialHandle(handle),
+          count: limit ?? 30,
         }),
       });
 
       if (!response.ok) {
         const error = await response.text();
         console.error('Posts API error:', error);
-        return res.status(response.status).json({ error: 'Failed to fetch posts' });
+        return res.status(response.status).json({ error: 'Failed to fetch posts', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
-      
-      const posts = (data.recent_posts || data.posts || data.latest_posts || []).slice(0, limit).map((post: any) => ({
+
+      const posts = (data.result?.items || []).slice(0, limit).map((post: any) => ({
         id: post.id || post.post_id,
         type: post.type || post.media_type || 'post',
         caption: post.caption || post.text || post.title,
@@ -4450,10 +4503,8 @@ Respond in this exact JSON format:
         handle,
         platform,
         posts,
-        avgLikes: data.avg_likes || 0,
-        avgComments: data.avg_comments || 0,
-        avgViews: data.avg_views || 0,
-        postsPerMonth: data.posts_per_month || 0,
+        moreAvailable: data.result?.more_available ?? false,
+        nextToken: data.result?.next_token ?? null,
       });
     } catch (error) {
       console.error('Error fetching posts:', error);
@@ -4469,7 +4520,7 @@ Respond in this exact JSON format:
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/account/credits/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/accounts/credits/', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4480,7 +4531,7 @@ Respond in this exact JSON format:
       if (!response.ok) {
         const error = await response.text();
         console.error('Credits API error:', error);
-        return res.status(response.status).json({ error: 'Failed to fetch credits' });
+        return res.status(response.status).json({ error: 'Failed to fetch credits', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
@@ -4506,7 +4557,7 @@ Respond in this exact JSON format:
     try {
       const batchSchema = z.object({
         handles: z.array(z.object({
-          handle: z.string().min(1).max(100),
+          handle: z.string().min(1).max(300),
           platform: z.enum(['instagram', 'tiktok', 'youtube', 'twitter', 'twitch']),
         })).min(1).max(1000),
       });
@@ -4523,7 +4574,9 @@ Respond in this exact JSON format:
 
       const { handles } = parseResult.data;
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/batch/create/', {
+      // TODO: upstream /public/v1/enrichment/batch/ expects multipart form data
+      // (file, enrichment_mode, platform); this JSON body may need conversion.
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/enrichment/batch/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4531,7 +4584,7 @@ Respond in this exact JSON format:
         },
         body: JSON.stringify({
           items: handles.map(h => ({
-            handle: h.handle.replace('@', ''),
+            handle: normalizeSocialHandle(h.handle),
             platform: h.platform,
           })),
         }),
@@ -4540,7 +4593,7 @@ Respond in this exact JSON format:
       if (!response.ok) {
         const error = await response.text();
         console.error('Batch create error:', error);
-        return res.status(response.status).json({ error: 'Failed to create batch job' });
+        return res.status(response.status).json({ error: 'Failed to create batch job', detail: error.slice(0, 300) });
       }
 
       const data = await response.json();
@@ -4568,7 +4621,7 @@ Respond in this exact JSON format:
 
       const { batchId } = req.params;
 
-      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/batch/${batchId}/status/`, {
+      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/enrichment/batch/${batchId}/status/`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4576,7 +4629,9 @@ Respond in this exact JSON format:
       });
 
       if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch batch status' });
+        const errorText = await response.text();
+        console.error('Batch status error:', errorText);
+        return res.status(response.status).json({ error: 'Failed to fetch batch status', detail: errorText.slice(0, 300) });
       }
 
       const data = await response.json();
@@ -4606,7 +4661,7 @@ Respond in this exact JSON format:
 
       const { batchId } = req.params;
 
-      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/batch/${batchId}/results/`, {
+      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/enrichment/batch/${batchId}/results/`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4614,7 +4669,9 @@ Respond in this exact JSON format:
       });
 
       if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch batch results' });
+        const errorText = await response.text();
+        console.error('Batch results error:', errorText);
+        return res.status(response.status).json({ error: 'Failed to fetch batch results', detail: errorText.slice(0, 300) });
       }
 
       const data = await response.json();
@@ -4659,7 +4716,7 @@ Respond in this exact JSON format:
 
       const platform = req.query.platform || 'instagram';
 
-      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/filters/locations/?platform=${platform}`, {
+      const response = await fetch(`https://api-dashboard.influencers.club/public/v1/discovery/classifier/locations/${platform}/`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4690,7 +4747,7 @@ Respond in this exact JSON format:
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/filters/languages/', {
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/discovery/classifier/languages/', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -4720,26 +4777,16 @@ Respond in this exact JSON format:
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/filters/niches/', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
+      // Influencers.club has no /filters/niches endpoint; the classifier only exposes
+      // languages and locations. Return a static niche list (niche text is folded into
+      // ai_search on the discovery request).
+      res.json({
+        success: true,
+        niches: [
+          'Fashion', 'Beauty', 'Fitness', 'Food', 'Travel', 'Gaming', 'Music', 'Sports',
+          'Business', 'Education', 'Comedy', 'Family', 'Military', 'Technology', 'Health'
+        ],
       });
-
-      if (!response.ok) {
-        return res.json({
-          success: true,
-          niches: [
-            'Fashion', 'Beauty', 'Fitness', 'Travel', 'Food', 'Technology', 'Gaming', 
-            'Music', 'Sports', 'Business', 'Education', 'Entertainment', 'Lifestyle',
-            'Health', 'Parenting', 'Pets', 'Art', 'Photography', 'Comedy', 'DIY'
-          ],
-        });
-      }
-
-      const data = await response.json();
-      res.json({ success: true, niches: data.niches || data.categories || data });
     } catch (error) {
       console.error('Error fetching niches:', error);
       res.json({ 

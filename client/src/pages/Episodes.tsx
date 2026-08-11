@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -340,13 +340,13 @@ export default function Episodes() {
                       className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
                       data-testid={`episode-row-${ep.id}`}
                     >
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{ep.title}</p>
+                      <Link href={`/episodes/${ep.id}`} className="min-w-0 flex-1 cursor-pointer group">
+                        <p className="font-medium truncate group-hover:underline underline-offset-2">{ep.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {ep.publishedAt ? new Date(ep.publishedAt).toLocaleDateString() : "Draft"}
                           {ep.fileSizeBytes ? ` · ${(ep.fileSizeBytes / (1024 * 1024)).toFixed(1)} MB` : ""}
                         </p>
-                      </div>
+                      </Link>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant={ep.status === "published" ? "default" : "secondary"}>
                           {ep.status}

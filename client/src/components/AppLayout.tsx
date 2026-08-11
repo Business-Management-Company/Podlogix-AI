@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,31 +15,29 @@ import {
 import logoImg from "@assets/Seeksy_logo_1771103113779.png";
 import {
   LayoutDashboard,
-  Headphones,
   Shield,
   ShieldCheck,
   Link2,
-  Rss,
   Share2,
   Sparkles,
   User,
   HelpCircle,
   LogOut,
-  Radio,
   Users,
-  Mail,
   Plug,
-  Youtube,
   Building2,
-  BarChart3,
   Search,
   Bell,
   Mic,
+  List,
+  Megaphone,
   Settings,
+  Settings2,
   ChevronLeft,
   ChevronRight,
-  Home,
+  ArrowLeft,
   X,
+  type LucideIcon,
 } from "lucide-react";
 
 interface AdminCheck {
@@ -48,111 +46,70 @@ interface AdminCheck {
   role: string;
 }
 
-// ─── Mode definitions ────────────────────────────────────────────────────────
+// ─── Workspace nav model ─────────────────────────────────────────────────────
+//
+// One nav model instead of "modes". The rail shows the primary workspace
+// destinations; the panel lists them with labels plus a lower Settings group.
+// Adding a future destination (Guests, Sponsors, …) is one entry in
+// WORKSPACE_PRIMARY.
 
-const MODES = [
-  {
-    id: "home",
-    label: "Home",
-    icon: Home,
-    color: "text-slate-400",
-    activeColor: "text-white",
-    urlPrefixes: ["/dashboard", "/activity"],
-    items: [
-      { title: "Dashboard", url: "/activity", icon: LayoutDashboard },
-      { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
-      { title: "My Shows", url: "/podcasts", icon: Mic },
-      { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles },
-      { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
-      { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
-    ],
-  },
-  {
-    id: "studio",
-    label: "Studio",
-    icon: Mic,
-    color: "text-slate-400",
-    activeColor: "text-orange-400",
-    urlPrefixes: ["/dashboard/rss", "/dashboard/distribution", "/dashboard/episodes", "/dashboard/podcast"],
-    items: [
-      { title: "RSS Feeds", url: "/dashboard/rss", icon: Rss },
-      { title: "Distribution", url: "/dashboard/distribution", icon: Share2 },
-    ],
-  },
-  {
-    id: "listen",
-    label: "Listen",
-    icon: Headphones,
-    color: "text-slate-400",
-    activeColor: "text-sky-400",
-    urlPrefixes: ["/listener"],
-    items: [
-      { title: "My Podcasts", url: "/listener", icon: Headphones },
-      { title: "Analytics", url: "/listener/analytics", icon: Radio },
-    ],
-  },
-  {
-    id: "audience",
-    label: "Audience",
-    icon: Users,
-    color: "text-slate-400",
-    activeColor: "text-violet-400",
-    urlPrefixes: ["/dashboard/social-hub", "/dashboard/social-analytics", "/dashboard/email", "/dashboard/video-analysis"],
-    items: [
-      { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },
-      { title: "Social Analytics", url: "/dashboard/social-analytics", icon: BarChart3 },
-      { title: "Email Hub", url: "/dashboard/email", icon: Mail },
-      { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Youtube },
-    ],
-  },
-  {
-    id: "identity",
-    label: "Identity",
-    icon: Shield,
-    color: "text-slate-400",
-    activeColor: "text-emerald-400",
-    urlPrefixes: ["/identity", "/dashboard/certify"],
-    items: [
-      { title: "My Certificates", url: "/identity", icon: Shield },
-      { title: "Certify Voice", url: "/dashboard/certify", icon: Mic },
-      { title: "Certify Likeness", url: "/dashboard/certify-likeness", icon: User },
-    ],
-  },
-] as const;
+interface NavItem {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  /** Active only on exact match (for index-style routes like /today). */
+  exact?: boolean;
+}
 
-const BOTTOM_MODES = [
-  {
-    id: "connectors",
-    label: "Connectors",
-    icon: Plug,
-    url: "/connectors",
-    urlPrefixes: ["/connectors"],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
-    url: "/settings",
-    urlPrefixes: ["/settings"],
-  },
-] as const;
+const WORKSPACE_PRIMARY: NavItem[] = [
+  { title: "Today", url: "/today", icon: LayoutDashboard, exact: true },
+  { title: "Shows", url: "/shows", icon: Mic },
+  { title: "Episodes", url: "/episodes", icon: List },
+  { title: "Audience", url: "/audience", icon: Users },
+];
+
+const WORKSPACE_SETTINGS: NavItem[] = [
+  { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
+  { title: "Connected apps", url: "/connectors", icon: Plug },
+  { title: "Identity Protection", url: "/identity", icon: Shield },
+  { title: "Workspace Settings", url: "/settings", icon: Settings },
+];
+
+// Rail bottom cluster mirrors the panel's Settings group essentials.
+const RAIL_BOTTOM: NavItem[] = [
+  { title: "Connected apps", url: "/connectors", icon: Plug },
+  { title: "Settings", url: "/settings", icon: Settings },
+];
+
+/** Nav for a single show's context — shown in the panel when inside /shows/:id. */
+function showNavItems(showId: string): NavItem[] {
+  const base = `/shows/${showId}`;
+  return [
+    { title: "Overview", url: base, icon: LayoutDashboard, exact: true },
+    { title: "Episodes", url: `${base}/episodes`, icon: List },
+    { title: "Promotion", url: `${base}/promotion`, icon: Megaphone },
+    { title: "Distribution", url: `${base}/distribution`, icon: Share2 },
+    { title: "Audience", url: `${base}/audience`, icon: Users },
+    { title: "Show Settings", url: `${base}/settings`, icon: Settings2 },
+  ];
+}
+
+interface PodcastSummary {
+  id: string;
+  title: string;
+  artworkUrl?: string | null;
+}
+
+interface BuzzsproutStatus {
+  connected: boolean;
+  connection?: {
+    podcastTitle?: string | null;
+    podcastArtworkUrl?: string | null;
+  };
+}
 
 interface AppLayoutProps {
   children: React.ReactNode;
-}
-
-function getModeFromPath(path: string): string {
-  let bestId = "home";
-  let bestLen = -1;
-  for (const mode of MODES) {
-    for (const prefix of mode.urlPrefixes) {
-      if (path.startsWith(prefix) && prefix.length > bestLen) {
-        bestId = mode.id;
-        bestLen = prefix.length;
-      }
-    }
-  }
-  return bestId;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -161,14 +118,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [railExpanded, setRailExpanded] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const [activeMode, setActiveMode] = useState(() => getModeFromPath(location));
 
-  // Auto-switch mode when URL changes — but preserve mode when viewing Help
-  useEffect(() => {
-    if (location === "/help") return;
-    const detected = getModeFromPath(location);
-    setActiveMode(detected);
-  }, [location]);
+  // ── Nav mode: workspace vs. show context ──
+  const showMatch = location.match(/^\/shows\/([^/]+)/);
+  const showId = showMatch?.[1];
+  const navMode: "workspace" | "show" = showId ? "show" : "workspace";
 
   const { data: adminCheck } = useQuery<AdminCheck>({
     queryKey: ["/api/admin/check"],
@@ -181,23 +135,64 @@ export function AppLayout({ children }: AppLayoutProps) {
     retry: 1,
   });
 
-  const currentMode = MODES.find((m) => m.id === activeMode) ?? MODES[0];
+  // Show identity for the panel header (only fetched inside show context).
+  const { data: podcastList } = useQuery<PodcastSummary[]>({
+    queryKey: ["/api/podcasts"],
+    enabled: isAuthenticated && navMode === "show",
+  });
+  const { data: buzzsproutStatus } = useQuery<BuzzsproutStatus>({
+    queryKey: ["/api/connectors/buzzsprout/status"],
+    enabled: isAuthenticated && navMode === "show" && showId === "buzzsprout",
+  });
 
-  const isItemActive = (url: string) => {
-    if (url === "/activity" && (location === "/activity" || location === "/dashboard")) return true;
-    if (url !== "/dashboard" && url !== "/activity" && location.startsWith(url)) return true;
-    return false;
-  };
+  const currentShow = Array.isArray(podcastList)
+    ? podcastList.find((p) => p.id === showId)
+    : undefined;
+  const showName =
+    currentShow?.title ??
+    (showId === "buzzsprout"
+      ? buzzsproutStatus?.connection?.podcastTitle ?? "Show"
+      : "Show");
+  const showArtwork =
+    currentShow?.artworkUrl ??
+    (showId === "buzzsprout"
+      ? buzzsproutStatus?.connection?.podcastArtworkUrl ?? null
+      : null);
+
+  const panelItems = navMode === "show" ? showNavItems(showId!) : WORKSPACE_PRIMARY;
+
+  const isItemActive = (item: NavItem) =>
+    item.exact ? location === item.url : location.startsWith(item.url);
+
+  // Rail active state: longest matching primary prefix (show context keeps the
+  // Shows icon lit since those routes live under /shows).
+  const railActiveUrl = (() => {
+    let best: string | null = null;
+    for (const item of [...WORKSPACE_PRIMARY, ...RAIL_BOTTOM]) {
+      const matches = item.exact
+        ? location === item.url
+        : location.startsWith(item.url);
+      if (matches && (!best || item.url.length > best.length)) best = item.url;
+    }
+    return best;
+  })();
+
+  const panelLinkClass = (active: boolean) =>
+    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${
+      active
+        ? "bg-muted text-foreground font-medium"
+        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+    }`;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
 
-      {/* ── Mode Rail ─────────────────────────────────────────────────────── */}
+      {/* ── Rail ──────────────────────────────────────────────────────────── */}
       <nav className={`flex flex-col shrink-0 bg-[#0D1B2A] border-r border-white/[0.06] z-20 transition-all duration-200 overflow-hidden ${railExpanded ? "w-44" : "w-14"}`}>
 
         {/* Logo row — collapse button appears here when expanded */}
         <div className={`flex items-center h-14 border-b border-white/[0.06] shrink-0 ${railExpanded ? "px-3 justify-between" : "justify-center"}`}>
-          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+          <Link href="/today" className="flex items-center gap-2.5 min-w-0">
             <img src={logoImg} alt="Podlogix" className="w-7 h-7 rounded-lg shrink-0" />
             {railExpanded && (
               <span className="text-white text-sm font-semibold truncate">Podlogix</span>
@@ -214,7 +209,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           )}
         </div>
 
-        {/* Mode icons */}
+        {/* Primary workspace icons */}
         <div className={`flex flex-col gap-1 py-3 flex-1 ${railExpanded ? "px-2" : "items-center"}`}>
 
           {/* Expand button — only shown when collapsed */}
@@ -233,13 +228,13 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Tooltip>
           )}
 
-          {MODES.map((mode) => {
-            const isActive = activeMode === mode.id;
-            const Icon = mode.icon;
+          {WORKSPACE_PRIMARY.map((item) => {
+            const isActive = railActiveUrl === item.url;
+            const Icon = item.icon;
             const btn = (
               <button
                 onClick={() => {
-                  navigate(mode.items[0].url);
+                  navigate(item.url);
                   if (!panelOpen) setPanelOpen(true);
                 }}
                 className={`
@@ -247,25 +242,25 @@ export function AppLayout({ children }: AppLayoutProps) {
                   ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
                   ${isActive ? "bg-white/10 shadow-sm" : "hover:bg-white/[0.06]"}
                 `}
-                aria-label={mode.label}
+                aria-label={item.title}
               >
                 {isActive && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
                 )}
-                <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? mode.activeColor : "text-slate-500"}`} />
+                <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? "text-white" : "text-slate-500"}`} />
                 {railExpanded && (
                   <span className={`text-sm truncate ${isActive ? "text-white font-medium" : "text-slate-400"}`}>
-                    {mode.label}
+                    {item.title}
                   </span>
                 )}
               </button>
             );
             return railExpanded ? (
-              <div key={mode.id}>{btn}</div>
+              <div key={item.url}>{btn}</div>
             ) : (
-              <Tooltip key={mode.id} delayDuration={300}>
+              <Tooltip key={item.url} delayDuration={300}>
                 <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">{mode.label}</TooltipContent>
+                <TooltipContent side="right" className="text-xs font-medium">{item.title}</TooltipContent>
               </Tooltip>
             );
           })}
@@ -274,8 +269,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Bottom icons */}
         <div className={`flex flex-col gap-1 py-3 border-t border-white/[0.06] ${railExpanded ? "px-2" : "items-center"}`}>
 
-          {BOTTOM_MODES.map((item) => {
-            const isActive = location.startsWith(item.urlPrefixes[0]);
+          {RAIL_BOTTOM.map((item) => {
+            const isActive = railActiveUrl === item.url;
             const Icon = item.icon;
             const btn = (
               <Link href={item.url}>
@@ -285,21 +280,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                     ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
                     ${isActive ? "bg-white/10" : "hover:bg-white/[0.06]"}
                   `}
-                  aria-label={item.label}
+                  aria-label={item.title}
                 >
                   <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-slate-200" : "text-slate-500"}`} />
                   {railExpanded && (
-                    <span className={`text-sm truncate ${isActive ? "text-slate-200" : "text-slate-400"}`}>{item.label}</span>
+                    <span className={`text-sm truncate ${isActive ? "text-slate-200" : "text-slate-400"}`}>{item.title}</span>
                   )}
                 </button>
               </Link>
             );
             return railExpanded ? (
-              <div key={item.id}>{btn}</div>
+              <div key={item.url}>{btn}</div>
             ) : (
-              <Tooltip key={item.id} delayDuration={300}>
+              <Tooltip key={item.url} delayDuration={300}>
                 <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">{item.label}</TooltipContent>
+                <TooltipContent side="right" className="text-xs font-medium">{item.title}</TooltipContent>
               </Tooltip>
             );
           })}
@@ -375,74 +370,127 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
       </nav>
 
-      {/* ── Mode Panel ────────────────────────────────────────────────────── */}
+      {/* ── Panel ─────────────────────────────────────────────────────────── */}
       {panelOpen && (
         <aside className="w-52 shrink-0 bg-background border-r flex flex-col z-10">
-          {/* Mode header */}
-          <div className="flex items-center justify-between px-4 h-14 border-b shrink-0">
-            <div className="flex items-center gap-2">
-              <currentMode.icon className={`h-4 w-4 ${currentMode.activeColor}`} />
-              <span className="text-sm font-semibold tracking-tight">{currentMode.label}</span>
+
+          {/* Panel header */}
+          {navMode === "workspace" ? (
+            <div className="flex items-center justify-between px-4 h-14 border-b shrink-0">
+              <span className="text-sm font-semibold tracking-tight">Workspace</span>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Collapse panel"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setPanelOpen(false)}
-              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Collapse panel"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </div>
+          ) : (
+            <div className="border-b shrink-0">
+              <div className="flex items-center justify-between px-4 h-10 pt-1">
+                <Link href="/shows">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    All shows
+                  </span>
+                </Link>
+                <button
+                  onClick={() => setPanelOpen(false)}
+                  className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Collapse panel"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2.5 px-4 pb-3 pt-1">
+                {showArtwork ? (
+                  <img
+                    src={showArtwork}
+                    alt={showName}
+                    className="h-8 w-8 rounded-lg object-cover border shrink-0"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted shrink-0">
+                    <Mic className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <span className="text-sm font-semibold tracking-tight truncate">{showName}</span>
+              </div>
+            </div>
+          )}
 
           {/* Nav items */}
           <nav className="flex-1 overflow-y-auto py-2 px-2 flex flex-col">
             <div className="flex-1">
-              {currentMode.items.map((item) => {
-                const isActive = isItemActive(item.url);
+              {navMode === "workspace" && (
+                <div className="px-3 pt-1 pb-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Workspace</p>
+                </div>
+              )}
+              {panelItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link key={item.url} href={item.url}>
-                    <div
-                      className={`
-                        flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer
-                        ${isActive
-                          ? "bg-muted text-foreground font-medium"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }
-                      `}
-                    >
+                    <div className={panelLinkClass(isItemActive(item))}>
                       <Icon className="h-4 w-4 shrink-0" />
                       <span>{item.title}</span>
                     </div>
                   </Link>
                 );
               })}
+
+              {navMode === "workspace" && (
+                <>
+                  <div className="px-3 pt-5 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Settings</p>
+                  </div>
+                  {WORKSPACE_SETTINGS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link key={item.url} href={item.url}>
+                        <div className={panelLinkClass(isItemActive(item))}>
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span>{item.title}</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </>
+              )}
             </div>
 
             {/* Help — always at bottom, always shown */}
             <div className="pt-4 pb-1">
               <Link href="/help">
-                <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/help") ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <div className={panelLinkClass(location.startsWith("/help"))}>
                   <HelpCircle className="h-4 w-4 shrink-0" />
                   <span>Help Center</span>
                 </div>
               </Link>
 
               {/* Admin-only items — below Help */}
-              {adminCheck?.isSuperAdmin && activeMode === "home" && (
+              {adminCheck?.isSuperAdmin && navMode === "workspace" && (
                 <>
                   <div className="px-3 pt-4 pb-1">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Admin</p>
                   </div>
                   <Link href="/admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/admin") ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <div className={panelLinkClass(location.startsWith("/admin") && !location.startsWith("/admin/integrations"))}>
                       <ShieldCheck className="h-4 w-4 shrink-0" />
                       <span>Admin Panel</span>
                     </div>
                   </Link>
                   <Link href="/saas-admin">
-                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${location.startsWith("/saas-admin") ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <div className={panelLinkClass(location.startsWith("/saas-admin"))}>
                       <Building2 className="h-4 w-4 shrink-0" />
                       <span>SaaS Portal</span>
+                    </div>
+                  </Link>
+                  <Link href="/admin/integrations">
+                    <div className={panelLinkClass(location.startsWith("/admin/integrations"))}>
+                      <Plug className="h-4 w-4 shrink-0" />
+                      <span>Integrations</span>
                     </div>
                   </Link>
                 </>
