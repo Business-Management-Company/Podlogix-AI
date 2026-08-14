@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Circle,
+  ExternalLink,
   Link2,
   Mail,
   Mic,
@@ -17,6 +18,7 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
+import { SiGooglecalendar } from "react-icons/si";
 import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,6 +60,14 @@ function formatEventTime(event: GoogleCalendarEvent): string {
   return `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
 
+function formatSyncedLabel(updatedAt: number): string {
+  if (!updatedAt) return "";
+  const minutes = Math.floor((Date.now() - updatedAt) / 60_000);
+  if (minutes < 1) return "Synced just now";
+  if (minutes === 1) return "Synced 1 min ago";
+  return `Synced ${minutes} min ago`;
+}
+
 /** Little torn-calendar-page icon showing the event's month + day, in place of a generic icon. */
 function EventDateIcon({ start }: { start: string | null }) {
   if (!start) {
@@ -69,12 +79,21 @@ function EventDateIcon({ start }: { start: string | null }) {
   }
   const date = new Date(start);
   return (
-    <div className="flex h-9 w-9 shrink-0 flex-col overflow-hidden rounded-lg border border-primary/20 shadow-sm">
-      <div className="flex h-3.5 items-center justify-center bg-primary text-[8px] font-bold uppercase tracking-wide text-white">
-        {date.toLocaleDateString(undefined, { month: "short" })}
+    <div className="relative shrink-0">
+      <div className="flex h-9 w-9 flex-col overflow-hidden rounded-lg border border-primary/20 shadow-sm">
+        <div className="flex h-3.5 items-center justify-center bg-primary text-[8px] font-bold uppercase tracking-wide text-white">
+          {date.toLocaleDateString(undefined, { month: "short" })}
+        </div>
+        <div className="flex flex-1 items-center justify-center bg-white text-xs font-bold text-zinc-950">
+          {date.getDate()}
+        </div>
       </div>
-      <div className="flex flex-1 items-center justify-center bg-white text-xs font-bold text-zinc-950">
-        {date.getDate()}
+      {/* Marks this as a synced external event, not a native Podlogix item */}
+      <div
+        className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-white shadow-sm"
+        title="Synced from Google Calendar"
+      >
+        <SiGooglecalendar size={9} />
       </div>
     </div>
   );
@@ -163,7 +182,11 @@ export default function Activity() {
     queryKey: ["/api/calendar/google/status"],
   });
 
-  const { data: calendarEvents, isLoading: calendarEventsLoading } = useQuery<{ events: GoogleCalendarEvent[] }>({
+  const {
+    data: calendarEvents,
+    isLoading: calendarEventsLoading,
+    dataUpdatedAt: calendarSyncedAt,
+  } = useQuery<{ events: GoogleCalendarEvent[] }>({
     queryKey: ["/api/calendar/google/events"],
     enabled: !!calendarStatus?.connected,
   });
@@ -251,15 +274,20 @@ export default function Activity() {
               title="Interview scheduling"
               right={
                 calendarStatus?.connected ? (
-                  <a
-                    href="https://calendar.google.com/calendar"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group inline-flex items-center gap-0.5 text-xs text-zinc-400 transition-colors hover:text-zinc-600"
-                  >
-                    See more
-                    <ChevronRight size={12} className="transition-transform duration-150 group-hover:translate-x-0.5" />
-                  </a>
+                  <div className="flex items-center gap-3">
+                    {!calendarEventsLoading && calendarSyncedAt > 0 && (
+                      <span className="text-[11px] text-zinc-400">{formatSyncedLabel(calendarSyncedAt)}</span>
+                    )}
+                    <a
+                      href="https://calendar.google.com/calendar"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center gap-0.5 text-xs text-zinc-400 transition-colors hover:text-zinc-600"
+                    >
+                      See more
+                      <ChevronRight size={12} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+                    </a>
+                  </div>
                 ) : undefined
               }
             />
@@ -290,7 +318,13 @@ export default function Activity() {
                         <p className="truncate text-sm font-medium text-zinc-950">{event.title}</p>
                         <p className="text-xs text-zinc-500">{formatEventTime(event)}</p>
                       </div>
-                      <ArrowRight size={14} className="shrink-0 text-zinc-300" />
+                      {event.htmlLink ? (
+                        <ExternalLink size={13} className="shrink-0 text-zinc-300" />
+                      ) : (
+                        <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-zinc-300">
+                          Read-only
+                        </span>
+                      )}
                     </CardRow>
                   );
                   return event.htmlLink ? (
