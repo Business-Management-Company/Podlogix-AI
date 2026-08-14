@@ -16,9 +16,8 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
-import { Card, CardRow, EmptyState, SectionHeader, StatusPill, TopStat } from "@/components/kit";
+import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/use-auth";
 import type { Episode } from "@shared/schema";
 import heroPhoto from "@/assets/images/podlogix-hero-photo.jpg";
 
@@ -47,16 +46,6 @@ const quickLinks = [
   { label: "Analytics", hint: "Audience and performance", href: "/listener/analytics", icon: BarChart3 },
   { label: "AI Studio", hint: "Notes, clips and posts", href: "/dashboard/ai", icon: Sparkles },
 ];
-
-function greeting(name?: string | null) {
-  const hour = new Date().getHours();
-  const salutation = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  return name ? `${salutation}, ${name}` : salutation;
-}
-
-function todayString() {
-  return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-}
 
 function setupSteps(data?: DashboardData): SetupStep[] {
   return [
@@ -101,8 +90,6 @@ function ProgressRing({ percent, size = 84, stroke = 9, color = "#10b981" }: { p
 }
 
 export default function Activity() {
-  const { user } = useAuth();
-
   const { data, isLoading } = useQuery<DashboardData>({ queryKey: ["/api/dashboard"] });
   const podcast = data?.podcasts?.[0];
 
@@ -155,36 +142,13 @@ export default function Activity() {
 
   return (
     <div className="w-full max-w-[1600px] px-6 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          {user?.profileImageUrl ? (
-            <img
-              src={user.profileImageUrl}
-              alt=""
-              className="h-12 w-12 shrink-0 rounded-full border border-zinc-200 object-cover"
-            />
-          ) : (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 text-base font-semibold text-zinc-500">
-              {user?.firstName?.[0]?.toUpperCase() ?? "P"}
-            </div>
-          )}
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">{greeting(user?.firstName)}</h1>
-            <p className="mt-0.5 text-sm text-zinc-500">{todayString()}</p>
-          </div>
-        </div>
-        <StatusPill tone="success" pulse>
-          Workspace live
-        </StatusPill>
-      </div>
-
       <section className="mb-6">
         <div
-          className="relative min-h-[210px] overflow-hidden rounded-[22px] bg-cover bg-center shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[230px]"
-          style={{ backgroundImage: `url(${heroPhoto})` }}
+          className="relative min-h-[280px] overflow-hidden rounded-[22px] bg-cover shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[320px]"
+          style={{ backgroundImage: `url(${heroPhoto})`, backgroundPosition: "center 8%" }}
         >
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(54,13,12,0.62)_0%,rgba(87,27,19,0.26)_43%,rgba(0,0,0,0)_64%)]" />
-          <div className="relative z-10 flex min-h-[210px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[230px] sm:p-8 lg:p-10">
+          <div className="relative z-10 flex min-h-[280px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[320px] sm:p-8 lg:p-10">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#51251f]">
               Podlogix creator spotlight
             </p>

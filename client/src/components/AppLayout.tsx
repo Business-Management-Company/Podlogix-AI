@@ -37,6 +37,9 @@ import {
   ChevronRight,
   ArrowLeft,
   X,
+  Contact,
+  Headphones,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,7 +68,13 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Today", url: "/today", icon: LayoutDashboard, exact: true },
   { title: "Shows", url: "/shows", icon: Mic },
   { title: "Episodes", url: "/episodes", icon: List },
+  { title: "Listen", url: "/listener", icon: Headphones },
   { title: "Audience", url: "/audience", icon: Users },
+  { title: "Contacts", url: "/dashboard/email", icon: Contact },
+  { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles },
+  { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video },
+  { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },
+  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck },
 ];
 
 const WORKSPACE_SETTINGS: NavItem[] = [
