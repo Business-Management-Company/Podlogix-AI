@@ -33,6 +33,30 @@ interface AccountAnalytics {
   followers: number;
 }
 
+interface GoogleCalendarStatus {
+  connected: boolean;
+  email?: string | null;
+}
+
+interface GoogleCalendarEvent {
+  id: string;
+  title: string;
+  start: string | null;
+  end: string | null;
+  allDay: boolean;
+  htmlLink: string | null;
+  meetingLink: string | null;
+}
+
+function formatEventTime(event: GoogleCalendarEvent): string {
+  if (!event.start) return "";
+  const start = new Date(event.start);
+  if (event.allDay) {
+    return start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  }
+  return `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
 interface SetupStep {
   id: string;
   label: string;
@@ -110,6 +134,15 @@ export default function Activity() {
   const { data: promotion } = useQuery<{ accounts: AccountAnalytics[] }>({
     queryKey: ["/api/social-analytics/my-accounts"],
     retry: false,
+  });
+
+  const { data: calendarStatus, isLoading: calendarStatusLoading } = useQuery<GoogleCalendarStatus>({
+    queryKey: ["/api/calendar/google/status"],
+  });
+
+  const { data: calendarEvents, isLoading: calendarEventsLoading } = useQuery<{ events: GoogleCalendarEvent[] }>({
+    queryKey: ["/api/calendar/google/events"],
+    enabled: !!calendarStatus?.connected,
   });
 
   const steps = useMemo(() => setupSteps(data), [data]);
@@ -192,11 +225,48 @@ export default function Activity() {
         <div className="min-w-0 space-y-6">
           <section>
             <SectionHeader title="Interview scheduling" />
-            <EmptyState
-              icon={CalendarClock}
-              title="Coming soon: schedule guest interviews"
-              description="Connect Google Calendar so guests can book time directly, and every session shows up here automatically. This feature is being scoped now."
-            />
+            {calendarStatusLoading ? (
+              <Skeleton className="h-24 rounded-xl" />
+            ) : !calendarStatus?.connected ? (
+              <EmptyState
+                icon={CalendarClock}
+                title="Connect your Google Calendar"
+                description="See your upcoming interviews and recording sessions right here."
+                action={{ label: "Connect Google Calendar", href: "/connectors" }}
+              />
+            ) : calendarEventsLoading ? (
+              <Skeleton className="h-24 rounded-xl" />
+            ) : !calendarEvents?.events?.length ? (
+              <EmptyState
+                icon={CalendarClock}
+                title="Nothing on the calendar"
+                description="No upcoming events on your connected Google Calendar."
+              />
+            ) : (
+              <Card className="divide-y divide-zinc-100 overflow-hidden">
+                {calendarEvents.events.map((event) => {
+                  const row = (
+                    <CardRow className={`px-4 py-3 ${event.htmlLink ? "cursor-pointer hover:bg-zinc-50/60" : ""}`}>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50">
+                        <CalendarClock size={14} className="text-zinc-400" strokeWidth={1.75} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-zinc-950">{event.title}</p>
+                        <p className="text-xs text-zinc-500">{formatEventTime(event)}</p>
+                      </div>
+                      <ArrowRight size={14} className="shrink-0 text-zinc-300" />
+                    </CardRow>
+                  );
+                  return event.htmlLink ? (
+                    <a key={event.id} href={event.htmlLink} target="_blank" rel="noopener noreferrer">
+                      {row}
+                    </a>
+                  ) : (
+                    <div key={event.id}>{row}</div>
+                  );
+                })}
+              </Card>
+            )}
           </section>
 
           <section>

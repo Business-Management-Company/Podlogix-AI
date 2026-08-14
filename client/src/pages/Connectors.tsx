@@ -21,6 +21,7 @@ import {
   ExternalLink,
   RefreshCw,
   Trash2,
+  Calendar,
 } from "lucide-react";
 import { SiTiktok, SiSpotify, SiGithub } from "react-icons/si";
 import {
@@ -42,6 +43,11 @@ interface SpotifyConnection {
   connected: boolean;
   displayName?: string;
   spotifyUserId?: string;
+}
+
+interface GoogleCalendarConnection {
+  connected: boolean;
+  email?: string;
 }
 
 interface CreatorSocialProfile {
@@ -133,6 +139,10 @@ export default function Connectors() {
     queryKey: ["/api/listener/spotify/status"],
   });
 
+  const { data: googleCalendarStatus, isLoading: googleCalendarLoading } = useQuery<GoogleCalendarConnection>({
+    queryKey: ["/api/calendar/google/status"],
+  });
+
   const { data: phylloStatus } = useQuery<PhylloStatus>({
     queryKey: ["/api/social/phyllo/status"],
   });
@@ -193,6 +203,15 @@ export default function Connectors() {
       toast({ title: "Facebook connection failed", description: (error && errorMessages[error]) || "Could not connect your Facebook Page", variant: "destructive" });
       window.history.replaceState({}, '', '/connectors');
     }
+
+    if (params.get('google_calendar_connected') === 'true') {
+      toast({ title: "Google Calendar connected!", description: "Your calendar has been linked successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/status"] });
+      window.history.replaceState({}, '', '/connectors');
+    } else if (params.get('google_calendar_error')) {
+      toast({ title: "Google Calendar connection failed", description: "Could not connect your Google Calendar", variant: "destructive" });
+      window.history.replaceState({}, '', '/connectors');
+    }
   }, [toast]);
 
   const connectSpotifyMutation = useMutation({
@@ -216,6 +235,31 @@ export default function Connectors() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/listener/spotify/status"] });
       toast({ title: "Disconnected", description: "Spotify has been disconnected" });
+      setManageDialogOpen(false);
+    },
+  });
+
+  const connectGoogleCalendarMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/calendar/google/auth");
+      const data = await res.json();
+      return data.authUrl;
+    },
+    onSuccess: (authUrl) => {
+      window.location.href = authUrl;
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to connect to Google Calendar", variant: "destructive" });
+    },
+  });
+
+  const disconnectGoogleCalendarMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/calendar/google/disconnect");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/status"] });
+      toast({ title: "Disconnected", description: "Google Calendar has been disconnected" });
       setManageDialogOpen(false);
     },
   });
@@ -482,14 +526,63 @@ export default function Connectors() {
                       </Button>
                     </div>
                   ) : (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => connectSpotifyMutation.mutate()}
                       disabled={connectSpotifyMutation.isPending}
                       data-testid="button-connect-spotify"
                     >
                       {connectSpotifyMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Settings className="h-3 w-3 mr-1" />
+                      )}
+                      Sign in
+                    </Button>
+                  )}
+                </td>
+              </tr>
+
+              {/* Google Calendar */}
+              <tr className="hover:bg-muted/30">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-blue-500" />
+                    <span className="font-medium">Google Calendar</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                  See upcoming calendar events on your Today dashboard
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {googleCalendarLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                  ) : googleCalendarStatus?.connected ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleManage('google_calendar')}
+                        data-testid="button-manage-google-calendar"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => connectGoogleCalendarMutation.mutate()}
+                      disabled={connectGoogleCalendarMutation.isPending}
+                      data-testid="button-connect-google-calendar"
+                    >
+                      {connectGoogleCalendarMutation.isPending ? (
                         <Loader2 className="h-3 w-3 animate-spin mr-1" />
                       ) : (
                         <Settings className="h-3 w-3 mr-1" />
@@ -956,8 +1049,10 @@ export default function Connectors() {
             <DialogTitle className="flex items-center gap-2">
               {managePlatform === 'spotify' ? (
                 <SiSpotify className="h-5 w-5 text-green-500" />
+              ) : managePlatform === 'google_calendar' ? (
+                <Calendar className="h-5 w-5 text-blue-500" />
               ) : managePlatform && platformIcons[managePlatform]}
-              Manage {managePlatform === 'spotify' ? 'Spotify' : managePlatform ? platformNames[managePlatform] : ''} Connection
+              Manage {managePlatform === 'spotify' ? 'Spotify' : managePlatform === 'google_calendar' ? 'Google Calendar' : managePlatform ? platformNames[managePlatform] : ''} Connection
             </DialogTitle>
             <DialogDescription>
               View and manage your connected account.
@@ -987,8 +1082,30 @@ export default function Connectors() {
                 </Button>
               </>
             )}
-            
-            {managePlatform && managePlatform !== 'spotify' && managedProfile && (
+
+            {managePlatform === 'google_calendar' && googleCalendarStatus?.connected && (
+              <>
+                <div className="p-4 border rounded-lg space-y-2">
+                  <p className="font-medium">{googleCalendarStatus.email || "Google Account"}</p>
+                </div>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => disconnectGoogleCalendarMutation.mutate()}
+                  disabled={disconnectGoogleCalendarMutation.isPending}
+                  data-testid="button-disconnect-google-calendar"
+                >
+                  {disconnectGoogleCalendarMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Disconnect Google Calendar
+                </Button>
+              </>
+            )}
+
+            {managePlatform && managePlatform !== 'spotify' && managePlatform !== 'google_calendar' && managedProfile && (
               <>
                 <div className="p-4 border rounded-lg space-y-2">
                   <div className="flex items-center gap-3">

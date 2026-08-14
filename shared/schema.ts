@@ -374,6 +374,20 @@ export const spotifyConnections = pgTable("spotify_connections", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// User Google Calendar Connections (per-user OAuth tokens)
+export const googleCalendarConnections = pgTable("google_calendar_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  googleUserId: varchar("google_user_id"),
+  email: varchar("email"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  scope: text("scope"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Notifications (for dashboard and email alerts)
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -522,6 +536,7 @@ export type InsertEpisodeBriefing = z.infer<typeof insertEpisodeBriefingSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type SpotifyConnection = typeof spotifyConnections.$inferSelect;
+export type GoogleCalendarConnection = typeof googleCalendarConnections.$inferSelect;
 export type SavedInfluencer = typeof savedInfluencers.$inferSelect;
 export type InsertSavedInfluencer = z.infer<typeof insertSavedInfluencerSchema>;
 export type HashtagMonitor = typeof hashtagMonitors.$inferSelect;

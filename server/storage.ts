@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions,
-  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
+  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList, guestPipelineEntries,
@@ -10,7 +10,7 @@ import {
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
   type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
-  type Notification, type InsertNotification, type SpotifyConnection,
+  type Notification, type InsertNotification, type SpotifyConnection, type GoogleCalendarConnection,
   type SavedInfluencer, type InsertSavedInfluencer, type HashtagMonitor, type InsertHashtagMonitor,
   type InfluencerSearch, type InsertInfluencerSearch,
   type ConnectedSocialAccount, type InsertConnectedSocialAccount,
@@ -101,6 +101,9 @@ export interface IStorage {
   getSpotifyConnection(userId: string): Promise<SpotifyConnection | undefined>;
   upsertSpotifyConnection(connection: Omit<SpotifyConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<SpotifyConnection>;
   deleteSpotifyConnection(userId: string): Promise<void>;
+  getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined>;
+  upsertGoogleCalendarConnection(connection: Omit<GoogleCalendarConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoogleCalendarConnection>;
+  deleteGoogleCalendarConnection(userId: string): Promise<void>;
   // All subscriptions (for background jobs)
   getAllActiveSubscriptions(): Promise<PodcastSubscription[]>;
   // Saved Influencers
@@ -489,6 +492,29 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSpotifyConnection(userId: string): Promise<void> {
     await db.delete(spotifyConnections).where(eq(spotifyConnections.userId, userId));
+  }
+
+  // Google Calendar Connections
+  async getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined> {
+    const [connection] = await db.select().from(googleCalendarConnections).where(eq(googleCalendarConnections.userId, userId));
+    return connection;
+  }
+
+  async upsertGoogleCalendarConnection(connection: Omit<GoogleCalendarConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoogleCalendarConnection> {
+    const existing = await this.getGoogleCalendarConnection(connection.userId);
+    if (existing) {
+      const [updated] = await db.update(googleCalendarConnections)
+        .set({ ...connection, updatedAt: new Date() })
+        .where(eq(googleCalendarConnections.userId, connection.userId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(googleCalendarConnections).values(connection).returning();
+    return created;
+  }
+
+  async deleteGoogleCalendarConnection(userId: string): Promise<void> {
+    await db.delete(googleCalendarConnections).where(eq(googleCalendarConnections.userId, userId));
   }
 
   async getAllActiveSubscriptions(): Promise<PodcastSubscription[]> {

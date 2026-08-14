@@ -24,6 +24,12 @@ import {
   searchSpotifyEpisode,
   addEpisodeToPlaylist
 } from "./services/spotifyService";
+import {
+  getGoogleCalendarAuthUrl,
+  exchangeCodeForTokens as exchangeGoogleCodeForTokens,
+  getGoogleUserInfo,
+  listUpcomingEvents as listGoogleCalendarEvents,
+} from "./services/googleCalendarService";
 import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssService";
 import { generatePodcastFeedXml } from "./services/feedService";
 import { insertEpisodeSchema } from "@shared/schema";
@@ -1819,6 +1825,108 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error disconnecting Spotify:', error);
       res.status(500).json({ message: 'Failed to disconnect Spotify' });
+    }
+  });
+
+  // ==================== GOOGLE CALENDAR ====================
+
+  app.get('/api/calendar/google/auth', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const redirectUri = `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}/api/calendar/google/callback`;
+      const authUrl = getGoogleCalendarAuthUrl(redirectUri, userId);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error('Error generating Google Calendar auth URL:', error);
+      res.status(500).json({ message: 'Failed to initiate Google Calendar login' });
+    }
+  });
+
+  // Google Calendar OAuth: Callback (validates state matches authenticated user)
+  app.get('/api/calendar/google/callback', async (req: any, res) => {
+    try {
+      const { code, state } = req.query;
+
+      if (!code || !state) {
+        return res.redirect('/connectors?google_calendar_error=missing_params');
+      }
+
+      const authenticatedUserId = req.session.userId!;
+      if (!authenticatedUserId) {
+        return res.redirect('/login?return_to=/connectors&google_calendar_error=not_authenticated');
+      }
+
+      if (state !== authenticatedUserId) {
+        console.error('Google Calendar OAuth state mismatch - potential CSRF');
+        return res.redirect('/connectors?google_calendar_error=auth_failed');
+      }
+
+      const redirectUri = `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}/api/calendar/google/callback`;
+
+      const tokens = await exchangeGoogleCodeForTokens(code as string, redirectUri);
+      const userInfo = await getGoogleUserInfo(tokens.accessToken);
+
+      const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+
+      await storage.upsertGoogleCalendarConnection({
+        userId: authenticatedUserId,
+        googleUserId: userInfo.id,
+        email: userInfo.email,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt,
+        scope: tokens.scope,
+      });
+
+      res.redirect('/connectors?google_calendar_connected=true');
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('Google Calendar callback error:', msg);
+      const encoded = encodeURIComponent(msg.slice(0, 120));
+      res.redirect(`/connectors?google_calendar_error=auth_failed&google_calendar_error_detail=${encoded}`);
+    }
+  });
+
+  // Google Calendar connection status (per-user)
+  app.get('/api/calendar/google/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const connection = await storage.getGoogleCalendarConnection(userId);
+      res.json({
+        connected: !!connection,
+        email: connection?.email || null,
+      });
+    } catch (error) {
+      console.error('Google Calendar connection check error:', error);
+      res.json({ connected: false });
+    }
+  });
+
+  // Disconnect Google Calendar
+  app.delete('/api/calendar/google/disconnect', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      await storage.deleteGoogleCalendarConnection(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error disconnecting Google Calendar:', error);
+      res.status(500).json({ message: 'Failed to disconnect Google Calendar' });
+    }
+  });
+
+  // Upcoming events from the connected Google Calendar (per-user)
+  app.get('/api/calendar/google/events', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const connection = await storage.getGoogleCalendarConnection(userId);
+      if (!connection) {
+        return res.json({ connected: false, events: [] });
+      }
+      const events = await listGoogleCalendarEvents(userId, 5);
+      res.json({ connected: true, events });
+    } catch (error) {
+      console.error('Error fetching Google Calendar events:', error);
+      res.status(500).json({ message: 'Failed to fetch calendar events' });
     }
   });
 
