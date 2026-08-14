@@ -78,7 +78,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Growth" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
-  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Protect" },
+  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck },
 ];
 
 const WORKSPACE_SETTINGS: NavItem[] = [
@@ -92,6 +92,28 @@ const WORKSPACE_SETTINGS: NavItem[] = [
 const RAIL_BOTTOM: NavItem[] = [
   { title: "Connected apps", url: "/connectors", icon: Plug },
   { title: "Settings", url: "/settings", icon: Settings },
+];
+
+interface RailItem {
+  title: string;
+  icon: LucideIcon;
+  /** Where clicking this rail entry navigates — the group's first child, or the item's own url. */
+  url: string;
+  /** Whether this rail entry is "lit" for the currently matched WORKSPACE_PRIMARY leaf. */
+  isActive: (activeLeaf: NavItem | null) => boolean;
+}
+
+// The rail shows only the big-ticket destinations — Today, one icon per
+// WORKSPACE_PRIMARY group, and any ungrouped standalone item. Clicking a
+// group icon navigates to its first child; the panel then reveals that
+// group's full item list (see `panelItems` below) instead of repeating
+// every leaf in the rail too.
+const RAIL_ITEMS: RailItem[] = [
+  { title: "Today", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
+  { title: "Content", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Content" },
+  { title: "Growth", icon: Users, url: "/audience", isActive: (leaf) => leaf?.group === "Growth" },
+  { title: "Studio", icon: Sparkles, url: "/dashboard/ai", isActive: (leaf) => leaf?.group === "Studio" },
+  { title: "Voice Certification", icon: ShieldCheck, url: "/dashboard/certify", isActive: (leaf) => leaf?.title === "Voice Certification" },
 ];
 
 /** Nav for a single show's context — shown in the panel when inside /shows/:id. */
@@ -172,20 +194,39 @@ export function AppLayout({ children }: AppLayoutProps) {
       ? buzzsproutStatus?.connection?.podcastArtworkUrl ?? null
       : null);
 
-  const panelItems = navMode === "show" ? showNavItems(showId!) : WORKSPACE_PRIMARY;
-
   const isItemActive = (item: NavItem) =>
     item.exact ? location === item.url : location.startsWith(item.url);
 
-  // Rail active state: longest matching primary prefix (show context keeps the
-  // Shows icon lit since those routes live under /shows).
-  const railActiveUrl = (() => {
+  // Which WORKSPACE_PRIMARY leaf the current URL belongs to — drives both the
+  // rail's active group icon and which group the panel expands into. Longest
+  // matching prefix wins (e.g. /dashboard/social-hub over a shorter /dashboard).
+  const activeLeaf: NavItem | null = (() => {
+    let best: NavItem | null = null;
+    for (const item of WORKSPACE_PRIMARY) {
+      const matches = item.exact ? location === item.url : location.startsWith(item.url);
+      if (matches && (!best || item.url.length > best.url.length)) best = item;
+    }
+    return best;
+  })();
+
+  // Today pinned at top, then — only when the URL is inside one of the
+  // groups — that group's items. No group active (e.g. on /today or Voice
+  // Certification) means the panel shows just Today; the rail alone still
+  // gets you everywhere else.
+  const activeGroupItems = activeLeaf?.group
+    ? WORKSPACE_PRIMARY.filter((i) => i.group === activeLeaf.group)
+    : [];
+  const panelItems =
+    navMode === "show"
+      ? showNavItems(showId!)
+      : [WORKSPACE_PRIMARY.find((i) => i.exact)!, ...activeGroupItems];
+
+  // Rail bottom (Connected apps/Settings) active state — separate from
+  // activeLeaf since those live outside WORKSPACE_PRIMARY.
+  const railBottomActiveUrl = (() => {
     let best: string | null = null;
-    for (const item of [...WORKSPACE_PRIMARY, ...RAIL_BOTTOM]) {
-      const matches = item.exact
-        ? location === item.url
-        : location.startsWith(item.url);
-      if (matches && (!best || item.url.length > best.length)) best = item.url;
+    for (const item of RAIL_BOTTOM) {
+      if (location.startsWith(item.url) && (!best || item.url.length > best.length)) best = item.url;
     }
     return best;
   })();
@@ -241,8 +282,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Tooltip>
           )}
 
-          {WORKSPACE_PRIMARY.map((item) => {
-            const isActive = railActiveUrl === item.url;
+          {RAIL_ITEMS.map((item) => {
+            const isActive = item.isActive(activeLeaf);
             const Icon = item.icon;
             const btn = (
               <button
@@ -283,7 +324,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className={`flex flex-col gap-1 py-3 border-t border-white/[0.06] ${railExpanded ? "px-2" : "items-center"}`}>
 
           {RAIL_BOTTOM.map((item) => {
-            const isActive = railActiveUrl === item.url;
+            const isActive = railBottomActiveUrl === item.url;
             const Icon = item.icon;
             const btn = (
               <Link href={item.url}>
