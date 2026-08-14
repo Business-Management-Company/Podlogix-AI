@@ -17,12 +17,13 @@ import {
   Share2,
   Shield,
   Sparkles,
+  UserPlus,
 } from "lucide-react";
 import { SiGooglecalendar } from "react-icons/si";
 import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import type { Episode } from "@shared/schema";
+import type { Episode, EmailContact, GuestPipelineEntry } from "@shared/schema";
 import heroPhoto from "@/assets/images/podlogix-hero-photo.jpg";
 
 interface DashboardData {
@@ -66,6 +67,28 @@ function formatSyncedLabel(updatedAt: number): string {
   if (minutes < 1) return "Synced just now";
   if (minutes === 1) return "Synced 1 min ago";
   return `Synced ${minutes} min ago`;
+}
+
+type GuestEntry = GuestPipelineEntry & { contact: EmailContact | undefined };
+
+const STAGE_LABELS: Record<string, string> = {
+  prospect: "Prospect",
+  invited: "Invited",
+  booked: "Booked",
+  recorded: "Recorded",
+  published: "Published",
+  follow_up: "Follow up",
+  alumni: "Alumni",
+};
+
+function guestName(contact: EmailContact | undefined): string {
+  if (!contact) return "Unknown guest";
+  const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+  return name || contact.email;
+}
+
+function guestInitials(contact: EmailContact | undefined): string {
+  return guestName(contact).slice(0, 2).toUpperCase();
 }
 
 /** Little torn-calendar-page icon showing the event's month + day, in place of a generic icon. */
@@ -191,6 +214,16 @@ export default function Activity() {
     enabled: !!calendarStatus?.connected,
   });
 
+  const { data: guests, isLoading: guestsLoading } = useQuery<GuestEntry[]>({
+    queryKey: ["/api/podcasts", podcast?.id, "guests"],
+    queryFn: async () => {
+      const res = await fetch(`/api/podcasts/${podcast!.id}/guests`);
+      return res.json();
+    },
+    enabled: !!podcast,
+  });
+  const recentGuests = (guests ?? []).slice(0, 5);
+
   const steps = useMemo(() => setupSteps(data), [data]);
   const doneCount = steps.filter((s) => s.done).length;
   const setupPercent = (doneCount / steps.length) * 100;
@@ -269,6 +302,7 @@ export default function Activity() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <section>
             <SectionHeader
               title="Interview scheduling"
@@ -338,6 +372,45 @@ export default function Activity() {
               </Card>
             )}
           </section>
+
+          <section>
+            <SectionHeader title="Guest pipeline" action={{ label: "See more", href: "/guests" }} />
+            {!podcast ? (
+              <EmptyState
+                icon={UserPlus}
+                title="Connect a show first"
+                description="Guests are tracked per show."
+                action={{ label: "Connect a show", href: "/dashboard/rss" }}
+              />
+            ) : guestsLoading ? (
+              <Skeleton className="h-24 rounded-xl" />
+            ) : recentGuests.length === 0 ? (
+              <EmptyState
+                icon={UserPlus}
+                title="No guests yet"
+                description="Add a prospective guest to start tracking them."
+                action={{ label: "Add a guest", href: "/guests" }}
+              />
+            ) : (
+              <Card className="divide-y divide-zinc-100 overflow-hidden">
+                {recentGuests.map((entry) => (
+                  <Link key={entry.id} href="/guests">
+                    <CardRow className="cursor-pointer px-4 py-3 hover:bg-zinc-50/60">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-500">
+                        {guestInitials(entry.contact)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-zinc-950">{guestName(entry.contact)}</p>
+                        <p className="text-xs text-zinc-500">{STAGE_LABELS[entry.stage] ?? entry.stage}</p>
+                      </div>
+                      <ArrowRight size={14} className="shrink-0 text-zinc-300" />
+                    </CardRow>
+                  </Link>
+                ))}
+              </Card>
+            )}
+          </section>
+          </div>
 
           <section>
             <SectionHeader title="Recent episodes" action={{ label: "All episodes", href: "/episodes" }} />
