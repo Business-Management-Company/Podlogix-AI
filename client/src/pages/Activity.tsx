@@ -6,6 +6,7 @@ import {
   BarChart3,
   CalendarClock,
   CheckCircle2,
+  ChevronRight,
   Circle,
   Link2,
   Mail,
@@ -55,6 +56,28 @@ function formatEventTime(event: GoogleCalendarEvent): string {
     return start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   }
   return `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
+/** Little torn-calendar-page icon showing the event's month + day, in place of a generic icon. */
+function EventDateIcon({ start }: { start: string | null }) {
+  if (!start) {
+    return (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50">
+        <CalendarClock size={14} className="text-zinc-400" strokeWidth={1.75} />
+      </div>
+    );
+  }
+  const date = new Date(start);
+  return (
+    <div className="flex h-9 w-9 shrink-0 flex-col overflow-hidden rounded-lg border border-primary/20 shadow-sm">
+      <div className="flex h-3.5 items-center justify-center bg-primary text-[8px] font-bold uppercase tracking-wide text-white">
+        {date.toLocaleDateString(undefined, { month: "short" })}
+      </div>
+      <div className="flex flex-1 items-center justify-center bg-white text-xs font-bold text-zinc-950">
+        {date.getDate()}
+      </div>
+    </div>
+  );
 }
 
 interface SetupStep {
@@ -224,7 +247,22 @@ export default function Activity() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-6">
           <section>
-            <SectionHeader title="Interview scheduling" />
+            <SectionHeader
+              title="Interview scheduling"
+              right={
+                calendarStatus?.connected ? (
+                  <a
+                    href="https://calendar.google.com/calendar"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group inline-flex items-center gap-0.5 text-xs text-zinc-400 transition-colors hover:text-zinc-600"
+                  >
+                    See more
+                    <ChevronRight size={12} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+                  </a>
+                ) : undefined
+              }
+            />
             {calendarStatusLoading ? (
               <Skeleton className="h-24 rounded-xl" />
             ) : !calendarStatus?.connected ? (
@@ -247,9 +285,7 @@ export default function Activity() {
                 {calendarEvents.events.map((event) => {
                   const row = (
                     <CardRow className={`px-4 py-3 ${event.htmlLink ? "cursor-pointer hover:bg-zinc-50/60" : ""}`}>
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50">
-                        <CalendarClock size={14} className="text-zinc-400" strokeWidth={1.75} />
-                      </div>
+                      <EventDateIcon start={event.start} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-zinc-950">{event.title}</p>
                         <p className="text-xs text-zinc-500">{formatEventTime(event)}</p>
