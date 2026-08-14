@@ -48,46 +48,6 @@ const quickLinks = [
   { label: "AI Studio", hint: "Notes, clips and posts", href: "/dashboard/ai", icon: Sparkles },
 ];
 
-// A small, curated pool of tips — real, actionable things this workspace can
-// actually do today. One rotates in per session so returning users see
-// something new, without needing a backend content system yet.
-const TIPS = [
-  {
-    title: "Get discoverable on Spotify",
-    body: "Submit your hosted RSS feed from the Distribution tab to go live on every major platform.",
-    href: "/dashboard/distribution",
-  },
-  {
-    title: "Turn on Promotion analytics",
-    body: "Add your Instagram, TikTok, YouTube, or X handle to your Link Page to see follower and engagement analytics per show.",
-    href: "/dashboard/profile",
-  },
-  {
-    title: "Let AI draft your show notes",
-    body: "AI Studio can turn a raw episode into show notes, clips, and social posts in one pass.",
-    href: "/dashboard/ai",
-  },
-  {
-    title: "Protect your voice",
-    body: "Certify your voice identity on the blockchain so clones and impersonation are provable.",
-    href: "/identity",
-  },
-  {
-    title: "Build your Link Page",
-    body: "One page for every link, episode, and social account — publish it and share a single URL.",
-    href: "/dashboard/profile",
-  },
-];
-
-function getRotatingTip() {
-  if (typeof window === "undefined") return TIPS[0];
-  const key = "podlogix_tip_index";
-  const last = Number(window.localStorage.getItem(key) ?? "-1");
-  const next = (last + 1) % TIPS.length;
-  window.localStorage.setItem(key, String(next));
-  return TIPS[next];
-}
-
 function greeting(name?: string | null) {
   const hour = new Date().getHours();
   const salutation = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -142,7 +102,6 @@ function ProgressRing({ percent, size = 84, stroke = 9, color = "#10b981" }: { p
 
 export default function Activity() {
   const { user } = useAuth();
-  const tip = useMemo(getRotatingTip, []);
 
   const { data, isLoading } = useQuery<DashboardData>({ queryKey: ["/api/dashboard"] });
   const podcast = data?.podcasts?.[0];
@@ -220,24 +179,23 @@ export default function Activity() {
       </div>
 
       <section className="mb-6">
-        <Card padding="none" className="overflow-hidden border-emerald-100">
-          <div className="grid sm:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="flex flex-col justify-center bg-gradient-to-br from-emerald-50 to-sky-50 p-6 sm:p-8">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">From the Podlogix team</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">{tip.title}</h2>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-600">{tip.body}</p>
-              <Link
-                href={tip.href}
-                className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg bg-zinc-950 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
-              >
-                Take a look <ArrowRight size={12} />
-              </Link>
-            </div>
-            <div className="hidden min-h-[180px] sm:block">
-              <img src={heroPhoto} alt="" className="h-full w-full object-cover" />
-            </div>
+        <div
+          className="relative min-h-[210px] overflow-hidden rounded-[22px] bg-cover bg-center shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[230px]"
+          style={{ backgroundImage: `url(${heroPhoto})` }}
+        >
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(54,13,12,0.62)_0%,rgba(87,27,19,0.26)_43%,rgba(0,0,0,0)_64%)]" />
+          <div className="relative z-10 flex min-h-[210px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[230px] sm:p-8 lg:p-10">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#51251f]">
+              Podlogix creator spotlight
+            </p>
+            <h2 className="font-podlogix-display max-w-[500px] text-[44px] font-extrabold uppercase leading-[0.84] tracking-[-0.035em] text-white sm:text-[60px] lg:text-[68px]">
+              Ideas worth hearing twice.
+            </h2>
+            <p className="mt-5 max-w-[370px] text-sm leading-relaxed text-white/80">
+              Turn one honest conversation into a week of content—without losing the voice that made it yours.
+            </p>
           </div>
-        </Card>
+        </div>
       </section>
 
       <section className="mb-6">
