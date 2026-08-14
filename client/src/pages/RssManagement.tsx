@@ -11,15 +11,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  ArrowLeft, 
-  Rss, 
-  CheckCircle2, 
+import {
+  ArrowLeft,
+  Rss,
+  CheckCircle2,
   AlertCircle,
   Loader2,
   ExternalLink,
   Mic,
-  Plus
+  Plus,
+  RefreshCw
 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Podcast, RssFeed } from "@shared/schema";
@@ -97,15 +98,40 @@ export default function RssManagement() {
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: { importedEpisodes?: number }) => {
       queryClient.invalidateQueries({ queryKey: ['/api/podcasts', podcast?.id, 'rss'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts', podcast?.id, 'episodes'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
       setFeedUrl("");
       setValidationResult(null);
-      toast({ title: "RSS feed added!" });
+      const count = data?.importedEpisodes ?? 0;
+      toast({
+        title: "RSS feed added!",
+        description: count > 0 ? `Imported ${count} episode${count === 1 ? "" : "s"}.` : undefined,
+      });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to add feed.", variant: "destructive" });
+    },
+  });
+
+  const syncFeedMutation = useMutation({
+    mutationFn: async (feedId: string) => {
+      if (!podcast) throw new Error("No podcast");
+      const res = await apiRequest('POST', `/api/podcasts/${podcast.id}/rss/${feedId}/sync`);
+      return res.json();
+    },
+    onSuccess: (data: { importedEpisodes?: number }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts', podcast?.id, 'rss'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts', podcast?.id, 'episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+      const count = data?.importedEpisodes ?? 0;
+      toast({
+        title: count > 0 ? `Imported ${count} new episode${count === 1 ? "" : "s"}` : "Already up to date",
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to sync feed.", variant: "destructive" });
     },
   });
 
@@ -191,7 +217,28 @@ export default function RssManagement() {
                         {feed.feedUrl}
                       </span>
                     </div>
-                    <Badge variant="secondary">{feed.sourceType}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {typeof feed.episodeCount === "number" && (
+                        <span className="text-xs text-muted-foreground">
+                          {feed.episodeCount} episode{feed.episodeCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      <Badge variant="secondary">{feed.sourceType}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2"
+                        onClick={() => syncFeedMutation.mutate(feed.id)}
+                        disabled={syncFeedMutation.isPending}
+                        data-testid={`button-sync-feed-${feed.id}`}
+                      >
+                        {syncFeedMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </CardContent>

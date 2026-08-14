@@ -7,7 +7,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { AppLayout } from "@/components/AppLayout";
 import { PlaceholderPage } from "@/components/kit";
 import {
-  LayoutDashboard,
   Megaphone,
   Users,
   Briefcase,
@@ -48,6 +47,8 @@ import EmailHub from "@/pages/EmailHub";
 import AiAssistant from "@/pages/AiAssistant";
 import VideoAnalysis from "@/pages/VideoAnalysis";
 import SocialHub from "@/pages/SocialHub";
+import ShowPromotion from "@/pages/ShowPromotion";
+import ShowOverview from "@/pages/ShowOverview";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import DashboardCertify from "@/pages/DashboardCertify";
 import DashboardCertifyLikeness from "@/pages/DashboardCertifyLikeness";
@@ -61,16 +62,6 @@ import ClientPortal from "@/pages/ClientPortal";
 // ─── Placeholder pages ────────────────────────────────────────────────────────
 // Real destinations in the information architecture that don't have a built
 // experience yet. PlaceholderPage keeps them feeling intentional, not broken.
-
-function ShowOverviewPage() {
-  return (
-    <PlaceholderPage
-      icon={LayoutDashboard}
-      title="Overview"
-      description="Performance at a glance — recent episode metrics, distribution status, audience growth, and active campaigns for this show."
-    />
-  );
-}
 
 function ShowAudiencePage() {
   return (
@@ -147,12 +138,11 @@ function AuthenticatedRoutes() {
         <Route path="/audience" component={SocialAnalytics} />
 
         {/* ── Show context ── */}
-        <Route path="/shows/:id" component={ShowOverviewPage} />
+        <Route path="/shows/:id" component={ShowOverview} />
         {/* TODO: filter Episodes by show — currently lists all native episodes */}
         <Route path="/shows/:id/episodes" component={Episodes} />
         <Route path="/shows/:showId/episodes/:episodeId" component={EpisodeDetail} />
-        {/* TODO: episode-scoped promotion later — SocialHub is workspace-wide */}
-        <Route path="/shows/:id/promotion" component={SocialHub} />
+        <Route path="/shows/:id/promotion" component={ShowPromotion} />
         <Route path="/shows/:id/distribution" component={Distribution} />
         <Route path="/shows/:id/audience" component={ShowAudiencePage} />
         <Route path="/shows/:id/settings" component={ShowSettings} />

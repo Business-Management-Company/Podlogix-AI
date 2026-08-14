@@ -29,7 +29,7 @@ import { generatePodcastFeedXml } from "./services/feedService";
 import { insertEpisodeSchema } from "@shared/schema";
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
-import { syncAllSubscriptionsForUser, processAutoBriefingsForUser } from "./services/episodeSyncService";
+import { syncAllSubscriptionsForUser, processAutoBriefingsForUser, syncEpisodesForPodcastFeed } from "./services/episodeSyncService";
 import { 
   isModashConfigured, 
   searchInfluencers, 
@@ -1440,7 +1440,13 @@ export async function registerRoutes(
   app.get(api.podcasts.list.path, isAuthenticated, async (req: any, res) => {
     const userId = req.session.userId!;
     const podcastsList = await storage.getPodcastsByUserId(userId);
-    res.json(podcastsList);
+    const withEpisodeCounts = await Promise.all(
+      podcastsList.map(async (podcast) => ({
+        ...podcast,
+        episodeCount: (await storage.getEpisodesByPodcast(podcast.id)).length,
+      }))
+    );
+    res.json(withEpisodeCounts);
   });
 
   app.post(api.podcasts.create.path, isAuthenticated, async (req: any, res) => {
@@ -1481,14 +1487,72 @@ export async function registerRoutes(
 
   app.post('/api/podcasts/:podcastId/rss', isAuthenticated, async (req: any, res) => {
     try {
+      const podcast = await storage.getPodcast(req.params.podcastId);
+      if (!podcast) {
+        return res.status(404).json({ message: 'Podcast not found' });
+      }
+      if (podcast.userId !== req.session.userId) {
+        return res.status(403).json({ message: 'Not your podcast' });
+      }
+
       const input = api.rss.create.input.parse({ ...req.body, podcastId: req.params.podcastId });
       const feed = await storage.createRssFeed(input);
-      res.status(201).json(feed);
+
+      // Importing an existing external feed: pull its episodes in now rather
+      // than leaving the podcaster with a feed row and no episodes to show.
+      let importedEpisodes = 0;
+      if (feed.sourceType === 'existing') {
+        try {
+          importedEpisodes = await syncEpisodesForPodcastFeed(feed.podcastId, feed.feedUrl);
+          const totalEpisodes = (await storage.getEpisodesByPodcast(feed.podcastId)).length;
+          await storage.updateRssFeed(feed.id, {
+            status: 'active',
+            lastValidatedAt: new Date(),
+            episodeCount: totalEpisodes,
+          });
+        } catch (syncError) {
+          console.error('Error importing episodes from RSS feed:', syncError);
+        }
+      }
+
+      res.status(201).json({ ...feed, importedEpisodes });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
       throw err;
+    }
+  });
+
+  // Re-pull episodes for a feed added before episode import existed, or to
+  // pick up new episodes published since the last sync.
+  app.post('/api/podcasts/:podcastId/rss/:feedId/sync', isAuthenticated, async (req: any, res) => {
+    const podcast = await storage.getPodcast(req.params.podcastId);
+    if (!podcast) {
+      return res.status(404).json({ message: 'Podcast not found' });
+    }
+    if (podcast.userId !== req.session.userId) {
+      return res.status(403).json({ message: 'Not your podcast' });
+    }
+    const feed = (await storage.getRssFeedsByPodcast(req.params.podcastId)).find(
+      (f) => f.id === req.params.feedId
+    );
+    if (!feed) {
+      return res.status(404).json({ message: 'Feed not found' });
+    }
+
+    try {
+      const importedEpisodes = await syncEpisodesForPodcastFeed(feed.podcastId, feed.feedUrl);
+      const totalEpisodes = (await storage.getEpisodesByPodcast(feed.podcastId)).length;
+      await storage.updateRssFeed(feed.id, {
+        status: 'active',
+        lastValidatedAt: new Date(),
+        episodeCount: totalEpisodes,
+      });
+      res.json({ importedEpisodes });
+    } catch (error) {
+      console.error('Error syncing RSS feed:', error);
+      res.status(500).json({ message: 'Failed to sync feed' });
     }
   });
 
@@ -3985,6 +4049,41 @@ Respond in this exact JSON format:
     return h.replace(/^@/, "").replace(/\/+$/, "");
   }
 
+  /**
+   * Influencers.club's enrich/handle/full response nests everything under
+   * result.<platform> (with YouTube using subscriber_count instead of
+   * follower_count), not flat top-level fields — this maps the real shape.
+   */
+  function extractIcAnalytics(data: any, platform: string, fallbackHandle: string) {
+    const result = data?.result ?? data ?? {};
+    const p = result?.[platform] ?? {};
+    const followers = platform === "youtube" ? (p.subscriber_count ?? 0) : (p.follower_count ?? 0);
+    return {
+      handle: p.username || (p.custom_url ? String(p.custom_url).replace(/^@/, "") : null) || fallbackHandle,
+      platform,
+      name: p.full_name || [result?.first_name, result?.last_name].filter(Boolean).join(" ") || fallbackHandle,
+      bio: p.biography || null,
+      profilePicture: p.profile_picture_hd || p.profile_picture || null,
+      followers,
+      following: p.following_count ?? 0,
+      postsCount: p.media_count ?? 0,
+      engagementRate: p.engagement_percent ?? 0,
+      avgLikes: p.avg_likes ?? 0,
+      avgComments: p.avg_comments ?? 0,
+      avgViews: p.reels?.avg_view_count ?? 0,
+      avgReelLikes: p.reels?.avg_like_count ?? 0,
+      postsPerMonth: p.posting_frequency_recent_months ?? 0,
+      email: result?.email ?? null,
+      emailVerified: false,
+      location: result?.location || p.location || p.country || null,
+      language: result?.speaking_language || null,
+      businessCategory: p.category || null,
+      isVerified: p.is_verified ?? false,
+      socialLinks: result?.links_in_bio ?? [],
+      rawData: data,
+    };
+  }
+
   
   // Get analytics for a user's connected social account
   app.post('/api/social-analytics/profile', isAuthenticated, async (req: any, res) => {
@@ -4025,34 +4124,7 @@ Respond in this exact JSON format:
       }
 
       const data = await response.json();
-      
-      // Extract key analytics metrics
-      const analytics = {
-        handle: data.handle || handle,
-        platform: platform.toLowerCase(),
-        name: data.name || data.fullname || handle,
-        bio: data.bio || data.biography,
-        profilePicture: data.avatar || data.profile_pic_url,
-        followers: data.followers || data.follower_count || 0,
-        following: data.following || data.followees_count || 0,
-        postsCount: data.posts_count || data.media_count || 0,
-        engagementRate: data.engagement_rate || data.avg_engagement_rate || 0,
-        avgLikes: data.avg_likes || data.average_likes || 0,
-        avgComments: data.avg_comments || data.average_comments || 0,
-        avgViews: data.avg_views || data.average_views || 0,
-        avgReelLikes: data.avg_reel_likes || 0,
-        postsPerMonth: data.posts_per_month || 0,
-        email: data.email || null,
-        emailVerified: data.email_verified || false,
-        location: data.location || data.city || data.country,
-        language: data.language,
-        businessCategory: data.business_category || data.category,
-        isVerified: data.is_verified || data.verified || false,
-        // Social links
-        socialLinks: data.social_links || data.external_urls || [],
-        // Raw data for advanced use
-        rawData: data,
-      };
+      const analytics = extractIcAnalytics(data, platform.toLowerCase(), handle);
 
       res.json({ success: true, analytics });
     } catch (error) {
@@ -4065,9 +4137,41 @@ Respond in this exact JSON format:
   app.get('/api/social-analytics/my-accounts', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const accounts = await storage.getUploadPostAccountsByUser(userId);
-      
-      if (!accounts || accounts.length === 0) {
+      const platformMapping: Record<string, string> = {
+        'instagram': 'instagram',
+        'tiktok': 'tiktok',
+        'youtube': 'youtube',
+        'twitter': 'twitter',
+        'x': 'twitter',
+        'twitch': 'twitch',
+      };
+
+      // Two sources of "which handles do I check": accounts connected via
+      // Upload-Post (OAuth), and handles the creator typed into their Link
+      // Page (profile.socialIcons) — no OAuth needed for the latter, so it
+      // works even when Upload-Post isn't configured. Upload-Post wins for
+      // a platform if both list it.
+      const uploadPostAccounts = await storage.getUploadPostAccountsByUser(userId);
+      const accounts: Array<{ id: string; platform: string; platformUsername: string | null; profilePictureUrl?: string | null }> =
+        (uploadPostAccounts || []).map((a) => ({
+          id: a.id,
+          platform: a.platform,
+          platformUsername: a.platformUsername,
+          profilePictureUrl: a.profilePictureUrl,
+        }));
+      const coveredPlatforms = new Set(accounts.map((a) => a.platform?.toLowerCase()));
+
+      const profile = await storage.getProfileByUserId(userId);
+      for (const icon of (profile?.socialIcons as { platform: string; url: string }[] | undefined) || []) {
+        const platformKey = icon.platform?.toLowerCase();
+        if (!platformKey || !platformMapping[platformKey] || coveredPlatforms.has(platformKey)) continue;
+        const handle = normalizeSocialHandle(icon.url);
+        if (!handle) continue;
+        accounts.push({ id: `profile-${platformKey}`, platform: platformKey, platformUsername: handle });
+        coveredPlatforms.add(platformKey);
+      }
+
+      if (accounts.length === 0) {
         return res.json({ accounts: [], message: 'No connected accounts found' });
       }
 
@@ -4077,14 +4181,6 @@ Respond in this exact JSON format:
       }
 
       const analyticsResults = [];
-      const platformMapping: Record<string, string> = {
-        'instagram': 'instagram',
-        'tiktok': 'tiktok',
-        'youtube': 'youtube',
-        'twitter': 'twitter',
-        'x': 'twitter',
-        'twitch': 'twitch',
-      };
 
       for (const account of accounts) {
         const platform = platformMapping[account.platform?.toLowerCase() || ''];
@@ -4105,26 +4201,11 @@ Respond in this exact JSON format:
 
           if (response.ok) {
             const data = await response.json();
+            const analytics = extractIcAnalytics(data, platform, account.platformUsername);
             analyticsResults.push({
               accountId: account.id,
-              platform: account.platform,
-              handle: account.platformUsername,
-              name: data.name || data.fullname || account.platformUsername,
-              bio: data.bio || data.biography || null,
-              profilePicture: data.avatar || data.profile_pic_url || account.profilePictureUrl,
-              followers: data.followers || data.follower_count || 0,
-              following: data.following || data.followees_count || 0,
-              engagementRate: data.engagement_rate || data.avg_engagement_rate || 0,
-              avgLikes: data.avg_likes || data.average_likes || 0,
-              avgComments: data.avg_comments || data.average_comments || 0,
-              avgViews: data.avg_views || data.average_views || 0,
-              avgReelLikes: data.avg_reel_likes || 0,
-              postsCount: data.posts_count || data.media_count || 0,
-              postsPerMonth: data.posts_per_month || 0,
-              location: data.location || data.city || data.country || null,
-              language: data.language || null,
-              businessCategory: data.business_category || data.category || null,
-              isVerified: data.is_verified || data.verified || false,
+              ...analytics,
+              profilePicture: analytics.profilePicture || account.profilePictureUrl || null,
             });
           }
         } catch (err) {

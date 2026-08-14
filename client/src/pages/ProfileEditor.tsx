@@ -688,7 +688,7 @@ export default function ProfileEditor() {
                                     })}
                                 </div>
                                 {connectedProfiles.filter(p => !socialIcons.some(icon => icon.platform === p.platform)).length === 0 && (
-                                  <p className="text-sm text-muted-foreground text-center py-2">All connected accounts added as icons</p>
+                                  <p className="text-sm text-muted-foreground text-left py-2">All connected accounts added as icons</p>
                                 )}
                               </div>
                             )}
@@ -746,8 +746,8 @@ export default function ProfileEditor() {
                   </CardHeader>
                   <CardContent>
                     {socialIcons.length === 0 ? (
-                      <div className="text-center py-6 text-muted-foreground">
-                        <div className="flex justify-center gap-3 mb-3 opacity-50">
+                      <div className="text-left py-6 text-muted-foreground">
+                        <div className="flex gap-3 mb-3 opacity-50">
                           <SiInstagram className="h-6 w-6" />
                           <SiYoutube className="h-6 w-6" />
                           <SiSpotify className="h-6 w-6" />
@@ -1078,8 +1078,8 @@ export default function ProfileEditor() {
                   <CardContent className="space-y-2">
                     <AnimatePresence>
                       {links.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Link2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <div className="text-left py-8 text-muted-foreground">
+                          <Link2 className="h-8 w-8 mb-2 opacity-50" />
                           <p className="text-sm">No links yet. Add your first link above!</p>
                         </div>
                       ) : (

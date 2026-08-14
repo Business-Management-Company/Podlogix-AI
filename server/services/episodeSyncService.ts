@@ -57,6 +57,58 @@ export async function syncEpisodesForSubscription(subscription: PodcastSubscript
   }
 }
 
+/**
+ * Import episodes from a creator's own RSS feed into their podcast's episode
+ * list. Dedupes against episodes already stored for this podcast by guid.
+ * Imported episodes are marked "published" since they're already live on
+ * the podcaster's existing host — this is a catch-up import, not drafting.
+ */
+export async function syncEpisodesForPodcastFeed(podcastId: string, feedUrl: string): Promise<number> {
+  const feed = await parseFeed(feedUrl);
+  const existingEpisodes = await storage.getEpisodesByPodcast(podcastId);
+  const existingGuids = new Set(existingEpisodes.map((e) => e.guid).filter(Boolean));
+
+  // Backfill the show's own cover art from the feed if it doesn't have one
+  // yet — otherwise every episode falls back to a blank placeholder forever.
+  if (feed.imageUrl) {
+    const podcast = await storage.getPodcast(podcastId);
+    if (podcast && !podcast.artworkUrl) {
+      await storage.updatePodcast(podcastId, { artworkUrl: feed.imageUrl });
+    }
+  }
+
+  let newCount = 0;
+  for (const episode of feed.episodes) {
+    if (!episode.guid || existingGuids.has(episode.guid)) {
+      continue;
+    }
+
+    const created = await storage.createEpisode({
+      podcastId,
+      title: episode.title,
+      description: episode.description,
+      audioUrl: episode.audioUrl,
+      durationSeconds: episode.duration,
+      guid: episode.guid,
+      status: "published",
+      // Fall back to the show's cover art when an episode has no unique art
+      // of its own — most episodes do (RSS.com generates per-episode covers
+      // by default), but this keeps the list from showing blank thumbnails
+      // when a host doesn't.
+      artworkUrl: episode.imageUrl || feed.imageUrl || null,
+    });
+    // publishedAt is intentionally excluded from InsertEpisode (it's normally
+    // stamped by the publish action) — patch it in so imported episodes keep
+    // their real publish date from the source feed instead of showing blank.
+    if (episode.publishedAt) {
+      await storage.updateEpisode(created.id, { publishedAt: episode.publishedAt });
+    }
+    newCount++;
+  }
+
+  return newCount;
+}
+
 export async function syncAllSubscriptionsForUser(userId: string): Promise<{ synced: number; newEpisodes: number }> {
   const subscriptions = await storage.getPodcastSubscriptionsByUserId(userId);
   let totalNew = 0;

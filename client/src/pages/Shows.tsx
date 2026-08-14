@@ -8,6 +8,7 @@ interface Podcast {
   title: string;
   description?: string | null;
   artworkUrl?: string | null;
+  episodeCount?: number;
 }
 
 interface BuzzsproutStatus {
@@ -140,7 +141,12 @@ export default function Shows() {
                 href={`/shows/${p.id}`}
                 title={p.title}
                 artworkUrl={p.artworkUrl}
-                subtitle={p.description || undefined}
+                subtitle={
+                  p.description ||
+                  (typeof p.episodeCount === "number"
+                    ? `${p.episodeCount} episode${p.episodeCount === 1 ? "" : "s"}`
+                    : undefined)
+                }
               />
             ))}
 

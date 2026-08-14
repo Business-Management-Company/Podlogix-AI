@@ -24,6 +24,7 @@ export interface RssEpisode {
   duration: number | null;
   publishedAt: Date | null;
   guid: string;
+  imageUrl: string | null;
 }
 
 export async function parseFeed(feedUrl: string): Promise<RssPodcast & { episodes: RssEpisode[] }> {
@@ -37,6 +38,7 @@ export async function parseFeed(feedUrl: string): Promise<RssPodcast & { episode
       duration: parseDuration(item.duration),
       publishedAt: item.pubDate ? new Date(item.pubDate) : null,
       guid: item.guid || item.link || item.title || '',
+      imageUrl: item.itunes?.image || null,
     }));
 
     return {

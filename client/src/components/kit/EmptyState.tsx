@@ -29,7 +29,7 @@ export function EmptyState({
       initial="hidden"
       animate="show"
       className={cn(
-        "flex flex-col items-center rounded-xl px-6 py-10 text-center",
+        "flex flex-col items-start rounded-xl px-6 py-8 text-left",
         dashed ? "border border-dashed border-zinc-200" : "border border-zinc-200 bg-white",
         className
       )}
@@ -41,7 +41,7 @@ export function EmptyState({
         <Icon size={20} className="text-emerald-600" strokeWidth={1.75} />
       </div>
       <p className="mb-1 text-[13px] font-medium text-zinc-950">{title}</p>
-      <p className="mb-4 max-w-[320px] text-xs leading-relaxed text-zinc-400">{description}</p>
+      <p className="mb-4 max-w-[420px] text-xs leading-relaxed text-zinc-400">{description}</p>
       {action && (
         <Link href={action.href}>
           <button className="rounded-lg bg-zinc-950 px-3.5 py-[7px] text-xs font-medium text-white transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]">

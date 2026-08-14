@@ -1,74 +1,92 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import {
   ArrowRight,
-  Check,
-  Clock3,
+  BarChart3,
+  CalendarClock,
+  CheckCircle2,
+  Circle,
   Link2,
+  Mail,
   Mic,
-  Pause,
-  Play,
-  Plus,
   Radio,
   Rss,
   Share2,
   Shield,
   Sparkles,
-  TrendingUp,
-  WandSparkles,
-  Zap,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Card, CardRow, EmptyState, SectionHeader, StatusPill, TopStat } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import type { Episode } from "@shared/schema";
 import heroPhoto from "@/assets/images/podlogix-hero-photo.jpg";
 
 interface DashboardData {
-  profile: {
-    id: string;
-    slug: string;
-    displayName: string;
-    isPublished: boolean;
-  } | null;
+  profile: { id: string; slug: string; displayName: string; isPublished: boolean } | null;
   podcasts: Array<{ id: string; title: string }>;
   hasRssFeed: boolean;
   distributionStatus: Record<string, string>;
 }
 
+interface AccountAnalytics {
+  followers: number;
+}
+
 interface SetupStep {
   id: string;
   label: string;
-  hint: string;
   href: string;
   done: boolean;
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const quickActions = [
-  { label: "Import show", hint: "Connect an RSS feed", href: "/dashboard/rss", icon: Rss },
-  { label: "Create with AI", hint: "Show notes and clips", href: "/dashboard/ai", icon: Sparkles },
-  { label: "Schedule social", hint: "Publish everywhere", href: "/dashboard/social-hub", icon: Share2 },
-  { label: "Protect your voice", hint: "Certify your identity", href: "/identity", icon: Shield },
+const quickLinks = [
+  { label: "Social Hub", hint: "Schedule across platforms", href: "/dashboard/social-hub", icon: Share2 },
+  { label: "Email Hub", hint: "Newsletters and drips", href: "/dashboard/email", icon: Mail },
+  { label: "Analytics", hint: "Audience and performance", href: "/listener/analytics", icon: BarChart3 },
+  { label: "AI Studio", hint: "Notes, clips and posts", href: "/dashboard/ai", icon: Sparkles },
 ];
 
-const platformNames: Record<string, string> = {
-  spotify: "Spotify",
-  apple: "Apple Podcasts",
-  youtube: "YouTube",
-  amazon: "Amazon Music",
-  google: "Google",
-  iheartradio: "iHeartRadio",
-};
+// A small, curated pool of tips — real, actionable things this workspace can
+// actually do today. One rotates in per session so returning users see
+// something new, without needing a backend content system yet.
+const TIPS = [
+  {
+    title: "Get discoverable on Spotify",
+    body: "Submit your hosted RSS feed from the Distribution tab to go live on every major platform.",
+    href: "/dashboard/distribution",
+  },
+  {
+    title: "Turn on Promotion analytics",
+    body: "Add your Instagram, TikTok, YouTube, or X handle to your Link Page to see follower and engagement analytics per show.",
+    href: "/dashboard/profile",
+  },
+  {
+    title: "Let AI draft your show notes",
+    body: "AI Studio can turn a raw episode into show notes, clips, and social posts in one pass.",
+    href: "/dashboard/ai",
+  },
+  {
+    title: "Protect your voice",
+    body: "Certify your voice identity on the blockchain so clones and impersonation are provable.",
+    href: "/identity",
+  },
+  {
+    title: "Build your Link Page",
+    body: "One page for every link, episode, and social account — publish it and share a single URL.",
+    href: "/dashboard/profile",
+  },
+];
 
-const platformColors: Record<string, string> = {
-  spotify: "#d8f34c",
-  apple: "#ff71a8",
-  youtube: "#ff6548",
-  amazon: "#63d8ef",
-  google: "#75b6ff",
-  iheartradio: "#ff8969",
-};
+function getRotatingTip() {
+  if (typeof window === "undefined") return TIPS[0];
+  const key = "podlogix_tip_index";
+  const last = Number(window.localStorage.getItem(key) ?? "-1");
+  const next = (last + 1) % TIPS.length;
+  window.localStorage.setItem(key, String(next));
+  return TIPS[next];
+}
 
 function greeting(name?: string | null) {
   const hour = new Date().getHours();
@@ -76,68 +94,47 @@ function greeting(name?: string | null) {
   return name ? `${salutation}, ${name}` : salutation;
 }
 
+function todayString() {
+  return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
 function setupSteps(data?: DashboardData): SetupStep[] {
   return [
-    {
-      id: "profile",
-      label: "Publish your Link Page",
-      hint: "Give listeners one place to find you",
-      href: "/dashboard/profile",
-      done: Boolean(data?.profile),
-      icon: Link2,
-    },
-    {
-      id: "rss",
-      label: "Connect your first show",
-      hint: "Import episodes from your podcast host",
-      href: "/dashboard/rss",
-      done: Boolean(data?.hasRssFeed),
-      icon: Rss,
-    },
+    { id: "profile", label: "Publish your Link Page", href: "/dashboard/profile", done: Boolean(data?.profile), icon: Link2 },
+    { id: "rss", label: "Connect your first show", href: "/dashboard/rss", done: Boolean(data?.hasRssFeed), icon: Rss },
     {
       id: "distribution",
       label: "Go live everywhere",
-      hint: "Submit to every major listening platform",
       href: "/dashboard/distribution",
-      done: Object.values(data?.distributionStatus ?? {}).some(
-        (status) => status === "submitted" || status === "approved",
-      ),
+      done: Object.values(data?.distributionStatus ?? {}).some((s) => s === "submitted" || s === "approved"),
       icon: Radio,
     },
-    {
-      id: "voice",
-      label: "Protect your voice identity",
-      hint: "Create a verifiable voice certificate",
-      href: "/dashboard/certify",
-      done: false,
-      icon: Shield,
-    },
+    { id: "voice", label: "Protect your voice identity", href: "/dashboard/certify", done: false, icon: Shield },
   ];
 }
 
-function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
+function ProgressRing({ percent, size = 84, stroke = 9, color = "#10b981" }: { percent: number; size?: number; stroke?: number; color?: string }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - percent / 100);
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <h2 className="font-podlogix-display text-sm font-bold uppercase tracking-[0.12em] text-neutral-500">
-        {children}
-      </h2>
-      {action}
-    </div>
-  );
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="min-h-full bg-background p-6 lg:p-7">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="space-y-5">
-          <Skeleton className="h-[330px] rounded-[22px] bg-neutral-200" />
-          <Skeleton className="h-64 rounded-[18px] bg-neutral-200" />
-        </div>
-        <div className="space-y-5">
-          <Skeleton className="h-72 rounded-[18px] bg-neutral-200" />
-          <Skeleton className="h-56 rounded-[18px] bg-neutral-200" />
-        </div>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#f4f4f5" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-zinc-950">
+        {Math.round(percent)}%
       </div>
     </div>
   );
@@ -145,275 +142,232 @@ function DashboardSkeleton() {
 
 export default function Activity() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
-  const [isPlaying, setIsPlaying] = useState(false);
+  const tip = useMemo(getRotatingTip, []);
 
-  const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ["/api/dashboard"],
+  const { data, isLoading } = useQuery<DashboardData>({ queryKey: ["/api/dashboard"] });
+  const podcast = data?.podcasts?.[0];
+
+  const { data: episodes, isLoading: episodesLoading } = useQuery<Episode[]>({
+    queryKey: ["/api/podcasts", podcast?.id, "episodes"],
+    queryFn: async () => {
+      const res = await fetch(`/api/podcasts/${podcast!.id}/episodes`);
+      return res.json();
+    },
+    enabled: !!podcast,
+  });
+
+  const { data: promotion } = useQuery<{ accounts: AccountAnalytics[] }>({
+    queryKey: ["/api/social-analytics/my-accounts"],
+    retry: false,
   });
 
   const steps = useMemo(() => setupSteps(data), [data]);
-  const doneCount = steps.filter((step) => step.done).length;
-  const showCount = data?.podcasts.length ?? 0;
-  const platformEntries = Object.entries(data?.distributionStatus ?? {});
-  const liveCount = platformEntries.filter(([, status]) => status === "approved").length;
-  const progress = Math.round((doneCount / steps.length) * 100);
+  const doneCount = steps.filter((s) => s.done).length;
+  const setupPercent = (doneCount / steps.length) * 100;
 
-  if (isLoading) return <DashboardSkeleton />;
+  const publishedCount = episodes?.filter((e) => e.status === "published").length ?? 0;
+  const liveCount = Object.values(data?.distributionStatus ?? {}).filter((s) => s === "approved").length;
+  const totalFollowers = promotion?.accounts?.reduce((sum, a) => sum + (a.followers || 0), 0) ?? 0;
+
+  const recentEpisodes = useMemo(
+    () =>
+      [...(episodes ?? [])]
+        .sort((a, b) => {
+          const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+          const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+          return tb - ta;
+        })
+        .slice(0, 5),
+    [episodes]
+  );
+
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-[1600px] space-y-6 px-6 py-8">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-24 rounded-xl" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="podlogix-dashboard min-h-full overflow-y-auto bg-background text-foreground">
-      <div className="mx-auto w-full max-w-[1480px] p-4 sm:p-5 lg:p-7">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div className="w-full max-w-[1600px] px-6 py-8">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          {user?.profileImageUrl ? (
+            <img
+              src={user.profileImageUrl}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-full border border-zinc-200 object-cover"
+            />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 text-base font-semibold text-zinc-500">
+              {user?.firstName?.[0]?.toUpperCase() ?? "P"}
+            </div>
+          )}
           <div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#ff8056]">
-              Your creative command center
-            </p>
-            <h1 className="font-podlogix-display text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
-              {greeting(user?.firstName)}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-neutral-500">
-            <span className="h-2 w-2 rounded-full bg-[#7de5c8] shadow-[0_0_0_5px_rgba(125,229,200,0.08)]" />
-            Your workspace is live
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">{greeting(user?.firstName)}</h1>
+            <p className="mt-0.5 text-sm text-zinc-500">{todayString()}</p>
           </div>
         </div>
+        <StatusPill tone="success" pulse>
+          Workspace live
+        </StatusPill>
+      </div>
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="min-w-0 space-y-5">
-            <section
-              className="relative min-h-[210px] overflow-hidden rounded-[22px] bg-cover bg-center shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[230px]"
-              style={{ backgroundImage: `url(${heroPhoto})` }}
-            >
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(54,13,12,0.62)_0%,rgba(87,27,19,0.26)_43%,rgba(0,0,0,0)_64%)]" />
-              <div className="relative z-10 flex min-h-[210px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[230px] sm:p-8 lg:p-10">
-                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#51251f]">
-                  Podlogix creator spotlight
-                </p>
-                <h2 className="max-w-[500px] font-podlogix-display text-[44px] font-extrabold uppercase leading-[0.84] tracking-[-0.035em] text-white sm:text-[60px] lg:text-[68px]">
-                  Ideas worth hearing twice.
-                </h2>
-                <p className="mt-5 max-w-[370px] text-sm leading-relaxed text-white/80">
-                  Turn one honest conversation into a week of content—without losing the voice that made it yours.
-                </p>
-
-              </div>
-            </section>
-
-            <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
-              <section>
-                <SectionTitle>Move faster</SectionTitle>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {quickActions.map((action, index) => {
-                    const Icon = action.icon;
-                    return (
-                      <button
-                        key={action.href}
-                        type="button"
-                        onClick={() => navigate(action.href)}
-                        className="group flex min-h-[126px] flex-col justify-between rounded-2xl border border-black/[0.06] bg-white shadow-sm p-4 text-left text-neutral-900 transition duration-200 hover:-translate-y-0.5 hover:border-black/[0.12] hover:bg-neutral-50"
-                      >
-                        <Icon className="h-5 w-5 opacity-85" />
-                        <span>
-                          <strong className="block font-podlogix-display text-xl font-bold leading-[0.9]">{action.label}</strong>
-                          <small className="mt-1 block text-[9px] text-neutral-500">
-                            {action.hint}
-                          </small>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="min-w-0">
-                <SectionTitle
-                  action={
-                    <Link href="/podcasts" className="flex items-center gap-1 text-[10px] font-semibold text-neutral-500 transition hover:text-neutral-900">
-                      All shows <ArrowRight className="h-3 w-3" />
-                    </Link>
-                  }
-                >
-                  Your shows
-                </SectionTitle>
-
-                {showCount > 0 ? (
-                  <div className="grid min-h-[264px] grid-cols-2 gap-2.5 sm:grid-cols-3">
-                    {(data?.podcasts ?? []).slice(0, 6).map((podcast, index) => (
-                      <Link key={podcast.id} href={`/podcasts/${podcast.id}`}>
-                        <div
-                          className={`group flex h-full min-h-[126px] flex-col justify-between overflow-hidden rounded-2xl border border-black/[0.06] p-4 transition hover:-translate-y-0.5 hover:border-black/[0.12] ${
-                            index === 0
-                              ? "bg-[linear-gradient(180deg,#ff6031,#ff9270)] text-white"
-                              : "bg-white shadow-sm text-neutral-900"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-podlogix-display text-2xl font-bold">{index === 0 ? "LIVE" : `0${index + 1}`}</span>
-                            <Mic className="h-4 w-4 opacity-70" />
-                          </div>
-                          <div>
-                            <p className="line-clamp-2 font-podlogix-display text-lg font-bold leading-[0.95]">{podcast.title}</p>
-                            <p className={`mt-2 text-[9px] ${index === 0 ? "text-white/70" : "text-neutral-500"}`}>Open workspace</p>
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                    {Array.from({ length: Math.max(0, 6 - showCount) }).map((_, index) => (
-                      <button
-                        key={`empty-${index}`}
-                        type="button"
-                        onClick={() => navigate("/dashboard/rss")}
-                        className="flex min-h-[126px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-black/10 bg-neutral-50 text-neutral-500 transition hover:border-[#ff6031]/50 hover:text-[#ff8056]"
-                      >
-                        <Plus className="h-5 w-5" />
-                        <span className="text-[10px] font-semibold">Add a show</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex min-h-[264px] flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 bg-neutral-50 p-7 text-center">
-                    <span className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-[#ff6031]/10 text-[#ff7045]">
-                      <Mic className="h-5 w-5" />
-                    </span>
-                    <h3 className="font-podlogix-display text-xl font-bold">Bring your first show in</h3>
-                    <p className="mt-1 max-w-[260px] text-xs leading-relaxed text-neutral-500">Connect an RSS feed and Podlogix will organize your episodes automatically.</p>
-                    <Button onClick={() => navigate("/dashboard/rss")} size="sm" className="mt-5 rounded-xl bg-[#ff6031] hover:bg-[#ff7045]">
-                      <Plus className="mr-2 h-3.5 w-3.5" /> Add podcast
-                    </Button>
-                  </div>
-                )}
-              </section>
+      <section className="mb-6">
+        <Card padding="none" className="overflow-hidden border-emerald-100">
+          <div className="grid sm:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="flex flex-col justify-center bg-gradient-to-br from-emerald-50 to-sky-50 p-6 sm:p-8">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">From the Podlogix team</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">{tip.title}</h2>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-600">{tip.body}</p>
+              <Link
+                href={tip.href}
+                className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg bg-zinc-950 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
+              >
+                Take a look <ArrowRight size={12} />
+              </Link>
+            </div>
+            <div className="hidden min-h-[180px] sm:block">
+              <img src={heroPhoto} alt="" className="h-full w-full object-cover" />
             </div>
           </div>
+        </Card>
+      </section>
 
-          <aside className="space-y-5">
-            <section>
-              <SectionTitle>Today&apos;s run</SectionTitle>
-              <div className="overflow-hidden rounded-[18px] border border-black/[0.06] bg-white">
-                {steps.map((step, index) => {
+      <section className="mb-6">
+        <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-4 sm:divide-y-0">
+          <TopStat label="Episodes" value={String(episodes?.length ?? 0)} icon={Mic} href="/episodes" />
+          <TopStat label="Published" value={String(publishedCount)} icon={CheckCircle2} href="/episodes" />
+          <TopStat label="Live channels" value={String(liveCount)} icon={Radio} href="/dashboard/distribution" />
+          <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href="/audience" />
+        </Card>
+      </section>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
+          <section>
+            <SectionHeader title="Interview scheduling" />
+            <EmptyState
+              icon={CalendarClock}
+              title="Coming soon: schedule guest interviews"
+              description="Connect Google Calendar so guests can book time directly, and every session shows up here automatically. This feature is being scoped now."
+            />
+          </section>
+
+          <section>
+            <SectionHeader title="Recent episodes" action={{ label: "All episodes", href: "/episodes" }} />
+            {episodesLoading ? (
+              <Skeleton className="h-40 rounded-xl" />
+            ) : recentEpisodes.length === 0 ? (
+              <EmptyState
+                icon={Mic}
+                title="No episodes yet"
+                description="Import an RSS feed or upload your first episode to see it here."
+                action={{ label: "Add episodes", href: "/dashboard/rss" }}
+              />
+            ) : (
+              <Card className="divide-y divide-zinc-100 overflow-hidden">
+                {recentEpisodes.map((ep) => (
+                  <Link key={ep.id} href={`/episodes/${ep.id}`}>
+                    <CardRow className="cursor-pointer px-4 py-3 hover:bg-zinc-50/60">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+                        {ep.artworkUrl ? (
+                          <img src={ep.artworkUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Mic size={14} className="text-zinc-400" strokeWidth={1.75} />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-zinc-950">{ep.title}</p>
+                        <p className="text-xs text-zinc-500">
+                          {ep.publishedAt ? new Date(ep.publishedAt).toLocaleDateString() : "Draft"}
+                        </p>
+                      </div>
+                      <ArrowRight size={14} className="shrink-0 text-zinc-300" />
+                    </CardRow>
+                  </Link>
+                ))}
+              </Card>
+            )}
+          </section>
+
+          <section>
+            <SectionHeader title="Quick access" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {quickLinks.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <Card interactive padding="md" className="flex h-full flex-col gap-2">
+                      <Icon size={16} className="text-zinc-400" strokeWidth={1.75} />
+                      <div>
+                        <p className="text-sm font-medium text-zinc-950">{item.label}</p>
+                        <p className="mt-0.5 text-xs text-zinc-500">{item.hint}</p>
+                      </div>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+        <aside className="space-y-6">
+          <section>
+            <SectionHeader title="Workspace setup" />
+            <Card padding="lg">
+              <div className="flex items-center gap-4">
+                <ProgressRing percent={setupPercent} />
+                <div>
+                  <p className="text-sm font-medium text-zinc-950">
+                    {doneCount} of {steps.length} essentials
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-500">Complete these to go fully live.</p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-1 border-t border-zinc-100 pt-4">
+                {steps.map((step) => {
                   const Icon = step.icon;
-                  return (
-                    <button
-                      key={step.id}
-                      type="button"
-                      disabled={step.done}
-                      onClick={() => navigate(step.href)}
-                      className="group grid w-full grid-cols-[40px_minmax(0,1fr)_28px] items-center gap-3 border-b border-black/[0.06] px-3 py-3 text-left transition last:border-b-0 hover:bg-neutral-50 disabled:cursor-default disabled:opacity-55"
-                    >
-                      <span
-                        className={`grid h-10 w-10 place-items-center rounded-xl ${
-                          index === 0 ? "bg-[#d8f34c] text-[#28300d]" : index === 1 ? "bg-[#ef5b97] text-white" : index === 2 ? "bg-[#7461dc] text-white" : "bg-neutral-100 text-neutral-500"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
+                  const row = (
+                    <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 hover:bg-zinc-50/60">
+                      {step.done ? (
+                        <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />
+                      ) : (
+                        <Circle size={15} className="shrink-0 text-zinc-200" />
+                      )}
+                      <Icon className={`h-3.5 w-3.5 shrink-0 ${step.done ? "text-zinc-300" : "text-zinc-400"}`} />
+                      <span className={`flex-1 text-xs font-medium ${step.done ? "text-zinc-400 line-through" : "text-zinc-950"}`}>
+                        {step.label}
                       </span>
-                      <span className="min-w-0">
-                        <strong className="block truncate font-podlogix-display text-sm font-semibold text-neutral-900">{step.label}</strong>
-                        <small className="mt-0.5 block truncate text-[8px] text-neutral-500">{step.done ? "Complete" : step.hint}</small>
-                      </span>
-                      <span className={`grid h-7 w-7 place-items-center rounded-full ${step.done ? "bg-[#7de5c8]/10 text-[#7de5c8]" : "text-neutral-500 group-hover:bg-[#ff6031] group-hover:text-white"}`}>
-                        {step.done ? <Check className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
+                    </div>
+                  );
+                  return step.done ? (
+                    <div key={step.id}>{row}</div>
+                  ) : (
+                    <Link key={step.id} href={step.href}>
+                      {row}
+                    </Link>
                   );
                 })}
               </div>
-            </section>
+            </Card>
+          </section>
 
-            <section className="rounded-[18px] border border-black/[0.06] bg-white shadow-sm p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-podlogix-display text-lg font-bold">Workspace setup</h3>
-                  <p className="mt-0.5 text-[9px] text-neutral-500">{doneCount} of {steps.length} essentials complete</p>
-                </div>
-                <span className="font-podlogix-display text-2xl font-bold text-[#ff8056]">{progress}%</span>
-              </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-100">
-                <div className="h-full rounded-full bg-[linear-gradient(90deg,#ff6031,#ff9a62)] transition-all" style={{ width: `${progress}%` }} />
-              </div>
-            </section>
-
-            <section className="rounded-[18px] bg-[linear-gradient(155deg,#9aefdd_0%,#42bddb_72%,#2b8fc4_100%)] p-3.5 text-[#173237] shadow-[0_18px_40px_rgba(49,162,196,0.14)]">
-              <div className="rounded-[14px] bg-[#171316] p-4 text-white">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/45">Content engine</p>
-                    <h3 className="mt-2 font-podlogix-display text-2xl font-bold leading-none">Your voice.<br />Everywhere.</h3>
-                  </div>
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#ff6031]">
-                    <Zap className="h-5 w-5" />
-                  </span>
-                </div>
-                <div className="mt-5 flex h-9 items-center gap-1" aria-hidden="true">
-                  {[10, 24, 16, 30, 19, 35, 14, 27, 20, 33, 15, 23, 31, 12, 26, 18, 34, 21, 11, 29].map((height, index) => (
-                    <span key={index} className="w-1 rounded-full bg-white/65" style={{ height }} />
-                  ))}
-                </div>
-              </div>
-              <div className="px-1 pb-1 pt-3">
-                <h3 className="font-podlogix-display text-xl font-bold leading-none">Ready for your next episode</h3>
-                <p className="mt-1 text-[9px] text-[#285159]">Generate clips, notes, newsletters and posts.</p>
-                <div className="mt-3 flex h-12 items-center rounded-xl bg-[#201113] px-3 text-white">
-                  <span className="mr-auto text-[8px] font-bold uppercase tracking-[0.14em] text-[#9c817d]">Start creating</span>
-                  <button type="button" aria-label="Previous" className="grid h-8 w-8 place-items-center rounded-full text-white/75 hover:bg-white/10">
-                    <TrendingUp className="h-3.5 w-3.5 -rotate-90" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={isPlaying ? "Pause preview" : "Play preview"}
-                    onClick={() => setIsPlaying((value) => !value)}
-                    className="mx-1 grid h-8 w-8 place-items-center rounded-full bg-white text-[#211214] transition hover:scale-105"
-                  >
-                    {isPlaying ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />}
-                  </button>
-                  <button type="button" onClick={() => navigate("/dashboard/ai")} aria-label="Open AI studio" className="grid h-8 w-8 place-items-center rounded-full text-white/75 hover:bg-white/10">
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            {platformEntries.length > 0 && (
-              <section>
-                <SectionTitle
-                  action={<span className="text-[9px] font-semibold text-neutral-500">{liveCount} live</span>}
-                >
-                  Distribution
-                </SectionTitle>
-                <div className="rounded-[18px] border border-black/[0.06] bg-white p-2">
-                  {platformEntries.slice(0, 5).map(([platform, status]) => (
-                    <Link key={platform} href="/dashboard/distribution" className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition hover:bg-neutral-50">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status === "approved" ? platformColors[platform] ?? "#ff8056" : "#d4d4d4" }} />
-                      <span className="flex-1 text-xs font-medium text-neutral-900">{platformNames[platform] ?? platform}</span>
-                      <span className={`text-[8px] font-bold uppercase tracking-wide ${status === "approved" ? "text-[#7de5c8]" : "text-neutral-500"}`}>
-                        {status === "approved" ? "Live" : status === "submitted" ? "Pending" : "Connect"}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-black/[0.06] bg-white p-3">
-                <Mic className="mb-2 h-4 w-4 text-[#ff8056]" />
-                <strong className="font-podlogix-display text-xl">{showCount}</strong>
-                <p className="text-[8px] text-neutral-500">Shows</p>
-              </div>
-              <div className="rounded-xl border border-black/[0.06] bg-white p-3">
-                <Radio className="mb-2 h-4 w-4 text-[#7de5c8]" />
-                <strong className="font-podlogix-display text-xl">{liveCount}</strong>
-                <p className="text-[8px] text-neutral-500">Live</p>
-              </div>
-              <div className="rounded-xl border border-black/[0.06] bg-white p-3">
-                <Clock3 className="mb-2 h-4 w-4 text-[#77cbe0]" />
-                <strong className="font-podlogix-display text-xl">{doneCount}</strong>
-                <p className="text-[8px] text-neutral-500">Ready</p>
-              </div>
-            </div>
-          </aside>
-        </div>
+          {data?.profile && (
+            <Link
+              href={`/p/${data.profile.slug}`}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700"
+            >
+              View your Link Page <ArrowRight size={12} />
+            </Link>
+          )}
+        </aside>
       </div>
     </div>
   );

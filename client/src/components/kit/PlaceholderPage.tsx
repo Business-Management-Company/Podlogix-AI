@@ -27,7 +27,7 @@ export function PlaceholderPage({
       variants={pageIn}
       initial="hidden"
       animate="show"
-      className="flex min-h-[calc(100vh-52px)] flex-col items-center justify-center px-8 py-16 text-center"
+      className="mx-auto flex min-h-[calc(100vh-52px)] w-full max-w-6xl flex-col items-start justify-center px-6 py-16 text-left"
     >
       <div
         className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl"
@@ -45,11 +45,11 @@ export function PlaceholderPage({
       <h2 className="mb-1.5 text-[19px] font-semibold tracking-[-0.02em] text-zinc-950">
         {title}
       </h2>
-      <p className="max-w-[380px] text-[13px] leading-relaxed text-zinc-400">{description}</p>
-      <Link href="/activity">
+      <p className="max-w-[420px] text-[13px] leading-relaxed text-zinc-400">{description}</p>
+      <Link href="/today">
         <span className="mt-6 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-950">
           <ArrowLeft size={12} />
-          Back to Activity
+          Back to Today
         </span>
       </Link>
     </motion.div>

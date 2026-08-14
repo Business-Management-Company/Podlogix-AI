@@ -179,7 +179,7 @@ export default function SocialAnalytics() {
   const [postsPlatform, setPostsPlatform] = useState("instagram");
   const [creatorPosts, setCreatorPosts] = useState<Post[]>([]);
 
-  const { data: myAccountsData, isLoading: myAccountsLoading, refetch: refetchMyAccounts } = useQuery<{ accounts: Analytics[] }>({
+  const { data: myAccountsData, isLoading: myAccountsLoading, error: myAccountsError, refetch: refetchMyAccounts } = useQuery<{ accounts: Analytics[] }>({
     queryKey: ["/api/social-analytics/my-accounts"],
   });
 
@@ -652,17 +652,25 @@ export default function SocialAnalytics() {
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin" />
                 </div>
+              ) : myAccountsError instanceof Error && myAccountsError.message.includes("not configured") ? (
+                <div className="text-left py-10 space-y-4">
+                  <BarChart3 className="w-12 h-12 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Analytics aren't set up yet</p>
+                    <p className="text-sm text-muted-foreground">This workspace's social analytics connection isn't configured.</p>
+                  </div>
+                </div>
               ) : myAccounts.length === 0 ? (
-                <div className="text-center py-10 space-y-4">
-                  <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground" />
+                <div className="text-left py-10 space-y-4">
+                  <BarChart3 className="w-12 h-12 text-muted-foreground" />
                   <div>
                     <p className="font-medium">No analytics available</p>
-                    <p className="text-sm text-muted-foreground">Connect your social accounts in the Social Hub to see analytics</p>
+                    <p className="text-sm text-muted-foreground">Add your Instagram, TikTok, YouTube, or X handle to your Link Page to see analytics here.</p>
                   </div>
                   <Button variant="outline" asChild>
-                    <a href="/dashboard/social-hub" data-testid="link-social-hub">
+                    <a href="/dashboard/profile" data-testid="link-social-hub">
                       <Link2 className="w-4 h-4 mr-2" />
-                      Go to Social Hub
+                      Go to Link Page
                     </a>
                   </Button>
                 </div>
@@ -1045,8 +1053,8 @@ export default function SocialAnalytics() {
                   <p className="text-xs text-muted-foreground">* Rates are suggestions based on industry standards. Actual rates may vary based on niche, content quality, and brand requirements.</p>
                 </div>
               ) : (
-                <div className="text-center py-12 space-y-4">
-                  <Calculator className="w-16 h-16 mx-auto text-muted-foreground" />
+                <div className="text-left py-12 space-y-4">
+                  <Calculator className="w-16 h-16 text-muted-foreground" />
                   <div>
                     <p className="font-medium">No rates calculated yet</p>
                     <p className="text-sm text-muted-foreground">Search for a profile or view your account analytics to calculate suggested rates</p>

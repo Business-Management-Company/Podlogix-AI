@@ -253,8 +253,8 @@ export default function EmailHub() {
             </div>
           ) : contacts.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <CardContent className="p-8 text-left">
+                <Users className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="font-semibold mb-2">No contacts yet</h3>
                 <p className="text-muted-foreground text-sm mb-4">Add your podcast guests, subscribers, and collaborators</p>
                 <Button onClick={() => setShowAddContact(true)} data-testid="button-add-first-contact">
@@ -318,8 +318,8 @@ export default function EmailHub() {
             </div>
           ) : campaigns.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <CardContent className="p-8 text-left">
+                <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="font-semibold mb-2">No campaigns yet</h3>
                 <p className="text-muted-foreground text-sm mb-4">Create your first email campaign</p>
                 <Button onClick={() => setShowCompose(true)} data-testid="button-create-first-campaign">

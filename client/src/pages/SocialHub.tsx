@@ -228,8 +228,8 @@ export default function SocialHub() {
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
             ) : accounts.length === 0 ? (
-              <div className="text-center py-8 space-y-4">
-                <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground" />
+              <div className="text-left py-8 space-y-4">
+                <AlertCircle className="w-12 h-12 text-muted-foreground" />
                 <p className="text-muted-foreground">No accounts connected yet</p>
                 <Button 
                   onClick={handleConnect} 
@@ -319,7 +319,7 @@ export default function SocialHub() {
           </CardHeader>
           <CardContent className="space-y-4">
             {accounts.length === 0 ? (
-              <div className="text-center py-8">
+              <div className="text-left py-8">
                 <p className="text-muted-foreground">Connect your accounts first to start posting</p>
               </div>
             ) : (
@@ -402,7 +402,7 @@ export default function SocialHub() {
               <Loader2 className="w-6 h-6 animate-spin" />
             </div>
           ) : posts.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-left py-8">
               <p className="text-muted-foreground">No posts yet. Create your first post above!</p>
             </div>
           ) : (

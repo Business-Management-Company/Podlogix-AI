@@ -223,18 +223,18 @@ export default function AiAssistant() {
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col">
           {!activeConversationId && !isStreaming ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <div className="flex-1 flex flex-col items-start justify-center p-8">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center max-w-2xl"
+                className="text-left max-w-2xl"
               >
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
                   <Sparkles className="h-10 w-10 text-primary" />
                 </div>
                 <h2 className="text-2xl font-bold mb-2">How can I help your podcast today?</h2>
                 <p className="text-muted-foreground mb-8">
-                  I can generate show notes, suggest viral clips, write descriptions, 
+                  I can generate show notes, suggest viral clips, write descriptions,
                   create episode titles, and more.
                 </p>
 
@@ -243,7 +243,7 @@ export default function AiAssistant() {
                     <Button
                       key={action.action}
                       variant="outline"
-                      className="h-auto py-4 flex flex-col items-center gap-2 hover-elevate"
+                      className="h-auto py-4 flex flex-col items-start gap-2 hover-elevate"
                       onClick={() => setInput(action.prompt)}
                       data-testid={`quick-action-${action.action}`}
                     >

@@ -138,8 +138,8 @@ export default function Distribution() {
         <h1 className="text-2xl font-semibold tracking-tight">Distribution</h1>
         {!podcast ? (
           <Card>
-            <CardContent className="pt-6 text-center">
-              <Radio className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <CardContent className="pt-6 text-left">
+              <Radio className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-4">Create a podcast first to manage distribution.</p>
               <Button asChild>
                 <Link href="/dashboard/rss">Setup Podcast</Link>
@@ -228,7 +228,7 @@ export default function Distribution() {
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
               transition={{ delay: 0.5 }}
-              className="text-center text-sm text-muted-foreground"
+              className="text-left text-sm text-muted-foreground"
             >
               <p>
                 Submissions typically take 24-48 hours to be reviewed. 
