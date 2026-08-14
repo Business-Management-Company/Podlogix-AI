@@ -63,20 +63,22 @@ interface NavItem {
   icon: LucideIcon;
   /** Active only on exact match (for index-style routes like /today). */
   exact?: boolean;
+  /** Panel section this item renders under. Items must stay grouped consecutively — omit for a pinned, unlabeled top item (e.g. Today). */
+  group?: string;
 }
 
 const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Today", url: "/today", icon: LayoutDashboard, exact: true },
-  { title: "Shows", url: "/shows", icon: Mic },
-  { title: "Episodes", url: "/episodes", icon: List },
-  { title: "Listen", url: "/listener", icon: Headphones },
-  { title: "Audience", url: "/audience", icon: Users },
-  { title: "Contacts", url: "/dashboard/email", icon: Contact },
-  { title: "Guests", url: "/guests", icon: UserPlus },
-  { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles },
-  { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video },
-  { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },
-  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck },
+  { title: "Shows", url: "/shows", icon: Mic, group: "Content" },
+  { title: "Episodes", url: "/episodes", icon: List, group: "Content" },
+  { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
+  { title: "Audience", url: "/audience", icon: Users, group: "Growth" },
+  { title: "Guests", url: "/guests", icon: UserPlus, group: "Growth" },
+  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Growth" },
+  { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Growth" },
+  { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
+  { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
+  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Protect" },
 ];
 
 const WORKSPACE_SETTINGS: NavItem[] = [
@@ -434,20 +436,26 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Nav items */}
           <nav className="flex-1 overflow-y-auto py-2 px-2 flex flex-col">
             <div className="flex-1">
-              {navMode === "workspace" && (
-                <div className="px-3 pt-1 pb-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Workspace</p>
-                </div>
-              )}
-              {panelItems.map((item) => {
+              {panelItems.map((item, idx) => {
                 const Icon = item.icon;
+                const prevGroup = idx > 0 ? panelItems[idx - 1].group : undefined;
+                const showGroupLabel = navMode === "workspace" && item.group && item.group !== prevGroup;
                 return (
-                  <Link key={item.url} href={item.url}>
-                    <div className={panelLinkClass(isItemActive(item))}>
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{item.title}</span>
-                    </div>
-                  </Link>
+                  <div key={item.url}>
+                    {showGroupLabel && (
+                      <div className="px-3 pt-3 pb-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                          {item.group}
+                        </p>
+                      </div>
+                    )}
+                    <Link href={item.url}>
+                      <div className={panelLinkClass(isItemActive(item))}>
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{item.title}</span>
+                      </div>
+                    </Link>
+                  </div>
                 );
               })}
 
@@ -527,31 +535,18 @@ export function AppLayout({ children }: AppLayoutProps) {
           )}
 
           {/* Search */}
-          <div className="flex-1 max-w-md">
+          <div className="flex-1 max-w-lg">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
               <Input
                 placeholder="Search anything..."
-                className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1 focus-visible:bg-background rounded-lg"
+                className="pl-8 h-9 text-sm bg-white border border-zinc-200 shadow-sm focus-visible:ring-1 focus-visible:border-zinc-300 rounded-lg"
               />
             </div>
           </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-1 ml-auto">
-            {/* AI Assistant */}
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setAiOpen(!aiOpen)}
-                  className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${aiOpen ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
-                >
-                  <Sparkles className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>AI Assistant</TooltipContent>
-            </Tooltip>
-
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Link href="/help">
@@ -620,6 +615,22 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* ── AI Assistant Floating Button ────────────────────────────────────── */}
+      {!aiOpen && (
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setAiOpen(true)}
+              className="fixed bottom-6 right-6 z-30 flex items-center justify-center w-12 h-12 rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-colors"
+              aria-label="Open AI Assistant"
+            >
+              <Sparkles className="h-5 w-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">AI Assistant</TooltipContent>
+        </Tooltip>
+      )}
 
       {/* ── AI Assistant Slide-out Panel ──────────────────────────────────── */}
 

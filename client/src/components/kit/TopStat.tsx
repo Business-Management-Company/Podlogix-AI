@@ -21,7 +21,7 @@ export function TopStat({ label, value, icon: Icon, href }: TopStatProps) {
         <Icon
           size={72}
           strokeWidth={1}
-          className="pointer-events-none absolute -right-3 -top-3 text-zinc-100 transition-colors group-hover:text-zinc-200"
+          className="pointer-events-none absolute -right-3 -top-3 text-zinc-200 transition-colors group-hover:text-zinc-300"
         />
         <p className="relative text-[11px] font-medium uppercase tracking-[0.07em] text-zinc-400">{label}</p>
         <p className="relative text-[30px] font-semibold leading-none tracking-[-0.02em] text-zinc-950 [font-variant-numeric:tabular-nums]">

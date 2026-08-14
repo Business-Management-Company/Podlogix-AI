@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
 import type { Episode } from "@shared/schema";
 import heroPhoto from "@/assets/images/podlogix-hero-photo.jpg";
 
@@ -90,8 +91,12 @@ function ProgressRing({ percent, size = 84, stroke = 9, color = "#10b981" }: { p
 }
 
 export default function Activity() {
+  const { user } = useAuth();
   const { data, isLoading } = useQuery<DashboardData>({ queryKey: ["/api/dashboard"] });
   const podcast = data?.podcasts?.[0];
+
+  const firstName = user?.firstName || "there";
+  const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
   const { data: episodes, isLoading: episodesLoading } = useQuery<Episode[]>({
     queryKey: ["/api/podcasts", podcast?.id, "episodes"],
@@ -145,9 +150,21 @@ export default function Activity() {
       <section className="mb-6">
         <div
           className="relative min-h-[280px] overflow-hidden rounded-[22px] bg-cover shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:min-h-[320px]"
-          style={{ backgroundImage: `url(${heroPhoto})`, backgroundPosition: "center 8%" }}
+          style={{ backgroundImage: `url(${heroPhoto})`, backgroundPosition: "center 28%" }}
         >
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(54,13,12,0.62)_0%,rgba(87,27,19,0.26)_43%,rgba(0,0,0,0)_64%)]" />
+          <div className="absolute left-6 top-5 z-20 flex flex-wrap items-center gap-x-4 gap-y-1 sm:left-8 sm:top-6 lg:left-10">
+            <p className="text-xs font-medium text-white/90">
+              Welcome back, {firstName} · {todayLabel}
+            </p>
+            <Link
+              href="/dashboard/certify"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-white underline decoration-white/50 underline-offset-2 hover:decoration-white"
+            >
+              Have you verified your voice yet?
+              <ArrowRight size={11} />
+            </Link>
+          </div>
           <div className="relative z-10 flex min-h-[280px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[320px] sm:p-8 lg:p-10">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#51251f]">
               Podlogix creator spotlight
