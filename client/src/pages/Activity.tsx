@@ -153,20 +153,20 @@ export default function Activity() {
           style={{ backgroundImage: `url(${heroPhoto})`, backgroundPosition: "center 28%" }}
         >
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(54,13,12,0.62)_0%,rgba(87,27,19,0.26)_43%,rgba(0,0,0,0)_64%)]" />
-          <div className="absolute left-6 top-5 z-20 flex flex-wrap items-center gap-x-4 gap-y-1 sm:left-8 sm:top-6 lg:left-10">
-            <p className="text-xs font-medium text-white/90">
+          <div className="absolute left-6 top-4 z-20 flex flex-wrap items-center gap-x-4 gap-y-1 sm:left-8 sm:top-5 lg:left-10">
+            <p className="text-sm font-medium text-white/90">
               Welcome back, {firstName} · {todayLabel}
             </p>
             <Link
               href="/dashboard/certify"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-white underline decoration-white/50 underline-offset-2 hover:decoration-white"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-white underline decoration-white/50 underline-offset-2 hover:decoration-white"
             >
               Have you verified your voice yet?
               <ArrowRight size={11} />
             </Link>
           </div>
-          <div className="relative z-10 flex min-h-[280px] max-w-[560px] flex-col items-start justify-center p-6 sm:min-h-[320px] sm:p-8 lg:p-10">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#51251f]">
+          <div className="relative z-10 flex min-h-[280px] max-w-[560px] flex-col items-start justify-center px-6 pb-6 pt-9 sm:min-h-[320px] sm:px-8 sm:pb-8 sm:pt-12 lg:px-10 lg:pb-10 lg:pt-14">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-white">
               Podlogix creator spotlight
             </p>
             <h2 className="font-podlogix-display max-w-[500px] text-[44px] font-extrabold uppercase leading-[0.84] tracking-[-0.035em] text-white sm:text-[60px] lg:text-[68px]">
