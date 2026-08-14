@@ -4,7 +4,7 @@ import {
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
-  adminCreatorList,
+  adminCreatorList, guestPipelineEntries,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -18,6 +18,7 @@ import {
   type CreatorSocialProfile, type InsertCreatorSocialProfile,
   type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
+  type GuestPipelineEntry, type InsertGuestPipelineEntry,
   type VideoAnalysis, type InsertVideoAnalysis,
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
@@ -137,9 +138,15 @@ export interface IStorage {
   deleteCreatorSocialProfile(id: string): Promise<void>;
   // Email Contacts
   getEmailContacts(userId: string): Promise<EmailContact[]>;
+  getEmailContact(id: string): Promise<EmailContact | undefined>;
   createEmailContact(contact: InsertEmailContact): Promise<EmailContact>;
   updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
   deleteEmailContact(id: string, userId: string): Promise<void>;
+  // Guest Pipeline
+  getGuestPipelineEntriesByPodcast(podcastId: string): Promise<GuestPipelineEntry[]>;
+  createGuestPipelineEntry(entry: InsertGuestPipelineEntry): Promise<GuestPipelineEntry>;
+  updateGuestPipelineEntry(id: string, updates: Partial<GuestPipelineEntry>): Promise<GuestPipelineEntry | undefined>;
+  deleteGuestPipelineEntry(id: string): Promise<void>;
   // Email Templates
   getEmailTemplates(userId: string): Promise<EmailTemplate[]>;
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
@@ -661,6 +668,11 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(emailContacts.createdAt));
   }
 
+  async getEmailContact(id: string): Promise<EmailContact | undefined> {
+    const [contact] = await db.select().from(emailContacts).where(eq(emailContacts.id, id));
+    return contact;
+  }
+
   async createEmailContact(contact: InsertEmailContact): Promise<EmailContact> {
     const [created] = await db.insert(emailContacts).values(contact).returning();
     return created;
@@ -676,6 +688,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEmailContact(id: string, userId: string): Promise<void> {
     await db.delete(emailContacts).where(and(eq(emailContacts.id, id), eq(emailContacts.userId, userId)));
+  }
+
+  // Guest Pipeline
+  async getGuestPipelineEntriesByPodcast(podcastId: string): Promise<GuestPipelineEntry[]> {
+    return await db.select().from(guestPipelineEntries)
+      .where(eq(guestPipelineEntries.podcastId, podcastId))
+      .orderBy(desc(guestPipelineEntries.createdAt));
+  }
+
+  async createGuestPipelineEntry(entry: InsertGuestPipelineEntry): Promise<GuestPipelineEntry> {
+    const [created] = await db.insert(guestPipelineEntries).values(entry).returning();
+    return created;
+  }
+
+  async updateGuestPipelineEntry(id: string, updates: Partial<GuestPipelineEntry>): Promise<GuestPipelineEntry | undefined> {
+    const [updated] = await db.update(guestPipelineEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(guestPipelineEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteGuestPipelineEntry(id: string): Promise<void> {
+    await db.delete(guestPipelineEntries).where(eq(guestPipelineEntries.id, id));
   }
 
   // Email Templates

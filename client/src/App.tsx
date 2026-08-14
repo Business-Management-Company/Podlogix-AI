@@ -50,6 +50,7 @@ import SocialHub from "@/pages/SocialHub";
 import ShowPromotion from "@/pages/ShowPromotion";
 import ShowOverview from "@/pages/ShowOverview";
 import SocialAnalytics from "@/pages/SocialAnalytics";
+import Guests from "@/pages/Guests";
 import DashboardCertify from "@/pages/DashboardCertify";
 import DashboardCertifyLikeness from "@/pages/DashboardCertifyLikeness";
 import ListenerDashboard from "@/pages/ListenerDashboard";
@@ -136,6 +137,7 @@ function AuthenticatedRoutes() {
         <Route path="/episodes/:episodeId" component={EpisodeDetail} />
         {/* TODO Phase 9: split SocialAnalytics into a real Audience experience */}
         <Route path="/audience" component={SocialAnalytics} />
+        <Route path="/guests" component={Guests} />
 
         {/* ── Show context ── */}
         <Route path="/shows/:id" component={ShowOverview} />

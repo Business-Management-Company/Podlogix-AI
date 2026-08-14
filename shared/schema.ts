@@ -680,6 +680,29 @@ export type InsertEmailCampaign = z.infer<typeof insertEmailCampaignSchema>;
 export type EmailCampaignRecipient = typeof emailCampaignRecipients.$inferSelect;
 export type InsertEmailCampaignRecipient = z.infer<typeof insertEmailCampaignRecipientSchema>;
 
+// Guest Pipeline (tracks an email_contacts row with category "guest" through a
+// show's booking pipeline — no separate guest identity table, contacts stay
+// the single source of truth for name/email/notes).
+export const guestPipelineEntries = pgTable("guest_pipeline_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  podcastId: varchar("podcast_id").notNull(),
+  contactId: varchar("contact_id").notNull(), // -> email_contacts.id
+  stage: varchar("stage").notNull().default("prospect"), // prospect, invited, booked, recorded, published, follow_up, alumni
+  episodeId: varchar("episode_id"), // -> episodes.id, set once recorded/published
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertGuestPipelineEntrySchema = createInsertSchema(guestPipelineEntries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type GuestPipelineEntry = typeof guestPipelineEntries.$inferSelect;
+export type InsertGuestPipelineEntry = z.infer<typeof insertGuestPipelineEntrySchema>;
+
 // YouTube Video Analysis
 export const videoAnalyses = pgTable("video_analyses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

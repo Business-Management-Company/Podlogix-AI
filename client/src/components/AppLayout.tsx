@@ -40,6 +40,7 @@ import {
   Contact,
   Headphones,
   Video,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,6 +72,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Listen", url: "/listener", icon: Headphones },
   { title: "Audience", url: "/audience", icon: Users },
   { title: "Contacts", url: "/dashboard/email", icon: Contact },
+  { title: "Guests", url: "/guests", icon: UserPlus },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2 },

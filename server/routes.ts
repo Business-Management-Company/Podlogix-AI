@@ -3508,6 +3508,100 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // ==================== GUEST PIPELINE ROUTES ====================
+  // Tracks an email_contacts row (category "guest") through a show's booking
+  // pipeline. Contacts stay the single source of truth for name/email/notes;
+  // this table only stores stage/episode linkage per podcast.
+
+  app.get('/api/podcasts/:podcastId/guests', isAuthenticated, async (req: any, res) => {
+    try {
+      const podcast = await storage.getPodcast(req.params.podcastId);
+      if (!podcast) {
+        return res.status(404).json({ message: 'Podcast not found' });
+      }
+      if (podcast.userId !== req.session.userId) {
+        return res.status(403).json({ message: 'Not your podcast' });
+      }
+
+      const entries = await storage.getGuestPipelineEntriesByPodcast(req.params.podcastId);
+      const guests = await Promise.all(
+        entries.map(async (entry) => ({
+          ...entry,
+          contact: await storage.getEmailContact(entry.contactId),
+        }))
+      );
+      res.json(guests);
+    } catch (error) {
+      console.error('Error getting guest pipeline:', error);
+      res.status(500).json({ message: 'Failed to get guests' });
+    }
+  });
+
+  app.post('/api/podcasts/:podcastId/guests', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const podcast = await storage.getPodcast(req.params.podcastId);
+      if (!podcast) {
+        return res.status(404).json({ message: 'Podcast not found' });
+      }
+      if (podcast.userId !== userId) {
+        return res.status(403).json({ message: 'Not your podcast' });
+      }
+
+      const { contactId, email, firstName, lastName, notes, stage } = req.body;
+
+      const contact = contactId
+        ? await storage.getEmailContact(contactId)
+        : await storage.createEmailContact({
+            userId,
+            email,
+            firstName,
+            lastName,
+            category: 'guest',
+          });
+
+      if (!contact) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+
+      const entry = await storage.createGuestPipelineEntry({
+        podcastId: req.params.podcastId,
+        contactId: contact.id,
+        stage: stage || 'prospect',
+        notes,
+      });
+
+      res.status(201).json({ ...entry, contact });
+    } catch (error) {
+      console.error('Error creating guest pipeline entry:', error);
+      res.status(500).json({ message: 'Failed to add guest' });
+    }
+  });
+
+  app.patch('/api/guest-pipeline/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { stage, episodeId, notes } = req.body;
+      const entry = await storage.updateGuestPipelineEntry(req.params.id, { stage, episodeId, notes });
+      if (!entry) {
+        return res.status(404).json({ message: 'Guest pipeline entry not found' });
+      }
+      res.json(entry);
+    } catch (error) {
+      console.error('Error updating guest pipeline entry:', error);
+      res.status(500).json({ message: 'Failed to update guest' });
+    }
+  });
+
+  app.delete('/api/guest-pipeline/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteGuestPipelineEntry(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting guest pipeline entry:', error);
+      res.status(500).json({ message: 'Failed to delete guest' });
+    }
+  });
+
   // Get email templates
   app.get('/api/email/templates', isAuthenticated, async (req: any, res) => {
     try {
