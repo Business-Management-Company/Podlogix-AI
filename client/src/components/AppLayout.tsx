@@ -43,6 +43,7 @@ import {
   UserPlus,
   Fingerprint,
   Compass,
+  BookMarked,
   type LucideIcon,
 } from "lucide-react";
 
@@ -78,6 +79,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
   { title: "Posts", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Social" },
+  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Social" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
   { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Identity" },
