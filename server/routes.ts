@@ -4133,24 +4133,32 @@ Respond in this exact JSON format:
 
       const data = await response.json();
 
+      // Upload-Post's real response nests connections at profiles[0].social_accounts,
+      // keyed by platform — an empty string means "not connected", an object means it is.
+      const profile = Array.isArray(data.profiles) ? data.profiles[0] : null;
+      const socialAccounts = profile?.social_accounts || {};
+      const connected = Object.entries(socialAccounts).filter(
+        ([, value]) => value && typeof value === 'object'
+      ) as [string, { display_name?: string; handle?: string; social_images?: string }][];
+
       // Sync accounts to local database
       await storage.deleteUploadPostAccountsByUser(userId);
-      if (data.accounts && Array.isArray(data.accounts)) {
-        for (const account of data.accounts) {
-          await storage.createUploadPostAccount({
-            userId,
-            uploadPostUsername,
-            platform: account.platform || account.type,
-            platformAccountId: account.id?.toString(),
-            platformUsername: account.username || account.name,
-            profileUrl: account.profile_url,
-            profilePictureUrl: account.avatar || account.profile_picture,
-            isConnected: true,
-          });
-        }
+      const accounts = [];
+      for (const [platform, account] of connected) {
+        const created = await storage.createUploadPostAccount({
+          userId,
+          uploadPostUsername,
+          platform,
+          platformAccountId: null,
+          platformUsername: (account.handle || account.display_name || platform).replace(/^@/, ''),
+          profileUrl: null,
+          profilePictureUrl: account.social_images || null,
+          isConnected: true,
+        });
+        accounts.push(created);
       }
 
-      res.json({ hasProfile: true, ...data });
+      res.json({ hasProfile: true, accounts });
     } catch (error) {
       console.error('Error fetching Upload-Post accounts:', error);
       res.status(500).json({ message: 'Failed to fetch accounts' });

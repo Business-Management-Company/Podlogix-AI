@@ -296,7 +296,7 @@ export default function Activity() {
           <TopStat label="Episodes" value={String(episodes?.length ?? 0)} icon={Mic} href="/episodes" />
           <TopStat label="Published" value={String(publishedCount)} icon={CheckCircle2} href="/episodes" />
           <TopStat label="Live channels" value={String(liveCount)} icon={Radio} href="/dashboard/distribution" />
-          <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href="/audience" />
+          <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href="/dashboard/social-hub" />
         </Card>
       </section>
 

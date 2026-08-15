@@ -42,6 +42,7 @@ import {
   Video,
   UserPlus,
   Fingerprint,
+  Compass,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,10 +74,10 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Shows", url: "/shows", icon: Mic, group: "Content" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Content" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
-  { title: "Audience", url: "/audience", icon: Users, group: "Growth" },
-  { title: "Guests", url: "/guests", icon: UserPlus, group: "Growth" },
-  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Growth" },
-  { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Growth" },
+  { title: "Guests", url: "/guests", icon: UserPlus, group: "Communication" },
+  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
+  { title: "Posts", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Social" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
   { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Identity" },
@@ -110,7 +111,8 @@ interface RailItem {
 const RAIL_ITEMS: RailItem[] = [
   { title: "Today", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
   { title: "Content", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Content" },
-  { title: "Growth", icon: Users, url: "/audience", isActive: (leaf) => leaf?.group === "Growth" },
+  { title: "Communication", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Communication" },
+  { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
   { title: "Studio", icon: Sparkles, url: "/dashboard/ai", isActive: (leaf) => leaf?.group === "Studio" },
   { title: "Identity", icon: ShieldCheck, url: "/dashboard/certify", isActive: (leaf) => leaf?.group === "Identity" },
 ];
