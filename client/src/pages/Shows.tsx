@@ -28,13 +28,13 @@ function Artwork({ src, alt }: { src?: string | null; alt: string }) {
       <img
         src={src}
         alt={alt}
-        className="h-14 w-14 shrink-0 rounded-lg object-cover border border-zinc-200"
+        className="aspect-square w-full rounded-lg object-cover border border-zinc-200"
       />
     );
   }
   return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-100 border border-zinc-200">
-      <Mic size={20} className="text-zinc-400" strokeWidth={1.75} />
+    <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-zinc-100 border border-zinc-200">
+      <Mic size={40} className="text-zinc-300" strokeWidth={1.5} />
     </div>
   );
 }
@@ -54,15 +54,15 @@ function ShowCard({
 }) {
   return (
     <Link href={href}>
-      <Card interactive padding="md" className="flex items-center gap-4 h-full">
+      <Card interactive padding="md" className="flex h-full flex-col gap-4">
         <Artwork src={artworkUrl} alt={title} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-zinc-950">{title}</p>
+        <div className="min-w-0">
+          <p className="truncate text-lg font-semibold text-zinc-950">{title}</p>
           {subtitle && (
-            <p className="mt-0.5 truncate text-xs text-zinc-500">{subtitle}</p>
+            <p className="mt-1 truncate text-sm text-zinc-500">{subtitle}</p>
           )}
           {badge && (
-            <span className="mt-1.5 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
+            <span className="mt-2 inline-block rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-600">
               {badge}
             </span>
           )}
@@ -121,7 +121,7 @@ export default function Shows() {
             action={{ label: "Add a show", href: "/dashboard/rss" }}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:max-w-2xl">
             {showBuzzsproutCard && buzzsproutConn && (
               <ShowCard
                 href="/shows/buzzsprout"
@@ -156,9 +156,9 @@ export default function Shows() {
                 tone="dashed"
                 interactive
                 padding="md"
-                className="flex h-full min-h-[88px] items-center justify-center gap-2 text-zinc-500 hover:text-zinc-700"
+                className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-700"
               >
-                <Plus size={16} strokeWidth={1.75} />
+                <Plus size={24} strokeWidth={1.75} />
                 <span className="text-sm font-medium">Add a show</span>
               </Card>
             </Link>

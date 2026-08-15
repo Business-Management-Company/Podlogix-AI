@@ -413,6 +413,23 @@ export default function Activity() {
           </div>
 
           <section>
+            <SectionHeader title="Quick access" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {quickLinks.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <Card interactive padding="sm" className="flex flex-row items-center gap-2.5">
+                      <Icon size={15} className="shrink-0 text-zinc-400" strokeWidth={1.75} />
+                      <p className="truncate text-sm font-medium text-zinc-950">{item.label}</p>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+
+          <section>
             <SectionHeader title="Recent episodes" action={{ label: "All episodes", href: "/episodes" }} />
             {episodesLoading ? (
               <Skeleton className="h-40 rounded-xl" />
@@ -447,26 +464,6 @@ export default function Activity() {
                 ))}
               </Card>
             )}
-          </section>
-
-          <section>
-            <SectionHeader title="Quick access" />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {quickLinks.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <Card interactive padding="md" className="flex h-full flex-col gap-2">
-                      <Icon size={16} className="text-zinc-400" strokeWidth={1.75} />
-                      <div>
-                        <p className="text-sm font-medium text-zinc-950">{item.label}</p>
-                        <p className="mt-0.5 text-xs text-zinc-500">{item.hint}</p>
-                      </div>
-                    </Card>
-                  </Link>
-                );
-              })}
-            </div>
           </section>
         </div>
 

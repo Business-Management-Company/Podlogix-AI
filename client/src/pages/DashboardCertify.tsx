@@ -232,7 +232,7 @@ export default function DashboardCertify() {
       <main className="mx-auto w-full max-w-6xl px-6 py-8">
         <h1 className="text-2xl font-semibold tracking-tight mb-6">Voice Certification</h1>
         <div className="mb-12">
-          <div className="text-center mb-6">
+          <div className="mb-6">
             <p className="text-sm font-medium text-muted-foreground mb-1">
               Step {currentStep} of {STEPS.length}
             </p>
@@ -245,18 +245,18 @@ export default function DashboardCertify() {
             <Progress value={(currentStep / STEPS.length) * 100} className="h-2" />
             <div className="flex justify-between mt-2">
               {STEPS.map((step, i) => (
-                <div 
+                <div
                   key={i}
                   className={`flex flex-col items-center ${
-                    i + 1 <= currentStep ? 'text-green-600' : 'text-muted-foreground'
+                    i + 1 <= currentStep ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  <div 
+                  <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                      i + 1 < currentStep 
-                        ? 'bg-green-600 text-white' 
+                      i + 1 < currentStep
+                        ? 'bg-primary text-primary-foreground'
                         : i + 1 === currentStep
-                        ? 'border-2 border-green-600 bg-background'
+                        ? 'border-2 border-primary bg-background'
                         : 'border-2 border-muted bg-background'
                     }`}
                   >
