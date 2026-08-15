@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BadgeCheck,
+  CheckCircle2,
+  ChevronDown,
   Compass,
   Filter,
   Heart,
@@ -10,7 +13,7 @@ import {
   Play,
   Search,
   Share2,
-  Sparkles,
+  UserPlus,
   Users,
   Zap,
 } from "lucide-react";
@@ -18,9 +21,10 @@ import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type Mode = "search" | "handle" | "lookalikes";
+type BrandMode = "search" | "lookalikes";
 
 interface Creator {
   handle: string;
@@ -42,6 +46,7 @@ interface FullProfile extends Creator {
   postsCount?: number;
   avgLikes?: number;
   avgComments?: number;
+  email?: string | null;
 }
 
 interface CreditsInfo {
@@ -59,9 +64,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   twitch: "Twitch",
 };
 
-const MODES: { id: Mode; label: string; description: string }[] = [
+const BRAND_MODES: { id: BrandMode; label: string; description: string }[] = [
   { id: "search", label: "Search", description: "Filter 340M+ creators by niche, location, and follower count" },
-  { id: "handle", label: "Handle", description: "Pull full analytics for one known profile" },
   { id: "lookalikes", label: "Lookalikes", description: "Find creators similar to a profile you already like" },
 ];
 
@@ -177,9 +181,19 @@ function FullProfileCard({ profile }: { profile: FullProfile }) {
 }
 
 export default function SocialDiscover() {
-  const [mode, setMode] = useState<Mode>("search");
-  const [handleInput, setHandleInput] = useState("");
-  const [platform, setPlatform] = useState("instagram");
+  const { toast } = useToast();
+
+  // ── Primary: guest research ──
+  const [guestHandle, setGuestHandle] = useState("");
+  const [guestPlatform, setGuestPlatform] = useState("instagram");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [addedForHandle, setAddedForHandle] = useState<string | null>(null);
+
+  // ── Secondary: brand-matching tools ──
+  const [showBrandTools, setShowBrandTools] = useState(false);
+  const [brandMode, setBrandMode] = useState<BrandMode>("search");
+  const [brandHandle, setBrandHandle] = useState("");
+  const [brandPlatform, setBrandPlatform] = useState("instagram");
   const [niche, setNiche] = useState("");
   const [location, setLocation] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -189,12 +203,57 @@ export default function SocialDiscover() {
   });
   const credits = creditsData?.credits?.available;
   const creditsTone =
-    credits === undefined ? "neutral" : credits < 5 ? "text-red-600 bg-red-50 border-red-200" : credits < 20 ? "text-amber-600 bg-amber-50 border-amber-200" : "text-zinc-600 bg-zinc-50 border-zinc-200";
+    credits === undefined
+      ? "neutral"
+      : credits < 5
+        ? "text-red-600 bg-red-50 border-red-200"
+        : credits < 20
+          ? "text-amber-600 bg-amber-50 border-amber-200"
+          : "text-zinc-600 bg-zinc-50 border-zinc-200";
+
+  const { data: dashboardData } = useQuery<{ podcasts: { id: string; title: string }[] }>({
+    queryKey: ["/api/dashboard"],
+  });
+  const podcast = dashboardData?.podcasts?.[0];
+
+  const guestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/social-analytics/profile", {
+        handle: guestHandle.trim(),
+        platform: guestPlatform,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setGuestEmail(data?.analytics?.email || "");
+      setAddedForHandle(null);
+    },
+  });
+  const guestResult: FullProfile | null = guestMutation.data?.analytics ?? null;
+
+  const addToPipelineMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/podcasts/${podcast!.id}/guests`, {
+        email: guestEmail.trim(),
+        firstName: guestResult?.name || guestResult?.handle,
+        notes: `Researched via Discover — @${guestResult?.handle} on ${PLATFORM_LABELS[guestResult?.platform || ""] || guestResult?.platform}`,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setAddedForHandle(guestResult?.handle ?? null);
+      queryClient.invalidateQueries({ queryKey: ["/api/podcasts", podcast?.id, "guests"] });
+      toast({ title: "Added to Guest Pipeline" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add guest", variant: "destructive" });
+    },
+  });
 
   const searchMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/social-analytics/discover", {
-        platform,
+        platform: brandPlatform,
         niche: niche || undefined,
         location: location || undefined,
         limit: 25,
@@ -203,42 +262,31 @@ export default function SocialDiscover() {
     },
   });
 
-  const handleMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/social-analytics/profile", {
-        handle: handleInput.trim(),
-        platform,
-      });
-      return res.json();
-    },
-  });
-
   const lookalikesMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/social-analytics/lookalikes", {
-        handle: handleInput.trim(),
-        platform,
+        handle: brandHandle.trim(),
+        platform: brandPlatform,
         limit: 20,
       });
       return res.json();
     },
   });
 
-  const activeMutation = mode === "search" ? searchMutation : mode === "handle" ? handleMutation : lookalikesMutation;
-  const canSubmit = mode === "search" ? true : handleInput.trim().length > 0;
-
-  const runSearch = () => {
-    if (mode === "search") searchMutation.mutate();
-    else if (mode === "handle") handleMutation.mutate();
+  const activeBrandMutation = brandMode === "search" ? searchMutation : lookalikesMutation;
+  const canSubmitBrand = brandMode === "search" ? true : brandHandle.trim().length > 0;
+  const runBrandSearch = () => {
+    if (brandMode === "search") searchMutation.mutate();
     else lookalikesMutation.mutate();
   };
 
   const searchResults: Creator[] = searchMutation.data?.creators ?? [];
   const lookalikeResults: Creator[] = lookalikesMutation.data?.lookalikes ?? [];
-  const handleResult: FullProfile | null = handleMutation.data?.analytics ?? null;
 
   const notConfigured =
-    activeMutation.error instanceof Error && activeMutation.error.message.includes("not configured");
+    guestMutation.error instanceof Error && guestMutation.error.message.includes("not configured");
+  const brandNotConfigured =
+    activeBrandMutation.error instanceof Error && activeBrandMutation.error.message.includes("not configured");
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
@@ -246,7 +294,7 @@ export default function SocialDiscover() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Discover</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Search creators, check a specific handle, or find lookalikes — powered by Influencers.club.
+            Research a potential guest before you book them — powered by Influencers.club.
           </p>
         </div>
         {credits !== undefined && (
@@ -256,43 +304,19 @@ export default function SocialDiscover() {
         )}
       </div>
 
+      {/* ── Primary: research a guest ── */}
       <section className="mb-6">
-        <div className="mb-4 flex gap-2">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                mode === m.id ? "bg-zinc-950 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <p className="mb-3 text-xs text-zinc-500">{MODES.find((m) => m.id === mode)?.description}</p>
-
+        <SectionHeader title="Research a guest" />
         <Card padding="lg">
           <div className="flex flex-col gap-2 sm:flex-row">
-            {mode !== "search" && (
-              <Input
-                placeholder="e.g. @shawnryan762 or shawnryan762"
-                value={handleInput}
-                onChange={(e) => setHandleInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && canSubmit && runSearch()}
-                className="flex-1"
-              />
-            )}
-            {mode === "search" && (
-              <Input
-                placeholder="e.g. sustainable fashion, military transition, personal finance"
-                value={niche}
-                onChange={(e) => setNiche(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                className="flex-1"
-              />
-            )}
-            <Select value={platform} onValueChange={setPlatform}>
+            <Input
+              placeholder="e.g. @shawnryan762 or shawnryan762"
+              value={guestHandle}
+              onChange={(e) => setGuestHandle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && guestHandle.trim() && guestMutation.mutate()}
+              className="flex-1"
+            />
+            <Select value={guestPlatform} onValueChange={setGuestPlatform}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -304,95 +328,202 @@ export default function SocialDiscover() {
                 <SelectItem value="twitch">Twitch</SelectItem>
               </SelectContent>
             </Select>
-            {mode === "search" && (
-              <Button variant="outline" onClick={() => setShowFilters((v) => !v)}>
-                <Filter className="mr-1.5 h-3.5 w-3.5" />
-                Filters
-              </Button>
-            )}
-            <Button onClick={runSearch} disabled={!canSubmit || activeMutation.isPending}>
-              {activeMutation.isPending ? (
+            <Button
+              onClick={() => guestMutation.mutate()}
+              disabled={!guestHandle.trim() || guestMutation.isPending}
+            >
+              {guestMutation.isPending ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (
                 <Search className="mr-1.5 h-4 w-4" />
               )}
-              {mode === "search" ? "Search" : mode === "handle" ? "Look up" : "Find lookalikes"}
+              Look up
             </Button>
           </div>
-
-          {mode === "search" && showFilters && (
-            <div className="mt-4 border-t border-zinc-100 pt-4">
-              <Input
-                placeholder="Location, e.g. United States"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="max-w-xs"
-              />
-            </div>
-          )}
-
-          {activeMutation.isError && (
+          {guestMutation.isError && (
             <p className="mt-3 text-xs text-red-600">
               {notConfigured
                 ? "Analytics aren't configured for this workspace yet."
-                : "That search didn't work — double check the input and try again."}
+                : "Couldn't find that profile — double check the handle and platform."}
             </p>
           )}
         </Card>
+
+        {guestMutation.isPending ? null : !guestResult ? (
+          <div className="mt-4">
+            <EmptyState
+              icon={Search}
+              title="Look up a potential guest"
+              description="Enter a handle to see their audience size and engagement before you reach out."
+            />
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <FullProfileCard profile={guestResult} />
+            <Card padding="lg">
+              {!podcast ? (
+                <p className="text-xs text-zinc-500">
+                  Connect a show to start tracking guests.{" "}
+                  <Link href="/dashboard/rss" className="underline hover:text-zinc-700">
+                    Connect a show →
+                  </Link>
+                </p>
+              ) : addedForHandle === guestResult.handle ? (
+                <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                  <CheckCircle2 size={15} />
+                  Added to your Guest Pipeline
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    placeholder="Email — required to track as a guest"
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={() => addToPipelineMutation.mutate()}
+                    disabled={!guestEmail.trim() || addToPipelineMutation.isPending}
+                  >
+                    {addToPipelineMutation.isPending ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="mr-1.5 h-4 w-4" />
+                    )}
+                    Add to Guest Pipeline
+                  </Button>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
       </section>
 
+      {/* ── Secondary: brand-matching tools ── */}
       <section>
-        {mode === "search" && (
-          <>
-            <SectionHeader title={searchResults.length ? `${searchResults.length} creators` : "Results"} />
-            {searchMutation.isPending ? null : searchResults.length === 0 ? (
-              <EmptyState
-                icon={Compass}
-                title="Search for creators"
-                description="Enter a niche and pick a platform to start discovering creators."
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {searchResults.map((c) => (
-                  <CreatorCard key={`${c.platform}-${c.handle}`} creator={c} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+        <button
+          onClick={() => setShowBrandTools((v) => !v)}
+          className="mb-3 flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-zinc-600"
+        >
+          <ChevronDown size={13} className={`transition-transform ${showBrandTools ? "rotate-180" : ""}`} />
+          Looking for brand-matching search instead?
+        </button>
 
-        {mode === "handle" && (
-          <>
-            <SectionHeader title="Profile" />
-            {handleMutation.isPending ? null : !handleResult ? (
-              <EmptyState
-                icon={Sparkles}
-                title="Look up a creator"
-                description="Enter a handle to pull their full analytics."
-              />
-            ) : (
-              <FullProfileCard profile={handleResult} />
-            )}
-          </>
-        )}
+        {showBrandTools && (
+          <div className="rounded-xl border border-dashed border-zinc-200 p-4">
+            <div className="mb-3 flex gap-2">
+              {BRAND_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setBrandMode(m.id)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    brandMode === m.id ? "bg-zinc-800 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="mb-3 text-xs text-zinc-500">{BRAND_MODES.find((m) => m.id === brandMode)?.description}</p>
 
-        {mode === "lookalikes" && (
-          <>
-            <SectionHeader title={lookalikeResults.length ? `${lookalikeResults.length} similar creators` : "Results"} />
-            {lookalikesMutation.isPending ? null : lookalikeResults.length === 0 ? (
-              <EmptyState
-                icon={Zap}
-                title="Find similar creators"
-                description="Enter a handle to find creators with a similar audience and content style."
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {lookalikeResults.map((c) => (
-                  <CreatorCard key={`${c.platform}-${c.handle}`} creator={c} />
-                ))}
+            <Card padding="lg">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {brandMode === "lookalikes" && (
+                  <Input
+                    placeholder="e.g. @shawnryan762 or shawnryan762"
+                    value={brandHandle}
+                    onChange={(e) => setBrandHandle(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && canSubmitBrand && runBrandSearch()}
+                    className="flex-1"
+                  />
+                )}
+                {brandMode === "search" && (
+                  <Input
+                    placeholder="e.g. sustainable fashion, military transition, personal finance"
+                    value={niche}
+                    onChange={(e) => setNiche(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && runBrandSearch()}
+                    className="flex-1"
+                  />
+                )}
+                <Select value={brandPlatform} onValueChange={setBrandPlatform}>
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="twitter">X (Twitter)</SelectItem>
+                    <SelectItem value="twitch">Twitch</SelectItem>
+                  </SelectContent>
+                </Select>
+                {brandMode === "search" && (
+                  <Button variant="outline" onClick={() => setShowFilters((v) => !v)}>
+                    <Filter className="mr-1.5 h-3.5 w-3.5" />
+                    Filters
+                  </Button>
+                )}
+                <Button onClick={runBrandSearch} disabled={!canSubmitBrand || activeBrandMutation.isPending}>
+                  {activeBrandMutation.isPending ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="mr-1.5 h-4 w-4" />
+                  )}
+                  {brandMode === "search" ? "Search" : "Find lookalikes"}
+                </Button>
               </div>
-            )}
-          </>
+
+              {brandMode === "search" && showFilters && (
+                <div className="mt-4 border-t border-zinc-100 pt-4">
+                  <Input
+                    placeholder="Location, e.g. United States"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+              )}
+
+              {activeBrandMutation.isError && (
+                <p className="mt-3 text-xs text-red-600">
+                  {brandNotConfigured
+                    ? "Analytics aren't configured for this workspace yet."
+                    : "That search didn't work — double check the input and try again."}
+                </p>
+              )}
+            </Card>
+
+            <div className="mt-4">
+              {brandMode === "search" ? (
+                searchMutation.isPending ? null : searchResults.length === 0 ? (
+                  <EmptyState
+                    icon={Compass}
+                    title="Search for creators"
+                    description="Enter a niche and pick a platform to start discovering creators."
+                  />
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {searchResults.map((c) => (
+                      <CreatorCard key={`${c.platform}-${c.handle}`} creator={c} />
+                    ))}
+                  </div>
+                )
+              ) : lookalikesMutation.isPending ? null : lookalikeResults.length === 0 ? (
+                <EmptyState
+                  icon={Zap}
+                  title="Find similar creators"
+                  description="Enter a handle to find creators with a similar audience and content style."
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {lookalikeResults.map((c) => (
+                    <CreatorCard key={`${c.platform}-${c.handle}`} creator={c} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </section>
     </div>
