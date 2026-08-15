@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real } from "drizzle-orm/pg-core";
 export { serial };
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -717,6 +717,34 @@ export const insertGuestPipelineEntrySchema = createInsertSchema(guestPipelineEn
 
 export type GuestPipelineEntry = typeof guestPipelineEntries.$inferSelect;
 export type InsertGuestPipelineEntry = z.infer<typeof insertGuestPipelineEntrySchema>;
+
+// Saved Creators (Discover results saved into a free-text named list/directory —
+// lighter than a full Lists/Directories system, just enough to group saved research)
+export const savedCreators = pgTable("saved_creators", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  listName: varchar("list_name").notNull().default("Saved creators"),
+  handle: varchar("handle").notNull(),
+  platform: varchar("platform").notNull(),
+  name: varchar("name"),
+  profilePictureUrl: text("profile_picture_url"),
+  followers: integer("followers"),
+  engagementRate: real("engagement_rate"),
+  avgLikes: real("avg_likes"),
+  avgViews: real("avg_views"),
+  email: varchar("email"),
+  bio: text("bio"),
+  isVerified: boolean("is_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSavedCreatorSchema = createInsertSchema(savedCreators).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SavedCreator = typeof savedCreators.$inferSelect;
+export type InsertSavedCreator = z.infer<typeof insertSavedCreatorSchema>;
 
 // YouTube Video Analysis
 export const videoAnalyses = pgTable("video_analyses", {

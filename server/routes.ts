@@ -3710,6 +3710,61 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // ==================== SAVED CREATORS (DIRECTORY) ====================
+
+  app.get('/api/discover/saved', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const saved = await storage.getSavedCreatorsByUser(userId);
+      res.json({ creators: saved });
+    } catch (error) {
+      console.error('Error fetching saved creators:', error);
+      res.status(500).json({ message: 'Failed to fetch saved creators' });
+    }
+  });
+
+  app.post('/api/discover/saved', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { listName, handle, platform, name, profilePictureUrl, followers, engagementRate, avgLikes, avgViews, email, bio, isVerified } = req.body;
+
+      if (!handle || !platform) {
+        return res.status(400).json({ message: 'handle and platform are required' });
+      }
+
+      const created = await storage.createSavedCreator({
+        userId,
+        listName: listName?.trim() || 'Saved creators',
+        handle,
+        platform,
+        name,
+        profilePictureUrl,
+        followers,
+        engagementRate,
+        avgLikes,
+        avgViews,
+        email,
+        bio,
+        isVerified,
+      });
+      res.status(201).json(created);
+    } catch (error) {
+      console.error('Error saving creator:', error);
+      res.status(500).json({ message: 'Failed to save creator' });
+    }
+  });
+
+  app.delete('/api/discover/saved/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      await storage.deleteSavedCreator(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting saved creator:', error);
+      res.status(500).json({ message: 'Failed to delete saved creator' });
+    }
+  });
+
   // Get email templates
   app.get('/api/email/templates', isAuthenticated, async (req: any, res) => {
     try {

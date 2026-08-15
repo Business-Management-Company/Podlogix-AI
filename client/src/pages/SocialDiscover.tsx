@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BadgeCheck,
+  BookmarkPlus,
   CheckCircle2,
   Heart,
   Loader2,
@@ -114,6 +115,8 @@ export default function SocialDiscover() {
   const [guestPlatform, setGuestPlatform] = useState("instagram");
   const [guestEmail, setGuestEmail] = useState("");
   const [addedForHandle, setAddedForHandle] = useState<string | null>(null);
+  const [listName, setListName] = useState("Saved creators");
+  const [savedForHandle, setSavedForHandle] = useState<string | null>(null);
 
   const { data: creditsData } = useQuery<{ credits: CreditsInfo }>({
     queryKey: ["/api/social-analytics/credits"],
@@ -144,9 +147,38 @@ export default function SocialDiscover() {
     onSuccess: (data) => {
       setGuestEmail(data?.analytics?.email || "");
       setAddedForHandle(null);
+      setSavedForHandle(null);
     },
   });
   const guestResult: FullProfile | null = guestMutation.data?.analytics ?? null;
+
+  const saveToDirectoryMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/discover/saved", {
+        listName: listName.trim() || "Saved creators",
+        handle: guestResult?.handle,
+        platform: guestResult?.platform,
+        name: guestResult?.name,
+        profilePictureUrl: guestResult?.profilePicture,
+        followers: guestResult?.followers,
+        engagementRate: guestResult?.engagementRate,
+        avgLikes: guestResult?.avgLikes,
+        avgViews: guestResult?.avgViews,
+        email: guestResult?.email,
+        bio: guestResult?.bio,
+        isVerified: guestResult?.isVerified,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setSavedForHandle(guestResult?.handle ?? null);
+      queryClient.invalidateQueries({ queryKey: ["/api/discover/saved"] });
+      toast({ title: "Saved to directory" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save creator", variant: "destructive" });
+    },
+  });
 
   const addToPipelineMutation = useMutation({
     mutationFn: async () => {
@@ -241,6 +273,35 @@ export default function SocialDiscover() {
         ) : (
           <div className="mt-4 space-y-3">
             <FullProfileCard profile={guestResult} />
+            <Card padding="lg">
+              {savedForHandle === guestResult.handle ? (
+                <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                  <CheckCircle2 size={15} />
+                  Saved to "{listName.trim() || "Saved creators"}"
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    placeholder="List name"
+                    value={listName}
+                    onChange={(e) => setListName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => saveToDirectoryMutation.mutate()}
+                    disabled={saveToDirectoryMutation.isPending}
+                  >
+                    {saveToDirectoryMutation.isPending ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <BookmarkPlus className="mr-1.5 h-4 w-4" />
+                    )}
+                    Save to Directory
+                  </Button>
+                </div>
+              )}
+            </Card>
             <Card padding="lg">
               {!podcast ? (
                 <p className="text-xs text-zinc-500">

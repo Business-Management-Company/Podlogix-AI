@@ -4,7 +4,7 @@ import {
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
-  adminCreatorList, guestPipelineEntries,
+  adminCreatorList, guestPipelineEntries, savedCreators,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -19,6 +19,7 @@ import {
   type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
   type GuestPipelineEntry, type InsertGuestPipelineEntry,
+  type SavedCreator, type InsertSavedCreator,
   type VideoAnalysis, type InsertVideoAnalysis,
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
@@ -150,6 +151,9 @@ export interface IStorage {
   createGuestPipelineEntry(entry: InsertGuestPipelineEntry): Promise<GuestPipelineEntry>;
   updateGuestPipelineEntry(id: string, updates: Partial<GuestPipelineEntry>): Promise<GuestPipelineEntry | undefined>;
   deleteGuestPipelineEntry(id: string): Promise<void>;
+  getSavedCreatorsByUser(userId: string): Promise<SavedCreator[]>;
+  createSavedCreator(entry: InsertSavedCreator): Promise<SavedCreator>;
+  deleteSavedCreator(id: string, userId: string): Promise<void>;
   // Email Templates
   getEmailTemplates(userId: string): Promise<EmailTemplate[]>;
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
@@ -738,6 +742,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGuestPipelineEntry(id: string): Promise<void> {
     await db.delete(guestPipelineEntries).where(eq(guestPipelineEntries.id, id));
+  }
+
+  async getSavedCreatorsByUser(userId: string): Promise<SavedCreator[]> {
+    return await db.select().from(savedCreators)
+      .where(eq(savedCreators.userId, userId))
+      .orderBy(desc(savedCreators.createdAt));
+  }
+
+  async createSavedCreator(entry: InsertSavedCreator): Promise<SavedCreator> {
+    const [created] = await db.insert(savedCreators).values(entry).returning();
+    return created;
+  }
+
+  async deleteSavedCreator(id: string, userId: string): Promise<void> {
+    await db.delete(savedCreators).where(and(eq(savedCreators.id, id), eq(savedCreators.userId, userId)));
   }
 
   // Email Templates
