@@ -41,6 +41,7 @@ import {
   Headphones,
   Video,
   UserPlus,
+  Fingerprint,
   type LucideIcon,
 } from "lucide-react";
 
@@ -78,20 +79,18 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Growth" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
-  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck },
+  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Identity" },
+  { title: "Identity Protection", url: "/identity", icon: Shield, group: "Identity" },
+  { title: "Likeness Certification", url: "/dashboard/certify-likeness", icon: Fingerprint, group: "Identity" },
+  { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Settings" },
+  { title: "Connected apps", url: "/connectors", icon: Plug, group: "Settings" },
+  { title: "Workspace Settings", url: "/settings", icon: Settings, group: "Settings" },
 ];
 
-const WORKSPACE_SETTINGS: NavItem[] = [
-  { title: "Link Page", url: "/dashboard/profile", icon: Link2 },
-  { title: "Connected apps", url: "/connectors", icon: Plug },
-  { title: "Identity Protection", url: "/identity", icon: Shield },
-  { title: "Workspace Settings", url: "/settings", icon: Settings },
-];
-
-// Rail bottom cluster mirrors the panel's Settings group essentials.
-const RAIL_BOTTOM: NavItem[] = [
-  { title: "Connected apps", url: "/connectors", icon: Plug },
-  { title: "Settings", url: "/settings", icon: Settings },
+// Rail bottom cluster — quick-access shortcuts into the Settings group above.
+const RAIL_BOTTOM: RailItem[] = [
+  { title: "Connected apps", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
+  { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
 ];
 
 interface RailItem {
@@ -113,7 +112,7 @@ const RAIL_ITEMS: RailItem[] = [
   { title: "Content", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Content" },
   { title: "Growth", icon: Users, url: "/audience", isActive: (leaf) => leaf?.group === "Growth" },
   { title: "Studio", icon: Sparkles, url: "/dashboard/ai", isActive: (leaf) => leaf?.group === "Studio" },
-  { title: "Voice Certification", icon: ShieldCheck, url: "/dashboard/certify", isActive: (leaf) => leaf?.title === "Voice Certification" },
+  { title: "Identity", icon: ShieldCheck, url: "/dashboard/certify", isActive: (leaf) => leaf?.group === "Identity" },
 ];
 
 /** Nav for a single show's context — shown in the panel when inside /shows/:id. */
@@ -221,16 +220,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       ? showNavItems(showId!)
       : [WORKSPACE_PRIMARY.find((i) => i.exact)!, ...activeGroupItems];
 
-  // Rail bottom (Connected apps/Settings) active state — separate from
-  // activeLeaf since those live outside WORKSPACE_PRIMARY.
-  const railBottomActiveUrl = (() => {
-    let best: string | null = null;
-    for (const item of RAIL_BOTTOM) {
-      if (location.startsWith(item.url) && (!best || item.url.length > best.length)) best = item.url;
-    }
-    return best;
-  })();
-
   const panelLinkClass = (active: boolean) =>
     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${
       active
@@ -324,7 +313,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className={`flex flex-col gap-1 py-3 border-t border-white/[0.06] ${railExpanded ? "px-2" : "items-center"}`}>
 
           {RAIL_BOTTOM.map((item) => {
-            const isActive = railBottomActiveUrl === item.url;
+            const isActive = item.isActive(activeLeaf);
             const Icon = item.icon;
             const btn = (
               <Link href={item.url}>
@@ -499,25 +488,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </div>
                 );
               })}
-
-              {navMode === "workspace" && (
-                <>
-                  <div className="px-3 pt-5 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Settings</p>
-                  </div>
-                  {WORKSPACE_SETTINGS.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link key={item.url} href={item.url}>
-                        <div className={panelLinkClass(isItemActive(item))}>
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span>{item.title}</span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </>
-              )}
             </div>
 
             {/* Help — always at bottom, always shown */}
