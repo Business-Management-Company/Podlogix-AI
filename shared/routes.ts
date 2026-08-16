@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { 
   insertSubscriberSchema, insertMessageSchema, insertIdentityAssetSchema, 
-  insertProfileSchema, insertProfileLinkSchema, insertPodcastSchema, insertRssFeedSchema, insertEpisodeSchema,
-  subscribers, messages, identityAssets, profiles, profileLinks, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions
+  insertProfileSchema, insertProfileLinkSchema, insertProfileSectionSchema, insertPodcastSchema, insertRssFeedSchema, insertEpisodeSchema,
+  subscribers, messages, identityAssets, profiles, profileLinks, profileSections, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions
 } from './schema';
 
 export const errorSchemas = {
@@ -113,6 +113,7 @@ export const api = {
         200: z.object({
           profile: z.custom<typeof profiles.$inferSelect>(),
           links: z.array(z.custom<typeof profileLinks.$inferSelect>()),
+          sections: z.array(z.custom<typeof profileSections.$inferSelect>()),
         }),
         404: errorSchemas.notFound,
       },

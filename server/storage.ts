@@ -1,12 +1,12 @@
 import { db } from "./db";
 import { 
-  subscribers, messages, identityAssets, profiles, profileLinks, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions,
+  subscribers, messages, identityAssets, profiles, profileLinks, profileSections, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList, guestPipelineEntries, savedCreators,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
-  type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type Podcast, type InsertPodcast,
+  type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
   type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
@@ -46,6 +46,11 @@ export interface IStorage {
   getProfileLinks(profileId: string): Promise<ProfileLink[]>;
   updateProfileLink(id: string, updates: Partial<ProfileLink>): Promise<ProfileLink | undefined>;
   deleteProfileLink(id: string): Promise<void>;
+  // Profile Sections
+  createProfileSection(section: InsertProfileSection): Promise<ProfileSection>;
+  getProfileSections(profileId: string): Promise<ProfileSection[]>;
+  updateProfileSection(id: string, updates: Partial<ProfileSection>): Promise<ProfileSection | undefined>;
+  deleteProfileSection(id: string): Promise<void>;
   // Podcasts
   createPodcast(podcast: InsertPodcast): Promise<Podcast>;
   getPodcastsByUserId(userId: string): Promise<Podcast[]>;
@@ -271,6 +276,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProfileLink(id: string): Promise<void> {
     await db.delete(profileLinks).where(eq(profileLinks.id, id));
+  }
+
+  // Profile Sections
+  async createProfileSection(insertSection: InsertProfileSection): Promise<ProfileSection> {
+    const [section] = await db.insert(profileSections).values(insertSection).returning();
+    return section;
+  }
+
+  async getProfileSections(profileId: string): Promise<ProfileSection[]> {
+    return await db.select().from(profileSections).where(eq(profileSections.profileId, profileId)).orderBy(asc(profileSections.order));
+  }
+
+  async updateProfileSection(id: string, updates: Partial<ProfileSection>): Promise<ProfileSection | undefined> {
+    const [updated] = await db.update(profileSections).set(updates).where(eq(profileSections.id, id)).returning();
+    return updated;
+  }
+
+  async deleteProfileSection(id: string): Promise<void> {
+    await db.delete(profileSections).where(eq(profileSections.id, id));
   }
 
   // Podcasts

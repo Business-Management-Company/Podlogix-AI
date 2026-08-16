@@ -125,6 +125,51 @@ export type IdentityAsset = typeof identityAssets.$inferSelect;
 export type InsertIdentityAsset = z.infer<typeof insertIdentityAssetSchema>;
 
 // Podcaster Profiles (public Linktree-style pages)
+/** Full design/theme settings for a profile page — mirrors the page builder's Design tab. */
+export interface ProfileDesignSettings {
+  themeColor: string;
+  bgMode: "solid" | "gradient" | "image";
+  bgColor: string;
+  bgImageUrl?: string;
+  cardStyle: "round" | "square" | "shadow" | "glass";
+  fontFamily: string;
+  darkMode: boolean;
+  shade: "none" | "minimal" | "light" | "color" | "dark";
+  linkShape: "pill" | "rounded" | "square" | "squircle";
+  linkStyle: "fill" | "outline" | "soft-shadow" | "hard-shadow";
+  linkColor: string;
+  showBranding: boolean;
+  showProfileImage: boolean;
+  showHeroImage: boolean;
+  showUsername: boolean;
+  profileImageSize: "s" | "m" | "l";
+  template?: string;
+  showSocialIcons?: boolean;
+  socialIconsOrder?: string[];
+  socialIconsEnabled?: Record<string, boolean>;
+}
+
+export const DEFAULT_PROFILE_DESIGN_SETTINGS: ProfileDesignSettings = {
+  themeColor: "#E75427",
+  bgMode: "solid",
+  bgColor: "#ffffff",
+  cardStyle: "round",
+  fontFamily: "Inter",
+  darkMode: false,
+  shade: "none",
+  linkShape: "pill",
+  linkStyle: "fill",
+  linkColor: "#E75427",
+  showBranding: true,
+  showProfileImage: true,
+  showHeroImage: true,
+  showUsername: true,
+  profileImageSize: "m",
+  showSocialIcons: true,
+  socialIconsOrder: [],
+  socialIconsEnabled: {},
+};
+
 export const profiles = pgTable("profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -133,10 +178,15 @@ export const profiles = pgTable("profiles", {
   headline: text("headline"),
   bio: text("bio"),
   heroImageUrl: text("hero_image_url"),
+  heroImageFormat: varchar("hero_image_format").default("portrait"), // portrait, landscape, full_blend
   avatarUrl: text("avatar_url"),
-  theme: varchar("theme").default("default"), // default, dark, vibrant, etc.
+  // Deprecated — superseded by designSettings.themeColor. Left in place to avoid an ambiguous
+  // rename migration; no code reads these anymore.
+  theme: varchar("theme").default("default"),
   accentColor: varchar("accent_color").default("#6366f1"),
   isPublished: boolean("is_published").default(false),
+  // Full Design-tab settings (color, shade, font, link style, background, branding, ...)
+  designSettings: jsonb("design_settings").$type<ProfileDesignSettings>().default(DEFAULT_PROFILE_DESIGN_SETTINGS),
   // Social icons displayed at top of profile
   socialIcons: jsonb("social_icons").$type<{ platform: string; url: string }[]>().default([]),
   // YouTube video embed
@@ -147,7 +197,7 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Profile Links (items on the profile page)
+// Profile Links (legacy flat links — retained for existing data; new content lives in profileSections)
 export const profileLinks = pgTable("profile_links", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   profileId: varchar("profile_id").notNull(),
@@ -159,6 +209,65 @@ export const profileLinks = pgTable("profile_links", {
   clickCount: integer("click_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+/** Content-block types selectable from the "Add Content" picker on the profile page builder. */
+export type ProfileSectionType =
+  | "section_title"
+  | "custom_links"
+  | "featured_video"
+  | "podcast"
+  | "book_meeting"
+  | "promo_codes"
+  | "tips"
+  | "streaming_channel"
+  | "books"
+  | "store"
+  | "blog";
+
+export interface ProfileSectionCatalogEntry {
+  type: ProfileSectionType;
+  label: string;
+  description: string;
+  icon: string;
+  comingSoon: boolean;
+}
+
+export const PROFILE_SECTION_CATALOG: ProfileSectionCatalogEntry[] = [
+  { type: "section_title", label: "Section Title / Divider", description: "Organize your content into named groups", icon: "Type", comingSoon: false },
+  { type: "custom_links", label: "Custom Links", description: "Add unlimited custom links with groupings", icon: "Link", comingSoon: false },
+  { type: "featured_video", label: "Featured Video", description: "Highlight a video from your media library", icon: "Clapperboard", comingSoon: false },
+  { type: "podcast", label: "Podcast", description: "Showcase your podcast and episodes", icon: "Mic", comingSoon: false },
+  { type: "book_meeting", label: "Book a Meeting", description: "Let visitors schedule time with you", icon: "CalendarCheck", comingSoon: false },
+  { type: "promo_codes", label: "Promo Codes", description: "Share discount codes and special offers", icon: "Ticket", comingSoon: false },
+  { type: "tips", label: "Tips / Support Me", description: "Accept tips and donations from supporters", icon: "HandCoins", comingSoon: true },
+  { type: "streaming_channel", label: "My Streaming Channel", description: "Show your live streams and replays", icon: "MonitorPlay", comingSoon: true },
+  { type: "books", label: "Books", description: "Showcase your published books", icon: "BookOpen", comingSoon: true },
+  { type: "store", label: "Store", description: "Sell products directly from your page", icon: "ShoppingBag", comingSoon: true },
+  { type: "blog", label: "Blog", description: "Display your subscribers", icon: "Mail", comingSoon: true },
+];
+
+// Profile Sections (flexible content blocks on the profile page builder)
+export const profileSections = pgTable("profile_sections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").notNull(),
+  type: varchar("type").$type<ProfileSectionType>().notNull(),
+  label: varchar("label").notNull(),
+  visible: boolean("visible").default(true),
+  order: integer("order").default(0),
+  // References the id of a section_title section this belongs to, if grouped
+  groupId: varchar("group_id"),
+  // Section-specific configuration (links, URLs, toggles, etc.)
+  config: jsonb("config").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProfileSectionSchema = createInsertSchema(profileSections).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ProfileSection = typeof profileSections.$inferSelect;
+export type InsertProfileSection = z.infer<typeof insertProfileSectionSchema>;
 
 // Podcasts
 export const podcasts = pgTable("podcasts", {

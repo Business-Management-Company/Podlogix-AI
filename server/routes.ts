@@ -33,6 +33,7 @@ import {
 import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssService";
 import { generatePodcastFeedXml } from "./services/feedService";
 import { insertEpisodeSchema } from "@shared/schema";
+import { insertProfileSectionSchema } from "@shared/schema";
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
 import { transcribeEpisode, processEpisodeBriefing } from "./services/briefingService";
 import { syncAllSubscriptionsForUser, processAutoBriefingsForUser, syncEpisodesForPodcastFeed } from "./services/episodeSyncService";
@@ -1346,8 +1347,9 @@ export async function registerRoutes(
       return res.status(404).json({ message: 'Profile not found' });
     }
     const links = await storage.getProfileLinks(profile.id);
+    const sections = await storage.getProfileSections(profile.id);
     const socialProfiles = await storage.getCreatorSocialProfilesByUser(profile.userId);
-    res.json({ profile, links, socialProfiles });
+    res.json({ profile, links, sections, socialProfiles });
   });
 
   // Profile Links endpoints (protected)
@@ -1387,6 +1389,46 @@ export async function registerRoutes(
 
   app.delete('/api/profile/links/:id', isAuthenticated, async (req: any, res) => {
     await storage.deleteProfileLink(req.params.id);
+    res.status(204).send();
+  });
+
+  // Profile Sections endpoints (protected) — content blocks on the page builder
+  app.get('/api/profile/sections', isAuthenticated, async (req: any, res) => {
+    const userId = req.session.userId!;
+    const profile = await storage.getProfileByUserId(userId);
+    if (!profile) return res.json([]);
+    const sections = await storage.getProfileSections(profile.id);
+    res.json(sections);
+  });
+
+  app.post('/api/profile/sections', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const profile = await storage.getProfileByUserId(userId);
+      if (!profile) {
+        return res.status(400).json({ message: 'Create a profile first' });
+      }
+      const input = insertProfileSectionSchema.parse({ ...req.body, profileId: profile.id });
+      const section = await storage.createProfileSection(input);
+      res.status(201).json(section);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      throw err;
+    }
+  });
+
+  app.patch('/api/profile/sections/:id', isAuthenticated, async (req: any, res) => {
+    const updated = await storage.updateProfileSection(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ message: 'Section not found' });
+    }
+    res.json(updated);
+  });
+
+  app.delete('/api/profile/sections/:id', isAuthenticated, async (req: any, res) => {
+    await storage.deleteProfileSection(req.params.id);
     res.status(204).send();
   });
 
