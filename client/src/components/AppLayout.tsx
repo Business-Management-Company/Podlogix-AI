@@ -77,6 +77,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
   { title: "Guests", url: "/guests", icon: UserPlus, group: "Communication" },
   { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
+  { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Posts", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Social" },
   { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Social" },
@@ -85,7 +86,6 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Identity" },
   { title: "Identity Protection", url: "/identity", icon: Shield, group: "Identity" },
   { title: "Likeness Certification", url: "/dashboard/certify-likeness", icon: Fingerprint, group: "Identity" },
-  { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Settings" },
   { title: "Connected apps", url: "/connectors", icon: Plug, group: "Settings" },
   { title: "Workspace Settings", url: "/settings", icon: Settings, group: "Settings" },
 ];
