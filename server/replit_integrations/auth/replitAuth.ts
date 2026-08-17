@@ -668,3 +668,24 @@ export const isSuperAdmin: RequestHandler = async (req, res, next) => {
     return res.status(500).json({ message: "Error checking admin status" });
   }
 };
+
+// Allowlist for early-access features being tested by a single account before wider rollout.
+const BETA_TESTER_EMAILS = new Set(["andrew@podlogix.co"]);
+
+export const isBetaTester: RequestHandler = async (req, res, next) => {
+  const userId = req.session.userId;
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const dbUser = (req as any).dbUser || await authStorage.getUser(userId);
+    if (!dbUser?.email || !BETA_TESTER_EMAILS.has(dbUser.email)) {
+      return res.status(403).json({ message: "Forbidden: Beta access required" });
+    }
+    (req as any).dbUser = dbUser;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ message: "Error checking beta access" });
+  }
+};

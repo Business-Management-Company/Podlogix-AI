@@ -52,6 +52,7 @@ import ShowOverview from "@/pages/ShowOverview";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import SocialDiscover from "@/pages/SocialDiscover";
 import Directory from "@/pages/Directory";
+import MediaLab from "@/pages/MediaLab";
 import Guests from "@/pages/Guests";
 import DashboardCertify from "@/pages/DashboardCertify";
 import DashboardCertifyLikeness from "@/pages/DashboardCertifyLikeness";
@@ -216,6 +217,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/social-hub" component={SocialHub} />
         <Route path="/social/discover" component={SocialDiscover} />
         <Route path="/social/directory" component={Directory} />
+        <Route path="/media-lab" component={MediaLab} />
         <Route path="/dashboard/social-analytics" component={SocialAnalytics} />
         <Route path="/dashboard/certify" component={DashboardCertify} />
         <Route path="/dashboard/certify-likeness" component={DashboardCertifyLikeness} />

@@ -44,6 +44,7 @@ import {
   Fingerprint,
   Compass,
   BookMarked,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -502,6 +503,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <span>Help Center</span>
                 </div>
               </Link>
+
+              {/* Beta features — visible only to allowlisted accounts being used to test them */}
+              {user?.email === "andrew@podlogix.co" && navMode === "workspace" && (
+                <>
+                  <div className="px-3 pt-4 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Beta</p>
+                  </div>
+                  <Link href="/media-lab">
+                    <div className={panelLinkClass(location.startsWith("/media-lab"))}>
+                      <FlaskConical className="h-4 w-4 shrink-0" />
+                      <span>Media Lab</span>
+                    </div>
+                  </Link>
+                </>
+              )}
 
               {/* Admin-only items — below Help */}
               {adminCheck?.isSuperAdmin && navMode === "workspace" && (
