@@ -201,6 +201,12 @@ export default function Activity() {
     retry: false,
   });
 
+  // Locally-cached Upload-Post connections (synced whenever Social Hub loads).
+  const { data: socialAccounts } = useQuery<{ accounts: { isConnected: boolean }[] }>({
+    queryKey: ["/api/upload-post/local-accounts"],
+    retry: false,
+  });
+
   const { data: calendarStatus, isLoading: calendarStatusLoading } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/calendar/google/status"],
   });
@@ -292,10 +298,16 @@ export default function Activity() {
       </section>
 
       <section className="mb-6">
-        <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-4 sm:divide-y-0">
+        <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-5 sm:divide-y-0">
           <TopStat label="Episodes" value={String(episodes?.length ?? 0)} icon={Mic} href="/episodes" />
           <TopStat label="Published" value={String(publishedCount)} icon={CheckCircle2} href="/episodes" />
           <TopStat label="Live channels" value={String(liveCount)} icon={Radio} href="/dashboard/distribution" />
+          <TopStat
+            label="Socials connected"
+            value={String(socialAccounts?.accounts?.filter((a) => a.isConnected).length ?? 0)}
+            icon={Share2}
+            href="/dashboard/social-hub"
+          />
           <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href="/dashboard/social-hub" />
         </Card>
       </section>

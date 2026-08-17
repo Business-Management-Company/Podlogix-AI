@@ -291,6 +291,24 @@ export default function AdminDashboard() {
     enabled: adminCheck?.isAdmin === true,
   });
 
+  interface AdminFinancials {
+    services: { name: string; purpose: string; monthlyUsd: number | null; notes?: string }[];
+    fixedTotalUsd: number;
+    icCredits: { available: number; used: number } | null;
+    icCreditUsd: number;
+    ffmpegConsumption: {
+      used_minutes: number;
+      remaining_minutes: number;
+      quota_minutes: number;
+      plan: string;
+    } | null;
+  }
+
+  const { data: financials, isLoading: financialsLoading } = useQuery<AdminFinancials>({
+    queryKey: ["/api/admin/financials"],
+    enabled: adminCheck?.isSuperAdmin === true,
+  });
+
   const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     enabled: adminCheck?.isAdmin === true,
@@ -690,7 +708,7 @@ export default function AdminDashboard() {
         </motion.div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+          <TabsList className={`grid w-full ${adminCheck.isSuperAdmin ? "grid-cols-7 max-w-5xl" : "grid-cols-6 max-w-4xl"}`}>
             <TabsTrigger value="overview" data-testid="tab-overview">
               <Activity className="h-4 w-4 mr-2" />
               Overview
@@ -715,6 +733,12 @@ export default function AdminDashboard() {
               <UserCheck className="h-4 w-4 mr-2" />
               Team
             </TabsTrigger>
+            {adminCheck.isSuperAdmin && (
+              <TabsTrigger value="financials" data-testid="tab-financials">
+                <DollarSign className="h-4 w-4 mr-2" />
+                Financials
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -1613,6 +1637,104 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {adminCheck.isSuperAdmin && (
+            <TabsContent value="financials" className="space-y-6">
+              {financialsLoading || !financials ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-32 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">Fixed subscriptions</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          ${financials.fixedTotalUsd.toFixed(0)}/mo
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {financials.services.filter((s) => s.monthlyUsd === null).length > 0
+                            ? "plus usage-based services below"
+                            : "all plans priced"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">influencers.club credits</CardTitle>
+                        <Search className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {financials.icCredits ? financials.icCredits.available.toFixed(0) : "—"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {financials.icCredits
+                            ? `${financials.icCredits.used.toFixed(0)} used to date · $${financials.icCreditUsd.toFixed(2)}/credit · full lookup = 1 credit`
+                            : "API key not configured"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">Upload-Post FFmpeg minutes</CardTitle>
+                        <Activity className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {financials.ffmpegConsumption
+                            ? `${financials.ffmpegConsumption.remaining_minutes.toFixed(0)} left`
+                            : "—"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {financials.ffmpegConsumption
+                            ? `of ${financials.ffmpegConsumption.quota_minutes}/mo · ${financials.ffmpegConsumption.plan} plan · resets monthly`
+                            : "Consumption API unavailable"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Platform services</CardTitle>
+                      <CardDescription>
+                        Fixed plans are maintained in code — flag me when a plan changes. Metered costs pull live.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="divide-y">
+                        {financials.services.map((service) => (
+                          <div key={service.name} className="flex items-start justify-between gap-4 py-3">
+                            <div className="min-w-0">
+                              <p className="font-medium">{service.name}</p>
+                              <p className="text-sm text-muted-foreground">{service.purpose}</p>
+                              {service.notes && (
+                                <p className="text-xs text-muted-foreground/70">{service.notes}</p>
+                              )}
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {service.monthlyUsd === null ? (
+                                <Badge variant="secondary">usage-based</Badge>
+                              ) : (
+                                <span className="font-semibold">${service.monthlyUsd.toFixed(0)}/mo</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* View Creator Dialog */}
