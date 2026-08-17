@@ -26,6 +26,8 @@ interface UploadPostAccount {
   platformUsername: string;
   profilePictureUrl: string | null;
   isConnected: boolean;
+  /** Token expired on the platform side — the creator must reconnect (Upload-Post reauth_required). */
+  reauthRequired?: boolean;
 }
 
 interface UploadPostPost {
@@ -250,16 +252,30 @@ export default function SocialHub() {
                         )}
                       </p>
                     </div>
-                    <Badge variant={account.isConnected ? "default" : "secondary"} className="shrink-0">
-                      {account.isConnected ? (
-                        <>
-                          <CheckCircle2 className="mr-1 h-3 w-3" />
-                          Connected
-                        </>
-                      ) : (
-                        "Disconnected"
-                      )}
-                    </Badge>
+                    {account.reauthRequired ? (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge variant="destructive">Reconnect needed</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => connectMutation.mutate([account.platform.toLowerCase()])}
+                          disabled={connectMutation.isPending}
+                        >
+                          Reconnect
+                        </Button>
+                      </div>
+                    ) : (
+                      <Badge variant={account.isConnected ? "default" : "secondary"} className="shrink-0">
+                        {account.isConnected ? (
+                          <>
+                            <CheckCircle2 className="mr-1 h-3 w-3" />
+                            Connected
+                          </>
+                        ) : (
+                          "Disconnected"
+                        )}
+                      </Badge>
+                    )}
                   </CardRow>
                 );
               })}

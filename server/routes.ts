@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, authStorage } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
@@ -4252,7 +4252,9 @@ Respond in this exact JSON format:
           profilePictureUrl: account.social_images || null,
           isConnected: true,
         });
-        accounts.push(created);
+        // reauth_required=true on an account object means its token expired and the
+        // creator has to go back through the connect flow (per Upload-Post support).
+        accounts.push({ ...created, reauthRequired: (account as any).reauth_required === true });
       }
 
       res.json({ hasProfile: true, accounts });
@@ -4343,6 +4345,139 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error fetching posts:', error);
       res.status(500).json({ message: 'Failed to fetch posts' });
+    }
+  });
+
+  // ============ MEDIA LAB (Upload-Post FFmpeg Editor + AI Shorts APIs) — beta, gated to allowlisted accounts ============
+  // Note: Upload-Post's public docs say the AI Shorts analyzer is dashboard-only, but their support
+  // confirmed (Aug 2026) that POST /api/uploadposts/analyze-shorts works over the API with our key.
+  // Quota (300 analyses/mo on Professional) is counted per account email, not per key.
+
+  app.post('/api/media-lab/analyze-shorts', isAuthenticated, isBetaTester, async (req: any, res) => {
+    try {
+      const { videoUrl, platforms } = req.body ?? {};
+      if (!videoUrl || !Array.isArray(platforms) || platforms.length === 0) {
+        return res.status(400).json({ message: 'videoUrl and platforms (non-empty array) are required' });
+      }
+
+      // Pull the video from storage and forward it as multipart — Upload-Post only accepts a file here.
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) {
+        return res.status(400).json({ message: 'Could not fetch the uploaded video' });
+      }
+      const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+      const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+      if (videoBuffer.length > 100 * 1024 * 1024) {
+        return res.status(400).json({ message: 'Video exceeds the 100MB analyze-shorts limit' });
+      }
+      const fileName = (() => {
+        try {
+          const base = new URL(videoUrl).pathname.split('/').pop();
+          return base && base.includes('.') ? base : 'video.mp4';
+        } catch {
+          return 'video.mp4';
+        }
+      })();
+
+      const form = new FormData();
+      form.append('video', new Blob([videoBuffer], { type: contentType }), fileName);
+      form.append('platforms', platforms.join(','));
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/analyze-shorts`, {
+        method: 'POST',
+        headers: { 'Authorization': `Apikey ${getUploadPostApiKey()}` },
+        body: form,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('analyze-shorts error:', response.status, data);
+        if (response.status === 429) {
+          return res.status(429).json({ message: 'Monthly analyze-shorts quota exhausted' });
+        }
+        return res.status(response.status).json({ message: (data as any)?.message || 'Analysis failed' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error analyzing shorts video:', error);
+      res.status(500).json({ message: 'Failed to analyze video' });
+    }
+  });
+
+  app.post('/api/media-lab/ffmpeg/jobs', isAuthenticated, isBetaTester, async (req: any, res) => {
+    try {
+      const { files, full_command, output_extension, publish } = req.body ?? {};
+      if (!Array.isArray(files) || files.length === 0 || !full_command || !output_extension) {
+        return res.status(400).json({ message: 'files (array of URLs), full_command, and output_extension are required' });
+      }
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ files, full_command, output_extension, publish: !!publish }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('FFmpeg job submission error:', data);
+        return res.status(response.status).json({ message: data?.message || 'Failed to submit FFmpeg job' });
+      }
+      res.status(202).json(data);
+    } catch (error) {
+      console.error('Error submitting FFmpeg job:', error);
+      res.status(500).json({ message: 'Failed to submit FFmpeg job' });
+    }
+  });
+
+  app.get('/api/media-lab/ffmpeg/jobs/:jobId', isAuthenticated, isBetaTester, async (req: any, res) => {
+    try {
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${req.params.jobId}`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: data?.message || 'Failed to fetch job status' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching FFmpeg job status:', error);
+      res.status(500).json({ message: 'Failed to fetch job status' });
+    }
+  });
+
+  app.get('/api/media-lab/ffmpeg/jobs/:jobId/download', isAuthenticated, isBetaTester, async (req: any, res) => {
+    try {
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${req.params.jobId}/download`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      if (!response.ok) {
+        return res.status(response.status).json({ message: 'Failed to download result' });
+      }
+      const contentType = response.headers.get('content-type');
+      const contentDisposition = response.headers.get('content-disposition');
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.send(buffer);
+    } catch (error) {
+      console.error('Error downloading FFmpeg result:', error);
+      res.status(500).json({ message: 'Failed to download result' });
+    }
+  });
+
+  app.get('/api/media-lab/ffmpeg/consumption', isAuthenticated, isBetaTester, async (req: any, res) => {
+    try {
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/consumption`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: data?.message || 'Failed to fetch consumption' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching FFmpeg consumption:', error);
+      res.status(500).json({ message: 'Failed to fetch consumption' });
     }
   });
 
