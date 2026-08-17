@@ -72,7 +72,7 @@ interface NavItem {
 }
 
 const WORKSPACE_PRIMARY: NavItem[] = [
-  { title: "Today", url: "/today", icon: LayoutDashboard, exact: true },
+  { title: "Dashboard", url: "/today", icon: LayoutDashboard, exact: true },
   { title: "Shows", url: "/shows", icon: Mic, group: "Content" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Content" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
@@ -112,7 +112,7 @@ interface RailItem {
 // group's full item list (see `panelItems` below) instead of repeating
 // every leaf in the rail too.
 const RAIL_ITEMS: RailItem[] = [
-  { title: "Today", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
+  { title: "Dashboard", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
   { title: "Content", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Content" },
   { title: "Communication", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Communication" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
@@ -419,7 +419,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       </nav>
 
       {/* ── Panel ─────────────────────────────────────────────────────────── */}
-      {panelOpen && (
+      {/* The dashboard has no sibling pages — showing a panel with a single
+          entry is dead space, so the panel only renders inside a group. */}
+      {panelOpen && (navMode === "show" || activeLeaf?.group) && (
         <aside className="w-52 shrink-0 bg-background border-r flex flex-col z-10">
 
           {/* Panel header */}
