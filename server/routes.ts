@@ -3230,6 +3230,61 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // ============ ADMIN FINANCIALS ============
+  // Platform expenses for the Admin Dashboard's Financials tab: fixed plan
+  // prices (maintained here — update when plans change) plus live metered
+  // usage pulled from each provider's API.
+
+  const FIXED_PLATFORM_SERVICES = [
+    { name: "influencers.club (Pro)", purpose: "Guest research & social analytics (credit-based)", monthlyUsd: 299, notes: "Includes 500 export credits/mo · extra credits $0.60 each · full enrich = 1 credit (~$0.60/lookup)" },
+    { name: "Upload-Post", purpose: "Social posting + FFmpeg 1,000 min/mo + 300 video analyses/mo", monthlyUsd: 50, notes: "25 profiles · unlimited uploads · 2 seats" },
+    { name: "Supabase (Pro)", purpose: "Postgres + storage", monthlyUsd: 25 },
+    { name: "Vercel (Pro)", purpose: "Hosting (podlogix.io)", monthlyUsd: 20, notes: "Per seat; shared across Podlogix projects" },
+    { name: "Resend (Pro)", purpose: "Transactional email", monthlyUsd: 20 },
+    { name: "Anthropic API", purpose: "AI features (bio writer, briefings, analysis)", monthlyUsd: null, notes: "Usage-based — per-call metering not wired up yet" },
+  ];
+
+  app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
+    try {
+      const [icCredits, ffmpegConsumption] = await Promise.all([
+        (async () => {
+          try {
+            const apiKey = getInfluencersClubApiKey();
+            if (!apiKey) return null;
+            const response = await fetch('https://api-dashboard.influencers.club/public/v1/accounts/credits/', {
+              headers: { 'Authorization': `Bearer ${apiKey}` },
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            return { available: data.credits_available ?? 0, used: data.credits_used ?? 0 };
+          } catch { return null; }
+        })(),
+        (async () => {
+          try {
+            const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/consumption`, {
+              headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            return data?.consumption ?? null;
+          } catch { return null; }
+        })(),
+      ]);
+
+      const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
+      res.json({
+        services: FIXED_PLATFORM_SERVICES,
+        fixedTotalUsd,
+        icCredits,
+        icCreditUsd: 0.6,
+        ffmpegConsumption,
+      });
+    } catch (error) {
+      console.error('Error building admin financials:', error);
+      res.status(500).json({ message: 'Failed to load financials' });
+    }
+  });
+
   // ============ ADMIN CREATOR LIST ROUTES ============
 
   // Get all creators in admin list
@@ -4183,12 +4238,14 @@ Respond in this exact JSON format:
         body: JSON.stringify({
           username: uploadPostUsername,
           redirect_url: `${baseUrl}/dashboard/social-hub?connected=true`,
-          logo_image: `${baseUrl}/favicon.svg`,
+          // Must be publicly reachable by the visitor's browser — a localhost
+          // baseUrl renders as a broken image on Upload-Post's hosted page.
+          logo_image: 'https://podlogix.io/logo.png',
           redirect_button_text: 'Return to Podlogix',
           connect_title: 'Connect Your Social Accounts',
           connect_description: 'Link your social media to start posting from Podlogix',
+          show_calendar: false,
           platforms,
-          show_calendar: true,
         }),
       });
 
@@ -4230,9 +4287,14 @@ Respond in this exact JSON format:
 
       const data = await response.json();
 
-      // Upload-Post's real response nests connections at profiles[0].social_accounts,
-      // keyed by platform — an empty string means "not connected", an object means it is.
-      const profile = Array.isArray(data.profiles) ? data.profiles[0] : null;
+      // Upload-Post ignores the ?username filter and returns every profile on the
+      // API key — including profiles belonging to other projects. Select ours by
+      // exact username or we'd display another product's connections (real bug:
+      // profiles[0] used to surface an unrelated profile with 5 platforms).
+      // social_accounts is keyed by platform — falsy means "not connected".
+      const profile = Array.isArray(data.profiles)
+        ? (data.profiles.find((p: any) => p.username === uploadPostUsername) ?? null)
+        : null;
       const socialAccounts = profile?.social_accounts || {};
       const connected = Object.entries(socialAccounts).filter(
         ([, value]) => value && typeof value === 'object'

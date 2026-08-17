@@ -19,7 +19,7 @@ import {
   Sparkles,
   UserPlus,
 } from "lucide-react";
-import { SiGooglecalendar } from "react-icons/si";
+import { SiGooglecalendar, SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX } from "react-icons/si";
 import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -34,7 +34,15 @@ interface DashboardData {
 }
 
 interface AccountAnalytics {
+  platform: string;
   followers: number;
+}
+
+interface ConnectedSocialAccount {
+  platform: string;
+  platformUsername: string | null;
+  profilePictureUrl: string | null;
+  isConnected: boolean;
 }
 
 interface GoogleCalendarStatus {
@@ -201,6 +209,12 @@ export default function Activity() {
     retry: false,
   });
 
+  // Locally-cached Upload-Post connections (synced whenever Social Hub loads).
+  const { data: socialAccounts } = useQuery<{ accounts: ConnectedSocialAccount[] }>({
+    queryKey: ["/api/upload-post/local-accounts"],
+    retry: false,
+  });
+
   const { data: calendarStatus, isLoading: calendarStatusLoading } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/calendar/google/status"],
   });
@@ -231,6 +245,11 @@ export default function Activity() {
   const publishedCount = episodes?.filter((e) => e.status === "published").length ?? 0;
   const liveCount = Object.values(data?.distributionStatus ?? {}).filter((s) => s === "approved").length;
   const totalFollowers = promotion?.accounts?.reduce((sum, a) => sum + (a.followers || 0), 0) ?? 0;
+
+  const followersByPlatform = new Map(
+    (promotion?.accounts ?? []).map((a) => [a.platform?.toLowerCase(), a.followers])
+  );
+  const connectedSocials = (socialAccounts?.accounts ?? []).filter((a) => a.isConnected);
 
   const recentEpisodes = useMemo(
     () =>
@@ -291,11 +310,52 @@ export default function Activity() {
         </div>
       </section>
 
+      {connectedSocials.length > 0 && (
+        <section className="mb-6">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {connectedSocials.map((account) => {
+              const Icon = {
+                instagram: SiInstagram, youtube: SiYoutube, facebook: SiFacebook,
+                linkedin: SiLinkedin, tiktok: SiTiktok, x: SiX, twitter: SiX,
+              }[account.platform.toLowerCase()];
+              const followers = followersByPlatform.get(account.platform.toLowerCase());
+              return (
+                <Link key={account.platform} href="/dashboard/social-hub">
+                  <span className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-zinc-200 bg-white py-1.5 pl-1.5 pr-3.5 transition-colors hover:border-zinc-300">
+                    {account.profilePictureUrl ? (
+                      <img src={account.profilePictureUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                    ) : Icon ? (
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100">
+                        <Icon className="h-3 w-3 text-zinc-600" />
+                      </span>
+                    ) : null}
+                    <span className="text-xs font-medium text-zinc-900">
+                      {account.platformUsername ? `@${account.platformUsername}` : account.platform}
+                    </span>
+                    {typeof followers === "number" && followers > 0 && (
+                      <span className="text-[11px] text-zinc-400">
+                        {followers >= 1000 ? `${(followers / 1000).toFixed(1)}K` : followers} followers
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       <section className="mb-6">
-        <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-4 sm:divide-y-0">
+        <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-5 sm:divide-y-0">
           <TopStat label="Episodes" value={String(episodes?.length ?? 0)} icon={Mic} href="/episodes" />
           <TopStat label="Published" value={String(publishedCount)} icon={CheckCircle2} href="/episodes" />
           <TopStat label="Live channels" value={String(liveCount)} icon={Radio} href="/dashboard/distribution" />
+          <TopStat
+            label="Socials connected"
+            value={String(socialAccounts?.accounts?.filter((a) => a.isConnected).length ?? 0)}
+            icon={Share2}
+            href="/dashboard/social-hub"
+          />
           <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href="/dashboard/social-hub" />
         </Card>
       </section>
