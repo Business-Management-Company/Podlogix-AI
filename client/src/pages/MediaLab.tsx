@@ -191,153 +191,85 @@ export default function MediaLab() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-8">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
-            <FlaskConical className="h-5 w-5 text-zinc-400" />
-            Media Lab
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Beta — video editing via Upload-Post's FFmpeg Editor API. Only visible to your account.
-          </p>
-        </div>
-        {consumption?.consumption && (
-          <div className="shrink-0 rounded-lg border border-zinc-200 px-3 py-2 text-right">
-            <p className="text-xs font-medium text-zinc-900">
-              {consumption.consumption.remaining_minutes.toFixed(0)} / {consumption.consumption.quota_minutes} min left
-            </p>
-            <p className="text-[11px] text-zinc-400 capitalize">{consumption.consumption.plan} plan</p>
-          </div>
-        )}
+    <div className="mx-auto w-full max-w-5xl px-6 py-8">
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
+          <FlaskConical className="h-5 w-5 text-zinc-400" />
+          Media Lab
+        </h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          The conversion bench — refine, convert, and package anything on your media shelf. Beta, your account only.
+        </p>
       </div>
 
-      <section className="mb-6">
-        <SectionHeader title="1. Pick your source" />
-        <LibrarySourcePicker current={videoUrl} onPick={(url) => setVideoUrl(url)} />
-        <Card padding="lg">
-          {videoUrl ? (
-            <div className="flex items-center gap-3">
-              <video src={videoUrl} controls className="h-32 w-full max-w-[220px] rounded-lg bg-black object-cover" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs text-zinc-500">{videoUrl}</p>
-                <button onClick={() => setVideoUrl(null)} className="mt-1 text-xs font-medium text-red-500">Remove</button>
-              </div>
-            </div>
-          ) : (
-            <ObjectUploader
-              maxFileSize={100 * 1024 * 1024}
-              onGetUploadParameters={getUploadParams}
-              onComplete={(r) => r.successful[0] && setVideoUrl(r.successful[0].uploadURL)}
-              buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-10 !text-zinc-500 hover:!bg-zinc-50"
-            >
-              <Upload className="h-5 w-5" />
-              <span className="text-xs font-medium">Or upload a new video</span>
-              <span className="text-[11px] text-zinc-400">Up to 100MB</span>
-            </ObjectUploader>
-          )}
-        </Card>
-      </section>
-
-      <section className="mb-6">
-        <SectionHeader title="2. Choose an operation" />
-        <Card padding="lg" className="space-y-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => { setSelectedPreset(p.id); setCustomCommand(""); }}
-              className={`flex w-full items-center justify-between rounded-lg border px-3.5 py-2.5 text-left transition-colors ${
-                selectedPreset === p.id ? "border-zinc-950 bg-zinc-50" : "border-zinc-200 hover:border-zinc-300"
-              }`}
-            >
-              <div>
-                <p className="text-sm font-medium text-zinc-900">{p.label}</p>
-                <p className="text-xs text-zinc-500">{p.description}</p>
-              </div>
-              {selectedPreset === p.id && <CheckCircle2 size={16} className="shrink-0 text-zinc-950" />}
-            </button>
-          ))}
-          <div className="pt-1">
-            <label className="mb-1 block text-xs font-medium text-zinc-500">
-              Advanced: custom FFmpeg command (optional — overrides the preset above)
-            </label>
-            <Textarea
-              rows={2}
-              placeholder={preset.command}
-              value={customCommand}
-              onChange={(e) => setCustomCommand(e.target.value)}
-              className="font-mono text-xs"
-            />
-          </div>
-        </Card>
-      </section>
-
-      <Button
-        className="w-full"
-        disabled={!videoUrl || submitMutation.isPending}
-        onClick={() => submitMutation.mutate()}
-      >
-        {submitMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-        Run Job
-      </Button>
-
-      {activeJobId && (
-        <section className="mt-6">
-          <SectionHeader title="Job status" />
-          <Card padding="lg">
-            {!job ? (
-              <p className="text-xs text-zinc-500">Loading…</p>
-            ) : (
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-mono text-xs text-zinc-500">{job.job_id}</p>
-                  <div className="mt-1.5"><StatusBadge status={job.status} /></div>
-                </div>
-                {job.status === "FINISHED" && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          const res = await apiRequest("POST", "/api/media-lab/collect", {
-                            jobId: job.job_id,
-                            extension: preset.outputExtension,
-                            title: `${preset.label} — ${new Date().toLocaleDateString()}`,
-                          });
-                          if (!res.ok) throw new Error();
-                          toast({ title: "Saved to your Media Library" });
-                        } catch {
-                          toast({ title: "Couldn't save to library", variant: "destructive" });
-                        }
-                      }}
-                    >
-                      Save to library
-                    </Button>
-                    <a href={`/api/media-lab/ffmpeg/jobs/${job.job_id}/download`} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Download</Button>
-                    </a>
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-6">
+        {/* ── The bench ── */}
+        <div className="space-y-6">
+          <section>
+            <SectionHeader title="1. Pick your source" />
+            <Card padding="lg" className="space-y-4">
+              <LibrarySourcePicker current={videoUrl} onPick={(url) => setVideoUrl(url)} />
+              {videoUrl ? (
+                <div className="flex items-center gap-3">
+                  <video src={videoUrl} controls className="h-24 w-40 shrink-0 rounded-lg bg-black object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs text-zinc-500">{videoUrl}</p>
+                    <button onClick={() => setVideoUrl(null)} className="mt-1 text-xs font-medium text-red-500">Remove</button>
                   </div>
-                )}
+                </div>
+              ) : (
+                <ObjectUploader
+                  maxFileSize={100 * 1024 * 1024}
+                  onGetUploadParameters={getUploadParams}
+                  onComplete={(r) => r.successful[0] && setVideoUrl(r.successful[0].uploadURL)}
+                  buttonClassName="!h-auto !w-full !justify-center !gap-2 !border !border-dashed !border-zinc-300 !bg-white !py-4 !text-zinc-500 hover:!bg-zinc-50"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="text-xs font-medium">Or upload a new video</span>
+                  <span className="text-[11px] text-zinc-400">· up to 100MB</span>
+                </ObjectUploader>
+              )}
+            </Card>
+          </section>
+
+          <section>
+            <SectionHeader title="2. Choose an operation" />
+            <Card padding="lg" className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setSelectedPreset(p.id); setCustomCommand(""); }}
+                    className={`rounded-xl border p-3 text-left transition-colors ${
+                      selectedPreset === p.id ? "border-zinc-950 bg-zinc-50" : "border-zinc-200 hover:border-zinc-300"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium leading-snug text-zinc-900">{p.label}</p>
+                      {selectedPreset === p.id && <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-zinc-950" />}
+                    </div>
+                    <p className="mt-1 text-xs leading-snug text-zinc-500">{p.description}</p>
+                  </button>
+                ))}
               </div>
-            )}
-          </Card>
-        </section>
-      )}
+              <details>
+                <summary className="cursor-pointer text-xs font-medium text-zinc-500">
+                  Advanced: custom FFmpeg command (overrides the preset)
+                </summary>
+                <Textarea
+                  rows={2}
+                  placeholder={preset.command}
+                  value={customCommand}
+                  onChange={(e) => setCustomCommand(e.target.value)}
+                  className="mt-2 font-mono text-xs"
+                />
+              </details>
+            </Card>
+          </section>
 
-      {!activeJobId && (
-        <div className="mt-6">
-          <EmptyState
-            icon={FlaskConical}
-            title="No jobs yet"
-            description="Upload a video and run a job to see it processed here."
-          />
-        </div>
-      )}
-
-      <section className="mt-10">
-        <SectionHeader title="AI Shorts Analyzer" />
-        <Card padding="lg" className="space-y-4">
+          <section>
+            <SectionHeader title="AI Shorts Analyzer" />
+            <Card padding="lg" className="space-y-4">
           <p className="text-xs leading-relaxed text-zinc-500">
             Generates platform-tuned titles, captions, and hashtags for a short video (max 100MB / 5 min).
             Uses the same uploaded video from step 1. 300 analyses/month on the current plan.
@@ -402,7 +334,83 @@ export default function MediaLab() {
             </div>
           )}
         </Card>
-      </section>
+          </section>
+        </div>
+
+        {/* ── Run + status rail ── */}
+        <div className="mt-6 space-y-3 lg:sticky lg:top-6 lg:mt-0">
+          <Card padding="lg" className="space-y-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Ready to run</p>
+              <p className="mt-1 text-sm font-medium text-zinc-900">{customCommand.trim() ? "Custom command" : preset.label}</p>
+              <p className="text-xs text-zinc-500">{videoUrl ? "Source selected ✓" : "Pick a source first"}</p>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!videoUrl || submitMutation.isPending}
+              onClick={() => submitMutation.mutate()}
+            >
+              {submitMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+              Run Job
+            </Button>
+          </Card>
+
+          {activeJobId && (
+            <Card padding="lg">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Job status</p>
+            {!job ? (
+              <p className="text-xs text-zinc-500">Loading…</p>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-mono text-xs text-zinc-500">{job.job_id}</p>
+                  <div className="mt-1.5"><StatusBadge status={job.status} /></div>
+                </div>
+                {job.status === "FINISHED" && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const res = await apiRequest("POST", "/api/media-lab/collect", {
+                            jobId: job.job_id,
+                            extension: preset.outputExtension,
+                            title: `${preset.label} — ${new Date().toLocaleDateString()}`,
+                          });
+                          if (!res.ok) throw new Error();
+                          toast({ title: "Saved to your Media Library" });
+                        } catch {
+                          toast({ title: "Couldn't save to library", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      Save to library
+                    </Button>
+                    <a href={`/api/media-lab/ffmpeg/jobs/${job.job_id}/download`} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Download</Button>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+            </Card>
+          )}
+
+          {consumption?.consumption && (
+            <Card className="flex items-center justify-between">
+              <span className="text-xs text-zinc-500">FFmpeg minutes</span>
+              <span className="text-xs font-semibold tabular-nums text-zinc-900">
+                {consumption.consumption.remaining_minutes.toFixed(0)} / {consumption.consumption.quota_minutes}
+              </span>
+            </Card>
+          )}
+          <p className="px-1 text-[11px] leading-relaxed text-zinc-500">
+            Finished jobs download directly or save straight into your Media Library — the studio, the lab, and the
+            composer all share that shelf.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -423,7 +431,7 @@ function LibrarySourcePicker({ current, onPick }: { current: string | null; onPi
   const videos = (data?.items ?? []).filter((i) => i.mediaType === "video" && i.mediaUrl);
   if (videos.length === 0) return null;
   return (
-    <Card padding="lg" className="mb-3">
+    <div>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">From your library</p>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {videos.slice(0, 12).map((v) => (
@@ -441,6 +449,6 @@ function LibrarySourcePicker({ current, onPick }: { current: string | null; onPi
           </button>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
