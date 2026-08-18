@@ -1,374 +1,251 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { 
-  Youtube, 
-  Loader2, 
-  Play, 
-  User, 
-  Mic2, 
-  MessageSquare,
-  Eye,
-  Star,
-  RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle
-} from "lucide-react";
+import { Card, EmptyState, SectionHeader } from "@/components/kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, Mic2, Play, Sparkles, Video } from "lucide-react";
+import { extractAudioAsWav } from "@/lib/audio-extraction";
+import type { VideoAnalysis as VideoAnalysisRow } from "@shared/schema";
 
-interface VideoAnalysis {
+/**
+ * /dashboard/video-analysis — speaking analysis, in-house.
+ *
+ * Pick one of your own videos (Live Studio clips and recordings included) or
+ * paste a direct video URL. The browser extracts the audio, Whisper
+ * transcribes it, and gpt-4o grades presence, speaking ability, and filler
+ * usage with concrete coaching notes. No YouTube caption scraping — that
+ * path broke constantly and analyzed other people's videos anyway. This one
+ * analyzes YOURS.
+ */
+
+interface LibraryVideo {
   id: string;
-  videoUrl: string;
-  videoId: string;
-  videoTitle: string | null;
-  channelName: string | null;
-  thumbnailUrl: string | null;
-  transcript: string | null;
-  presenceScore: number | null;
-  speakingAbilityScore: number | null;
-  fillerWordsScore: number | null;
-  appearanceScore: number | null;
-  overallScore: number | null;
-  presenceFeedback: string | null;
-  speakingAbilityFeedback: string | null;
-  fillerWordsFeedback: string | null;
-  appearanceFeedback: string | null;
-  overallFeedback: string | null;
-  fillerWordsDetected: string[] | null;
-  status: string;
-  createdAt: string;
-  analyzedAt: string | null;
+  caption: string | null;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  platform: string;
 }
 
-function ScoreCard({ 
-  title, 
-  score, 
-  feedback, 
-  icon: Icon,
-  extra 
-}: { 
-  title: string; 
-  score: number | null; 
-  feedback: string | null; 
-  icon: any;
-  extra?: React.ReactNode;
-}) {
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-500";
-    if (score >= 60) return "text-amber-500";
-    return "text-red-500";
-  };
-
-  const getProgressColor = (score: number) => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 60) return "bg-amber-500";
-    return "bg-red-500";
-  };
-
+function ScoreRing({ score, label }: { score: number | null; label: string }) {
+  const value = score ?? 0;
+  const tone = value >= 80 ? "text-emerald-600" : value >= 60 ? "text-amber-600" : "text-red-600";
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">{title}</CardTitle>
-          </div>
-          {score !== null && (
-            <span className={`text-2xl font-bold ${getScoreColor(score)}`}>
-              {score}
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {score !== null && (
-          <div className="mb-3">
-            <Progress 
-              value={score} 
-              className="h-2"
-              style={{ 
-                ['--progress-background' as string]: score >= 80 ? '#22c55e' : score >= 60 ? '#f59e0b' : '#ef4444'
-              }}
-            />
-          </div>
-        )}
-        {feedback && (
-          <p className="text-sm text-muted-foreground">{feedback}</p>
-        )}
-        {extra}
-      </CardContent>
-    </Card>
-  );
-}
-
-function AnalysisCard({ analysis }: { analysis: VideoAnalysis }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-col md:flex-row">
-        {analysis.thumbnailUrl && (
-          <div className="md:w-48 shrink-0">
-            <img 
-              src={analysis.thumbnailUrl} 
-              alt={analysis.videoTitle || 'Video thumbnail'} 
-              className="w-full h-32 md:h-full object-cover"
-            />
-          </div>
-        )}
-        <div className="flex-1 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="font-semibold line-clamp-1">
-                {analysis.videoTitle || 'Untitled Video'}
-              </h3>
-              {analysis.channelName && (
-                <p className="text-sm text-muted-foreground">{analysis.channelName}</p>
-              )}
-            </div>
-            <Badge 
-              variant={analysis.status === 'completed' ? 'default' : analysis.status === 'failed' ? 'destructive' : 'secondary'}
-            >
-              {analysis.status === 'completed' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-              {analysis.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-              {analysis.status === 'failed' && <AlertCircle className="h-3 w-3 mr-1" />}
-              {analysis.status}
-            </Badge>
-          </div>
-
-          {analysis.status === 'completed' && analysis.overallScore !== null && (
-            <div className="mt-4">
-              <div className="flex items-center gap-4 mb-3">
-                <div className="flex items-center gap-2">
-                  <Star className="h-5 w-5 text-amber-500" />
-                  <span className="text-2xl font-bold">{analysis.overallScore}</span>
-                  <span className="text-muted-foreground">/100</span>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setExpanded(!expanded)}
-                  data-testid="button-expand-analysis"
-                >
-                  {expanded ? 'Hide Details' : 'View Details'}
-                </Button>
-              </div>
-
-              <div className="flex gap-4 text-sm">
-                <div className="flex items-center gap-1">
-                  <User className="h-4 w-4" />
-                  <span>{analysis.presenceScore}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Mic2 className="h-4 w-4" />
-                  <span>{analysis.speakingAbilityScore}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <MessageSquare className="h-4 w-4" />
-                  <span>{analysis.fillerWordsScore}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Eye className="h-4 w-4" />
-                  <span>{analysis.appearanceScore}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {analysis.status === 'failed' && analysis.overallFeedback && (
-            <p className="mt-2 text-sm text-destructive">{analysis.overallFeedback}</p>
-          )}
-        </div>
-      </div>
-
-      {expanded && analysis.status === 'completed' && (
-        <div className="border-t p-4 grid md:grid-cols-2 gap-4">
-          <ScoreCard 
-            title="Presence" 
-            score={analysis.presenceScore} 
-            feedback={analysis.presenceFeedback}
-            icon={User}
-          />
-          <ScoreCard 
-            title="Speaking Ability" 
-            score={analysis.speakingAbilityScore} 
-            feedback={analysis.speakingAbilityFeedback}
-            icon={Mic2}
-          />
-          <ScoreCard 
-            title="Filler Words" 
-            score={analysis.fillerWordsScore} 
-            feedback={analysis.fillerWordsFeedback}
-            icon={MessageSquare}
-            extra={
-              analysis.fillerWordsDetected && analysis.fillerWordsDetected.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {(analysis.fillerWordsDetected as string[]).map((word, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">{word}</Badge>
-                  ))}
-                </div>
-              )
-            }
-          />
-          <ScoreCard 
-            title="Appearance & Professionalism" 
-            score={analysis.appearanceScore} 
-            feedback={analysis.appearanceFeedback}
-            icon={Eye}
-          />
-          {analysis.overallFeedback && (
-            <Card className="md:col-span-2 bg-primary/5 border-primary/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Star className="h-5 w-5 text-amber-500" />
-                  Overall Feedback
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{analysis.overallFeedback}</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-    </Card>
+    <div className="flex flex-col items-center gap-1 rounded-xl border border-zinc-100 bg-white px-4 py-3">
+      <span className={`text-2xl font-bold tabular-nums ${score === null ? "text-zinc-300" : tone}`}>
+        {score ?? "—"}
+      </span>
+      <span className="text-center text-[11px] font-medium text-zinc-500">{label}</span>
+    </div>
   );
 }
 
 export default function VideoAnalysis() {
-  const [videoUrl, setVideoUrl] = useState("");
   const { toast } = useToast();
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [selectedTitle, setSelectedTitle] = useState("");
+  const [manualUrl, setManualUrl] = useState("");
+  const [phase, setPhase] = useState<"idle" | "extracting" | "transcribing" | "grading">("idle");
+  const [result, setResult] = useState<VideoAnalysisRow | null>(null);
 
-  const { data: analyses, isLoading } = useQuery<VideoAnalysis[]>({
-    queryKey: ['/api/video-analysis'],
-    refetchInterval: (query) => {
-      const data = query.state.data as VideoAnalysis[] | undefined;
-      const hasPending = data?.some(a => a.status === 'pending');
-      return hasPending ? 3000 : false;
-    }
+  const { data: libraryData } = useQuery<{ items: LibraryVideo[] }>({
+    queryKey: ["/api/media-library"],
+    retry: false,
   });
+  const videos = (libraryData?.items ?? []).filter((i) => i.mediaType === "video" && i.mediaUrl);
 
-  const analyzeMutation = useMutation({
-    mutationFn: async (url: string) => {
-      const res = await apiRequest('POST', '/api/video-analysis', { videoUrl: url });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Analysis started!", description: "We're analyzing the video. This may take a minute." });
-      setVideoUrl("");
-      queryClient.invalidateQueries({ queryKey: ['/api/video-analysis'] });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: "Error", 
-        description: error.message || "Failed to start analysis", 
-        variant: "destructive" 
+  const { data: pastData, isLoading: pastLoading } = useQuery<VideoAnalysisRow[]>({
+    queryKey: ["/api/video-analysis"],
+    retry: false,
+  });
+  const past = (pastData ?? []).filter((a) => a.status === "completed");
+
+  const busy = phase !== "idle";
+
+  const analyze = async () => {
+    const url = selectedUrl ?? manualUrl.trim();
+    if (!url) return;
+    setResult(null);
+    try {
+      setPhase("extracting");
+      const wav = await extractAudioAsWav(url);
+
+      setPhase("transcribing");
+      const tRes = await fetch("/api/social/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "audio/wav" },
+        body: wav,
       });
-    }
-  });
+      const tData = await tRes.json().catch(() => ({}));
+      if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
+      const segments: Array<{ end: number }> = tData.segments ?? [];
+      const duration = segments.length > 0 ? segments[segments.length - 1].end : 0;
 
-  const handleAnalyze = () => {
-    if (!videoUrl.trim()) {
-      toast({ title: "Please enter a YouTube URL", variant: "destructive" });
-      return;
+      setPhase("grading");
+      const aRes = await apiRequest("POST", "/api/video-analysis/speech", {
+        transcript: tData.text,
+        durationSeconds: duration,
+        title: selectedTitle || "Speaking analysis",
+        mediaUrl: url,
+      });
+      const aData = await aRes.json().catch(() => ({}));
+      if (!aRes.ok) throw new Error(aData.message || "Analysis failed");
+      setResult(aData.analysis);
+      queryClient.invalidateQueries({ queryKey: ["/api/video-analysis"] });
+      toast({ title: "Analysis ready", description: "Your speaking scorecard is below." });
+    } catch (e) {
+      toast({
+        title: "Couldn't analyze",
+        description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setPhase("idle");
     }
-    analyzeMutation.mutate(videoUrl);
   };
 
+  const shown = result;
+
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Video Analysis</h1>
-        <p className="text-muted-foreground">
-          Analyze YouTube videos to get AI-powered feedback on speaking skills
+    <div className="w-full max-w-4xl px-6 py-8">
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
+          <Mic2 className="h-6 w-6 text-zinc-400" />
+          Speaking Analysis
+        </h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          AI coaching on your own recordings — presence, clarity, pace, and fillers. Whisper + GPT, all in-house.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Youtube className="h-5 w-5 text-red-500" />
-            Analyze a YouTube Video
-          </CardTitle>
-          <CardDescription>
-            Enter a YouTube URL to analyze the speaker's presence, speaking ability, filler words, and appearance.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Label htmlFor="videoUrl" className="sr-only">YouTube URL</Label>
-              <Input
-                id="videoUrl"
-                placeholder="https://www.youtube.com/watch?v=..."
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-                data-testid="input-video-url"
-              />
-            </div>
-            <Button 
-              onClick={handleAnalyze}
-              disabled={analyzeMutation.isPending}
-              data-testid="button-analyze-video"
-            >
-              {analyzeMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4 mr-2" />
-              )}
-              Analyze
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Your Analyses</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/video-analysis'] })}
-            data-testid="button-refresh-analyses"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2].map(i => (
-              <Skeleton key={i} className="h-32 w-full rounded-lg" />
-            ))}
-          </div>
-        ) : analyses && analyses.length > 0 ? (
-          <div className="space-y-4">
-            {analyses.map(analysis => (
-              <AnalysisCard key={analysis.id} analysis={analysis} />
+      {/* Source picker */}
+      <section className="mb-6">
+        <SectionHeader title="Pick a recording" />
+        {videos.length > 0 ? (
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+            {videos.slice(0, 12).map((v) => (
+              <button
+                key={v.id}
+                onClick={() => {
+                  setSelectedUrl(v.mediaUrl);
+                  setSelectedTitle(v.caption || v.platform);
+                  setManualUrl("");
+                }}
+                className={`w-44 shrink-0 overflow-hidden rounded-xl border text-left transition-colors ${
+                  selectedUrl === v.mediaUrl ? "border-zinc-950 ring-1 ring-zinc-950" : "border-zinc-200 hover:border-zinc-400"
+                }`}
+              >
+                <video src={v.mediaUrl!} className="h-24 w-full bg-black object-cover" muted />
+                <p className="truncate px-2.5 py-1.5 text-[11px] text-zinc-600">{v.caption || v.platform}</p>
+              </button>
             ))}
           </div>
         ) : (
-          <Card className="border-dashed border-border">
-            <CardContent className="py-10 text-left">
-              <Youtube className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="font-medium mb-2">No analyses yet</h3>
-              <p className="text-sm text-muted-foreground">
-                Enter a YouTube URL above to get started with your first analysis.
-              </p>
-            </CardContent>
+          <Card className="mb-3">
+            <p className="text-sm text-zinc-500">
+              No videos in your library yet — cut a clip in the{" "}
+              <Link href="/studio/live" className="font-medium underline">Live Studio</Link> or{" "}
+              <Link href="/media-library" className="font-medium underline">import from your channels</Link>, or paste a
+              direct video URL below.
+            </p>
           </Card>
         )}
-      </div>
+        <div className="flex gap-2">
+          <Input
+            placeholder="…or paste a direct video URL (.mp4/.webm)"
+            value={manualUrl}
+            onChange={(e) => {
+              setManualUrl(e.target.value);
+              setSelectedUrl(null);
+              setSelectedTitle("");
+            }}
+            className="flex-1"
+          />
+          <Button onClick={() => void analyze()} disabled={busy || (!selectedUrl && !manualUrl.trim())}>
+            {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
+            {phase === "extracting"
+              ? "Extracting audio…"
+              : phase === "transcribing"
+                ? "Transcribing…"
+                : phase === "grading"
+                  ? "Coaching…"
+                  : "Analyze"}
+          </Button>
+        </div>
+      </section>
+
+      {/* Result scorecard */}
+      {shown && (
+        <section className="mb-6">
+          <SectionHeader title={shown.videoTitle || "Your scorecard"} />
+          <Card padding="lg" className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <ScoreRing score={shown.overallScore} label="Overall" />
+              <ScoreRing score={shown.presenceScore} label="Presence" />
+              <ScoreRing score={shown.speakingAbilityScore} label="Speaking ability" />
+              <ScoreRing score={shown.fillerWordsScore} label="Filler control" />
+            </div>
+            <div className="space-y-3 text-sm leading-relaxed text-zinc-700">
+              {shown.overallFeedback && (
+                <p className="rounded-xl bg-zinc-50 p-3 font-medium text-zinc-900">{shown.overallFeedback}</p>
+              )}
+              {shown.presenceFeedback && (
+                <p><span className="font-semibold text-zinc-950">Presence — </span>{shown.presenceFeedback}</p>
+              )}
+              {shown.speakingAbilityFeedback && (
+                <p><span className="font-semibold text-zinc-950">Speaking — </span>{shown.speakingAbilityFeedback}</p>
+              )}
+              {shown.fillerWordsFeedback && (
+                <p><span className="font-semibold text-zinc-950">Fillers — </span>{shown.fillerWordsFeedback}</p>
+              )}
+            </div>
+            {!!shown.fillerWordsDetected && Object.keys(shown.fillerWordsDetected as Record<string, number>).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(shown.fillerWordsDetected as Record<string, number>).map(([word, count]) => (
+                  <span key={word} className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
+                    “{word}” × {Number(count)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </Card>
+        </section>
+      )}
+
+      {/* Past analyses */}
+      <section>
+        <SectionHeader title="Past analyses" />
+        {pastLoading ? (
+          <Skeleton className="h-20 rounded-xl" />
+        ) : past.length === 0 ? (
+          <EmptyState
+            icon={Video}
+            title="No analyses yet"
+            description="Run your first speaking analysis — pick a clip above and hit Analyze."
+          />
+        ) : (
+          <Card padding="none" className="divide-y divide-zinc-100">
+            {past.slice(0, 10).map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setResult(a)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50"
+              >
+                <Sparkles size={14} className="shrink-0 text-zinc-400" />
+                <span className="min-w-0 flex-1 truncate text-sm text-zinc-800">
+                  {a.videoTitle || "Speaking analysis"}
+                </span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-900">
+                  {a.overallScore ?? "—"}
+                </span>
+              </button>
+            ))}
+          </Card>
+        )}
+      </section>
     </div>
   );
 }

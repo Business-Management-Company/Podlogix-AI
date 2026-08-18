@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -96,7 +96,6 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Cadence", url: "/social/posts?tab=cadence", icon: Repeat, group: "Social" },
   { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Social" },
-  { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Live Studio", url: "/studio/live", icon: Radio, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
@@ -133,7 +132,7 @@ const RAIL_ITEMS: RailItem[] = [
   { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
   { title: "Guests & CRM", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Guests & CRM" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
-  { title: "Studio", icon: Sparkles, url: "/dashboard/ai", isActive: (leaf) => leaf?.group === "Studio" },
+  { title: "Studio", icon: Sparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" },
 ];
 
 /** Nav for a single show's context — shown in the panel when inside /shows/:id. */
@@ -171,6 +170,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [location, navigate] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const [panelOpen, setPanelOpen] = useState(true);
+
+  // The Live Studio wants the whole frame — collapse the panel on entry.
+  useEffect(() => {
+    if (location.startsWith("/studio/live")) setPanelOpen(false);
+  }, [location]);
   const [railExpanded, setRailExpanded] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
 

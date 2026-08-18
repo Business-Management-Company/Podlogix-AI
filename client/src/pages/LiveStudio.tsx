@@ -390,28 +390,11 @@ export default function LiveStudio() {
   );
 
   return (
-    <div className="w-full max-w-[1280px] px-6 py-8">
+    <div className="w-full p-3">
       <style>{`@keyframes prompter-scroll { from { transform: translateY(100%); } to { transform: translateY(-100%); } }`}</style>
 
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
-            <Radio className={`h-6 w-6 ${liveNow ? "animate-pulse text-red-500" : "text-zinc-400"}`} />
-            Live Studio
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Your stage, your layouts, your clips — what you see is what records.
-          </p>
-        </div>
-        {liveNow && (
-          <span className="flex items-center gap-2 rounded-full bg-zinc-950 px-4 py-2 font-mono text-lg tabular-nums text-white">
-            <Clock className="h-4 w-4 text-zinc-400" /> {fmtClock(elapsed)}
-          </span>
-        )}
-      </div>
-
-      {/* ═══ The studio room ═══ */}
-      <div className="rounded-3xl bg-zinc-950 p-5 shadow-2xl">
+      {/* ═══ The studio room — full frame, no chrome ═══ */}
+      <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           {/* Stage column */}
           <div className="space-y-3">
@@ -429,8 +412,9 @@ export default function LiveStudio() {
                 </span>
               )}
               {liveNow && (
-                <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-red-600/90 px-2.5 py-1 text-[11px] font-bold text-white">
+                <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-red-600/90 px-3 py-1 text-[11px] font-bold text-white">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
+                  <span className="font-mono text-xs tabular-nums">{fmtClock(elapsed)}</span>
                 </span>
               )}
               {prompterOn && prompterScript.trim() && (
@@ -639,7 +623,7 @@ export default function LiveStudio() {
 
       {/* ═══ After the show ═══ */}
       {isLoading ? null : endedWithMarks && !liveNow ? (
-        <div className="mt-6 space-y-3 rounded-3xl bg-zinc-950 p-5">
+        <div className="mt-3 space-y-3 rounded-2xl bg-zinc-950 p-4">
           <p className="text-sm font-semibold text-zinc-100">
             Last show: {marks.length} marked moment{marks.length === 1 ? "" : "s"}
           </p>
