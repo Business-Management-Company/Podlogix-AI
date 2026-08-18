@@ -165,7 +165,6 @@ function setupSteps(data?: DashboardData): SetupStep[] {
       done: Object.values(data?.distributionStatus ?? {}).some((s) => s === "submitted" || s === "approved"),
       icon: Radio,
     },
-    { id: "voice", label: "Protect your voice identity", href: "/dashboard/certify", done: false, icon: Shield },
   ];
 }
 
@@ -329,13 +328,6 @@ export default function Activity() {
             <p className="text-sm font-medium text-white/90">
               Welcome back, {firstName} · {todayLabel}
             </p>
-            <Link
-              href="/dashboard/certify"
-              className="inline-flex items-center gap-1 text-sm font-semibold text-white underline decoration-white/50 underline-offset-2 hover:decoration-white"
-            >
-              Have you verified your voice yet?
-              <ArrowRight size={11} />
-            </Link>
           </div>
 
           {/* Command-center quick actions — mirrors MilCrunch's dashboard header */}

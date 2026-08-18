@@ -201,6 +201,15 @@ export default function Engagement() {
 
       {tab === "messages" && (
         <>
+          {instagramAccount && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-zinc-600">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]">
+                <SiInstagram className="h-3 w-3 text-white" />
+              </span>
+              <span className="font-medium text-zinc-950">Instagram inbox</span>
+              <span className="text-zinc-400">@{instagramAccount.platformUsername.replace(/^@/, "")} · the only platform with DM access today</span>
+            </div>
+          )}
           {!instagramAccount ? (
             <EmptyState
               icon={MessageCircle}
@@ -253,7 +262,9 @@ export default function Engagement() {
                             mine ? "bg-zinc-950 text-white" : "bg-zinc-100 text-zinc-900"
                           }`}
                         >
-                          <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                          <p className="whitespace-pre-wrap break-words">
+                            {msg.message || <span className="italic opacity-70">(attachment or story reply)</span>}
+                          </p>
                           {msg.created_time && (
                             <p className={`mt-0.5 text-[10px] ${mine ? "text-zinc-400" : "text-zinc-500"}`}>
                               {new Date(msg.created_time).toLocaleString()}

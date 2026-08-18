@@ -4288,7 +4288,13 @@ Respond in this exact JSON format:
       const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
       // Default to every platform included in our Upload-Post plan.
-      const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin', 'x', 'threads', 'reddit', 'pinterest', 'bluesky', 'discord', 'telegram'] } = req.body;
+      const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin', 'x', 'threads', 'reddit', 'pinterest', 'bluesky', 'discord', 'telegram'], returnTo } = req.body;
+
+      // Send the user back to wherever they started the connect flow —
+      // internal paths only, so the redirect can't be pointed off-site.
+      const safeReturnTo = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')
+        ? returnTo
+        : '/dashboard/social-hub';
 
       const host = req.headers['host'] || 'localhost:5001';
       // Local dev has no TLS — a hardcoded https default sent users back to
@@ -4305,7 +4311,7 @@ Respond in this exact JSON format:
         },
         body: JSON.stringify({
           username: uploadPostUsername,
-          redirect_url: `${baseUrl}/dashboard/social-hub?connected=true`,
+          redirect_url: `${baseUrl}${safeReturnTo}${safeReturnTo.includes('?') ? '&' : '?'}connected=true`,
           // Must be publicly reachable by the visitor's browser — a localhost
           // baseUrl renders as a broken image on Upload-Post's hosted page.
           logo_image: 'https://podlogix.io/logo.png',
