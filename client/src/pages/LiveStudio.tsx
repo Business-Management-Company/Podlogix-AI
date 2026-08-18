@@ -29,6 +29,33 @@ import type { LiveMark, LiveSession, Studio } from "@shared/schema";
 
 const PRE_ROLL = 20;
 
+/** Miniature of what each layout does — faster to read than words. */
+function LayoutThumb({ id }: { id: StudioLayout }) {
+  const big = "absolute inset-0 rounded-[3px] bg-zinc-600";
+  const pip = "absolute h-[38%] w-[34%] rounded-[2px] bg-zinc-300";
+  return (
+    <span className="relative block h-8 w-14 shrink-0 overflow-hidden rounded-[4px] bg-zinc-800 ring-1 ring-zinc-700">
+      {id === "fullscreen" && <span className={big} />}
+      {id.startsWith("pip") && (
+        <>
+          <span className={big} />
+          <span
+            className={`${pip} ${id.endsWith("r") ? "right-[6%]" : "left-[6%]"} ${
+              id.startsWith("pip-b") ? "bottom-[8%]" : "top-[8%]"
+            }`}
+          />
+        </>
+      )}
+      {id === "split" && (
+        <>
+          <span className="absolute bottom-0 left-0 top-0 w-[49%] rounded-[2px] bg-zinc-600" />
+          <span className="absolute bottom-0 right-0 top-0 w-[49%] rounded-[2px] bg-zinc-400" />
+        </>
+      )}
+    </span>
+  );
+}
+
 const PROMPTER_SPEEDS = { slow: 2.0, normal: 3.2, fast: 5.0 } as const; // words/sec
 type PrompterSpeed = keyof typeof PROMPTER_SPEEDS;
 
@@ -1048,16 +1075,19 @@ export default function LiveStudio() {
                     <button
                       key={l.id}
                       onClick={() => setLayout(l.id)}
-                      className={`w-full rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
+                      className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
                         layout === l.id
                           ? "border-primary bg-primary/10"
                           : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
                       } ${dimmed ? "opacity-50" : ""}`}
                     >
-                      <p className="text-sm font-semibold text-zinc-100">{l.label}</p>
-                      <p className="text-[11px] text-zinc-500">
-                        {dimmed ? "Needs a second source (screen, media, or guest)" : l.hint}
-                      </p>
+                      <LayoutThumb id={l.id} />
+                      <span className="min-w-0">
+                        <p className="text-sm font-semibold text-zinc-100">{l.label}</p>
+                        <p className="text-[11px] text-zinc-500">
+                          {dimmed ? "Needs a second source (screen, media, or guest)" : l.hint}
+                        </p>
+                      </span>
                     </button>
                   );
                 })}
