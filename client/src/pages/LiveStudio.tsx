@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2, Mic, MicOff,
+  AudioLines, Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2, Mic, MicOff,
   MonitorUp, Radio, Scissors, Sparkles, Square, Type, UserPlus,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
@@ -73,6 +73,7 @@ export default function LiveStudio() {
 
   // ── AI moment detection ──
   const [detectPhase, setDetectPhase] = useState<"idle" | "listening" | "scanning">("idle");
+  const [refining, setRefining] = useState(false);
 
   // ── Captions ──
   const [captionBusyId, setCaptionBusyId] = useState<string | null>(null);
@@ -450,6 +451,48 @@ export default function LiveStudio() {
     }
   };
 
+  // One-click post-production: the Media Lab's Refine Audio preset run on the
+  // VOD — cuts dead air, masters loudness to -16 LUFS, lands in the library
+  // as a refined mp3. Same command as the Lab preset; keep them in step.
+  const refineAudio = async () => {
+    if (!session || !vodUrl.trim()) return;
+    setRefining(true);
+    try {
+      const cmd = "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
+      const submit = await apiRequest("POST", "/api/media-lab/ffmpeg/jobs", {
+        files: [vodUrl.trim()],
+        full_command: cmd,
+        output_extension: "mp3",
+      });
+      const sub = await submit.json().catch(() => ({}));
+      if (!submit.ok || !sub.job_id) throw new Error(sub.message ?? "Couldn't start the refine");
+      for (let i = 0; i < 150; i++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const st = await apiRequest("GET", `/api/media-lab/ffmpeg/jobs/${sub.job_id}`);
+        const js = await st.json().catch(() => ({}));
+        const status = String(js.status ?? "").toUpperCase();
+        if (status === "FINISHED" || status === "COMPLETED") break;
+        if (status === "ERROR" || status === "FAILED") throw new Error("The refine failed in processing");
+        if (i === 149) throw new Error("Timed out waiting for the refine");
+      }
+      const collect = await apiRequest("POST", "/api/media-lab/collect", {
+        jobId: sub.job_id,
+        extension: "mp3",
+        title: `${session.title} \u2014 refined audio`,
+      });
+      if (!collect.ok) throw new Error("Couldn't store the refined audio");
+      toast({ title: "Audio refined", description: "Dead air cut, loudness mastered \u2014 it's in your Media Library." });
+    } catch (e) {
+      toast({
+        title: "Couldn't refine the audio",
+        description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setRefining(false);
+    }
+  };
+
   // The producer's ear: transcribe the VOD, let AI file the strong moments
   // as marks, ready to cut in the Editing Room.
   const findMomentsWithAi = async () => {
@@ -747,6 +790,26 @@ export default function LiveStudio() {
                 <Link href="/media-library" className="text-zinc-300 underline">Media Library</Link>
               </p>
             </div>
+            <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-zinc-700 bg-transparent text-xs text-zinc-200 hover:bg-zinc-800"
+              onClick={() => void refineAudio()}
+              disabled={refining || !vodUrl.trim()}
+            >
+              {refining ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Refining…
+                </>
+              ) : (
+                <>
+                  <AudioLines className="mr-1.5 h-3.5 w-3.5" />
+                  Refine audio
+                </>
+              )}
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -766,6 +829,7 @@ export default function LiveStudio() {
                 </>
               )}
             </Button>
+            </div>
           </div>
           {uploadingVod && (
             <p className="flex items-center gap-2 text-xs font-medium text-zinc-400">

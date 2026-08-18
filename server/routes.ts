@@ -5317,6 +5317,66 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
   const LIVE_POST_ROLL = 10;
   const MAX_CLIP_BYTES = 80 * 1024 * 1024;
   const FFMPEG_JOBS_BASE = `${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs`;
+  const MAX_RECORDING_BYTES = 250 * 1024 * 1024;
+
+  // Studio recordings are WebM (the only format browsers can record). MP4
+  // (H.264 + AAC) is what phones, QuickTime, and social uploaders expect, so
+  // every recording converts itself in the background — fire-and-forget: a
+  // failure leaves the WebM in place, never blocks the show flow. Costs
+  // roughly one FFmpeg minute per show minute.
+  async function convertRecordingToMp4(sessionId: string, userId: string, webmUrl: string): Promise<void> {
+    try {
+      const cmd = 'ffmpeg -i {input} -c:v libx264 -preset veryfast -c:a aac -movflags +faststart {output}';
+      const submit = await fetch(`${FFMPEG_JOBS_BASE}/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: [webmUrl], full_command: cmd, output_extension: 'mp4' }),
+      });
+      const data = await submit.json().catch(() => ({}));
+      const jobId = (data as any).job_id ?? (data as any).jobId ?? (data as any).id;
+      if (!submit.ok || !jobId) {
+        console.error(`MP4 convert: submit failed (${submit.status}) for session ${sessionId}`);
+        return;
+      }
+      let finished = false;
+      for (let i = 0; i < 90; i++) {
+        await new Promise((r) => setTimeout(r, 10000));
+        const st = await fetch(`${FFMPEG_JOBS_BASE}/${encodeURIComponent(String(jobId))}`, {
+          headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+        });
+        const js = await st.json().catch(() => ({}));
+        const status = String((js as any).status ?? '').toUpperCase();
+        if (status === 'FINISHED' || status === 'COMPLETED') { finished = true; break; }
+        if (status === 'ERROR' || status === 'FAILED') {
+          console.error(`MP4 convert: job failed for session ${sessionId}`);
+          return;
+        }
+      }
+      if (!finished) {
+        console.error(`MP4 convert: timed out for session ${sessionId}`);
+        return;
+      }
+      const dl = await fetch(`${FFMPEG_JOBS_BASE}/${encodeURIComponent(String(jobId))}/download`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      if (!dl.ok) return;
+      const buffer = Buffer.from(await dl.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > MAX_RECORDING_BYTES) {
+        console.error(`MP4 convert: result ${buffer.length} bytes out of range for session ${sessionId}`);
+        return;
+      }
+      const mp4Url = await storeVideoBuffer(buffer, `recordings/${userId}`, 'video/mp4');
+      if (!mp4Url) return;
+      // Only swap the VOD if nobody replaced it while we were converting.
+      const current = await storage.getLiveSession(sessionId);
+      if (current && current.vodUrl === webmUrl) {
+        await storage.updateLiveSession(sessionId, { vodUrl: mp4Url });
+      }
+      await storage.updateMediaLibraryItemMedia(userId, 'live', `recording-${sessionId}`, mp4Url);
+    } catch (error) {
+      console.error('MP4 convert failed:', error);
+    }
+  }
 
   app.get('/api/live/current', isAuthenticated, async (req: any, res) => {
     try {
@@ -5466,6 +5526,11 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
           });
         }
       } catch { /* library filing is best-effort */ }
+
+      // WebM studio recordings convert themselves to MP4 in the background.
+      if (typeof updates.vodUrl === 'string' && updates.vodUrl.toLowerCase().endsWith('.webm')) {
+        void convertRecordingToMp4(session.id, userId, updates.vodUrl);
+      }
 
       res.json({ session: updated });
     } catch (error) {
