@@ -75,11 +75,20 @@ export class StudioCompositor {
     this.state.layout = layout;
   }
 
+  /** The stage draws the moment any source exists — long before recording. */
+  private ensureLoop() {
+    if (!this.running) {
+      this.running = true;
+      this.raf = requestAnimationFrame(this.draw);
+    }
+  }
+
   setCamera(stream: MediaStream | null) {
     this.state.camera = stream;
     this.camVideo.srcObject = stream;
     if (stream) void this.camVideo.play().catch(() => {});
     this.rewireAudio();
+    this.ensureLoop();
   }
 
   setScreen(stream: MediaStream | null) {
@@ -87,6 +96,7 @@ export class StudioCompositor {
     this.screenVideo.srcObject = stream;
     if (stream) void this.screenVideo.play().catch(() => {});
     this.rewireAudio();
+    this.ensureLoop();
   }
 
   /** A remote guest (LiveKit) — fills the second slot on the stage. */
@@ -95,6 +105,7 @@ export class StudioCompositor {
     this.guestVideo.srcObject = stream;
     if (stream) void this.guestVideo.play().catch(() => {});
     this.rewireAudio();
+    this.ensureLoop();
   }
 
   /** Play a media file on the stage — takes the big slot, audio in the mix. */
@@ -109,6 +120,7 @@ export class StudioCompositor {
       } catch { this.mediaAudio = null; }
     }
     this.rewireAudio();
+    this.ensureLoop();
   }
 
   /** Show an image on the stage (artwork, a slide, a lower third). */
@@ -117,6 +129,7 @@ export class StudioCompositor {
     this.mediaVideoEl = null;
     this.mediaAudio = null;
     this.rewireAudio();
+    this.ensureLoop();
   }
 
   /** Rebuild the audio graph from whatever sources currently have audio tracks. */
@@ -236,26 +249,31 @@ export class StudioCompositor {
     if (this.running) this.raf = requestAnimationFrame(this.draw);
   };
 
-  /** Starts the draw loop + audio graph; returns the composed stream to record. */
+  /** Builds the audio graph and returns the composed stream to record. */
   start(): MediaStream {
-    this.running = true;
+    this.ensureLoop();
     this.audioCtx = new AudioContext();
     this.audioDest = this.audioCtx.createMediaStreamDestination();
     this.rewireAudio();
-    this.raf = requestAnimationFrame(this.draw);
 
     const composed = this.canvas.captureStream(30);
     for (const track of this.audioDest.stream.getAudioTracks()) composed.addTrack(track);
     return composed;
   }
 
+  /** Ends a recording's audio graph; the preview keeps drawing. */
   stop() {
-    this.running = false;
-    cancelAnimationFrame(this.raf);
     for (const src of this.audioSources) src.disconnect();
     this.audioSources = [];
     void this.audioCtx?.close().catch(() => {});
     this.audioCtx = null;
     this.audioDest = null;
+  }
+
+  /** Full teardown on unmount. */
+  dispose() {
+    this.stop();
+    this.running = false;
+    cancelAnimationFrame(this.raf);
   }
 }
