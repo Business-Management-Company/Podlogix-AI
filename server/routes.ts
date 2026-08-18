@@ -4223,7 +4223,8 @@ Respond in this exact JSON format:
     try {
       const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
-      const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'] } = req.body;
+      // Default to every platform included in our Upload-Post plan.
+      const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin', 'x', 'threads', 'reddit', 'pinterest', 'bluesky', 'discord', 'telegram'] } = req.body;
 
       const protocol = req.headers['x-forwarded-proto'] || 'https';
       const host = req.headers['host'] || 'localhost:5000';

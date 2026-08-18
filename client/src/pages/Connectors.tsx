@@ -19,7 +19,7 @@ import {
   Calendar,
   Plus,
 } from "lucide-react";
-import { SiTiktok, SiSpotify, SiX } from "react-icons/si";
+import { SiTiktok, SiSpotify, SiX, SiThreads, SiReddit, SiPinterest, SiBluesky, SiDiscord, SiTelegram } from "react-icons/si";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +79,12 @@ const platformIcons: Record<string, React.ReactNode> = {
   x: <SiX className="h-4 w-4" />,
   linkedin: <Linkedin className="h-4 w-4 text-blue-600" />,
   facebook: <Facebook className="h-4 w-4 text-blue-500" />,
+  threads: <SiThreads className="h-4 w-4" />,
+  reddit: <SiReddit className="h-4 w-4 text-orange-600" />,
+  pinterest: <SiPinterest className="h-4 w-4 text-red-600" />,
+  bluesky: <SiBluesky className="h-4 w-4 text-sky-500" />,
+  discord: <SiDiscord className="h-4 w-4 text-indigo-500" />,
+  telegram: <SiTelegram className="h-4 w-4 text-sky-600" />,
 };
 
 const platformNames: Record<string, string> = {
@@ -89,6 +95,12 @@ const platformNames: Record<string, string> = {
   x: "X (Twitter)",
   linkedin: "LinkedIn",
   facebook: "Facebook",
+  threads: "Threads",
+  reddit: "Reddit",
+  pinterest: "Pinterest",
+  bluesky: "Bluesky",
+  discord: "Discord",
+  telegram: "Telegram",
 };
 
 const platformPlaceholders: Record<string, string> = {
@@ -97,8 +109,11 @@ const platformPlaceholders: Record<string, string> = {
   twitter: "https://twitter.com/yourusername",
 };
 
-/** Platforms creators can post to through the Upload-Post connect flow. */
-const POSTING_PLATFORMS = ["instagram", "youtube", "facebook", "linkedin", "x", "tiktok"];
+/** Every posting platform included in our Upload-Post plan. */
+const POSTING_PLATFORMS = [
+  "instagram", "youtube", "facebook", "linkedin", "x", "tiktok",
+  "threads", "reddit", "pinterest", "bluesky", "discord", "telegram",
+];
 
 function formatNumber(num: number | undefined): string {
   if (!num) return "0";

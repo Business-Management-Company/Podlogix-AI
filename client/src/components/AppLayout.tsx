@@ -45,6 +45,7 @@ import {
   Compass,
   BookMarked,
   FlaskConical,
+  Puzzle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -84,16 +85,21 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Social" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
+  // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
+  { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
   { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Identity" },
   { title: "Identity Protection", url: "/identity", icon: Shield, group: "Identity" },
   { title: "Likeness Certification", url: "/dashboard/certify-likeness", icon: Fingerprint, group: "Identity" },
-  { title: "Connected apps", url: "/connectors", icon: Plug, group: "Settings" },
   { title: "Workspace Settings", url: "/settings", icon: Settings, group: "Settings" },
+  // Ungrouped: standalone page reached from the rail's plug icon — no panel group,
+  // but listed here so the active-leaf matcher lights the rail icon on /connectors.
+  { title: "Connectors", url: "/connectors", icon: Plug },
 ];
 
-// Rail bottom cluster — quick-access shortcuts into the Settings group above.
+// Rail bottom cluster — standalone destinations that live on the dark rail only.
 const RAIL_BOTTOM: RailItem[] = [
-  { title: "Connected apps", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
+  { title: "Help Center", icon: HelpCircle, url: "/help", isActive: () => false },
+  { title: "Connectors", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
   { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
 ];
 
@@ -217,9 +223,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   // groups — that group's items. No group active (e.g. on /today or Voice
   // Certification) means the panel shows just Today; the rail alone still
   // gets you everywhere else.
-  const activeGroupItems = activeLeaf?.group
-    ? WORKSPACE_PRIMARY.filter((i) => i.group === activeLeaf.group)
-    : [];
+  const activeGroupItems = (
+    activeLeaf?.group ? WORKSPACE_PRIMARY.filter((i) => i.group === activeLeaf.group) : []
+  ).filter((i) => i.url !== "/media-lab" || user?.email === "andrew@podlogix.co");
   const panelItems =
     navMode === "show"
       ? showNavItems(showId!)
@@ -347,28 +353,39 @@ export function AppLayout({ children }: AppLayoutProps) {
             );
           })}
 
-          {/* Admin — only visible to admins */}
-          {adminCheck?.isAdmin && (
-            railExpanded ? (
-              <Link href="/admin">
-                <button className="flex items-center gap-2.5 px-3 w-full h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
-                  <ShieldCheck className="h-[18px] w-[18px] shrink-0 text-slate-500" />
-                  <span className="text-sm text-slate-400">Admin</span>
+          {/* Admin cluster — Admin for admins; SaaS Portal + Integrations for superadmins */}
+          {[
+            ...(adminCheck?.isAdmin ? [{ title: "Admin", icon: ShieldCheck, url: "/admin" }] : []),
+            ...(adminCheck?.isSuperAdmin
+              ? [
+                  { title: "SaaS Portal", icon: Building2, url: "/saas-admin" },
+                  { title: "Integrations", icon: Puzzle, url: "/admin/integrations" },
+                ]
+              : []),
+          ].map((item) => {
+            const Icon = item.icon;
+            const btn = (
+              <Link href={item.url}>
+                <button
+                  className={`flex items-center h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 ${
+                    railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"
+                  }`}
+                  aria-label={item.title}
+                >
+                  <Icon className="h-[18px] w-[18px] shrink-0 text-slate-500" />
+                  {railExpanded && <span className="text-sm text-slate-400 truncate">{item.title}</span>}
                 </button>
               </Link>
+            );
+            return railExpanded ? (
+              <div key={item.url}>{btn}</div>
             ) : (
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Link href="/admin">
-                    <button className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150" aria-label="Admin">
-                      <ShieldCheck className="h-[18px] w-[18px] text-slate-500" />
-                    </button>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">Admin</TooltipContent>
+              <Tooltip key={item.url} delayDuration={300}>
+                <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                <TooltipContent side="right" className="text-xs font-medium">{item.title}</TooltipContent>
               </Tooltip>
-            )
-          )}
+            );
+          })}
 
           {/* User avatar */}
           <div className="mt-1">
@@ -497,57 +514,6 @@ export function AppLayout({ children }: AppLayoutProps) {
               })}
             </div>
 
-            {/* Help — always at bottom, always shown */}
-            <div className="pt-4 pb-1">
-              <Link href="/help">
-                <div className={panelLinkClass(location.startsWith("/help"))}>
-                  <HelpCircle className="h-4 w-4 shrink-0" />
-                  <span>Help Center</span>
-                </div>
-              </Link>
-
-              {/* Beta features — visible only to allowlisted accounts being used to test them */}
-              {user?.email === "andrew@podlogix.co" && navMode === "workspace" && (
-                <>
-                  <div className="px-3 pt-4 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Beta</p>
-                  </div>
-                  <Link href="/media-lab">
-                    <div className={panelLinkClass(location.startsWith("/media-lab"))}>
-                      <FlaskConical className="h-4 w-4 shrink-0" />
-                      <span>Media Lab</span>
-                    </div>
-                  </Link>
-                </>
-              )}
-
-              {/* Admin-only items — below Help */}
-              {adminCheck?.isSuperAdmin && navMode === "workspace" && (
-                <>
-                  <div className="px-3 pt-4 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Admin</p>
-                  </div>
-                  <Link href="/admin">
-                    <div className={panelLinkClass(location.startsWith("/admin") && !location.startsWith("/admin/integrations"))}>
-                      <ShieldCheck className="h-4 w-4 shrink-0" />
-                      <span>Admin Panel</span>
-                    </div>
-                  </Link>
-                  <Link href="/saas-admin">
-                    <div className={panelLinkClass(location.startsWith("/saas-admin"))}>
-                      <Building2 className="h-4 w-4 shrink-0" />
-                      <span>SaaS Portal</span>
-                    </div>
-                  </Link>
-                  <Link href="/admin/integrations">
-                    <div className={panelLinkClass(location.startsWith("/admin/integrations"))}>
-                      <Plug className="h-4 w-4 shrink-0" />
-                      <span>Integrations</span>
-                    </div>
-                  </Link>
-                </>
-              )}
-            </div>
           </nav>
         </aside>
       )}

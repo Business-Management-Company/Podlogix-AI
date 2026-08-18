@@ -177,7 +177,7 @@ export default function SocialHub() {
     setIsConnecting(true);
     try {
       await createProfileMutation.mutateAsync();
-      connectMutation.mutate(["instagram", "tiktok", "youtube", "facebook", "linkedin"]);
+      connectMutation.mutate(["instagram", "tiktok", "youtube", "facebook", "linkedin", "x", "threads", "reddit", "pinterest", "bluesky", "discord", "telegram"]);
     } catch {
       setIsConnecting(false);
     }
