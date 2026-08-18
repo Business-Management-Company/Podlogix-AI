@@ -55,7 +55,7 @@ export default function IdentityHub() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="mx-auto w-full max-w-6xl px-6 py-8 space-y-8">
+      <main className="w-full max-w-6xl px-6 py-8 space-y-8">
         {/* Hero Section */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}

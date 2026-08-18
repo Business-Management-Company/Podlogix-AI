@@ -187,7 +187,7 @@ export default function EpisodeDetail() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-6 py-8 space-y-4">
+      <div className="w-full max-w-5xl px-6 py-8 space-y-4">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-9 w-2/3" />
         <Skeleton className="h-6 w-80" />
@@ -198,7 +198,7 @@ export default function EpisodeDetail() {
 
   if (isError || !episode) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-6 py-8">
+      <div className="w-full max-w-5xl px-6 py-8">
         <EmptyState
           icon={Mic2}
           title="Episode not found"
@@ -214,7 +214,7 @@ export default function EpisodeDetail() {
   const pubDate = formatDate(episode.publishedAt);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8">
+    <div className="w-full max-w-5xl px-6 py-8">
       {/* Header */}
       <Link href={backHref}>
         <span className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-400 transition-colors hover:text-zinc-600">

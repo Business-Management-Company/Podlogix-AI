@@ -187,7 +187,7 @@ export default function Episodes() {
 
   if (authLoading || podcastsLoading) {
     return (
-      <div className="min-h-full bg-background mx-auto w-full max-w-6xl px-6 py-8 space-y-4">
+      <div className="min-h-full bg-background w-full max-w-6xl px-6 py-8 space-y-4">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-48 w-full max-w-2xl" />
       </div>
@@ -196,7 +196,7 @@ export default function Episodes() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
+      <main className="w-full max-w-6xl px-6 py-8 space-y-6">
         <h1 className="text-2xl font-semibold tracking-tight">Episodes</h1>
         {!podcast && (
           <Card>

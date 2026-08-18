@@ -166,7 +166,7 @@ export default function AiAssistant() {
   if (authLoading || conversationsLoading) {
     return (
       <div className="min-h-full bg-background">
-        <div className="mx-auto w-full max-w-6xl px-6 py-8">
+        <div className="w-full max-w-6xl px-6 py-8">
           <Skeleton className="h-[600px] w-full rounded-xl" />
         </div>
       </div>

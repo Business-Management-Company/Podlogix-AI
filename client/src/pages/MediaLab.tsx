@@ -191,7 +191,7 @@ export default function MediaLab() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8">
+    <div className="w-full max-w-5xl px-6 py-8">
       <div className="mb-6">
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
           <FlaskConical className="h-5 w-5 text-zinc-400" />

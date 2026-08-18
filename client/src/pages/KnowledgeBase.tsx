@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,30 +11,34 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  ArrowLeft,
   Search,
-  Mic,
-  Shield,
   Radio,
-  Rss,
   Share2,
   Sparkles,
-  Bell,
-  User,
   HelpCircle,
   BookOpen,
   FileText,
-  Headphones,
   Zap,
-  Lock,
-  Mail,
-  ExternalLink,
+  Mic2,
+  Users,
+  GalleryVerticalEnd,
+  FlaskConical,
+  Scissors,
+  UserPlus,
+  PenSquare,
+  CalendarRange,
+  MessageCircle,
+  Link2,
+  Mic,
+  Plug,
+  LayoutDashboard,
 } from "lucide-react";
 
-import kbSubscriptionsImg from "@/assets/images/kb-subscriptions.png";
-import kbBriefingsImg from "@/assets/images/kb-briefings.png";
-import kbVoiceCertImg from "@/assets/images/kb-voice-cert.png";
-import kbInterestsImg from "@/assets/images/kb-interests.png";
+/**
+ * /help — the Help Center. Written plainly (aim: an eighth grader can follow
+ * any article without help). One article per page of the app, searchable.
+ * When a page changes, its article changes in the same PR.
+ */
 
 interface Article {
   id: string;
@@ -45,236 +48,312 @@ interface Article {
   category: string;
   icon: React.ReactNode;
   tags: string[];
-  image?: string;
 }
 
 const articles: Article[] = [
+  // ── Get started ──
   {
-    id: "voice-certification",
-    title: "Voice Identity Protection",
-    description: "Learn how to certify your voice on the blockchain to protect against AI impersonation.",
-    category: "Identity Protection",
-    icon: <Shield className="h-5 w-5" />,
-    tags: ["blockchain", "voice", "NFT", "polygon"],
-    image: kbVoiceCertImg,
-    content: [
-      "Voice Identity Protection uses blockchain technology to create a verifiable certificate of your unique voice.",
-      "How it works:",
-      "1. Record a voice sample through our secure interface",
-      "2. Your voice fingerprint is analyzed and encrypted",
-      "3. A unique NFT certificate is minted on the Polygon blockchain",
-      "4. You receive a shareable certificate proving voice ownership",
-      "Benefits:",
-      "• Protect against AI deepfakes and voice cloning",
-      "• Prove ownership of your voice in disputes",
-      "• Share verified certificates with platforms and partners",
-      "• Immutable blockchain record that can't be altered",
-    ],
-  },
-  {
-    id: "likeness-certification",
-    title: "Likeness Protection",
-    description: "Certify your image and likeness to prevent unauthorized AI-generated content.",
-    category: "Identity Protection",
-    icon: <User className="h-5 w-5" />,
-    tags: ["blockchain", "image", "NFT", "protection"],
-    content: [
-      "Likeness Protection extends blockchain certification to your visual identity.",
-      "What's protected:",
-      "• Your face and physical appearance",
-      "• Brand imagery and logos",
-      "• Video content featuring you",
-      "How to certify:",
-      "1. Upload clear photos of yourself or your brand",
-      "2. Our AI analyzes and creates a unique likeness signature",
-      "3. The signature is minted as an NFT on Polygon",
-      "4. Use the certificate to prove ownership of your likeness",
-    ],
-  },
-  {
-    id: "podcast-subscriptions",
-    title: "Podcast Subscriptions",
-    description: "Subscribe to podcasts via RSS or import from Spotify.",
-    category: "Listener Features",
-    icon: <Radio className="h-5 w-5" />,
-    tags: ["podcasts", "RSS", "Spotify", "subscriptions"],
-    image: kbSubscriptionsImg,
-    content: [
-      "Stay updated with your favorite podcasts using our subscription system.",
-      "Two ways to subscribe:",
-      "RSS Feed: Paste any podcast RSS feed URL to subscribe directly",
-      "Spotify Import: Connect your Spotify account to import podcasts you follow",
-      "Managing subscriptions:",
-      "• View all subscribed podcasts in one place",
-      "• See episode counts and latest updates",
-      "• Easily unsubscribe from podcasts you no longer follow",
-      "• Episodes are automatically tracked as they're published",
-    ],
-  },
-  {
-    id: "ai-briefings",
-    title: "AI-Powered Briefings",
-    description: "Get personalized summaries of podcast episodes based on your interests.",
-    category: "Listener Features",
-    icon: <Sparkles className="h-5 w-5" />,
-    tags: ["AI", "summaries", "personalization", "OpenAI"],
-    image: kbBriefingsImg,
-    content: [
-      "AI Briefings transform long podcast episodes into personalized, actionable summaries.",
-      "What you get:",
-      "• Key quotes from the episode",
-      "• Summary tailored to your interests",
-      "• Action items and takeaways",
-      "• Relevance score (0-100) showing how relevant the episode is to you",
-      "How it works:",
-      "1. OpenAI Whisper transcribes the audio",
-      "2. GPT-4o analyzes the transcript against your interests",
-      "3. A personalized briefing is generated with highlights",
-      "4. You receive a notification when it's ready",
-      "Note: Briefings focus on content, not timestamps.",
-    ],
-  },
-  {
-    id: "user-interests",
-    title: "Interest Profiles",
-    description: "Define topics and keywords for AI to track across all your podcasts.",
-    category: "Listener Features",
+    id: "what-is-podlogix",
+    title: "What is Podlogix?",
+    description: "The big idea, in one minute.",
+    category: "Get Started",
     icon: <Zap className="h-5 w-5" />,
-    tags: ["interests", "personalization", "keywords", "topics"],
-    image: kbInterestsImg,
+    tags: ["overview", "start", "basics"],
     content: [
-      "Your interest profile helps AI understand what matters most to you.",
-      "Setting up interests:",
-      "1. Go to the Listener Dashboard",
-      "2. Click 'Add Interest' to create a new topic",
-      "3. Enter a topic name (e.g., 'AI Technology')",
-      "4. Add keywords to track (e.g., 'machine learning', 'neural networks')",
-      "5. Set priority level: High, Medium, or Low",
-      "How interests improve briefings:",
-      "• AI focuses on content matching your keywords",
-      "• Higher priority interests get more attention",
-      "• Relevance scores reflect how well episodes match your profile",
-      "• You can update interests anytime to refine results",
+      "Podlogix is a home base for people who make podcasts and live shows.",
+      "Here's the big idea: you do the show, and Podlogix does everything after. You record an episode, and the app helps turn that one recording into a whole week of content — short clips, captions, cleaned-up audio, and social media posts.",
+      "The main rooms:",
+      "• The Studio — where you record or go live, with your camera and screen.",
+      "• The Media Library — where every recording, clip, and file lives.",
+      "• The Media Lab — where files get converted and cleaned up.",
+      "• Social — where you write and schedule posts for all your accounts.",
+      "• Guests & CRM — where you keep track of the people who come on your show.",
+      "You don't need to learn everything at once. Start with the Studio, do one show, and follow where the app takes you.",
     ],
   },
   {
-    id: "rss-management",
-    title: "RSS Feed Management",
-    description: "Create and manage your podcast's RSS feed for distribution.",
-    category: "Podcaster Tools",
-    icon: <Rss className="h-5 w-5" />,
-    tags: ["RSS", "feed", "podcasting", "distribution"],
+    id: "dashboard",
+    title: "Your Dashboard",
+    description: "The first screen you see, and what everything on it means.",
+    category: "Get Started",
+    icon: <LayoutDashboard className="h-5 w-5" />,
+    tags: ["dashboard", "today", "home"],
     content: [
-      "Your RSS feed is the backbone of podcast distribution.",
-      "Creating your feed:",
-      "1. Go to Dashboard > RSS Management",
-      "2. Fill in your podcast details (title, description, artwork)",
-      "3. Add episode information",
-      "4. Your RSS feed URL is automatically generated",
-      "Feed features:",
-      "• Industry-standard RSS 2.0 format",
-      "• Compatible with all major podcast platforms",
-      "• Automatic updates when you add episodes",
-      "• iTunes-compatible tags for Apple Podcasts",
+      "The Dashboard is your morning check-in. It answers: how is my show doing, and what's happening today?",
+      "What's on it:",
+      "• Connected accounts — the social accounts you've linked, with a green light when they're healthy.",
+      "• Stats — episodes, published posts, connected socials, and followers.",
+      "• Interview scheduling — your upcoming calendar events, pulled from Google Calendar.",
+      "• Guest pipeline — the guests you're talking to, and what stage they're at.",
+      "• Quick actions — Create Post, Edit Bio, and Copy Bio Link, right at the top.",
+      "If a connected account shows a warning, click it — it usually just needs to be reconnected.",
     ],
   },
   {
-    id: "multi-platform-distribution",
-    title: "Multi-Platform Distribution",
-    description: "Publish your podcast to Spotify, Apple Podcasts, and more.",
-    category: "Podcaster Tools",
-    icon: <Share2 className="h-5 w-5" />,
-    tags: ["distribution", "Spotify", "Apple", "platforms"],
+    id: "connectors",
+    title: "Connecting your accounts",
+    description: "Link your social accounts, calendar, and podcast host.",
+    category: "Get Started",
+    icon: <Plug className="h-5 w-5" />,
+    tags: ["connect", "accounts", "instagram", "youtube", "calendar"],
     content: [
-      "Reach listeners everywhere with one-click distribution.",
-      "Supported platforms:",
-      "• Spotify for Podcasters",
-      "• Apple Podcasts",
-      "• Google Podcasts",
-      "• Amazon Music",
-      "• And more...",
-      "How to distribute:",
-      "1. Ensure your RSS feed is set up",
-      "2. Go to Dashboard > Distribution",
-      "3. Select platforms to submit to",
-      "4. Follow platform-specific instructions",
-      "5. Track submission status in the dashboard",
+      "Podlogix can post to your social accounts and read your calendar — but only after you connect them. Connecting is safe: you log in on the real site (like Instagram or Google), and Podlogix never sees your password.",
+      "How to connect:",
+      "1. Open Connectors from the left rail (the plug icon).",
+      "2. Pick the service you want to connect.",
+      "3. A window opens on that service's own website. Log in and approve.",
+      "4. You come right back to Podlogix, connected.",
+      "Sometimes a connection expires (services do this on purpose for safety). When that happens you'll see a 'reconnect' warning — just click it and approve again.",
+    ],
+  },
+
+  // ── Studio ──
+  {
+    id: "live-studio",
+    title: "The Live Studio",
+    description: "Record a show with your camera and screen — like a TV studio in your browser.",
+    category: "Studio",
+    icon: <Radio className="h-5 w-5" />,
+    tags: ["studio", "record", "live", "camera", "layouts", "teleprompter"],
+    content: [
+      "The Live Studio takes over your whole screen. To leave, click Exit Studio in the top-left corner — everything goes back to normal.",
+      "First, pick a studio:",
+      "A studio is a room you come back to. Create one and name it after your show (like 'The Morning Desk'). You can make more than one, and you can delete one you don't need — your old recordings and clips are always safe.",
+      "On the stage:",
+      "• Start Camera turns on your webcam. Share Screen shows your screen.",
+      "• Layouts (right side) control how the stage looks: fullscreen, small picture-in-picture corners, or split screen. What you see on the stage is exactly what gets recorded.",
+      "• The Teleprompter scrolls your script over the stage. You can see it — the recording can't.",
+      "• Go live starts the show and the clock.",
+      "The most important button:",
+      "When something great happens during your show, press the spacebar (or the 'Mark moment' button). That drops a bookmark at that exact second. After the show, each bookmark becomes a short clip. You don't have to remember when the good stuff happened — just tap space when it does.",
     ],
   },
   {
-    id: "public-profile",
-    title: "Public Profile (Linktree-style)",
-    description: "Create a shareable profile page with all your podcast links.",
-    category: "Podcaster Tools",
-    icon: <ExternalLink className="h-5 w-5" />,
-    tags: ["profile", "links", "branding", "public"],
+    id: "guests",
+    title: "Inviting a guest onto your show",
+    description: "Send one link. Your guest appears on your stage — no account needed.",
+    category: "Studio",
+    icon: <UserPlus className="h-5 w-5" />,
+    tags: ["guest", "invite", "green room", "interview"],
     content: [
-      "Your public profile is a one-stop page for fans to find all your content.",
-      "Profile features:",
-      "• Custom URL (podlogix.app/p/yourname)",
-      "• Profile photo and bio",
-      "• Links to all your podcast platforms",
-      "• Social media links",
-      "• Voice/likeness certification badges",
-      "Setting up your profile:",
-      "1. Go to Dashboard > Profile",
-      "2. Add your photo and bio",
-      "3. Add links to your podcast platforms",
-      "4. Share your unique URL with your audience",
-    ],
-  },
-  {
-    id: "notifications",
-    title: "Notifications & Alerts",
-    description: "Stay informed with dashboard and email notifications.",
-    category: "Features",
-    icon: <Bell className="h-5 w-5" />,
-    tags: ["notifications", "email", "alerts", "updates"],
-    content: [
-      "Never miss an update with our notification system.",
-      "Notification types:",
-      "• New episode alerts from subscribed podcasts",
-      "• Briefing ready notifications",
-      "• Voice/likeness monitoring alerts",
-      "• Platform distribution updates",
-      "Delivery methods:",
-      "Dashboard: All notifications appear in your notification center",
-      "Email: Important alerts are sent to your email via Resend",
-      "Managing notifications:",
-      "• View all notifications in the dashboard",
-      "• Mark as read or dismiss",
-      "• Email preferences can be updated in settings",
-    ],
-  },
-  {
-    id: "social-monitoring",
-    title: "Social Media Monitoring",
-    description: "Track potential voice/likeness impersonation on social platforms.",
-    category: "Identity Protection",
-    icon: <Lock className="h-5 w-5" />,
-    tags: ["monitoring", "social", "Meta", "protection"],
-    content: [
-      "Protect your identity across social media platforms.",
-      "What we monitor:",
-      "• Instagram content",
-      "• Facebook pages and posts",
-      "• YouTube videos (coming soon)",
+      "You can bring a guest onto your live show with one link.",
       "How it works:",
-      "1. Connect your Meta account",
-      "2. We analyze content for potential impersonation",
-      "3. Receive alerts when suspicious content is detected",
-      "4. Take action with your blockchain-verified certificate",
-      "Note: Monitoring requires connected social accounts.",
+      "1. While your show is live, click 'Invite a guest'. The link copies itself — paste it into a text or email.",
+      "2. Your guest opens the link. They don't need a Podlogix account.",
+      "3. They land in a green room: they see their own camera, check their hair, and type their name.",
+      "4. When they click 'Join the show', they appear on your stage — and in your recording.",
+      "You control how they look on the stage with the same layout buttons: side-by-side interview, or a small corner window. When the show ends, the invite link stops working.",
+    ],
+  },
+  {
+    id: "editing-room",
+    title: "The Editing Room",
+    description: "After the show: turn bookmarks into clips, add captions, clean the audio.",
+    category: "Studio",
+    icon: <Scissors className="h-5 w-5" />,
+    tags: ["clips", "captions", "editing", "refine", "AI"],
+    content: [
+      "When your show ends, the studio switches to the Editing Room (you can flip between Stage and Editing Room at the top-right).",
+      "What you can do here:",
+      "• Cut clip — every moment you marked becomes a 30-second clip: 20 seconds before the mark and 10 after. Why before? Because when you think 'that was great!', the great part already happened.",
+      "• Find clips with AI — the app listens to your whole recording and marks the strong moments for you. Great if you forgot to press space.",
+      "• Captions — makes subtitle files (.srt and .vtt) for any clip, so your clips have text on social media.",
+      "• Refine audio — one click cleans your whole show's audio: it cuts dead air and long pauses, and evens out the volume to podcast standard.",
+      "Everything you make here lands in your Media Library automatically.",
+    ],
+  },
+  {
+    id: "recordings",
+    title: "Where your recording goes",
+    description: "It saves itself, files itself, and converts itself. Here's the journey.",
+    category: "Studio",
+    icon: <FileText className="h-5 w-5" />,
+    tags: ["recording", "mp4", "webm", "vod", "convert"],
+    content: [
+      "When you end a show you recorded in the studio, three things happen on their own:",
+      "1. The recording uploads to your storage.",
+      "2. It files itself into your Media Library, named after your show.",
+      "3. It converts itself to MP4 in the background.",
+      "Why the conversion? Web browsers can only record in a format called WebM. It plays fine on the web, but iPhones and most social media sites prefer MP4. So Podlogix quietly makes the MP4 version for you. You never have to think about file formats — but now you know why it happens.",
+    ],
+  },
+
+  // ── Media ──
+  {
+    id: "media-library",
+    title: "The Media Library",
+    description: "One shelf for everything: recordings, clips, refined audio, and imports.",
+    category: "Media",
+    icon: <GalleryVerticalEnd className="h-5 w-5" />,
+    tags: ["library", "files", "badges", "import"],
+    content: [
+      "The Media Library is one shelf that every part of Podlogix shares. The studio puts recordings and clips on it; the Media Lab puts converted files on it; the post composer takes files off it.",
+      "Reading the page:",
+      "• The number cards at the top count your files, videos, audio, and refined items.",
+      "• The chips filter the grid: All, Videos, Audio, From the studio, Refined.",
+      "• Each card has a badge that tells you where the file came from: 'Studio' means it came out of the Live Studio, 'Refined' means the Media Lab cleaned or converted it, and a platform icon means it was imported from a social account.",
+      "'Import from your channels' copies your old social posts into the library so you can reuse them.",
+    ],
+  },
+  {
+    id: "media-lab",
+    title: "The Media Lab",
+    description: "The conversion bench: pick a file, pick an operation, press Run.",
+    category: "Media",
+    icon: <FlaskConical className="h-5 w-5" />,
+    tags: ["lab", "convert", "refine", "mp3", "mp4", "ffmpeg"],
+    content: [
+      "The Media Lab changes files from one form into another. It works like a workbench: pick your source on the left, pick an operation, and press Run Job on the right.",
+      "The operations:",
+      "• Refine Audio — the one-click cleanup. Cuts silence and dead air, and masters the loudness to podcast standard. This does real editing to the real file.",
+      "• Convert to MP4 — turns any video into the format everything can play.",
+      "• Extract Audio — pulls just the sound out of a video, as an MP3. A video becomes a podcast episode.",
+      "• Compress for Web — makes the file smaller without wrecking the quality.",
+      "When a job finishes, you can Download the file or press 'Save to library' — saved files show up in your Media Library with a Refined badge.",
+      "The rail on the right also shows your processing minutes for the month, so you always know how much you have left.",
+    ],
+  },
+  {
+    id: "speaking-analysis",
+    title: "Speaking Analysis",
+    description: "AI coaching on how someone comes across on camera.",
+    category: "Media",
+    icon: <Mic2 className="h-5 w-5" />,
+    tags: ["speaking", "coaching", "analysis", "fillers"],
+    content: [
+      "Speaking Analysis grades a recording the way a speech coach would. It's built for checking how a guest (or you!) comes across.",
+      "Where to find it: open any guest in Guests & CRM and click 'Analyze their speaking'. Then pick one of your videos, or paste a video link.",
+      "What you get back:",
+      "• Four scores: Overall, Presence, Speaking ability, and Filler control.",
+      "• Written coaching notes — specific, not generic.",
+      "• A count of every filler word, like \"um\" × 12 — so you know exactly what to work on.",
+      "It analyzes your own recordings, listening to what was actually said.",
+    ],
+  },
+
+  // ── Guests ──
+  {
+    id: "guests-crm",
+    title: "Guests & CRM",
+    description: "Keep track of everyone who might come on your show.",
+    category: "Guests",
+    icon: <Users className="h-5 w-5" />,
+    tags: ["crm", "guests", "pipeline", "notes", "invite"],
+    content: [
+      "Guests & CRM is your address book for show guests — plus a pipeline that remembers where each conversation stands.",
+      "Each guest has a stage, like Prospect (you're thinking about them) or Invited (you asked them on). The chips at the top count guests in each stage.",
+      "Click a guest and their card slides open:",
+      "• Their contact details, company, and role.",
+      "• A notes trail with timestamps — jot down what you talked about, and it's there next time.",
+      "• 'Analyze their speaking' — AI coaching on a clip of them (see the Speaking Analysis article).",
+      "• Invite — moves them to Invited and drafts the invitation email for you.",
+    ],
+  },
+  {
+    id: "discover-directory",
+    title: "Discover & Directory",
+    description: "Find creators worth inviting, and save the good ones.",
+    category: "Guests",
+    icon: <Search className="h-5 w-5" />,
+    tags: ["discover", "directory", "creators", "research"],
+    content: [
+      "Discover searches for creators across social platforms — by topic, name, or handle. Each result shows their followers, engagement, and contact info when available.",
+      "When you find someone interesting, save them. Saved creators go to your Directory, organized into lists you name yourself (like 'Veteran founders' or 'Fitness pods').",
+      "The flow: Discover someone → save to Directory → when you're ready, add them to Guests & CRM and start the conversation.",
+    ],
+  },
+
+  // ── Social ──
+  {
+    id: "posts",
+    title: "Writing a post",
+    description: "One composer for every platform, with AI that writes in your voice.",
+    category: "Social",
+    icon: <PenSquare className="h-5 w-5" />,
+    tags: ["posts", "composer", "AI write", "publish"],
+    content: [
+      "The Posts page publishes to all your connected accounts at once — now, or scheduled for later.",
+      "How to write one:",
+      "1. Pick a focus. 'My Show' promotes an episode (pick which one, and its artwork attaches itself). Or choose General, Personal, or Custom.",
+      "2. Pick where it goes — toggle each platform on or off.",
+      "3. Write it yourself, or press AI Write and the app drafts it for you, grounded in your actual podcast. Pick a tone: Pro, Casual, Funny, Promo, or Edu.",
+      "4. Check the preview — it shows the post the way followers will see it on each platform.",
+      "5. Post Now, or Save Draft.",
+      "The estimates panel suggests the best time to post and roughly how many people you'll reach.",
+    ],
+  },
+  {
+    id: "campaign-cadence",
+    title: "Campaigns & Cadence",
+    description: "Plan a week of posts on a calendar — AI fills it, you approve it.",
+    category: "Social",
+    icon: <CalendarRange className="h-5 w-5" />,
+    tags: ["campaign", "cadence", "schedule", "calendar"],
+    content: [
+      "One post is nice. A plan is better. That's what Campaign and Cadence are for.",
+      "• Campaign promotes one episode with several posts across the week — announcement, quote, clip, reminder. Pick the episode, and AI drafts a post for every slot on the calendar. You review, edit, and approve.",
+      "• Cadence is a standing rhythm — for example, three posts every week, forever. AI keeps proposing posts to fill your rhythm; you stay in charge of what actually goes out.",
+      "Both live on a calendar view, so you always see your week at a glance.",
+    ],
+  },
+  {
+    id: "engagement",
+    title: "The Engagement inbox",
+    description: "Instagram DMs and comments, answered from inside Podlogix.",
+    category: "Social",
+    icon: <MessageCircle className="h-5 w-5" />,
+    tags: ["engagement", "dms", "comments", "instagram"],
+    content: [
+      "Engagement is your Instagram inbox inside Podlogix: direct messages and comments in one place, with replies built in.",
+      "Two rules Instagram enforces (not us):",
+      "• You can reply to a DM within 24 hours of the person's last message. After that, the window closes until they message again.",
+      "• There's a daily cap on how many DMs you can send. If you hit it, it resets tomorrow.",
+      "Comments work the same way — read them and reply without leaving the app.",
+    ],
+  },
+  {
+    id: "link-page",
+    title: "Your Link Page",
+    description: "The one link that holds everything — episodes, socials, and more.",
+    category: "Social",
+    icon: <Link2 className="h-5 w-5" />,
+    tags: ["link page", "bio", "profile"],
+    content: [
+      "Your Link Page is the one link you put in every social bio. When someone taps it, they see your show, your latest episodes, your links, and anything else you add.",
+      "The editor has four tabs:",
+      "• Profile — your name, photo, and bio.",
+      "• Design — colors and style, with a live phone preview so you see it as you build it.",
+      "• Content — the sections on the page: links, episodes, whatever you want, in the order you want.",
+      "• Share — your page's address, ready to copy. 'Copy Bio Link' on the Dashboard grabs it too.",
+    ],
+  },
+
+  // ── Podcast ──
+  {
+    id: "shows-episodes",
+    title: "Shows & Episodes",
+    description: "Your podcast's home: shows, episodes, artwork, and feeds.",
+    category: "Podcast",
+    icon: <Mic className="h-5 w-5" />,
+    tags: ["shows", "episodes", "rss", "podcast"],
+    content: [
+      "The Podcast workspace is where the podcast itself lives.",
+      "• Shows lists your podcasts. Click one to enter its world: episodes, campaigns, audience, and settings.",
+      "• Episodes lists every episode across your shows, with artwork and publish dates.",
+      "• Listen is the listener side — playback and analytics.",
+      "Podlogix can connect to your podcast host (like Buzzsprout) so episodes sync automatically. Once connected, new episodes show up on their own — and the social composer can promote any of them with one click.",
     ],
   },
 ];
 
 const categories = [
   { name: "All", icon: <BookOpen className="h-4 w-4" /> },
-  { name: "Identity Protection", icon: <Shield className="h-4 w-4" /> },
-  { name: "Listener Features", icon: <Headphones className="h-4 w-4" /> },
-  { name: "Podcaster Tools", icon: <Mic className="h-4 w-4" /> },
-  { name: "Features", icon: <Zap className="h-4 w-4" /> },
+  { name: "Get Started", icon: <Zap className="h-4 w-4" /> },
+  { name: "Studio", icon: <Radio className="h-4 w-4" /> },
+  { name: "Media", icon: <GalleryVerticalEnd className="h-4 w-4" /> },
+  { name: "Guests", icon: <Users className="h-4 w-4" /> },
+  { name: "Social", icon: <Share2 className="h-4 w-4" /> },
+  { name: "Podcast", icon: <Mic className="h-4 w-4" /> },
 ];
 
 export default function KnowledgeBase() {
@@ -297,36 +376,33 @@ export default function KnowledgeBase() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="mx-auto w-full max-w-6xl px-6 py-8">
+      <main className="w-full max-w-4xl px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-8"
         >
-          {/* Hero Section */}
-          <div className="text-center space-y-4">
+          <div className="space-y-3">
             <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-kb-title">
-              How can we help you?
+              Help Center
             </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Find answers to common questions and learn how to get the most out of Podlogix.
+            <p className="text-muted-foreground max-w-2xl">
+              Plain answers about every page in Podlogix. Search, or browse by area.
             </p>
           </div>
 
-          {/* Search */}
-          <div className="relative max-w-xl mx-auto">
+          <div className="relative max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
-              placeholder="Search articles..."
+              placeholder="Search articles…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 text-lg"
+              className="pl-10 h-11"
               data-testid="input-search"
             />
           </div>
 
-          {/* Category Filters */}
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
               <Button
                 key={category.name}
@@ -341,7 +417,6 @@ export default function KnowledgeBase() {
             ))}
           </div>
 
-          {/* Articles */}
           <div className="space-y-4">
             <AnimatePresence mode="popLayout">
               {filteredArticles.map((article) => (
@@ -387,16 +462,6 @@ export default function KnowledgeBase() {
                           transition={{ duration: 0.2 }}
                         >
                           <CardContent className="pt-2 border-t mt-2">
-                            {article.image && (
-                              <div className="mb-4 rounded-lg overflow-hidden border">
-                                <img
-                                  src={article.image}
-                                  alt={`${article.title} screenshot`}
-                                  className="w-full h-auto"
-                                  data-testid={`img-article-${article.id}`}
-                                />
-                              </div>
-                            )}
                             <div className="space-y-2 text-sm text-muted-foreground">
                               {article.content.map((line, index) => (
                                 <p
@@ -436,79 +501,66 @@ export default function KnowledgeBase() {
             )}
           </div>
 
-          {/* FAQ Section */}
+          {/* FAQ */}
           <div className="mt-12">
-            <h2 className="text-2xl font-display font-bold mb-6 text-center">
-              Frequently Asked Questions
-            </h2>
+            <h2 className="text-xl font-semibold mb-4">Quick questions</h2>
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="faq-1">
                 <AccordionTrigger data-testid="accordion-faq-1">
-                  How does voice certification protect me?
+                  Do I lose my clips if I delete a studio?
                 </AccordionTrigger>
                 <AccordionContent>
-                  Voice certification creates a blockchain-verified record of your unique voice
-                  fingerprint. If someone creates AI-generated content using your voice, you can
-                  prove ownership with your certificate and take action against impersonators.
+                  No. Deleting a studio only removes the room. Every recording and clip you
+                  made stays safe in your Media Library.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="faq-2">
                 <AccordionTrigger data-testid="accordion-faq-2">
-                  What is a relevance score in briefings?
+                  Does my guest need a Podlogix account?
                 </AccordionTrigger>
                 <AccordionContent>
-                  The relevance score (0-100) indicates how well a podcast episode matches your
-                  defined interests. A score of 80+ means the episode is highly relevant to your
-                  topics, while lower scores indicate less overlap with your interests.
+                  No. The invite link is all they need. They open it, type their name, and
+                  join from any modern browser.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="faq-3">
                 <AccordionTrigger data-testid="accordion-faq-3">
-                  Can I import podcasts from Spotify?
+                  Why is my clip 30 seconds long?
                 </AccordionTrigger>
                 <AccordionContent>
-                  Yes! Connect your Spotify account in the Listener Dashboard, and we'll
-                  automatically import all the podcasts you follow. You can also manually add
-                  podcasts using their RSS feed URL.
+                  Each clip runs from 20 seconds before your mark to 10 seconds after it.
+                  When you press the button, the great moment has usually just happened — so
+                  the clip reaches back to catch it.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="faq-4">
                 <AccordionTrigger data-testid="accordion-faq-4">
-                  How do AI briefings work?
+                  Why does the AI need to "listen" before finding clips?
                 </AccordionTrigger>
                 <AccordionContent>
-                  When you request a briefing, we transcribe the podcast audio using OpenAI
-                  Whisper, then use GPT-4o to create a personalized summary based on your
-                  interests. The briefing includes key quotes, insights, and action items
-                  tailored to what matters to you.
+                  "Find clips with AI" first turns your recording's audio into text
+                  (that's the listening part), then reads that text to spot the strongest
+                  moments. Longer shows take a little longer to listen to.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="faq-5">
                 <AccordionTrigger data-testid="accordion-faq-5">
-                  What blockchain is used for certification?
+                  Can I post the same thing to every platform at once?
                 </AccordionTrigger>
                 <AccordionContent>
-                  We use the Polygon blockchain, which is an Ethereum-compatible network with
-                  low transaction fees and fast confirmation times. Your certificates are minted
-                  as NFTs, providing permanent, verifiable proof of ownership.
+                  Yes — that's what the composer is for. Toggle on the platforms you want,
+                  and the preview shows how the post will look on each one before you send it.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
           </div>
 
-          {/* Contact Section */}
-          <Card className="mt-8">
-            <CardContent className="py-8 text-center">
-              <Mail className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Still need help?</h3>
-              <p className="text-muted-foreground mb-4">
-                Can't find what you're looking for? Reach out to our support team.
-              </p>
-              <Button asChild data-testid="button-contact-support">
-                <a href="mailto:support@podlogix.co">Contact Support</a>
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="text-center py-6 border-t">
+            <HelpCircle className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              Still stuck? Email <a className="underline" href="mailto:andrew@podlogix.co">andrew@podlogix.co</a> and a human will help.
+            </p>
+          </div>
         </motion.div>
       </main>
     </div>
