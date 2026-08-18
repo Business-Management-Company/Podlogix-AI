@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, AudioLines, Camera, CameraOff, Clapperboard, Clock, Download, FileText, LayoutGrid,
-  Loader2, Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Sparkles, Square, Trash2, Type, UserPlus,
+  ArrowLeft, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download, FileText,
+  LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Sparkles, Square, Trash2,
+  Type, UserPlus, XCircle,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -135,8 +136,14 @@ export default function LiveStudio() {
   const [prompterSpeed, setPrompterSpeed] = useState<PrompterSpeed>("normal");
 
   // ── AI moment detection ──
-  const [detectPhase, setDetectPhase] = useState<"idle" | "listening" | "scanning">("idle");
-  const [refining, setRefining] = useState(false);
+  // ── Post-production pipeline (the Refiner) ──
+  type StepState = "idle" | "running" | "done" | "failed";
+  const [pipeline, setPipeline] = useState<{ transcribe: StepState; detect: StepState; refine: StepState }>({
+    transcribe: "idle", detect: "idle", refine: "idle",
+  });
+  const [pipelineBusy, setPipelineBusy] = useState(false);
+  const [transcript, setTranscript] = useState<{ text: string; segments: CaptionSegment[] } | null>(null);
+  const [minutesSaved, setMinutesSaved] = useState<number | null>(null);
   const [clipFormat, setClipFormat] = useState<"wide" | "vertical">("wide");
 
   // ── Captions ──
@@ -479,6 +486,10 @@ export default function LiveStudio() {
       refresh();
       setTitle("");
       setCaptions(null);
+      // A fresh show gets a fresh pipeline.
+      setTranscript(null);
+      setMinutesSaved(null);
+      setPipeline({ transcribe: "idle", detect: "idle", refine: "idle" });
       if (anySource) startRecording();
       toast({
         title: "You're live on the clock",
@@ -605,13 +616,62 @@ export default function LiveStudio() {
     }
   };
 
-  // One-click post-production: the Media Lab's Refine Audio preset run on the
-  // VOD — cuts dead air, masters loudness to -16 LUFS, lands in the library
-  // as a refined mp3. Same command as the Lab preset; keep them in step.
-  const refineAudio = async () => {
-    if (!session || !vodUrl.trim()) return;
-    setRefining(true);
+  // ── The Refiner: real post-production, one button. Every checkmark below
+  // corresponds to an actual transformation — never a timer. ──
+
+  const mediaDuration = (url: string, kind: "audio" | "video") =>
+    new Promise<number>((resolve) => {
+      const el = document.createElement(kind);
+      el.preload = "metadata";
+      el.onloadedmetadata = () => resolve(el.duration || 0);
+      el.onerror = () => resolve(0);
+      el.src = url;
+    });
+
+  const stepTranscribe = async (): Promise<{ text: string; segments: CaptionSegment[] }> => {
+    if (transcript) return transcript;
+    setPipeline((p) => ({ ...p, transcribe: "running" }));
     try {
+      const wav = await extractAudioAsWav(vodUrl.trim());
+      const tRes = await fetch("/api/social/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "audio/wav" },
+        body: wav,
+      });
+      const tData = await tRes.json().catch(() => ({}));
+      if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
+      const t = { text: String(tData.text ?? ""), segments: (tData.segments ?? []) as CaptionSegment[] };
+      setTranscript(t);
+      setPipeline((p) => ({ ...p, transcribe: "done" }));
+      return t;
+    } catch (e) {
+      setPipeline((p) => ({ ...p, transcribe: "failed" }));
+      throw e;
+    }
+  };
+
+  const stepDetect = async (t: { segments: CaptionSegment[] }) => {
+    if (!session) return;
+    setPipeline((p) => ({ ...p, detect: "running" }));
+    try {
+      const dRes = await apiRequest("POST", `/api/live/sessions/${session.id}/detect-moments`, {
+        segments: t.segments,
+      });
+      const dData = await dRes.json().catch(() => ({}));
+      if (!dRes.ok) throw new Error(dData.message || "Detection failed");
+      refresh();
+      setPipeline((p) => ({ ...p, detect: "done" }));
+    } catch (e) {
+      setPipeline((p) => ({ ...p, detect: "failed" }));
+      throw e;
+    }
+  };
+
+  const stepRefine = async () => {
+    if (!session) return;
+    setPipeline((p) => ({ ...p, refine: "running" }));
+    try {
+      // Same command as the Media Lab preset; keep them in step.
       const cmd = "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
       const submit = await apiRequest("POST", "/api/media-lab/ffmpeg/jobs", {
         files: [vodUrl.trim()],
@@ -634,56 +694,46 @@ export default function LiveStudio() {
         extension: "mp3",
         title: `${session.title} \u2014 refined audio`,
       });
-      if (!collect.ok) throw new Error("Couldn't store the refined audio");
-      toast({ title: "Audio refined", description: "Dead air cut, loudness mastered \u2014 it's in your Media Library." });
+      const col = await collect.json().catch(() => ({}));
+      if (!collect.ok) throw new Error(col.message ?? "Couldn't store the refined audio");
+      // Honest math: how much dead air actually left the file.
+      if (col.url) {
+        const [orig, refined] = await Promise.all([
+          mediaDuration(vodUrl.trim(), "video"),
+          mediaDuration(String(col.url), "audio"),
+        ]);
+        setMinutesSaved(orig > 0 && refined > 0 && orig > refined ? (orig - refined) / 60 : 0);
+      }
+      setPipeline((p) => ({ ...p, refine: "done" }));
     } catch (e) {
-      toast({
-        title: "Couldn't refine the audio",
-        description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
-        variant: "destructive",
-      });
-    } finally {
-      setRefining(false);
+      setPipeline((p) => ({ ...p, refine: "failed" }));
+      throw e;
     }
   };
 
-  // The producer's ear: transcribe the VOD, let AI file the strong moments
-  // as marks, ready to cut in the Editing Room.
-  const findMomentsWithAi = async () => {
-    if (!session || !vodUrl.trim()) return;
+  const runPipeline = async () => {
+    if (!session || !vodUrl.trim() || pipelineBusy) return;
+    setPipelineBusy(true);
     try {
-      setDetectPhase("listening");
-      const wav = await extractAudioAsWav(vodUrl.trim());
-      const tRes = await fetch("/api/social/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "audio/wav" },
-        body: wav,
-      });
-      const tData = await tRes.json().catch(() => ({}));
-      if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
-
-      setDetectPhase("scanning");
-      const dRes = await apiRequest("POST", `/api/live/sessions/${session.id}/detect-moments`, {
-        segments: tData.segments ?? [],
-      });
-      const dData = await dRes.json().catch(() => ({}));
-      if (!dRes.ok) throw new Error(dData.message || "Detection failed");
-      refresh();
-      const found = (dData.marks ?? []).length;
-      toast({
-        title: found > 0 ? `${found} moment${found === 1 ? "" : "s"} found` : "No clip-worthy moments found",
-        description: found > 0 ? "They're in your Editing Room below — cut the keepers." : "Manual marks still work — you know your show best.",
-      });
+      const t = await stepTranscribe();
+      await stepDetect(t);
+      await stepRefine();
+      toast({ title: "Post-production complete", description: "Moments marked, audio refined \u2014 cut the keepers below." });
     } catch (e) {
       toast({
-        title: "Couldn't scan the recording",
+        title: "The pipeline stopped",
         description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
         variant: "destructive",
       });
     } finally {
-      setDetectPhase("idle");
+      setPipelineBusy(false);
     }
   };
+
+  const FILLER_RE = /\b(um+|uh+|erm|hmm+|you know|i mean)\b/gi;
+  const fillersFound = transcript ? (transcript.text.match(FILLER_RE) ?? []).length : null;
+  const wordsTranscribed = transcript ? transcript.text.split(/\s+/).filter(Boolean).length : null;
+  const clipsReady = marks.filter((m) => m.clipStatus === "ready").length;
 
   const endedWithMarks = !!session?.endedAt && marks.length > 0;
 
@@ -1142,47 +1192,78 @@ export default function LiveStudio() {
                 <Link href="/media-library" className="text-zinc-300 underline">Media Library</Link>
               </p>
             </div>
-            <div className="flex items-center gap-2">
             <Button
-              size="sm"
-              variant="outline"
-              className="border-zinc-700 bg-transparent text-xs text-zinc-200 hover:bg-zinc-800"
-              onClick={() => void refineAudio()}
-              disabled={refining || !vodUrl.trim()}
+              onClick={() => void runPipeline()}
+              disabled={pipelineBusy || !vodUrl.trim()}
+              className="bg-red-600 text-white hover:bg-red-700"
             >
-              {refining ? (
+              {pipelineBusy ? (
                 <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Refining…
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Refining your show…
                 </>
               ) : (
                 <>
-                  <AudioLines className="mr-1.5 h-3.5 w-3.5" />
-                  Refine audio
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                  Refine my show
                 </>
               )}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-zinc-700 bg-transparent text-xs text-zinc-200 hover:bg-zinc-800"
-              onClick={() => void findMomentsWithAi()}
-              disabled={detectPhase !== "idle" || !vodUrl.trim()}
-            >
-              {detectPhase !== "idle" ? (
-                <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  {detectPhase === "listening" ? "Listening…" : "Scanning…"}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Find clips with AI
-                </>
-              )}
-            </Button>
-            </div>
           </div>
+
+          {/* The pipeline — every checkmark is a real transformation */}
+          <div className="grid gap-2 sm:grid-cols-3">
+            {([
+              ["transcribe", "Transcription", "Whisper listens to the whole show"],
+              ["detect", "Find the moments", "AI marks the clip-worthy parts"],
+              ["refine", "Refine audio", "Dead air cut, loudness mastered"],
+            ] as const).map(([key, label, sub]) => {
+              const state = pipeline[key];
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
+                    state === "done"
+                      ? "border-emerald-500/40 bg-emerald-500/5"
+                      : state === "failed"
+                        ? "border-red-500/40 bg-red-500/5"
+                        : "border-zinc-800 bg-zinc-900"
+                  }`}
+                >
+                  {state === "running" ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-zinc-300" />
+                  ) : state === "done" ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                  ) : state === "failed" ? (
+                    <XCircle className="h-4 w-4 shrink-0 text-red-400" />
+                  ) : (
+                    <Circle className="h-4 w-4 shrink-0 text-zinc-700" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-zinc-100">{label}</span>
+                    <span className="block truncate text-[10px] text-zinc-500">{sub}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Honest numbers — computed from the actual files, or not shown */}
+          {(transcript || minutesSaved !== null || clipsReady > 0) && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {([
+                ["Minutes saved", minutesSaved !== null ? minutesSaved.toFixed(1) : "\u2014"],
+                ["Fillers heard", fillersFound !== null ? String(fillersFound) : "\u2014"],
+                ["Words transcribed", wordsTranscribed !== null ? wordsTranscribed.toLocaleString() : "\u2014"],
+                ["Clips ready", String(clipsReady)],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-center">
+                  <p className="text-lg font-bold tabular-nums text-zinc-100">{value}</p>
+                  <p className="text-[10px] font-medium text-zinc-500">{label}</p>
+                </div>
+              ))}
+            </div>
+          )}
           {uploadingVod && (
             <p className="flex items-center gap-2 text-xs font-medium text-zinc-400">
               <Loader2 size={12} className="animate-spin" /> Uploading your recording — the VOD attaches itself when it lands.
