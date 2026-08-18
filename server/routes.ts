@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -5140,6 +5140,47 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     }
   });
 
+  // Transcribe a clip's audio (WAV extracted client-side) via OpenAI Whisper.
+  // Word + segment timestamps power SRT/VTT caption downloads. 25MB is
+  // Whisper's hard cap; the client's extractor targets well under it.
+  app.post('/api/social/transcribe', isAuthenticated,
+    express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '25mb' }),
+    async (req: any, res) => {
+    try {
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'Transcription needs the OpenAI key configured' });
+      }
+      const buffer: Buffer = req.body;
+      if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+        return res.status(400).json({ message: 'Send the audio as the request body' });
+      }
+      const form = new FormData();
+      form.append('file', new Blob([buffer], { type: 'audio/wav' }), 'clip.wav');
+      form.append('model', 'whisper-1');
+      form.append('response_format', 'verbose_json');
+      form.append('timestamp_granularities[]', 'segment');
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: form,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('Whisper error:', response.status, data);
+        return res.status(response.status >= 500 ? 502 : response.status).json({ message: (data as any)?.error?.message || 'Transcription failed' });
+      }
+      res.json({
+        text: (data as any).text ?? '',
+        segments: Array.isArray((data as any).segments)
+          ? (data as any).segments.map((s: any) => ({ start: s.start, end: s.end, text: String(s.text ?? '').trim() }))
+          : [],
+      });
+    } catch (error) {
+      console.error('Error transcribing:', error);
+      res.status(500).json({ message: 'Transcription failed' });
+    }
+  });
+
   // Attach an episode's (or show's) artwork as post media. The artwork URL
   // comes from our own DB — never the client — so fetching it is safe; the
   // image still gets content-type and size checks, and lands in our bucket
@@ -5237,6 +5278,32 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     } catch (error) {
       console.error('Error ending live session:', error);
       res.status(500).json({ message: 'Failed to end the session' });
+    }
+  });
+
+  // Attach a VOD to a session — the in-browser recorder calls this right
+  // after uploading its recording, so the cut panel is pre-filled.
+  app.patch('/api/live/sessions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      const updates: Record<string, unknown> = {};
+      if (typeof req.body?.vodUrl === 'string') {
+        try {
+          const u = new URL(req.body.vodUrl);
+          if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('bad');
+          updates.vodUrl = u.toString();
+        } catch { return res.status(400).json({ message: 'Invalid VOD URL' }); }
+      }
+      if (req.body?.vodOffsetSeconds !== undefined) {
+        updates.vodOffsetSeconds = Math.max(0, Math.floor(Number(req.body.vodOffsetSeconds) || 0));
+      }
+      const updated = await storage.updateLiveSession(session.id, updates);
+      res.json({ session: updated });
+    } catch (error) {
+      console.error('Error updating live session:', error);
+      res.status(500).json({ message: 'Failed to update the session' });
     }
   });
 
