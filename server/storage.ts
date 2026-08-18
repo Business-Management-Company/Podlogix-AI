@@ -169,6 +169,7 @@ export interface IStorage {
   getLatestLiveSession(userId: string): Promise<LiveSession | undefined>;
   getLiveSession(id: string): Promise<LiveSession | undefined>;
   updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined>;
+  getLiveSessionByInviteCode(code: string): Promise<LiveSession | undefined>;
   createLiveMark(mark: InsertLiveMark): Promise<LiveMark>;
   getLiveMarks(sessionId: string): Promise<LiveMark[]>;
   getLiveMark(id: string): Promise<LiveMark | undefined>;
@@ -827,6 +828,11 @@ export class DatabaseStorage implements IStorage {
 
   async getLiveSession(id: string): Promise<LiveSession | undefined> {
     const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, id));
+    return session;
+  }
+
+  async getLiveSessionByInviteCode(code: string): Promise<LiveSession | undefined> {
+    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.guestInviteCode, code));
     return session;
   }
 

@@ -856,6 +856,8 @@ export const liveSessions = pgTable("live_sessions", {
   vodUrl: text("vod_url"),
   // Seconds between VOD 0:00 and the moment Go live was pressed here.
   vodOffsetSeconds: integer("vod_offset_seconds").notNull().default(0),
+  // Guest room invite code (LiveKit). Valid only while the session is open.
+  guestInviteCode: varchar("guest_invite_code"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

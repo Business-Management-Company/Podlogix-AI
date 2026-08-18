@@ -26,10 +26,16 @@ export const STUDIO_LAYOUTS: Array<{ id: StudioLayout; label: string; hint: stri
 const W = 1280;
 const H = 720;
 
+/** pip-br <-> pip-bl, pip-tr <-> pip-tl — the opposite horizontal corner. */
+function mirrorPip(layout: StudioLayout): StudioLayout {
+  return (layout.endsWith("r") ? layout.slice(0, -1) + "l" : layout.slice(0, -1) + "r") as StudioLayout;
+}
+
 interface CompositorState {
   layout: StudioLayout;
   camera: MediaStream | null;
   screen: MediaStream | null;
+  guest: MediaStream | null;
 }
 
 export class StudioCompositor {
@@ -37,7 +43,8 @@ export class StudioCompositor {
   private ctx: CanvasRenderingContext2D;
   private camVideo: HTMLVideoElement;
   private screenVideo: HTMLVideoElement;
-  private state: CompositorState = { layout: "fullscreen", camera: null, screen: null };
+  private guestVideo: HTMLVideoElement;
+  private state: CompositorState = { layout: "fullscreen", camera: null, screen: null, guest: null };
   private raf = 0;
   private audioCtx: AudioContext | null = null;
   private audioDest: MediaStreamAudioDestinationNode | null = null;
@@ -51,6 +58,7 @@ export class StudioCompositor {
     this.ctx = this.canvas.getContext("2d")!;
     this.camVideo = this.makeVideo();
     this.screenVideo = this.makeVideo();
+    this.guestVideo = this.makeVideo();
   }
 
   private makeVideo(): HTMLVideoElement {
@@ -78,12 +86,20 @@ export class StudioCompositor {
     this.rewireAudio();
   }
 
+  /** A remote guest (LiveKit) — fills the second slot on the stage. */
+  setGuest(stream: MediaStream | null) {
+    this.state.guest = stream;
+    this.guestVideo.srcObject = stream;
+    if (stream) void this.guestVideo.play().catch(() => {});
+    this.rewireAudio();
+  }
+
   /** Rebuild the audio graph from whatever sources currently have audio tracks. */
   private rewireAudio() {
     if (!this.audioCtx || !this.audioDest) return;
     for (const src of this.audioSources) src.disconnect();
     this.audioSources = [];
-    for (const stream of [this.state.camera, this.state.screen]) {
+    for (const stream of [this.state.camera, this.state.screen, this.state.guest]) {
       if (stream && stream.getAudioTracks().length > 0) {
         const node = this.audioCtx.createMediaStreamSource(stream);
         node.connect(this.audioDest);
@@ -108,37 +124,79 @@ export class StudioCompositor {
     this.ctx.restore();
   }
 
+  /** Small framed overlay in the corner the layout names. */
+  private drawPip(video: HTMLVideoElement, layout: StudioLayout) {
+    const ctx = this.ctx;
+    const pw = Math.round(W * 0.26);
+    const ph = Math.round(pw * 9 / 16);
+    const pad = 24;
+    const x = layout.endsWith("r") ? W - pw - pad : pad;
+    const y = layout.startsWith("pip-b") ? H - ph - pad : pad;
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x - 1.5, y - 1.5, pw + 3, ph + 3);
+    ctx.restore();
+    this.drawCover(video, x, y, pw, ph);
+  }
+
+  private divider(x: number, y: number, w: number, h: number) {
+    this.ctx.fillStyle = "rgba(255,255,255,0.15)";
+    this.ctx.fillRect(x, y, w, h);
+  }
+
   private draw = () => {
-    const { layout, camera, screen } = this.state;
+    const { layout } = this.state;
     const ctx = this.ctx;
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, W, H);
 
-    const hasCam = !!camera && this.camVideo.videoWidth > 0;
-    const hasScreen = !!screen && this.screenVideo.videoWidth > 0;
+    const hasCam = !!this.state.camera && this.camVideo.videoWidth > 0;
+    const hasScreen = !!this.state.screen && this.screenVideo.videoWidth > 0;
+    const hasGuest = !!this.state.guest && this.guestVideo.videoWidth > 0;
 
-    if (hasScreen && hasCam && layout.startsWith("pip")) {
-      this.drawCover(this.screenVideo, 0, 0, W, H);
-      const pw = Math.round(W * 0.26);
-      const ph = Math.round(pw * 9 / 16);
-      const pad = 24;
-      const x = layout.endsWith("r") ? W - pw - pad : pad;
-      const y = layout.startsWith("pip-b") ? H - ph - pad : pad;
-      ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x - 1.5, y - 1.5, pw + 3, ph + 3);
-      ctx.restore();
-      this.drawCover(this.camVideo, x, y, pw, ph);
-    } else if (hasScreen && hasCam && layout === "split") {
-      this.drawCover(this.screenVideo, 0, 0, W / 2, H);
-      this.drawCover(this.camVideo, W / 2, 0, W / 2, H);
-      ctx.fillStyle = "rgba(255,255,255,0.15)";
-      ctx.fillRect(W / 2 - 1, 0, 2, H);
+    if (hasScreen && hasCam && hasGuest) {
+      if (layout.startsWith("pip")) {
+        // Screen big; host pip in the chosen corner, guest mirrored across.
+        this.drawCover(this.screenVideo, 0, 0, W, H);
+        this.drawPip(this.camVideo, layout);
+        this.drawPip(this.guestVideo, mirrorPip(layout));
+      } else {
+        // Screen left, the two people stacked on the right.
+        this.drawCover(this.screenVideo, 0, 0, W / 2, H);
+        this.drawCover(this.camVideo, W / 2, 0, W / 2, H / 2);
+        this.drawCover(this.guestVideo, W / 2, H / 2, W / 2, H / 2);
+        this.divider(W / 2 - 1, 0, 2, H);
+        this.divider(W / 2, H / 2 - 1, W / 2, 2);
+      }
+    } else if (hasScreen && (hasCam || hasGuest)) {
+      const person = hasCam ? this.camVideo : this.guestVideo;
+      if (layout.startsWith("pip")) {
+        this.drawCover(this.screenVideo, 0, 0, W, H);
+        this.drawPip(person, layout);
+      } else if (layout === "split") {
+        this.drawCover(this.screenVideo, 0, 0, W / 2, H);
+        this.drawCover(person, W / 2, 0, W / 2, H);
+        this.divider(W / 2 - 1, 0, 2, H);
+      } else {
+        this.drawCover(this.screenVideo, 0, 0, W, H);
+      }
     } else if (hasScreen) {
       this.drawCover(this.screenVideo, 0, 0, W, H);
+    } else if (hasCam && hasGuest) {
+      if (layout.startsWith("pip")) {
+        this.drawCover(this.guestVideo, 0, 0, W, H);
+        this.drawPip(this.camVideo, layout);
+      } else {
+        // Side-by-side interview — the guest is never hidden, fullscreen included.
+        this.drawCover(this.camVideo, 0, 0, W / 2, H);
+        this.drawCover(this.guestVideo, W / 2, 0, W / 2, H);
+        this.divider(W / 2 - 1, 0, 2, H);
+      }
     } else if (hasCam) {
       this.drawCover(this.camVideo, 0, 0, W, H);
+    } else if (hasGuest) {
+      this.drawCover(this.guestVideo, 0, 0, W, H);
     }
 
     if (this.running) this.raf = requestAnimationFrame(this.draw);

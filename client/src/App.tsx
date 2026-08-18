@@ -24,6 +24,7 @@ import About from "@/pages/About";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import PublicProfile from "@/pages/PublicProfile";
+import StudioGuest from "@/pages/StudioGuest";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 
@@ -222,6 +223,7 @@ function AuthenticatedRoutes() {
         <Route path="/social/posts" component={SocialPosts} />
         <Route path="/social/engagement" component={Engagement} />
         <Route path="/studio/live" component={LiveStudio} />
+        <Route path="/studio/guest" component={StudioGuest} />
         <Route path="/media-library" component={MediaLibrary} />
         <Route path="/social/discover" component={SocialDiscover} />
         <Route path="/social/directory" component={Directory} />
@@ -250,6 +252,7 @@ function PublicRoutes() {
       <Route path="/login" component={AuthPage} />
       <Route path="/signup" component={AuthPage} />
       <Route path="/p/:slug" component={PublicProfile} />
+      <Route path="/studio/guest" component={StudioGuest} />
       <Route path="/voice-certification" component={VoiceCertification} />
       <Route path="/certificate/:id" component={Certificate} />
       <Route path="/privacy" component={Privacy} />
@@ -279,6 +282,7 @@ function Router() {
     "/terms",
     "/forgot-password",
     "/reset-password",
+    "/studio/guest",
   ];
 
   const isPublicPath =
