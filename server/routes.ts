@@ -5629,7 +5629,10 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
 
       // Their worker requires the literal {output} placeholder (a hardcoded
       // filename is rejected with "full_command debe contener {output}").
-      const cmd = `ffmpeg -ss ${start} -i {input} -t ${duration} -c:v libx264 -preset veryfast -c:a aac -movflags +faststart {output}`;
+      // Vertical = center-crop to 9:16 at 720x1280 for Reels/Shorts/TikTok.
+      const vertical = req.body?.format === 'vertical';
+      const vf = vertical ? ' -vf crop=ih*9/16:ih,scale=720:1280' : '';
+      const cmd = `ffmpeg -ss ${start} -i {input} -t ${duration}${vf} -c:v libx264 -preset veryfast -c:a aac -movflags +faststart {output}`;
       const response = await fetch(`${FFMPEG_JOBS_BASE}/upload`, {
         method: 'POST',
         headers: {

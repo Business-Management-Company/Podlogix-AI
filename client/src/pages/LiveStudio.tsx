@@ -82,6 +82,7 @@ export default function LiveStudio() {
   // ── AI moment detection ──
   const [detectPhase, setDetectPhase] = useState<"idle" | "listening" | "scanning">("idle");
   const [refining, setRefining] = useState(false);
+  const [clipFormat, setClipFormat] = useState<"wide" | "vertical">("wide");
 
   // ── Captions ──
   const [captionBusyId, setCaptionBusyId] = useState<string | null>(null);
@@ -442,6 +443,7 @@ export default function LiveStudio() {
       const submit = await apiRequest("POST", `/api/live/marks/${mark.id}/cut`, {
         vodUrl: vodUrl.trim(),
         offsetSeconds: Math.floor(Number(vodOffset) || 0),
+        format: clipFormat,
       });
       const sub = await submit.json().catch(() => ({}));
       if (!submit.ok) throw new Error(sub.message ?? "Could not start the cut");
@@ -1000,7 +1002,20 @@ export default function LiveStudio() {
             each mark becomes a real clip in your{" "}
             <Link href="/media-library" className="font-medium text-zinc-300 underline">Media Library</Link>.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex rounded-lg bg-zinc-900 p-0.5" title="Applies to the next clips you cut">
+              {([["wide", "16:9"], ["vertical", "9:16 vertical"]] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setClipFormat(id)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    clipFormat === id ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <Input
               placeholder="https://…/recording.mp4"
               value={vodUrl}
