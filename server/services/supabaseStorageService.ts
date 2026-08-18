@@ -96,6 +96,27 @@ function isAllowedMirrorHost(url: string): boolean {
   }
 }
 
+/** Stores a video buffer (e.g. a cut clip) and returns our public URL, or null. */
+export async function storeVideoBuffer(
+  buffer: Buffer,
+  prefix: string,
+  contentType = "video/mp4",
+): Promise<string | null> {
+  try {
+    if (!isSupabaseStorageConfigured() || buffer.length === 0) return null;
+    const objectKey = `${prefix}/${randomUUID()}.mp4`;
+    const supabase = getClient();
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(objectKey, buffer, { contentType, upsert: false });
+    if (error) return null;
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(objectKey);
+    return data.publicUrl;
+  } catch {
+    return null;
+  }
+}
+
 /** Stores a raw image buffer (e.g. AI-generated) and returns our public URL, or null. */
 export async function storeImageBuffer(
   buffer: Buffer,
