@@ -60,7 +60,7 @@ export default function Directory() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Directory</h1>
         <p className="mt-1 text-sm text-zinc-500">

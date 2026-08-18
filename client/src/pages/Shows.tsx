@@ -104,7 +104,7 @@ export default function Shows() {
   const hasAnyShow = nativeShows.length > 0 || showBuzzsproutCard;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-6xl px-6 py-8">
       <h1 className="text-2xl font-semibold tracking-tight">Shows</h1>
       <p className="mt-1 text-sm text-zinc-500">
         Every podcast in your workspace — hosted here or synced from your host.

@@ -582,7 +582,7 @@ export default function SocialAnalytics() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
+    <div className="w-full max-w-6xl px-6 py-8 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-page-title">Social Analytics PRO</h1>

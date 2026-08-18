@@ -261,7 +261,15 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="flex h-screen w-full overflow-hidden bg-background">
 
       {/* ── Rail ──────────────────────────────────────────────────────────── */}
-      <nav className={`flex flex-col shrink-0 bg-[#0D1B2A] border-r border-white/[0.06] z-20 transition-all duration-200 overflow-hidden ${railExpanded ? "w-44" : "w-14"}`}>
+      <nav
+        onClick={(e) => {
+          // The rail is the toggle: click anywhere on the dark surface to open
+          // or close it. Links and buttons inside keep their own behavior.
+          if ((e.target as HTMLElement).closest("a,button")) return;
+          setRailExpanded((v) => !v);
+        }}
+        className={`flex flex-col shrink-0 cursor-pointer bg-[#0D1B2A] border-r border-white/[0.06] z-20 transition-all duration-200 overflow-hidden ${railExpanded ? "w-44" : "w-14"}`}
+      >
 
         {/* Logo row — collapse button appears here when expanded */}
         <div className={`flex items-center h-14 border-b border-white/[0.06] shrink-0 ${railExpanded ? "px-3 justify-between" : "justify-center"}`}>
@@ -271,35 +279,10 @@ export function AppLayout({ children }: AppLayoutProps) {
               <span className="text-white text-sm font-semibold truncate">Podlogix</span>
             )}
           </Link>
-          {railExpanded && (
-            <button
-              onClick={() => setRailExpanded(false)}
-              className="p-1.5 rounded-lg hover:bg-white/[0.06] text-slate-400 hover:text-white transition-colors shrink-0 ml-1"
-              aria-label="Collapse sidebar"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          )}
         </div>
 
         {/* Primary workspace icons */}
         <div className={`flex flex-col gap-1 py-3 flex-1 ${railExpanded ? "px-2" : "items-center"}`}>
-
-          {/* Expand button — only shown when collapsed */}
-          {!railExpanded && (
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setRailExpanded(true)}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 mb-1"
-                  aria-label="Expand sidebar"
-                >
-                  <ChevronRight className="h-[18px] w-[18px] text-slate-500" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">Expand</TooltipContent>
-            </Tooltip>
-          )}
 
           {RAIL_ITEMS.map((item) => {
             const isActive = item.isActive(activeLeaf);
