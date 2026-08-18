@@ -44,6 +44,7 @@ interface LocalPost {
   content: string;
   status: string;
   scheduledAt: string | null;
+  errorMessage?: string | null;
   createdAt: string;
 }
 
@@ -304,8 +305,14 @@ export default function SocialHub() {
                       ? `scheduled ${new Date(post.scheduledAt).toLocaleString()}`
                       : new Date(post.createdAt).toLocaleDateString()}
                   </p>
+                  {post.status === "failed" && post.errorMessage && (
+                    <p className="truncate text-xs text-red-600">{post.errorMessage}</p>
+                  )}
                 </div>
-                <Badge variant={post.status === "scheduled" ? "secondary" : "default"} className="shrink-0 capitalize">
+                <Badge
+                  variant={post.status === "failed" ? "destructive" : post.status === "scheduled" ? "secondary" : "default"}
+                  className="shrink-0 capitalize"
+                >
                   {post.status}
                 </Badge>
               </CardRow>

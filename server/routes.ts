@@ -4537,7 +4537,8 @@ Respond in this exact JSON format:
 
       const localPost = await storage.createUploadPostPost({
         userId,
-        uploadPostPostId: (data as any).post_id?.toString() ?? (data as any).request_id ?? null,
+        // job_id first: it's what the upload_completed webhook sends back.
+        uploadPostPostId: (data as any).job_id?.toString() ?? (data as any).post_id?.toString() ?? (data as any).request_id ?? null,
         platforms,
         content: content ?? '',
         mediaUrls: mediaUrl ? [mediaUrl] : null,
@@ -4766,6 +4767,46 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error updating scheduled post:', error);
       res.status(500).json({ message: 'Failed to update scheduled post' });
+    }
+  });
+
+  // Upload-Post webhook receiver. upload_completed fires on BOTH published and
+  // failed posts (support-confirmed), carrying job_id + result.{success,url,error}.
+  // Reauth events need no handling here — the accounts sync already surfaces
+  // reauth_required on every fetch. Always 200 so Upload-Post doesn't retry.
+  // Point the dashboard webhook at /api/webhooks/upload-post?secret=<value of
+  // UPLOAD_POST_WEBHOOK_SECRET>; without the env var the endpoint accepts all
+  // (dev convenience), with it set a bad secret is rejected.
+  app.post('/api/webhooks/upload-post', async (req, res) => {
+    try {
+      const secret = process.env.UPLOAD_POST_WEBHOOK_SECRET;
+      if (secret && req.query.secret !== secret) {
+        return res.status(401).json({ message: 'Invalid webhook secret' });
+      }
+
+      const event = req.body ?? {};
+      const jobId = event.job_id?.toString() ?? event.request_id?.toString() ?? null;
+      const result = event.result ?? event;
+      const hasOutcome = typeof result?.success === 'boolean';
+
+      if (jobId && hasOutcome) {
+        const post = await storage.getUploadPostPostByExternalId(jobId);
+        if (post) {
+          await storage.updateUploadPostPost(post.id, {
+            status: result.success ? 'published' : 'failed',
+            publishedAt: result.success ? new Date() : null,
+            errorMessage: result.success ? null : (result.error?.toString() ?? 'Publish failed'),
+          });
+        } else {
+          console.warn('upload_completed webhook for unknown job_id:', jobId);
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error('Error handling Upload-Post webhook:', error);
+      // Still 200 — a retry storm won't fix a handler bug.
+      res.json({ received: true });
     }
   });
 

@@ -947,6 +947,8 @@ export const uploadPostPosts = pgTable("upload_post_posts", {
   scheduledAt: timestamp("scheduled_at"),
   publishedAt: timestamp("published_at"),
   status: varchar("status").default("draft"),
+  // Set by the upload_completed webhook when a post fails at publish time.
+  errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

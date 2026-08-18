@@ -189,6 +189,7 @@ export interface IStorage {
   createUploadPostPost(post: InsertUploadPostPost): Promise<UploadPostPost>;
   getUploadPostPostsByUser(userId: string): Promise<UploadPostPost[]>;
   getUploadPostPost(id: string): Promise<UploadPostPost | undefined>;
+  getUploadPostPostByExternalId(externalId: string): Promise<UploadPostPost | undefined>;
   updateUploadPostPost(id: string, updates: Partial<UploadPostPost>): Promise<UploadPostPost | undefined>;
   // Admin Creator List
   createAdminCreator(creator: InsertAdminCreator): Promise<AdminCreator>;
@@ -918,6 +919,12 @@ export class DatabaseStorage implements IStorage {
 
   async getUploadPostPost(id: string): Promise<UploadPostPost | undefined> {
     const [post] = await db.select().from(uploadPostPosts).where(eq(uploadPostPosts.id, id));
+    return post;
+  }
+
+  async getUploadPostPostByExternalId(externalId: string): Promise<UploadPostPost | undefined> {
+    const [post] = await db.select().from(uploadPostPosts)
+      .where(eq(uploadPostPosts.uploadPostPostId, externalId));
     return post;
   }
 
