@@ -913,7 +913,10 @@ export default function LiveStudio() {
       <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl ring-1 ring-zinc-800/60">
         <div className="flex flex-col gap-4 lg:flex-row">
           {/* Scenes — one-click stage presets, Restream-style */}
-          <div className="w-full shrink-0 space-y-2 lg:w-44">
+          <div
+            className="w-full shrink-0 space-y-2 max-lg:!w-full"
+            style={{ width: Math.round(Math.min(240, Math.max(128, railWidth * 0.55))) }}
+          >
             <div className="flex gap-1.5">
               <Input
                 value={sceneName}
@@ -977,7 +980,12 @@ export default function LiveStudio() {
 
           {/* Stage column */}
           <div className="min-w-0 flex-1 space-y-3">
-            <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-900" ref={stageRef}>
+            {/* The largest 16:9 picture that fits — proportionate at any panel width */}
+            <div
+              className="relative mx-auto aspect-video w-full overflow-hidden rounded-xl bg-zinc-900"
+              style={{ maxWidth: "calc((100vh - 320px) * 16 / 9)" }}
+              ref={stageRef}
+            >
               {!anySource && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[radial-gradient(ellipse_at_center,rgba(63,63,70,0.6),rgba(9,9,11,0.9))]">
                   <Radio className="h-8 w-8 text-zinc-600" />
@@ -1014,7 +1022,7 @@ export default function LiveStudio() {
             </div>
 
             {/* Layouts — under the stage, Restream-style: minis, no words */}
-            <div className="flex items-center justify-center gap-1.5 rounded-xl bg-zinc-900 p-2">
+            <div className="mx-auto flex w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 p-2" style={{ maxWidth: "calc((100vh - 320px) * 16 / 9)" }}>
               {STUDIO_LAYOUTS.map((l) => {
                 const sources = [cameraOn, screenOn, guestOn, mediaOn].filter(Boolean).length;
                 const dimmed = l.id !== "fullscreen" && sources < 2;
@@ -1035,7 +1043,7 @@ export default function LiveStudio() {
             </div>
 
             {/* Control bar — icons carry it; hover for names */}
-            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-900 p-3">
+            <div className="mx-auto flex w-full flex-wrap items-center gap-2 rounded-xl bg-zinc-900 p-3" style={{ maxWidth: "calc((100vh - 320px) * 16 / 9)" }}>
               <button
                 onClick={toggleCamera}
                 title={cameraOn ? "Stop camera" : "Start camera"}
