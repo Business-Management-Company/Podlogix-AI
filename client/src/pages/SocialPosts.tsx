@@ -42,6 +42,37 @@ const ALL_PLATFORMS = [
 /** Platforms that reject text-only posts — they need a photo or video attached. */
 const MEDIA_REQUIRED = new Set(["instagram", "youtube", "tiktok", "pinterest"]);
 
+/**
+ * Per-platform photo size caps in MB (support-confirmed). Oversize uploads die
+ * at Upload-Post's proxy as an unexplained 413, so we block them client-side
+ * with a reason instead. X also caps at 4 images.
+ */
+const PHOTO_LIMIT_MB: Record<string, number> = {
+  facebook: 10, linkedin: 8, instagram: 8, threads: 8, x: 5,
+};
+
+/** Video caps in MB — Instagram Reels 300MB/15min and Threads 100MB/5min are the tight ones. */
+const VIDEO_LIMIT_MB: Record<string, number> = {
+  instagram: 300, threads: 100,
+};
+
+function mediaSizeConflicts(platforms: string[], sizeMB: number, type: "photo" | "video"): string[] {
+  const limits = type === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB;
+  return platforms.filter((p) => limits[p] !== undefined && sizeMB > limits[p]);
+}
+
+function readablePostError(status: number | undefined, fallback: string): string {
+  switch (status) {
+    case 413: return "That file is too large for one of the selected platforms — try a smaller file.";
+    case 401:
+    case 403: return "A connected account needs to be reconnected before posting.";
+    case 429: return "Posting too fast — give it a minute and try again.";
+    default:
+      if (status && status >= 500) return "Upload-Post is having trouble right now — your content is safe, try again shortly.";
+      return fallback;
+  }
+}
+
 const PLATFORM_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   instagram: { label: "Instagram", icon: SiInstagram },
   youtube: { label: "YouTube", icon: SiYoutube },
@@ -74,6 +105,9 @@ export default function SocialPosts() {
   const [mediaType, setMediaType] = useState<"photo" | "video" | null>(null);
   const [timing, setTiming] = useState<"now" | "schedule">("now");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [subreddit, setSubreddit] = useState("");
+  const [pinterestBoardId, setPinterestBoardId] = useState("");
+  const [mediaSizeMB, setMediaSizeMB] = useState<number | null>(null);
 
   const { data: accountsData } = useQuery<{ accounts: UploadPostAccount[] }>({
     queryKey: ["/api/upload-post/accounts"],
@@ -89,9 +123,52 @@ export default function SocialPosts() {
   });
   const drafts = (postsData?.posts ?? []).filter((p) => p.status === "draft");
 
+  const wantsReddit = selected.includes("reddit");
+  const wantsPinterest = selected.includes("pinterest");
+
+  const { data: boardsData } = useQuery<{ boards?: { id: string; name: string }[] }>({
+    queryKey: ["/api/upload-post/pinterest/boards"],
+    enabled: wantsPinterest,
+    retry: false,
+  });
+  const pinterestBoards = boardsData?.boards ?? [];
+
+  interface ScheduledJob {
+    job_id: string;
+    title?: string;
+    platform?: string[] | string;
+    scheduled_date?: string;
+  }
+  const { data: scheduledData, refetch: refetchScheduled } = useQuery<{ jobs: ScheduledJob[] }>({
+    queryKey: ["/api/upload-post/scheduled"],
+    retry: false,
+  });
+  const scheduledJobs = scheduledData?.jobs ?? [];
+
+  const cancelScheduledMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const res = await apiRequest("DELETE", `/api/upload-post/scheduled/${jobId}`);
+      if (!res.ok) throw new Error("Failed to cancel");
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchScheduled();
+      queryClient.invalidateQueries({ queryKey: ["/api/upload-post/posts"] });
+      toast({ title: "Scheduled post cancelled" });
+    },
+    onError: () => toast({ title: "Couldn't cancel", variant: "destructive" }),
+  });
+
   const platformDisabledReason = (platform: string): string | null => {
     if (!connected.has(platform)) return "Not connected";
     if (!mediaUrl && MEDIA_REQUIRED.has(platform)) return "Needs photo or video";
+    if (mediaUrl && mediaType && mediaSizeMB !== null) {
+      const conflicts = mediaSizeConflicts([platform], mediaSizeMB, mediaType);
+      if (conflicts.length > 0) {
+        const limit = (mediaType === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB)[platform];
+        return `File over ${limit}MB limit`;
+      }
+    }
     return null;
   };
 
@@ -126,10 +203,12 @@ export default function SocialPosts() {
         mediaType,
         scheduledAt: timing === "schedule" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
         draft,
+        subreddit: wantsReddit ? subreddit : undefined,
+        pinterestBoardId: wantsPinterest ? pinterestBoardId : undefined,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Failed");
+        throw new Error(readablePostError(res.status, data.message || "Something went wrong — try again."));
       }
       return res.json();
     },
@@ -169,7 +248,9 @@ export default function SocialPosts() {
   };
 
   const canSubmit = effectiveSelected.length > 0 && (content.trim() || mediaUrl) && !postMutation.isPending
-    && (timing === "now" || scheduledAt);
+    && (timing === "now" || scheduledAt)
+    && (!wantsReddit || subreddit.trim().length > 0)
+    && (!wantsPinterest || pinterestBoardId.length > 0);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
@@ -242,6 +323,34 @@ export default function SocialPosts() {
                   );
                 })}
               </div>
+
+              {(wantsReddit || wantsPinterest) && (
+                <div className="mt-3 flex flex-wrap gap-3 border-t border-zinc-100 pt-3">
+                  {wantsReddit && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-zinc-500">r/</span>
+                      <Input
+                        placeholder="subreddit"
+                        value={subreddit}
+                        onChange={(e) => setSubreddit(e.target.value)}
+                        className="h-8 w-44 text-xs"
+                      />
+                    </div>
+                  )}
+                  {wantsPinterest && (
+                    <select
+                      value={pinterestBoardId}
+                      onChange={(e) => setPinterestBoardId(e.target.value)}
+                      className="h-8 rounded-md border border-zinc-200 px-2 text-xs text-zinc-700"
+                    >
+                      <option value="">Choose a Pinterest board…</option>
+                      {pinterestBoards.map((board) => (
+                        <option key={board.id} value={board.id}>{board.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
             </Card>
 
             {/* Content */}
@@ -289,6 +398,7 @@ export default function SocialPosts() {
                     if (!file) return;
                     setMediaUrl(file.uploadURL);
                     setMediaType(file.type.startsWith("video/") ? "video" : "photo");
+                    setMediaSizeMB(file.size / (1024 * 1024));
                   }}
                   buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-8 !text-zinc-500 hover:!bg-zinc-50"
                 >
@@ -345,6 +455,36 @@ export default function SocialPosts() {
                 {timing === "schedule" ? "Schedule" : "Post Now"}
               </Button>
             </div>
+
+            {/* Scheduled — live from Upload-Post, cancellable */}
+            {scheduledJobs.length > 0 && (
+              <section className="pt-2">
+                <SectionHeader title={`Scheduled (${scheduledJobs.length})`} />
+                <Card padding="none" className="divide-y divide-zinc-100">
+                  {scheduledJobs.map((job) => (
+                    <div key={job.job_id} className="flex items-center gap-3 px-4 py-3">
+                      <CalendarClock size={14} className="shrink-0 text-zinc-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-zinc-700">{job.title || "(untitled post)"}</p>
+                        <p className="text-[11px] text-zinc-400">
+                          {Array.isArray(job.platform) ? job.platform.join(", ") : job.platform}
+                          {job.scheduled_date && ` · ${new Date(job.scheduled_date).toLocaleString()}`}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="shrink-0 text-red-500 hover:text-red-600"
+                        onClick={() => cancelScheduledMutation.mutate(job.job_id)}
+                        disabled={cancelScheduledMutation.isPending}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ))}
+                </Card>
+              </section>
+            )}
 
             {/* Drafts */}
             {drafts.length > 0 && (

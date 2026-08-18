@@ -49,6 +49,7 @@ import {
   PenSquare,
   CalendarRange,
   Repeat,
+  GalleryVerticalEnd,
   type LucideIcon,
 } from "lucide-react";
 
@@ -80,6 +81,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Shows", url: "/shows", icon: Mic, group: "Content" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Content" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
+  { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Content" },
   { title: "Guests", url: "/guests", icon: UserPlus, group: "Communication" },
   { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
   // Discover/Directory live under Communication: they exist to find and keep

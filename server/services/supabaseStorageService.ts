@@ -72,3 +72,65 @@ export function publicUrlForKey(objectKey: string): string {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(objectKey);
   return data.publicUrl;
 }
+
+/**
+ * External-CDN hosts we're willing to mirror media from. Social platforms hand
+ * out signed URLs that expire in hours-to-days, so anything we want to keep
+ * must be copied into our own bucket — and only from hosts we recognize.
+ */
+const MIRROR_HOST_ALLOWLIST = [
+  "fbcdn.net", "licdn.com", "cdninstagram.com", "googleusercontent.com",
+  "ggpht.com", "twimg.com", "tiktokcdn.com", "pinimg.com", "bsky.app", "redd.it",
+  "redditmedia.com", "scontent.com", "threads.net",
+];
+
+const MIRROR_MAX_BYTES = 25 * 1024 * 1024; // media posts can be video thumbs/photos
+
+function isAllowedMirrorHost(url: string): boolean {
+  try {
+    const { protocol, host } = new URL(url);
+    if (protocol !== "https:") return false;
+    return MIRROR_HOST_ALLOWLIST.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copies an external CDN asset into our bucket and returns OUR public URL.
+ * Returns null on any failure — callers must store null, never the expiring
+ * source URL.
+ */
+export async function mirrorExternalMedia(
+  sourceUrl: string,
+  prefix: string,
+): Promise<string | null> {
+  try {
+    if (!isSupabaseStorageConfigured() || !isAllowedMirrorHost(sourceUrl)) return null;
+
+    const response = await fetch(sourceUrl);
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/") && !contentType.startsWith("video/")) return null;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length === 0 || buffer.length > MIRROR_MAX_BYTES) return null;
+
+    const ext = contentType.startsWith("video/")
+      ? ".mp4"
+      : contentType.includes("png") ? ".png" : contentType.includes("webp") ? ".webp" : ".jpg";
+    const objectKey = `${prefix}/${randomUUID()}${ext}`;
+
+    const supabase = getClient();
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(objectKey, buffer, { contentType, upsert: false });
+    if (error) return null;
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(objectKey);
+    return data.publicUrl;
+  } catch {
+    return null;
+  }
+}

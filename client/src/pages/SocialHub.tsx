@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  CalendarRange, CheckCircle2, Link2, PenSquare, Plug, RefreshCw, Repeat, Users,
+  BarChart3, CalendarRange, Eye, Heart, PenSquare, Plug, Plus, RefreshCw, Repeat, Users,
 } from "lucide-react";
 import {
   SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
@@ -24,10 +24,18 @@ interface UploadPostAccount {
   reauthRequired?: boolean;
 }
 
-interface AccountAnalytics {
-  platform: string;
-  followers: number;
-  engagementRate: number;
+/** Per-platform analytics from Upload-Post's Analytics API. */
+interface PlatformAnalytics {
+  followers?: number;
+  reach?: number;
+  views?: number;
+  impressions?: number;
+  profileViews?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  message?: string; // "Analytics are not supported for X." style notes
 }
 
 interface LocalPost {
@@ -45,36 +53,22 @@ const platformIcons: Record<string, React.ComponentType<{ className?: string }>>
   pinterest: SiPinterest, bluesky: SiBluesky, discord: SiDiscord, telegram: SiTelegram,
 };
 
-const platformColors: Record<string, string> = {
-  instagram: "bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-500",
-  youtube: "bg-red-600",
-  facebook: "bg-blue-600",
-  linkedin: "bg-sky-700",
-  tiktok: "bg-zinc-900",
-  x: "bg-zinc-900",
-  threads: "bg-zinc-900",
-  reddit: "bg-orange-600",
-  pinterest: "bg-red-700",
-  bluesky: "bg-sky-500",
-  discord: "bg-indigo-500",
-  telegram: "bg-sky-600",
-};
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n ?? 0);
+function formatCount(n: number | undefined): string {
+  const v = n ?? 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+  return String(v);
 }
 
 const QUICK_ACTIONS = [
   { label: "Create Post", hint: "Publish everywhere at once", href: "/social/posts", icon: PenSquare },
   { label: "Campaign", hint: "A date-to-date push on one theme", href: "/social/posts?tab=campaign", icon: CalendarRange },
   { label: "Cadence", hint: "A weekly rhythm with themes per day", href: "/social/posts?tab=cadence", icon: Repeat },
-  { label: "Connect accounts", hint: "Link more platforms", href: "/connectors", icon: Plug },
 ];
 
 export default function SocialHub() {
   const { toast } = useToast();
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
 
   const urlParams = new URLSearchParams(window.location.search);
   const justConnected = urlParams.get("connected") === "true";
@@ -86,14 +80,19 @@ export default function SocialHub() {
     queryKey: ["/api/upload-post/accounts"],
     retry: false,
   });
+  const accounts = accountsData?.accounts || [];
+  const connectedPlatforms = accounts.map((a) => a.platform.toLowerCase());
 
-  const { data: analyticsData, isLoading: analyticsLoading } = useQuery<{ accounts: AccountAnalytics[] }>({
-    queryKey: ["/api/social-analytics/my-accounts"],
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<Record<string, PlatformAnalytics>>({
+    queryKey: ["/api/upload-post/analytics", connectedPlatforms.join(",")],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/upload-post/analytics?platforms=${connectedPlatforms.join(",")}`);
+      return res.json();
+    },
+    enabled: connectedPlatforms.length > 0,
+    staleTime: 5 * 60_000,
     retry: false,
   });
-  const analyticsByPlatform = new Map(
-    (analyticsData?.accounts ?? []).map((a) => [a.platform.toLowerCase(), a])
-  );
 
   const { data: postsData } = useQuery<{ posts: LocalPost[] }>({
     queryKey: ["/api/upload-post/posts"],
@@ -126,14 +125,29 @@ export default function SocialHub() {
     onError: () => toast({ title: "Error", description: "Failed to connect accounts", variant: "destructive" }),
   });
 
-  const accounts = accountsData?.accounts || [];
-  const totalFollowers = [...analyticsByPlatform.values()].reduce((sum, a) => sum + (a.followers || 0), 0);
-  const avgEngagement = analyticsByPlatform.size > 0
-    ? [...analyticsByPlatform.values()].reduce((sum, a) => sum + (a.engagementRate || 0), 0) / analyticsByPlatform.size
-    : 0;
+  // Stats show one platform when a pill is selected, otherwise sum across all.
+  const usablePlatforms = Object.entries(analytics ?? {}).filter(
+    ([, v]) => v && typeof v === "object" && !v.message
+  );
+  const scoped: [string, PlatformAnalytics][] = selectedPlatform
+    ? usablePlatforms.filter(([p]) => p === selectedPlatform)
+    : usablePlatforms;
+  const sum = (field: keyof PlatformAnalytics) =>
+    scoped.reduce((total, [, v]) => total + (typeof v[field] === "number" ? (v[field] as number) : 0), 0);
+  const engagements = sum("likes") + sum("comments") + sum("shares") + sum("saves");
+  const scopeLabel = selectedPlatform
+    ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)
+    : "all channels";
+
+  const STATS = [
+    { label: "Followers", value: formatCount(sum("followers")), hint: scopeLabel, icon: Users },
+    { label: "Reach (30d)", value: formatCount(sum("reach")), hint: "unique accounts reached", icon: BarChart3 },
+    { label: "Views", value: formatCount(sum("views")), hint: "content views", icon: Eye },
+    { label: "Engagements", value: formatCount(engagements), hint: "likes · comments · shares · saves", icon: Heart },
+  ];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-5xl px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Social Hub</h1>
@@ -144,29 +158,81 @@ export default function SocialHub() {
         </Button>
       </div>
 
-      {/* Topline stats */}
-      <section className="mb-6 grid grid-cols-3 gap-4">
-        <Card padding="lg">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Connected</p>
-          <p className="mt-1 text-2xl font-semibold text-zinc-950">{accounts.length}</p>
-          <p className="text-xs text-zinc-500">of 12 platforms on your plan</p>
-        </Card>
-        <Card padding="lg">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Total followers</p>
-          <p className="mt-1 text-2xl font-semibold text-zinc-950">{formatCount(totalFollowers)}</p>
-          <p className="text-xs text-zinc-500">across tracked accounts</p>
-        </Card>
-        <Card padding="lg">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Avg engagement</p>
-          <p className="mt-1 text-2xl font-semibold text-zinc-950">{avgEngagement.toFixed(1)}%</p>
-          <p className="text-xs text-zinc-500">engagements ÷ reach</p>
-        </Card>
+      {/* Connected accounts — horizontal, click to focus stats */}
+      <section className="mb-6">
+        {accountsLoading ? (
+          <div className="flex gap-2">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-11 w-40 rounded-full" />)}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {accounts.map((account) => {
+              const platform = account.platform.toLowerCase();
+              const Icon = platformIcons[platform] || Users;
+              const active = selectedPlatform === platform;
+              const stats = analytics?.[platform];
+              return (
+                <button
+                  key={account.id}
+                  onClick={() => setSelectedPlatform(active ? null : platform)}
+                  title={account.reauthRequired ? "Reconnect needed" : undefined}
+                  className={`inline-flex items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-3.5 transition-colors ${
+                    active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 bg-white hover:border-zinc-300"
+                  }`}
+                  data-testid={`account-pill-${platform}`}
+                >
+                  {account.profilePictureUrl ? (
+                    <img src={account.profilePictureUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+                  ) : (
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${active ? "bg-white/15" : "bg-zinc-100"}`}>
+                      <Icon className={`h-3.5 w-3.5 ${active ? "text-white" : "text-zinc-600"}`} />
+                    </span>
+                  )}
+                  <span className="text-xs font-medium">
+                    {account.platformUsername ? `@${account.platformUsername}` : platform}
+                  </span>
+                  {typeof stats?.followers === "number" && (
+                    <span className={`text-[11px] ${active ? "text-white/70" : "text-zinc-400"}`}>
+                      {formatCount(stats.followers)}
+                    </span>
+                  )}
+                  {account.reauthRequired && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+                </button>
+              );
+            })}
+            {/* Empty placeholder — click to connect another platform */}
+            <Link href="/connectors">
+              <span className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-dashed border-zinc-300 py-1.5 pl-1.5 pr-3.5 text-zinc-400 transition-colors hover:border-zinc-400 hover:text-zinc-600">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-50">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="text-xs font-medium">Add account</span>
+              </span>
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* Stats — scoped to the selected pill, or totals */}
+      <section className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {STATS.map((stat) => (
+          <Card key={stat.label} padding="lg">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">{stat.label}</p>
+              <stat.icon className="h-3.5 w-3.5 text-zinc-300" />
+            </div>
+            <p className="mt-1 text-2xl font-semibold text-zinc-950">
+              {analyticsLoading ? "…" : stat.value}
+            </p>
+            <p className="text-xs text-zinc-500">{stat.hint}</p>
+          </Card>
+        ))}
       </section>
 
       {/* Quick actions */}
       <section className="mb-6">
         <SectionHeader title="Quick actions" />
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           {QUICK_ACTIONS.map((action) => (
             <Link key={action.label} href={action.href}>
               <Card padding="md" interactive className="flex h-full items-start gap-3">
@@ -181,71 +247,40 @@ export default function SocialHub() {
         </div>
       </section>
 
-      {/* Connected accounts + analytics */}
-      <section className="mb-6">
-        <SectionHeader title="What's connected" />
-        {accountsLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-          </div>
-        ) : accounts.length === 0 ? (
+      {/* Reauth warnings, if any */}
+      {accounts.some((a) => a.reauthRequired) && (
+        <section className="mb-6">
+          <Card padding="md" className="border-amber-200 bg-amber-50/60">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-amber-800">
+                Some accounts need to be reconnected before posting works again:
+              </p>
+              {accounts.filter((a) => a.reauthRequired).map((account) => (
+                <Button
+                  key={account.id}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => connectMutation.mutate([account.platform.toLowerCase()])}
+                  disabled={connectMutation.isPending}
+                >
+                  Reconnect {account.platform}
+                </Button>
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
+
+      {accounts.length === 0 && !accountsLoading && (
+        <section className="mb-6">
           <EmptyState
-            icon={Link2}
+            icon={Plug}
             title="No accounts connected yet"
             description="Connect your social media accounts to post from Podlogix."
             action={{ label: "Open Connectors", href: "/connectors" }}
           />
-        ) : (
-          <Card className="divide-y divide-zinc-100 overflow-hidden">
-            {accounts.map((account) => {
-              const Icon = platformIcons[account.platform.toLowerCase()] || Users;
-              const stats = analyticsByPlatform.get(account.platform.toLowerCase());
-              return (
-                <CardRow key={account.id} className="px-4 py-3">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${platformColors[account.platform.toLowerCase()] || "bg-zinc-500"}`}>
-                    <Icon className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium capitalize text-zinc-950">{account.platform}</p>
-                    <p className="truncate text-xs text-zinc-500">
-                      {account.platformUsername && `@${account.platformUsername}`}
-                      {stats && (
-                        <>
-                          {" · "}
-                          {formatCount(stats.followers)} followers · {stats.engagementRate.toFixed(1)}% engagement
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  {account.reauthRequired ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant="destructive">Reconnect needed</Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => connectMutation.mutate([account.platform.toLowerCase()])}
-                        disabled={connectMutation.isPending}
-                      >
-                        Reconnect
-                      </Button>
-                    </div>
-                  ) : (
-                    <Badge variant="default" className="shrink-0">
-                      <CheckCircle2 className="mr-1 h-3 w-3" />
-                      Connected
-                    </Badge>
-                  )}
-                </CardRow>
-              );
-            })}
-          </Card>
-        )}
-        {accounts.length > 0 && !analyticsLoading && analyticsByPlatform.size === 0 && (
-          <p className="mt-2 text-xs text-zinc-400">
-            Analytics aren't available for these accounts yet — check back after they've synced.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Recent posts */}
       <section>

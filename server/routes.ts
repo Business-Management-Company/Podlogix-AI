@@ -7,7 +7,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured } from "./services/supabaseStorageService";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -3201,6 +3201,22 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       if (req.params.id === requestingUserId) {
         return res.status(400).json({ message: 'Cannot delete your own account' });
       }
+
+      // Deleting our user does NOT free their Upload-Post profile slot (25 on
+      // the plan) — release it explicitly, best-effort.
+      try {
+        const key = process.env.UPLOAD_POST_API_KEY;
+        if (key) {
+          await fetch('https://api.upload-post.com/api/uploadposts/users', {
+            method: 'DELETE',
+            headers: { 'Authorization': `ApiKey ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: `podlogix_${req.params.id}` }),
+          });
+        }
+      } catch (cleanupError) {
+        console.error('Upload-Post profile cleanup failed (slot may leak):', cleanupError);
+      }
+
       await authStorage.deleteUser(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -4226,8 +4242,11 @@ Respond in this exact JSON format:
       // Default to every platform included in our Upload-Post plan.
       const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin', 'x', 'threads', 'reddit', 'pinterest', 'bluesky', 'discord', 'telegram'] } = req.body;
 
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers['host'] || 'localhost:5000';
+      const host = req.headers['host'] || 'localhost:5001';
+      // Local dev has no TLS — a hardcoded https default sent users back to
+      // https://localhost and an SSL error after connecting.
+      const isLocal = host.startsWith('localhost') || host.startsWith('127.');
+      const protocol = (req.headers['x-forwarded-proto'] as string) || (isLocal ? 'http' : 'https');
       const baseUrl = `${protocol}://${host}`;
 
       const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users/generate-jwt`, {
@@ -4301,10 +4320,24 @@ Respond in this exact JSON format:
         ([, value]) => value && typeof value === 'object'
       ) as [string, { display_name?: string; handle?: string; social_images?: string }][];
 
-      // Sync accounts to local database
+      // Sync accounts to local database. Avatar URLs from Upload-Post are
+      // expiring CDN links — mirror them into our storage once and reuse the
+      // mirrored copy on subsequent syncs.
+      const previousAccounts = await storage.getUploadPostAccountsByUser(userId);
+      const supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
+      const mirroredByPlatform = new Map(
+        previousAccounts
+          .filter((a) => {
+            try { return supabaseHost && a.profilePictureUrl && new URL(a.profilePictureUrl).host === supabaseHost; }
+            catch { return false; }
+          })
+          .map((a) => [a.platform, a.profilePictureUrl!])
+      );
       await storage.deleteUploadPostAccountsByUser(userId);
       const accounts = [];
       for (const [platform, account] of connected) {
+        const avatarUrl = mirroredByPlatform.get(platform)
+          ?? (account.social_images ? await mirrorExternalMedia(account.social_images, `avatars/${userId}`) : null);
         const created = await storage.createUploadPostAccount({
           userId,
           uploadPostUsername,
@@ -4312,7 +4345,7 @@ Respond in this exact JSON format:
           platformAccountId: null,
           platformUsername: (account.handle || account.display_name || platform).replace(/^@/, ''),
           profileUrl: null,
-          profilePictureUrl: account.social_images || null,
+          profilePictureUrl: avatarUrl,
           isConnected: true,
         });
         // reauth_required=true on an account object means its token expired and the
@@ -4350,13 +4383,34 @@ Respond in this exact JSON format:
     try {
       const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
-      const { platforms, content, mediaUrl, mediaType, scheduledAt, draft } = req.body;
+      const { platforms, content, mediaUrl, mediaType, scheduledAt, draft, subreddit, pinterestBoardId } = req.body;
 
       if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
         return res.status(400).json({ message: 'At least one platform is required' });
       }
       if (!content && !mediaUrl) {
         return res.status(400).json({ message: 'Content or media is required' });
+      }
+      // Media must come from our own storage bucket — the server fetches this
+      // URL, so anything else is an open relay.
+      if (mediaUrl) {
+        try {
+          const supabaseHost = new URL(process.env.SUPABASE_URL!).host;
+          if (new URL(mediaUrl).host !== supabaseHost) {
+            return res.status(400).json({ message: 'Media must be uploaded through Podlogix first' });
+          }
+        } catch {
+          return res.status(400).json({ message: 'Invalid media URL' });
+        }
+      }
+
+      const wantsReddit = platforms.some((p: string) => p.toLowerCase() === 'reddit');
+      const wantsPinterest = platforms.some((p: string) => p.toLowerCase() === 'pinterest');
+      if (!draft && wantsReddit && !subreddit?.trim()) {
+        return res.status(400).json({ message: 'Reddit needs a subreddit name' });
+      }
+      if (!draft && wantsPinterest && !pinterestBoardId) {
+        return res.status(400).json({ message: 'Pinterest needs a board selected' });
       }
 
       // Drafts never touch Upload-Post — they're a local save.
@@ -4386,6 +4440,24 @@ Respond in this exact JSON format:
       form.append('user', uploadPostUsername);
       if (content) form.append('title', content);
       if (scheduledAt) form.append('scheduled_date', new Date(scheduledAt).toISOString());
+      if (wantsReddit && subreddit?.trim()) form.append('subreddit', subreddit.trim().replace(/^r\//i, ''));
+      if (wantsPinterest && pinterestBoardId) form.append('pinterest_board_id', pinterestBoardId);
+
+      // Facebook posts land on a Page, and the API needs the page id explicitly.
+      // Use the first managed page (the one chosen on the connect screen).
+      if (platforms.some((p: string) => p.toLowerCase() === 'facebook')) {
+        try {
+          const pagesResponse = await fetch(
+            `${UPLOAD_POST_API_BASE}/api/uploadposts/facebook/pages?profile=${encodeURIComponent(uploadPostUsername)}`,
+            { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+          );
+          if (pagesResponse.ok) {
+            const pagesData = await pagesResponse.json();
+            const firstPage = (pagesData.pages ?? pagesData.data ?? [])[0];
+            if (firstPage?.id) form.append('facebook_page_id', firstPage.id);
+          }
+        } catch { /* let Upload-Post surface its own error if pages can't load */ }
+      }
 
       let endpoint: string;
       if (mediaUrl && mediaType === 'video') {
@@ -4446,6 +4518,194 @@ Respond in this exact JSON format:
     }
   });
 
+  // Rich per-platform analytics from Upload-Post (followers, reach, views,
+  // likes/comments/shares/saves, 30-day reach timeseries, demographics).
+  // Included in the flat plan — no metered cost.
+  app.get('/api/upload-post/analytics', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const platforms = String(req.query.platforms || '').trim();
+      if (!platforms) {
+        return res.status(400).json({ message: 'platforms query param is required' });
+      }
+
+      // Facebook analytics need a page_id — resolve the first managed page, best-effort.
+      let pageIdParam = '';
+      if (platforms.split(',').includes('facebook')) {
+        try {
+          const pagesResponse = await fetch(
+            `${UPLOAD_POST_API_BASE}/api/uploadposts/facebook/pages?profile=${encodeURIComponent(uploadPostUsername)}`,
+            { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+          );
+          if (pagesResponse.ok) {
+            const pagesData = await pagesResponse.json();
+            const firstPage = (pagesData.pages ?? pagesData.data ?? [])[0];
+            if (firstPage?.id) pageIdParam = `&page_id=${encodeURIComponent(firstPage.id)}`;
+          }
+        } catch { /* analytics still succeed for other platforms */ }
+      }
+
+      const response = await fetch(
+        `${UPLOAD_POST_API_BASE}/api/analytics/${encodeURIComponent(uploadPostUsername)}?platforms=${encodeURIComponent(platforms)}${pageIdParam}`,
+        { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: 'Failed to fetch analytics' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching Upload-Post analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch analytics' });
+    }
+  });
+
+  // ============ MEDIA LIBRARY (back-catalog import via Upload-Post /media) ============
+
+  // Browse a connected channel's existing posts (for the import picker).
+  // Quirks per Upload-Post support: TikTok/YouTube return permalink only (no
+  // media_url); LinkedIn rejects cursors.
+  app.get('/api/upload-post/media', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const platform = String(req.query.platform || '');
+      if (!platform) return res.status(400).json({ message: 'platform is required' });
+      const cursor = req.query.cursor ? String(req.query.cursor) : null;
+
+      const params = new URLSearchParams({ platform, user: uploadPostUsername, limit: '24' });
+      if (cursor && platform !== 'linkedin') params.set('cursor', cursor);
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/media?${params}`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to fetch media' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching channel media:', error);
+      res.status(500).json({ message: 'Failed to fetch media' });
+    }
+  });
+
+  // Import selected posts: mirror media/thumbnails into OUR storage, then save.
+  app.post('/api/media-library/import', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { platform, items } = req.body ?? {};
+      if (!platform || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'platform and items are required' });
+      }
+      if (items.length > 50) {
+        return res.status(400).json({ message: 'Import at most 50 items at a time' });
+      }
+
+      let imported = 0;
+      for (const item of items) {
+        if (!item?.id) continue;
+        const [mediaUrl, thumbnailUrl] = await Promise.all([
+          item.media_url ? mirrorExternalMedia(item.media_url, `media-library/${userId}`) : Promise.resolve(null),
+          item.thumbnail_url ? mirrorExternalMedia(item.thumbnail_url, `media-library/${userId}`) : Promise.resolve(null),
+        ]);
+        const created = await storage.createMediaLibraryItem({
+          userId,
+          platform,
+          externalId: String(item.id),
+          caption: item.caption ?? null,
+          mediaType: item.media_type ?? (mediaUrl ? 'image' : 'link'),
+          mediaUrl,
+          thumbnailUrl,
+          permalink: item.permalink ?? null,
+          postedAt: item.timestamp ? new Date(item.timestamp) : null,
+        });
+        if (created) imported += 1;
+      }
+      res.json({ success: true, imported, skipped: items.length - imported });
+    } catch (error) {
+      console.error('Error importing media:', error);
+      res.status(500).json({ message: 'Failed to import media' });
+    }
+  });
+
+  app.get('/api/media-library', isAuthenticated, async (req: any, res) => {
+    try {
+      const items = await storage.getMediaLibraryItemsByUser(req.session.userId!);
+      res.json({ items });
+    } catch (error) {
+      console.error('Error fetching media library:', error);
+      res.status(500).json({ message: 'Failed to fetch media library' });
+    }
+  });
+
+  app.delete('/api/media-library/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteMediaLibraryItem(req.params.id, req.session.userId!);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting media item:', error);
+      res.status(500).json({ message: 'Failed to delete media item' });
+    }
+  });
+
+  // Pinterest boards for the board picker (required per pin)
+  app.get('/api/upload-post/pinterest/boards', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const response = await fetch(
+        `${UPLOAD_POST_API_BASE}/api/uploadposts/pinterest/boards?profile=${encodeURIComponent(uploadPostUsername)}`,
+        { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to fetch boards' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching Pinterest boards:', error);
+      res.status(500).json({ message: 'Failed to fetch boards' });
+    }
+  });
+
+  // Scheduled posts — live from Upload-Post (list + cancel)
+  app.get('/api/upload-post/scheduled', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/schedule`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: 'Failed to fetch scheduled posts' });
+      }
+      // The API key spans every profile on the account — only return this user's.
+      const jobs = (Array.isArray((data as any).jobs) ? (data as any).jobs
+        : Array.isArray(data) ? data : (data as any).scheduled_posts ?? [])
+        .filter((job: any) => !job.user || job.user === uploadPostUsername || job.profile === uploadPostUsername);
+      res.json({ jobs });
+    } catch (error) {
+      console.error('Error fetching scheduled posts:', error);
+      res.status(500).json({ message: 'Failed to fetch scheduled posts' });
+    }
+  });
+
+  app.delete('/api/upload-post/scheduled/:jobId', isAuthenticated, async (req: any, res) => {
+    try {
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/schedule/${req.params.jobId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to cancel scheduled post' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error cancelling scheduled post:', error);
+      res.status(500).json({ message: 'Failed to cancel scheduled post' });
+    }
+  });
+
   // Get user's posts
   app.get('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
     try {
@@ -4468,6 +4728,17 @@ Respond in this exact JSON format:
       const { videoUrl, platforms } = req.body ?? {};
       if (!videoUrl || !Array.isArray(platforms) || platforms.length === 0) {
         return res.status(400).json({ message: 'videoUrl and platforms (non-empty array) are required' });
+      }
+
+      // Only analyze videos from OUR storage. An open URL here would let anyone
+      // burn the monthly analysis allowance on arbitrary files.
+      try {
+        const supabaseHost = new URL(process.env.SUPABASE_URL!).host;
+        if (new URL(videoUrl).host !== supabaseHost) {
+          return res.status(400).json({ message: 'Video must be uploaded through Podlogix first' });
+        }
+      } catch {
+        return res.status(400).json({ message: 'Invalid video URL' });
       }
 
       // Pull the video from storage and forward it as multipart — Upload-Post only accepts a file here.
