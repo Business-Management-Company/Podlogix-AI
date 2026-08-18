@@ -3,7 +3,7 @@ import {
   subscribers, messages, identityAssets, profiles, profileLinks, profileSections, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions,
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
-  emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
+  emailContacts, contactNotes, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
@@ -16,7 +16,7 @@ import {
   type ConnectedSocialAccount, type InsertConnectedSocialAccount,
   type SocialMonitoringAlert, type InsertSocialMonitoringAlert,
   type CreatorSocialProfile, type InsertCreatorSocialProfile,
-  type EmailContact, type InsertEmailContact, type EmailTemplate, type InsertEmailTemplate,
+  type EmailContact, type InsertEmailContact, type ContactNote, type InsertContactNote, type EmailTemplate, type InsertEmailTemplate,
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
   type GuestPipelineEntry, type InsertGuestPipelineEntry,
   type SavedCreator, type InsertSavedCreator,
@@ -148,6 +148,8 @@ export interface IStorage {
   deleteCreatorSocialProfile(id: string): Promise<void>;
   // Email Contacts
   getEmailContacts(userId: string): Promise<EmailContact[]>;
+  getContactNotes(contactId: string, userId: string): Promise<ContactNote[]>;
+  createContactNote(note: InsertContactNote): Promise<ContactNote>;
   getEmailContact(id: string): Promise<EmailContact | undefined>;
   createEmailContact(contact: InsertEmailContact): Promise<EmailContact>;
   updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
@@ -722,6 +724,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Email Contacts
+  async getContactNotes(contactId: string, userId: string): Promise<ContactNote[]> {
+    return await db.select().from(contactNotes)
+      .where(and(eq(contactNotes.contactId, contactId), eq(contactNotes.userId, userId)))
+      .orderBy(desc(contactNotes.createdAt));
+  }
+
+  async createContactNote(note: InsertContactNote): Promise<ContactNote> {
+    const [created] = await db.insert(contactNotes).values(note).returning();
+    return created;
+  }
+
   async getEmailContacts(userId: string): Promise<EmailContact[]> {
     return await db.select().from(emailContacts)
       .where(eq(emailContacts.userId, userId))

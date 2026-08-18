@@ -3766,6 +3766,39 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   });
 
   // Delete email contact
+  // CRM notes — timestamped activity trail on a contact.
+  app.get('/api/email/contacts/:id/notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const contact = await storage.getEmailContact(req.params.id);
+      if (!contact || contact.userId !== userId) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+      const notes = await storage.getContactNotes(contact.id, userId);
+      res.json({ notes });
+    } catch (error) {
+      console.error('Error fetching contact notes:', error);
+      res.status(500).json({ message: 'Failed to fetch notes' });
+    }
+  });
+
+  app.post('/api/email/contacts/:id/notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const contact = await storage.getEmailContact(req.params.id);
+      if (!contact || contact.userId !== userId) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+      const body = String(req.body?.body ?? '').trim();
+      if (!body) return res.status(400).json({ message: 'Note text is required' });
+      const note = await storage.createContactNote({ contactId: contact.id, userId, body });
+      res.json({ note });
+    } catch (error) {
+      console.error('Error creating contact note:', error);
+      res.status(500).json({ message: 'Failed to add note' });
+    }
+  });
+
   app.delete('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
