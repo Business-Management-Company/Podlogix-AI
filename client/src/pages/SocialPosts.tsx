@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearch } from "wouter";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import {
-  CalendarClock, CalendarRange, Loader2, PenSquare, Repeat, Send, Save, Sparkles, Upload, X as XIcon,
+  CalendarClock, CalendarRange, Check, ImagePlus, Loader2, Mic, MicOff, PenSquare,
+  Repeat, Send, Save, Sparkles, Upload, Wand2, X as XIcon,
 } from "lucide-react";
 import {
   SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
@@ -20,6 +21,7 @@ interface UploadPostAccount {
   id: string;
   platform: string;
   platformUsername: string;
+  profilePictureUrl?: string | null;
   isConnected: boolean;
   reauthRequired?: boolean;
 }
@@ -32,6 +34,15 @@ interface LocalPost {
   status: string;
   scheduledAt: string | null;
   createdAt: string;
+}
+
+interface MediaLibraryItem {
+  id: string;
+  platform: string;
+  mediaType: string;
+  mediaUrl: string | null;
+  thumbnailUrl: string | null;
+  permalink: string | null;
 }
 
 const ALL_PLATFORMS = [
@@ -56,6 +67,33 @@ const VIDEO_LIMIT_MB: Record<string, number> = {
   instagram: 300, threads: 100,
 };
 
+const CHAR_LIMITS: Record<string, number> = {
+  x: 280, bluesky: 300, threads: 500, pinterest: 500, discord: 2000,
+  instagram: 2200, tiktok: 2200, linkedin: 3000, telegram: 4096,
+  youtube: 5000, reddit: 40000, facebook: 63206,
+};
+
+/** Typical high-engagement windows — heuristic, labeled as such in the UI. */
+const BEST_TIMES: Record<string, string> = {
+  instagram: "11 AM–1 PM", facebook: "9–11 AM", x: "9 AM–12 PM",
+  linkedin: "8–10 AM", youtube: "2–4 PM", tiktok: "6–9 PM", threads: "11 AM–1 PM",
+};
+
+const FOCUS_OPTIONS = [
+  { key: "show", emoji: "🎙️", label: "My Show", hint: "Promote your podcast" },
+  { key: "general", emoji: "🌐", label: "General", hint: "Share tips or news" },
+  { key: "personal", emoji: "👤", label: "Personal", hint: "Show your human side" },
+  { key: "custom", emoji: "✏️", label: "Custom", hint: "You describe it" },
+] as const;
+
+const TONES = [
+  { key: "pro", label: "Pro" },
+  { key: "casual", label: "Casual" },
+  { key: "funny", label: "Funny" },
+  { key: "promo", label: "Promo" },
+  { key: "edu", label: "Edu" },
+] as const;
+
 function mediaSizeConflicts(platforms: string[], sizeMB: number, type: "photo" | "video"): string[] {
   const limits = type === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB;
   return platforms.filter((p) => limits[p] !== undefined && sizeMB > limits[p]);
@@ -71,6 +109,12 @@ function readablePostError(status: number | undefined, fallback: string): string
       if (status && status >= 500) return "Upload-Post is having trouble right now — your content is safe, try again shortly.";
       return fallback;
   }
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(Math.max(0, Math.round(n)));
 }
 
 const PLATFORM_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -89,6 +133,8 @@ const PLATFORM_META: Record<string, { label: string; icon: React.ComponentType<{
 };
 
 type ComposerTab = "single" | "campaign" | "cadence";
+type ComposeMode = "type" | "ai" | "voice";
+type ImageMode = "ai" | "library" | "upload";
 
 export default function SocialPosts() {
   const { toast } = useToast();
@@ -99,6 +145,15 @@ export default function SocialPosts() {
   // Nav's Campaign/Cadence entries deep-link with ?tab= — follow it even when
   // the composer is already mounted.
   useEffect(() => setTab(initialTab), [initialTab]);
+
+  const [focus, setFocus] = useState<string>("show");
+  const [customFocus, setCustomFocus] = useState("");
+  const [tone, setTone] = useState<string>("pro");
+  const [composeMode, setComposeMode] = useState<ComposeMode>("type");
+  const [aiDirection, setAiDirection] = useState("");
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [activeHashtags, setActiveHashtags] = useState<Set<string>>(new Set());
+
   const [selected, setSelected] = useState<string[]>([]);
   const [content, setContent] = useState("");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -109,19 +164,49 @@ export default function SocialPosts() {
   const [pinterestBoardId, setPinterestBoardId] = useState("");
   const [mediaSizeMB, setMediaSizeMB] = useState<number | null>(null);
 
+  const [imageMode, setImageMode] = useState<ImageMode>("upload");
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [aiImages, setAiImages] = useState<string[]>([]);
+  const [previewPlatform, setPreviewPlatform] = useState<string | null>(null);
+
   const { data: accountsData } = useQuery<{ accounts: UploadPostAccount[] }>({
     queryKey: ["/api/upload-post/accounts"],
     retry: false,
   });
+  const accounts = accountsData?.accounts ?? [];
+  const accountByPlatform = new Map(accounts.map((a) => [a.platform.toLowerCase(), a]));
   const connected = new Set(
-    (accountsData?.accounts ?? []).filter((a) => a.isConnected && !a.reauthRequired).map((a) => a.platform.toLowerCase())
+    accounts.filter((a) => a.isConnected && !a.reauthRequired).map((a) => a.platform.toLowerCase())
   );
+  const connectedPlatforms = [...connected];
+
+  // Follower counts power the reach estimate; shares Social Hub's cache key.
+  const { data: analytics } = useQuery<Record<string, { followers?: number; message?: string }>>({
+    queryKey: ["/api/upload-post/analytics", connectedPlatforms.join(",")],
+    queryFn: async () => {
+      const res = await fetch(`/api/upload-post/analytics?platforms=${connectedPlatforms.join(",")}`);
+      if (!res.ok) throw new Error("analytics unavailable");
+      return res.json();
+    },
+    enabled: connectedPlatforms.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   const { data: postsData } = useQuery<{ posts: LocalPost[] }>({
     queryKey: ["/api/upload-post/posts"],
     retry: false,
   });
   const drafts = (postsData?.posts ?? []).filter((p) => p.status === "draft");
+
+  const { data: libraryData } = useQuery<{ items: MediaLibraryItem[] }>({
+    queryKey: ["/api/media-library"],
+    enabled: imageMode === "library",
+    retry: false,
+  });
+  const libraryPhotos = (libraryData?.items ?? []).filter(
+    (i) => i.mediaType !== "video" && (i.mediaUrl || i.thumbnailUrl)
+  );
 
   const wantsReddit = selected.includes("reddit");
   const wantsPinterest = selected.includes("pinterest");
@@ -209,12 +294,96 @@ export default function SocialPosts() {
     [selected, mediaUrl, accountsData]
   );
 
+  useEffect(() => {
+    if (previewPlatform && !effectiveSelected.includes(previewPlatform)) {
+      setPreviewPlatform(effectiveSelected[0] ?? null);
+    } else if (!previewPlatform && effectiveSelected.length > 0) {
+      setPreviewPlatform(effectiveSelected[0]);
+    }
+  }, [effectiveSelected, previewPlatform]);
+
   const togglePlatform = (platform: string) => {
     if (platformDisabledReason(platform)) return;
     setSelected((prev) =>
       prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]
     );
   };
+
+  // ---------- AI Write ----------
+  const aiWriteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/social/ai-write", {
+        focus,
+        customFocus: customFocus.trim() || undefined,
+        tone,
+        direction: aiDirection.trim() || undefined,
+        platforms: effectiveSelected,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "AI writing failed");
+      return body as { post: string; hashtags: string[] };
+    },
+    onSuccess: (data) => {
+      setContent(data.post);
+      setHashtags(data.hashtags);
+      setActiveHashtags(new Set(data.hashtags));
+      setComposeMode("type");
+      toast({ title: "Post drafted", description: "Edit it, swap hashtags, then post." });
+    },
+    onError: (err: Error) =>
+      toast({ title: "Couldn't generate", description: err.message, variant: "destructive" }),
+  });
+
+  // ---------- Voice (Web Speech API dictation) ----------
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  const [listening, setListening] = useState(false);
+  const toggleVoice = () => {
+    const SR = (window as unknown as {
+      SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any;
+    });
+    const Ctor = SR.SpeechRecognition || SR.webkitSpeechRecognition;
+    if (!Ctor) {
+      toast({ title: "Voice input isn't supported in this browser", description: "Chrome and Edge support dictation.", variant: "destructive" });
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const rec = new Ctor();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    rec.onresult = (e: any) => {
+      const chunk = Array.from(e.results as ArrayLike<any>)
+        .slice(e.resultIndex)
+        .map((r: any) => r[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+      if (chunk) setContent((c) => (c ? `${c} ${chunk}` : chunk));
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
+  useEffect(() => () => recognitionRef.current?.stop(), []);
+
+  // ---------- AI images ----------
+  const aiImageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/social/ai-image", {
+        prompt: imagePrompt.trim(), count: 2,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "Image generation failed");
+      return body as { urls: string[] };
+    },
+    onSuccess: (data) => setAiImages((prev) => [...prev, ...data.urls].slice(0, 4)),
+    onError: (err: Error) =>
+      toast({ title: "Couldn't generate images", description: err.message, variant: "destructive" }),
+  });
 
   const resetComposer = () => {
     setContent("");
@@ -223,13 +392,22 @@ export default function SocialPosts() {
     setSelected([]);
     setTiming("now");
     setScheduledAt("");
+    setHashtags([]);
+    setActiveHashtags(new Set());
+    setAiDirection("");
+    setAiImages([]);
   };
+
+  const includedHashtags = hashtags.filter((h) => activeHashtags.has(h));
+  const finalContent = includedHashtags.length > 0
+    ? `${content.trim()}\n\n${includedHashtags.map((h) => `#${h}`).join(" ")}`
+    : content.trim();
 
   const postMutation = useMutation({
     mutationFn: async ({ draft }: { draft: boolean }) => {
       const res = await apiRequest("POST", "/api/upload-post/posts", {
         platforms: effectiveSelected,
-        content: content.trim(),
+        content: finalContent,
         mediaUrl,
         mediaType,
         scheduledAt: timing === "schedule" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
@@ -245,6 +423,7 @@ export default function SocialPosts() {
     },
     onSuccess: (_data, { draft }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/upload-post/posts"] });
+      refetchScheduled();
       toast({
         title: draft
           ? "Draft saved"
@@ -283,8 +462,75 @@ export default function SocialPosts() {
     && (!wantsReddit || subreddit.trim().length > 0)
     && (!wantsPinterest || pinterestBoardId.length > 0);
 
+  // ---------- Right-rail derived data ----------
+  const steps = [
+    { label: "Focus", done: true },
+    { label: "Create", done: content.trim().length > 0 },
+    { label: "Post", done: effectiveSelected.length > 0 },
+    { label: "Image", done: !!mediaUrl },
+  ];
+  const currentStep = steps.findIndex((s) => !s.done);
+
+  const selectedFollowers = effectiveSelected.reduce((sum, p) => {
+    const f = analytics?.[p]?.followers;
+    return sum + (typeof f === "number" ? f : 0);
+  }, 0);
+
+  const charCount = finalContent.length;
+  const previewAccount = previewPlatform ? accountByPlatform.get(previewPlatform) : null;
+
+  const renderPreviewCard = () => {
+    if (!previewPlatform || !previewAccount) {
+      return (
+        <p className="py-12 text-center text-[11px] text-zinc-400">
+          Pick a platform to see your post as followers will.
+        </p>
+      );
+    }
+    const isIg = previewPlatform === "instagram";
+    const isFb = previewPlatform === "facebook";
+    const isLi = previewPlatform === "linkedin";
+    const name = previewAccount.platformUsername || previewPlatform;
+    return (
+      <div className="overflow-hidden rounded-xl border border-zinc-200">
+        {isFb && <div className="h-1.5 bg-[#1877F2]" />}
+        <div className="flex items-center gap-2.5 px-3 py-2.5">
+          <span className={isIg ? "rounded-full bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] p-[2px]" : ""}>
+            {previewAccount.profilePictureUrl ? (
+              <img src={previewAccount.profilePictureUrl} alt="" className="h-8 w-8 rounded-full border border-white object-cover" />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-600">
+                {name.replace(/^@/, "")[0]?.toUpperCase()}
+              </span>
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-zinc-950">
+              {isFb || isLi ? name : `@${name.replace(/^@/, "")}`}
+            </p>
+            <p className="text-[10px] text-zinc-400">
+              {isLi ? "1st · Just now" : isFb ? "Just now · 🌐" : "Just now"}
+            </p>
+          </div>
+        </div>
+        {mediaUrl && (
+          mediaType === "video" ? (
+            <video src={mediaUrl} className="aspect-video w-full bg-black object-cover" />
+          ) : (
+            <img src={mediaUrl} alt="" className="aspect-square w-full object-cover" />
+          )
+        )}
+        {finalContent ? (
+          <p className="whitespace-pre-wrap px-3 py-2.5 text-xs leading-relaxed text-zinc-800">{finalContent}</p>
+        ) : (
+          <p className="px-3 py-2.5 text-xs italic text-zinc-400">Your post will appear here…</p>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-[1200px] px-6 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Posts</h1>
         <p className="mt-1 text-sm text-zinc-500">Publish everywhere at once — now, scheduled, or on a rhythm.</p>
@@ -296,7 +542,7 @@ export default function SocialPosts() {
           ["single", "Single Post", PenSquare],
           ["campaign", "Campaign", CalendarRange],
           ["cadence", "Cadence", Repeat],
-        ] as [ComposerTab, string, React.ComponentType<{ size?: number; className?: string }>][]).map(([id, label, Icon]) => (
+        ] as [ComposerTab, string, React.ElementType][]).map(([id, label, Icon]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -322,16 +568,62 @@ export default function SocialPosts() {
           }
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-4">
-            {/* Platform picker */}
+        <div className="grid gap-6 lg:grid-cols-9">
+          {/* ---------------- Left column ---------------- */}
+          <div className="space-y-4 lg:col-span-5">
+            {/* Focus */}
             <Card padding="lg">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                What are you posting about?
+              </p>
+              <p className="mb-3 mt-0.5 text-xs text-zinc-500">Choose your focus, then create your post below</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {FOCUS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setFocus(opt.key)}
+                    className={`flex h-[104px] flex-col items-center justify-center gap-1 rounded-xl border px-2 text-center transition-all ${
+                      focus === opt.key
+                        ? "scale-[1.02] border-zinc-950 bg-zinc-50 shadow-sm"
+                        : "border-zinc-200 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xl">{opt.emoji}</span>
+                    <span className="text-xs font-semibold text-zinc-950">{opt.label}</span>
+                    <span className="text-[10px] leading-tight text-zinc-500">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+              {focus === "custom" && (
+                <Input
+                  className="mt-3"
+                  placeholder="What's this post about?"
+                  value={customFocus}
+                  onChange={(e) => setCustomFocus(e.target.value)}
+                />
+              )}
+
+              {/* Post to */}
+              <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
               <div className="flex flex-wrap gap-2">
                 {ALL_PLATFORMS.map((platform) => {
                   const meta = PLATFORM_META[platform];
+                  const isConnected = connected.has(platform);
                   const reason = platformDisabledReason(platform);
                   const active = effectiveSelected.includes(platform);
+                  if (!isConnected) {
+                    return (
+                      <Link
+                        key={platform}
+                        href="/connectors"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-amber-300 hover:text-zinc-600"
+                      >
+                        <meta.icon className="h-3 w-3" />
+                        {meta.label}
+                        <span className="text-[10px] font-semibold text-amber-600">Connect</span>
+                      </Link>
+                    );
+                  }
                   return (
                     <button
                       key={platform}
@@ -347,6 +639,7 @@ export default function SocialPosts() {
                       }`}
                       data-testid={`platform-${platform}`}
                     >
+                      {active && <Check className="h-3 w-3" />}
                       <meta.icon className="h-3 w-3" />
                       {meta.label}
                       {reason && <span className="text-[10px] font-normal">· {reason}</span>}
@@ -384,8 +677,83 @@ export default function SocialPosts() {
               )}
             </Card>
 
-            {/* Content */}
+            {/* Create your post */}
             <Card padding="lg">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Create your post</p>
+                <div className="flex gap-1">
+                  {TONES.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTone(t.key)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        tone === t.key ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300" : "text-zinc-400 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-3 flex rounded-lg bg-zinc-100 p-1">
+                {([
+                  ["type", "Type it", PenSquare],
+                  ["ai", "AI Write", Wand2],
+                  ["voice", "Voice", Mic],
+                ] as [ComposeMode, string, React.ElementType][]).map(([id, label, Icon]) => (
+                  <button
+                    key={id}
+                    onClick={() => setComposeMode(id)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                      composeMode === id ? "bg-zinc-950 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    }`}
+                  >
+                    <Icon size={13} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {composeMode === "ai" && (
+                <div className="mb-3 space-y-2">
+                  <Textarea
+                    rows={2}
+                    placeholder="Give AI some direction (optional) — e.g. 'tease this week's episode about veteran entrepreneurs' or leave blank to surprise me"
+                    value={aiDirection}
+                    onChange={(e) => setAiDirection(e.target.value)}
+                    className="resize-none text-sm"
+                  />
+                  {effectiveSelected.length === 0 && (
+                    <p className="text-[11px] font-medium text-amber-600">⚠ Select at least one platform above before generating</p>
+                  )}
+                  <Button
+                    className="w-full"
+                    disabled={effectiveSelected.length === 0 || aiWriteMutation.isPending}
+                    onClick={() => aiWriteMutation.mutate()}
+                  >
+                    {aiWriteMutation.isPending ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-1.5 h-4 w-4" />
+                    )}
+                    {aiWriteMutation.isPending ? "Writing…" : content ? "Rewrite Post →" : "Generate Post →"}
+                  </Button>
+                </div>
+              )}
+
+              {composeMode === "voice" && (
+                <div className="mb-3 flex items-center gap-3 rounded-lg border border-dashed border-zinc-300 p-3">
+                  <Button variant={listening ? "destructive" : "outline"} size="sm" onClick={toggleVoice}>
+                    {listening ? <MicOff className="mr-1.5 h-4 w-4" /> : <Mic className="mr-1.5 h-4 w-4" />}
+                    {listening ? "Stop" : "Start talking"}
+                  </Button>
+                  <p className="text-xs text-zinc-500">
+                    {listening ? "Listening — your words land in the post below." : "Dictate your post; edit it after."}
+                  </p>
+                </div>
+              )}
+
               <Textarea
                 rows={6}
                 placeholder="What do you want to share today?"
@@ -394,15 +762,45 @@ export default function SocialPosts() {
                 className="resize-none border-0 p-0 text-base shadow-none focus-visible:ring-0"
                 data-testid="input-post-content"
               />
-              <div className="mt-2 flex items-center justify-between border-t border-zinc-100 pt-2">
-                <p className="text-[11px] text-zinc-400">
-                  {content.length} characters{effectiveSelected.includes("x") && content.length > 280 ? " · over X's 280 limit" : ""}
-                </p>
-              </div>
+
+              {hashtags.length > 0 && (
+                <div className="mt-3 border-t border-zinc-100 pt-3">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                    Hashtags <span className="font-normal normal-case">— tap to include</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {hashtags.map((h) => {
+                      const on = activeHashtags.has(h);
+                      return (
+                        <button
+                          key={h}
+                          onClick={() =>
+                            setActiveHashtags((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(h)) next.delete(h);
+                              else next.add(h);
+                              return next;
+                            })
+                          }
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                            on ? "bg-zinc-950 text-white" : "bg-zinc-100 text-zinc-500 line-through"
+                          }`}
+                        >
+                          #{h}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
 
-            {/* Media */}
+            {/* Image & creative */}
             <Card padding="lg">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Image & creative <span className="font-normal normal-case text-zinc-400">· optional</span>
+              </p>
+
               {mediaUrl ? (
                 <div className="flex items-center gap-3">
                   {mediaType === "video" ? (
@@ -413,7 +811,7 @@ export default function SocialPosts() {
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium capitalize text-zinc-900">{mediaType} attached</p>
                     <button
-                      onClick={() => { setMediaUrl(null); setMediaType(null); }}
+                      onClick={() => { setMediaUrl(null); setMediaType(null); setMediaSizeMB(null); }}
                       className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-500"
                     >
                       <XIcon size={12} /> Remove
@@ -421,22 +819,118 @@ export default function SocialPosts() {
                   </div>
                 </div>
               ) : (
-                <ObjectUploader
-                  maxFileSize={100 * 1024 * 1024}
-                  onGetUploadParameters={getUploadParams}
-                  onComplete={(r) => {
-                    const file = r.successful[0];
-                    if (!file) return;
-                    setMediaUrl(file.uploadURL);
-                    setMediaType(file.type.startsWith("video/") ? "video" : "photo");
-                    setMediaSizeMB(file.size / (1024 * 1024));
-                  }}
-                  buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-8 !text-zinc-500 hover:!bg-zinc-50"
-                >
-                  <Upload className="h-5 w-5" />
-                  <span className="text-xs font-medium">Add media</span>
-                  <span className="text-[11px] text-zinc-400">Photo or video · required for Instagram, YouTube, TikTok, Pinterest</span>
-                </ObjectUploader>
+                <>
+                  <div className="mb-3 flex rounded-lg bg-zinc-100 p-1">
+                    {([
+                      ["upload", "Upload", Upload],
+                      ["library", "My Library", ImagePlus],
+                      ["ai", "AI Generate", Sparkles],
+                    ] as [ImageMode, string, React.ElementType][]).map(([id, label, Icon]) => (
+                      <button
+                        key={id}
+                        onClick={() => setImageMode(id)}
+                        className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                          imageMode === id ? "bg-zinc-950 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                        }`}
+                      >
+                        <Icon size={13} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {imageMode === "upload" && (
+                    <ObjectUploader
+                      maxFileSize={100 * 1024 * 1024}
+                      onGetUploadParameters={getUploadParams}
+                      onComplete={(r) => {
+                        const file = r.successful[0];
+                        if (!file) return;
+                        setMediaUrl(file.uploadURL);
+                        setMediaType(file.type.startsWith("video/") ? "video" : "photo");
+                        setMediaSizeMB(file.size / (1024 * 1024));
+                      }}
+                      buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-8 !text-zinc-500 hover:!bg-zinc-50"
+                    >
+                      <Upload className="h-5 w-5" />
+                      <span className="text-xs font-medium">Add media</span>
+                      <span className="text-[11px] text-zinc-400">Photo or video · required for Instagram, YouTube, TikTok, Pinterest</span>
+                    </ObjectUploader>
+                  )}
+
+                  {imageMode === "library" && (
+                    libraryPhotos.length === 0 ? (
+                      <p className="py-6 text-center text-xs text-zinc-400">
+                        Nothing importable in your library yet —{" "}
+                        <Link href="/media-library" className="font-medium text-zinc-600 underline">import from your channels</Link>.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                        {libraryPhotos.slice(0, 15).map((item) => {
+                          const src = item.mediaUrl ?? item.thumbnailUrl!;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => { setMediaUrl(item.mediaUrl ?? item.thumbnailUrl); setMediaType("photo"); setMediaSizeMB(null); }}
+                              className="aspect-square overflow-hidden rounded-lg border border-zinc-200 transition-transform hover:scale-[1.03]"
+                            >
+                              <img src={src} alt="" className="h-full w-full object-cover" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+
+                  {imageMode === "ai" && (
+                    <div className="space-y-2.5">
+                      <Input
+                        placeholder="Describe your image… give AI some direction (optional)"
+                        value={imagePrompt}
+                        onChange={(e) => setImagePrompt(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        {Array.from({ length: 4 }).map((_, i) => {
+                          const url = aiImages[i];
+                          if (url) {
+                            return (
+                              <button
+                                key={url}
+                                onClick={() => { setMediaUrl(url); setMediaType("photo"); setMediaSizeMB(null); }}
+                                className="h-[82px] w-[82px] overflow-hidden rounded-lg border border-zinc-200 transition-transform hover:scale-[1.04]"
+                                title="Use this image"
+                              >
+                                <img src={url} alt="" className="h-full w-full object-cover" />
+                              </button>
+                            );
+                          }
+                          if (aiImageMutation.isPending && i < aiImages.length + 2) {
+                            return <div key={i} className="h-[82px] w-[82px] animate-pulse rounded-lg bg-zinc-100" />;
+                          }
+                          return (
+                            <div key={i} className="flex h-[82px] w-[82px] items-center justify-center rounded-lg border border-dashed border-zinc-200 text-zinc-300">
+                              +
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        disabled={aiImageMutation.isPending || !imagePrompt.trim() || aiImages.length >= 4}
+                        onClick={() => aiImageMutation.mutate()}
+                      >
+                        {aiImageMutation.isPending ? (
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="mr-1.5 h-4 w-4" />
+                        )}
+                        {aiImageMutation.isPending ? "Generating…" : aiImages.length > 0 ? "Generate more →" : "Generate Images →"}
+                      </Button>
+                      <p className="text-[10px] text-zinc-400">Tap a result to attach it. Generated images land in your media storage.</p>
+                    </div>
+                  )}
+                </>
               )}
             </Card>
 
@@ -487,7 +981,7 @@ export default function SocialPosts() {
               </Button>
             </div>
 
-            {/* Scheduled — live from Upload-Post, cancellable */}
+            {/* Scheduled — live from Upload-Post, editable + cancellable */}
             {scheduledJobs.length > 0 && (
               <section className="pt-2">
                 <SectionHeader title={`Scheduled (${scheduledJobs.length})`} />
@@ -583,31 +1077,121 @@ export default function SocialPosts() {
             )}
           </div>
 
-          {/* Live preview */}
-          <div className="hidden lg:block">
-            <SectionHeader title="Preview" />
-            <Card padding="lg">
-              <div className="mx-auto w-full max-w-[240px] rounded-[2rem] border-[6px] border-zinc-900 bg-white p-3">
-                <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-zinc-200" />
-                {content || mediaUrl ? (
-                  <div className="space-y-2">
-                    {mediaUrl && (
-                      mediaType === "video" ? (
-                        <video src={mediaUrl} className="aspect-square w-full rounded-lg bg-black object-cover" />
-                      ) : (
-                        <img src={mediaUrl} alt="" className="aspect-square w-full rounded-lg object-cover" />
-                      )
-                    )}
-                    {content && <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-800">{content}</p>}
-                    {effectiveSelected.length > 0 && (
-                      <p className="text-[10px] text-zinc-400">→ {effectiveSelected.map((p) => PLATFORM_META[p].label).join(" · ")}</p>
-                    )}
+          {/* ---------------- Right rail ---------------- */}
+          <div className="hidden lg:col-span-4 lg:block">
+            <div className="sticky top-6 space-y-4">
+              {/* Stepper */}
+              <div className="flex items-center justify-between px-1">
+                {steps.map((step, i) => (
+                  <div key={step.label} className="flex flex-1 items-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+                          step.done
+                            ? "bg-zinc-950 text-white"
+                            : i === currentStep
+                              ? "border-2 border-zinc-950 text-zinc-950"
+                              : "border border-zinc-200 text-zinc-400"
+                        }`}
+                      >
+                        {step.done ? <Check size={13} /> : i + 1}
+                      </span>
+                      <span className={`text-[10px] font-medium ${step.done || i === currentStep ? "text-zinc-950" : "text-zinc-400"}`}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {i < steps.length - 1 && <div className={`mx-1 mb-4 h-px flex-1 ${steps[i + 1].done ? "bg-zinc-950" : "bg-zinc-200"}`} />}
                   </div>
-                ) : (
-                  <p className="py-16 text-center text-[11px] text-zinc-400">Start writing to see your preview</p>
-                )}
+                ))}
               </div>
-            </Card>
+
+              {/* Per-platform preview */}
+              <Card padding="lg">
+                {effectiveSelected.length > 1 && (
+                  <div className="mb-3 flex flex-wrap gap-1">
+                    {effectiveSelected.map((p) => {
+                      const meta = PLATFORM_META[p];
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPreviewPlatform(p)}
+                          className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                            previewPlatform === p ? "bg-zinc-950 text-white" : "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          <meta.icon className="h-2.5 w-2.5" />
+                          {meta.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {renderPreviewCard()}
+              </Card>
+
+              {/* Estimates */}
+              <Card padding="lg">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Estimates</p>
+                <p className="text-sm text-zinc-600">
+                  Est. reach:{" "}
+                  <span className="font-semibold text-zinc-950">
+                    {selectedFollowers > 0
+                      ? `${formatCount(selectedFollowers * 0.08)} – ${formatCount(selectedFollowers * 0.2)}`
+                      : "—"}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Best time to post:{" "}
+                  <span className="font-semibold text-zinc-950">
+                    {BEST_TIMES[effectiveSelected[0] ?? ""] ?? "9–11 AM"}
+                  </span>
+                </p>
+                <p className="mt-1.5 text-[10px] text-zinc-400">
+                  Reach = 8–20% of the {formatCount(selectedFollowers)} followers on your selected channels; times are typical engagement windows.
+                </p>
+              </Card>
+
+              {/* Character count */}
+              {effectiveSelected.length > 0 && (
+                <Card padding="lg">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Character count</p>
+                  <div className="space-y-1.5">
+                    {effectiveSelected.map((p) => {
+                      const limit = CHAR_LIMITS[p] ?? 2200;
+                      const over = charCount > limit;
+                      const near = !over && charCount > limit * 0.9;
+                      return (
+                        <div key={p} className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-500">{PLATFORM_META[p].label}</span>
+                          <span className={`font-semibold tabular-nums ${over ? "text-red-600" : near ? "text-amber-600" : "text-emerald-600"}`}>
+                            {charCount.toLocaleString()} / {limit.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Rail actions */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={(!content.trim() && !mediaUrl) || postMutation.isPending}
+                  onClick={() => postMutation.mutate({ draft: true })}
+                >
+                  Save Draft
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={!canSubmit}
+                  onClick={() => postMutation.mutate({ draft: false })}
+                >
+                  {timing === "schedule" ? "Schedule" : "Post Now"}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}
