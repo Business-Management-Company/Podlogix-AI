@@ -997,6 +997,41 @@ export default function LiveStudio() {
         </div>
       )}
 
+      {/* Guided setup — Restream-style; disappears once the studio is dressed */}
+      {activeStudio && view === "stage" && !(scenes.length > 0 && Object.values(channelPicks).some(Boolean)) && (
+        <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl bg-zinc-900/70 px-4 py-2.5">
+          {([
+            ["Create your studio", true, null],
+            ["Set your stage", scenes.length > 0 || cameraOn || mediaOn, () => setRailTab("media")],
+            ["Add channels", Object.values(channelPicks).some(Boolean), () => setChannelsOpen(true)],
+          ] as Array<[string, boolean, (() => void) | null]>).map(([label, doneStep, go], i) => (
+            <span key={label} className="flex items-center gap-2">
+              {i > 0 && <span className="text-zinc-700">\u2192</span>}
+              <button
+                onClick={go ?? undefined}
+                disabled={!go}
+                className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  doneStep
+                    ? "text-emerald-400"
+                    : go
+                      ? "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+                      : "text-zinc-400"
+                }`}
+              >
+                {doneStep ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-700 text-[11px] font-bold text-white">
+                    {i + 1}
+                  </span>
+                )}
+                {label}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* ═══ The studio room — full frame, no chrome ═══ */}
       {activeStudio && view === "stage" && (
       <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl ring-1 ring-zinc-800/60">
