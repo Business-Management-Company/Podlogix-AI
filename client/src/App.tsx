@@ -50,6 +50,7 @@ import VideoAnalysis from "@/pages/VideoAnalysis";
 import SocialHub from "@/pages/SocialHub";
 import ShowPromotion from "@/pages/ShowPromotion";
 import ShowOverview from "@/pages/ShowOverview";
+import ShowHosting from "@/pages/ShowHosting";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import SocialDiscover from "@/pages/SocialDiscover";
 import SocialPosts from "@/pages/SocialPosts";
@@ -154,6 +155,7 @@ function AuthenticatedRoutes() {
         <Route path="/shows/:showId/episodes/:episodeId" component={EpisodeDetail} />
         <Route path="/shows/:id/promotion" component={ShowPromotion} />
         <Route path="/shows/:id/distribution" component={Distribution} />
+        <Route path="/shows/:id/hosting" component={ShowHosting} />
         <Route path="/shows/:id/audience" component={ShowAudiencePage} />
         <Route path="/shows/:id/settings" component={ShowSettings} />
 

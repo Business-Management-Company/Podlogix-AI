@@ -12,24 +12,53 @@ interface AccountAnalytics {
 
 export default function ShowOverview() {
   const { id } = useParams<{ id: string }>();
+  // "buzzsprout" is the synced host show, not a native podcast row — its
+  // identity and episodes come from the connector endpoints instead.
+  const isHostSynced = id === "buzzsprout";
 
   const { data: podcast } = useQuery<Podcast>({
     queryKey: ["/api/podcasts", id],
     queryFn: async () => {
       const res = await fetch(`/api/podcasts/${id}`);
+      if (!res.ok) throw new Error("not found");
       return res.json();
     },
-    enabled: !!id,
+    enabled: !!id && !isHostSynced,
+    retry: false,
   });
 
-  const { data: episodes, isLoading: episodesLoading } = useQuery<Episode[]>({
+  const { data: hostStatus } = useQuery<{
+    connected: boolean;
+    connection?: { podcastTitle?: string | null; podcastArtworkUrl?: string | null };
+  }>({
+    queryKey: ["/api/connectors/buzzsprout/status"],
+    enabled: isHostSynced,
+    retry: false,
+  });
+
+  const { data: hostEpisodes } = useQuery<{ episodes: Array<{ id: string; title: string; publishedAt: string | null; artworkUrl?: string | null }> }>({
+    queryKey: ["/api/connectors/buzzsprout/episodes"],
+    enabled: isHostSynced,
+    retry: false,
+  });
+
+  const { data: nativeEpisodes, isLoading: episodesLoading } = useQuery<Episode[]>({
     queryKey: ["/api/podcasts", id, "episodes"],
     queryFn: async () => {
       const res = await fetch(`/api/podcasts/${id}/episodes`);
+      if (!res.ok) throw new Error("not found");
       return res.json();
     },
-    enabled: !!id,
+    enabled: !!id && !isHostSynced,
+    retry: false,
   });
+
+  // Error payloads must never reach the render as non-arrays.
+  const episodes: Episode[] = isHostSynced
+    ? ((hostEpisodes?.episodes ?? []) as unknown as Episode[])
+    : Array.isArray(nativeEpisodes) ? nativeEpisodes : [];
+  const showTitle = isHostSynced ? hostStatus?.connection?.podcastTitle : podcast?.title;
+  const showArtwork = isHostSynced ? hostStatus?.connection?.podcastArtworkUrl : podcast?.artworkUrl;
 
   const { data: channels } = useQuery<DistributionChannel[]>({
     queryKey: ["/api/distribution/channels"],
@@ -53,7 +82,7 @@ export default function ShowOverview() {
 
   const recentEpisodes = useMemo(
     () =>
-      [...(episodes ?? [])]
+      [...episodes]
         .sort((a, b) => {
           const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
           const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
@@ -63,8 +92,8 @@ export default function ShowOverview() {
     [episodes]
   );
 
-  const publishedCount = episodes?.filter((e) => e.status === "published").length ?? 0;
-  const liveChannels = submissions?.filter((s) => s.status === "approved").length ?? 0;
+  const publishedCount = isHostSynced ? episodes.length : episodes.filter((e) => e.status === "published").length;
+  const liveChannels = (Array.isArray(submissions) ? submissions : []).filter((s) => s.status === "approved").length;
   const totalFollowers = promotion?.accounts?.reduce((sum, a) => sum + (a.followers || 0), 0) ?? 0;
 
   const isLoading = episodesLoading;
@@ -72,9 +101,9 @@ export default function ShowOverview() {
   return (
     <div className="w-full max-w-[1600px] px-6 py-8">
       <div className="flex items-center gap-3.5">
-        {podcast?.artworkUrl ? (
+        {showArtwork ? (
           <img
-            src={podcast.artworkUrl}
+            src={showArtwork}
             alt=""
             className="h-12 w-12 shrink-0 rounded-xl border border-zinc-200 object-cover"
           />
@@ -84,14 +113,14 @@ export default function ShowOverview() {
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">{podcast?.title || "Overview"}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">{showTitle || "Overview"}</h1>
           <p className="mt-0.5 text-sm text-zinc-500">Performance at a glance for this show.</p>
         </div>
       </div>
 
       <section className="mt-6">
         <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-4 sm:divide-y-0">
-          <TopStat label="Episodes" value={String(episodes?.length ?? 0)} icon={Mic} href={`/shows/${id}/episodes`} />
+          <TopStat label="Episodes" value={String(episodes.length)} icon={Mic} href={`/shows/${id}/episodes`} />
           <TopStat label="Published" value={String(publishedCount)} icon={CheckCircle2} href={`/shows/${id}/episodes`} />
           <TopStat label="Live channels" value={String(liveChannels)} icon={Radio} href={`/shows/${id}/distribution`} />
           <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href={`/shows/${id}/promotion`} />

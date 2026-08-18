@@ -51,7 +51,7 @@ import {
   Clock,
   RefreshCw,
   X,
-  ChevronRight
+  ChevronRight, Building2, Puzzle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { SiYoutube, SiInstagram, SiLinkedin, SiTiktok, SiX, SiTwitch } from "react-icons/si";
@@ -695,7 +695,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="w-full max-w-7xl px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -717,26 +717,14 @@ export default function AdminDashboard() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {adminCheck.isSuperAdmin && (
-              <>
-                <Link href="/saas-admin">
-                  <Button variant="outline" size="sm" data-testid="button-saas-portal">SaaS Portal</Button>
-                </Link>
-                <Link href="/admin/integrations">
-                  <Button variant="outline" size="sm" data-testid="button-integrations">Integrations</Button>
-                </Link>
-              </>
-            )}
-            <Badge variant={adminCheck.isSuperAdmin ? "default" : "secondary"} className="gap-1">
-              {adminCheck.isSuperAdmin ? <Crown className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
-              {adminCheck.role}
-            </Badge>
-          </div>
+          <Badge variant={adminCheck.isSuperAdmin ? "default" : "secondary"} className="gap-1">
+            {adminCheck.isSuperAdmin ? <Crown className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+            {adminCheck.role}
+          </Badge>
         </motion.div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className={`grid w-full ${adminCheck.isSuperAdmin ? "grid-cols-7 max-w-5xl" : "grid-cols-6 max-w-4xl"}`}>
+          <TabsList className={`grid w-full ${adminCheck.isSuperAdmin ? "grid-cols-9 max-w-6xl" : "grid-cols-6 max-w-4xl"}`}>
             <TabsTrigger value="overview" data-testid="tab-overview">
               <Activity className="h-4 w-4 mr-2" />
               Overview
@@ -766,6 +754,18 @@ export default function AdminDashboard() {
                 <DollarSign className="h-4 w-4 mr-2" />
                 Financials
               </TabsTrigger>
+            )}
+            {adminCheck.isSuperAdmin && (
+              <>
+                <Link href="/saas-admin" className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground" data-testid="tab-saas-portal">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  SaaS Portal
+                </Link>
+                <Link href="/admin/integrations" className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground" data-testid="tab-integrations">
+                  <Puzzle className="h-4 w-4 mr-2" />
+                  Integrations
+                </Link>
+              </>
             )}
           </TabsList>
 
