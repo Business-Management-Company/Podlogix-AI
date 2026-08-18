@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Loader2, Mail, Plus, Search, Send, StickyNote, Users,
+  Briefcase, ChevronRight, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -422,6 +423,18 @@ export default function Guests() {
                     </Button>
                   )}
                 </div>
+
+                {/* Guest-perspective coaching: analyze how they come across on camera */}
+                <Link
+                  href="/dashboard/video-analysis"
+                  className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-white"
+                >
+                  <Mic2 className="h-4 w-4 shrink-0 text-zinc-400" />
+                  <span className="flex-1">
+                    <span className="font-medium text-zinc-900">Analyze their speaking</span>
+                    <span className="block text-xs text-zinc-500">Run a clip through AI coaching — presence, pace, and fillers.</span>
+                  </span>
+                </Link>
 
                 {/* Details */}
                 <section>

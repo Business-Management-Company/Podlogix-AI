@@ -97,7 +97,6 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Social" },
   { title: "Live Studio", url: "/studio/live", icon: Radio, group: "Studio" },
-  { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
   { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
   { title: "Workspace Settings", url: "/settings", icon: Settings, group: "Settings" },
