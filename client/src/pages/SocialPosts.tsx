@@ -159,26 +159,34 @@ export default function SocialPosts() {
     onError: () => toast({ title: "Couldn't cancel", variant: "destructive" }),
   });
 
-  const platformDisabledReason = (platform: string): string | null => {
-    if (!connected.has(platform)) return "Not connected";
-    // YouTube is video-only; the other media-first platforms accept photos too.
-    if (platform === "youtube" && mediaType !== "video") return "Add a video to unlock";
-    if (!mediaUrl && MEDIA_REQUIRED.has(platform)) return "Add media to unlock";
+  // Every connected platform is always selectable — content requirements are
+  // surfaced as warnings at post time, not by locking chips.
+  const platformDisabledReason = (platform: string): string | null =>
+    connected.has(platform) ? null : "Not connected";
+
+  const effectiveSelected = useMemo(
+    () => selected.filter((p) => connected.has(p)),
+    [selected, accountsData]
+  );
+
+  /** Why the selected platforms can't take this post yet (empty = good to go). */
+  const contentIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (effectiveSelected.includes("youtube") && mediaType !== "video") {
+      issues.push("YouTube only takes video posts — attach a video or unselect it");
+    }
+    const needMedia = effectiveSelected.filter((p) => p !== "youtube" && MEDIA_REQUIRED.has(p) && !mediaUrl);
+    if (needMedia.length > 0) {
+      issues.push(`${needMedia.map((p) => PLATFORM_META[p].label).join(" and ")} need${needMedia.length === 1 ? "s" : ""} a photo or video attached`);
+    }
     if (mediaUrl && mediaType && mediaSizeMB !== null) {
-      const conflicts = mediaSizeConflicts([platform], mediaSizeMB, mediaType);
-      if (conflicts.length > 0) {
-        const limit = (mediaType === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB)[platform];
-        return `File over ${limit}MB limit`;
+      for (const p of mediaSizeConflicts(effectiveSelected, mediaSizeMB, mediaType)) {
+        const limit = (mediaType === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB)[p];
+        issues.push(`Your file is over ${PLATFORM_META[p].label}'s ${limit}MB limit`);
       }
     }
-    return null;
-  };
-
-  // Media-required platforms drop out of the selection if media is removed.
-  const effectiveSelected = useMemo(
-    () => selected.filter((p) => !platformDisabledReason(p)),
-    [selected, mediaUrl, accountsData]
-  );
+    return issues;
+  }, [effectiveSelected, mediaUrl, mediaType, mediaSizeMB]);
 
   const togglePlatform = (platform: string) => {
     if (platformDisabledReason(platform)) return;
@@ -251,6 +259,7 @@ export default function SocialPosts() {
 
   const canSubmit = effectiveSelected.length > 0 && (content.trim() || mediaUrl) && !postMutation.isPending
     && (timing === "now" || scheduledAt)
+    && contentIssues.length === 0
     && (!wantsReddit || subreddit.trim().length > 0)
     && (!wantsPinterest || pinterestBoardId.length > 0);
 
@@ -297,12 +306,7 @@ export default function SocialPosts() {
           <div className="space-y-4">
             {/* Platform picker */}
             <Card padding="lg">
-              <div className="mb-3 flex items-baseline justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
-                <p className="text-[11px] text-zinc-400">
-                  Instagram, TikTok &amp; Pinterest unlock with media · YouTube with video
-                </p>
-              </div>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
               <div className="flex flex-wrap gap-2">
                 {ALL_PLATFORMS.map((platform) => {
                   const meta = PLATFORM_META[platform];
@@ -441,6 +445,15 @@ export default function SocialPosts() {
                 />
               )}
             </Card>
+
+            {/* Content requirements the current selection doesn't meet yet */}
+            {contentIssues.length > 0 && (
+              <Card padding="md" className="border-amber-200 bg-amber-50/60">
+                {contentIssues.map((issue) => (
+                  <p key={issue} className="text-xs leading-relaxed text-amber-800">• {issue}</p>
+                ))}
+              </Card>
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2">
