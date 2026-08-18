@@ -74,6 +74,8 @@ export default function SocialPosts() {
   const [mediaType, setMediaType] = useState<"photo" | "video" | null>(null);
   const [timing, setTiming] = useState<"now" | "schedule">("now");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [subreddit, setSubreddit] = useState("");
+  const [pinterestBoardId, setPinterestBoardId] = useState("");
 
   const { data: accountsData } = useQuery<{ accounts: UploadPostAccount[] }>({
     queryKey: ["/api/upload-post/accounts"],
@@ -88,6 +90,42 @@ export default function SocialPosts() {
     retry: false,
   });
   const drafts = (postsData?.posts ?? []).filter((p) => p.status === "draft");
+
+  const wantsReddit = selected.includes("reddit");
+  const wantsPinterest = selected.includes("pinterest");
+
+  const { data: boardsData } = useQuery<{ boards?: { id: string; name: string }[] }>({
+    queryKey: ["/api/upload-post/pinterest/boards"],
+    enabled: wantsPinterest,
+    retry: false,
+  });
+  const pinterestBoards = boardsData?.boards ?? [];
+
+  interface ScheduledJob {
+    job_id: string;
+    title?: string;
+    platform?: string[] | string;
+    scheduled_date?: string;
+  }
+  const { data: scheduledData, refetch: refetchScheduled } = useQuery<{ jobs: ScheduledJob[] }>({
+    queryKey: ["/api/upload-post/scheduled"],
+    retry: false,
+  });
+  const scheduledJobs = scheduledData?.jobs ?? [];
+
+  const cancelScheduledMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const res = await apiRequest("DELETE", `/api/upload-post/scheduled/${jobId}`);
+      if (!res.ok) throw new Error("Failed to cancel");
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchScheduled();
+      queryClient.invalidateQueries({ queryKey: ["/api/upload-post/posts"] });
+      toast({ title: "Scheduled post cancelled" });
+    },
+    onError: () => toast({ title: "Couldn't cancel", variant: "destructive" }),
+  });
 
   const platformDisabledReason = (platform: string): string | null => {
     if (!connected.has(platform)) return "Not connected";
@@ -126,6 +164,8 @@ export default function SocialPosts() {
         mediaType,
         scheduledAt: timing === "schedule" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
         draft,
+        subreddit: wantsReddit ? subreddit : undefined,
+        pinterestBoardId: wantsPinterest ? pinterestBoardId : undefined,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -169,7 +209,9 @@ export default function SocialPosts() {
   };
 
   const canSubmit = effectiveSelected.length > 0 && (content.trim() || mediaUrl) && !postMutation.isPending
-    && (timing === "now" || scheduledAt);
+    && (timing === "now" || scheduledAt)
+    && (!wantsReddit || subreddit.trim().length > 0)
+    && (!wantsPinterest || pinterestBoardId.length > 0);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
@@ -242,6 +284,34 @@ export default function SocialPosts() {
                   );
                 })}
               </div>
+
+              {(wantsReddit || wantsPinterest) && (
+                <div className="mt-3 flex flex-wrap gap-3 border-t border-zinc-100 pt-3">
+                  {wantsReddit && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-zinc-500">r/</span>
+                      <Input
+                        placeholder="subreddit"
+                        value={subreddit}
+                        onChange={(e) => setSubreddit(e.target.value)}
+                        className="h-8 w-44 text-xs"
+                      />
+                    </div>
+                  )}
+                  {wantsPinterest && (
+                    <select
+                      value={pinterestBoardId}
+                      onChange={(e) => setPinterestBoardId(e.target.value)}
+                      className="h-8 rounded-md border border-zinc-200 px-2 text-xs text-zinc-700"
+                    >
+                      <option value="">Choose a Pinterest board…</option>
+                      {pinterestBoards.map((board) => (
+                        <option key={board.id} value={board.id}>{board.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
             </Card>
 
             {/* Content */}
@@ -345,6 +415,36 @@ export default function SocialPosts() {
                 {timing === "schedule" ? "Schedule" : "Post Now"}
               </Button>
             </div>
+
+            {/* Scheduled — live from Upload-Post, cancellable */}
+            {scheduledJobs.length > 0 && (
+              <section className="pt-2">
+                <SectionHeader title={`Scheduled (${scheduledJobs.length})`} />
+                <Card padding="none" className="divide-y divide-zinc-100">
+                  {scheduledJobs.map((job) => (
+                    <div key={job.job_id} className="flex items-center gap-3 px-4 py-3">
+                      <CalendarClock size={14} className="shrink-0 text-zinc-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-zinc-700">{job.title || "(untitled post)"}</p>
+                        <p className="text-[11px] text-zinc-400">
+                          {Array.isArray(job.platform) ? job.platform.join(", ") : job.platform}
+                          {job.scheduled_date && ` · ${new Date(job.scheduled_date).toLocaleString()}`}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="shrink-0 text-red-500 hover:text-red-600"
+                        onClick={() => cancelScheduledMutation.mutate(job.job_id)}
+                        disabled={cancelScheduledMutation.isPending}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ))}
+                </Card>
+              </section>
+            )}
 
             {/* Drafts */}
             {drafts.length > 0 && (

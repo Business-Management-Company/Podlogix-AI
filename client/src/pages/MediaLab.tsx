@@ -19,10 +19,13 @@ interface Consumption {
   plan: string;
 }
 
+// Response shape (per Upload-Post support): youtube -> {title, description};
+// instagram/tiktok/facebook -> {caption}. Hashtags come baked into the text.
 const SHORTS_PLATFORMS = [
   { id: "youtube", label: "YouTube" },
   { id: "instagram", label: "Instagram" },
   { id: "tiktok", label: "TikTok" },
+  { id: "facebook", label: "Facebook" },
 ];
 
 interface FfmpegJob {
@@ -144,7 +147,14 @@ export default function MediaLab() {
       });
       return res.json();
     },
-    onSuccess: () => toast({ title: "Analysis complete" }),
+    onSuccess: (data: { remaining_analyses?: number }) =>
+      toast({
+        title: "Analysis complete",
+        description:
+          typeof data?.remaining_analyses === "number"
+            ? `${data.remaining_analyses} of 300 analyses left this month`
+            : undefined,
+      }),
     onError: (err: Error) =>
       toast({
         title: "Analysis failed",

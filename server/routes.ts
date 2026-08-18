@@ -4350,13 +4350,21 @@ Respond in this exact JSON format:
     try {
       const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
-      const { platforms, content, mediaUrl, mediaType, scheduledAt, draft } = req.body;
+      const { platforms, content, mediaUrl, mediaType, scheduledAt, draft, subreddit, pinterestBoardId } = req.body;
 
       if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
         return res.status(400).json({ message: 'At least one platform is required' });
       }
       if (!content && !mediaUrl) {
         return res.status(400).json({ message: 'Content or media is required' });
+      }
+      const wantsReddit = platforms.some((p: string) => p.toLowerCase() === 'reddit');
+      const wantsPinterest = platforms.some((p: string) => p.toLowerCase() === 'pinterest');
+      if (!draft && wantsReddit && !subreddit?.trim()) {
+        return res.status(400).json({ message: 'Reddit needs a subreddit name' });
+      }
+      if (!draft && wantsPinterest && !pinterestBoardId) {
+        return res.status(400).json({ message: 'Pinterest needs a board selected' });
       }
 
       // Drafts never touch Upload-Post — they're a local save.
@@ -4386,6 +4394,8 @@ Respond in this exact JSON format:
       form.append('user', uploadPostUsername);
       if (content) form.append('title', content);
       if (scheduledAt) form.append('scheduled_date', new Date(scheduledAt).toISOString());
+      if (wantsReddit && subreddit?.trim()) form.append('subreddit', subreddit.trim().replace(/^r\//i, ''));
+      if (wantsPinterest && pinterestBoardId) form.append('pinterest_board_id', pinterestBoardId);
 
       let endpoint: string;
       if (mediaUrl && mediaType === 'video') {
@@ -4443,6 +4453,64 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error creating Upload-Post post:', error);
       res.status(500).json({ message: 'Failed to create post' });
+    }
+  });
+
+  // Pinterest boards for the board picker (required per pin)
+  app.get('/api/upload-post/pinterest/boards', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const response = await fetch(
+        `${UPLOAD_POST_API_BASE}/api/uploadposts/pinterest/boards?profile=${encodeURIComponent(uploadPostUsername)}`,
+        { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to fetch boards' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching Pinterest boards:', error);
+      res.status(500).json({ message: 'Failed to fetch boards' });
+    }
+  });
+
+  // Scheduled posts — live from Upload-Post (list + cancel)
+  app.get('/api/upload-post/scheduled', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/schedule`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: 'Failed to fetch scheduled posts' });
+      }
+      // The API key spans every profile on the account — only return this user's.
+      const jobs = (Array.isArray((data as any).jobs) ? (data as any).jobs
+        : Array.isArray(data) ? data : (data as any).scheduled_posts ?? [])
+        .filter((job: any) => !job.user || job.user === uploadPostUsername || job.profile === uploadPostUsername);
+      res.json({ jobs });
+    } catch (error) {
+      console.error('Error fetching scheduled posts:', error);
+      res.status(500).json({ message: 'Failed to fetch scheduled posts' });
+    }
+  });
+
+  app.delete('/api/upload-post/scheduled/:jobId', isAuthenticated, async (req: any, res) => {
+    try {
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/schedule/${req.params.jobId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to cancel scheduled post' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error cancelling scheduled post:', error);
+      res.status(500).json({ message: 'Failed to cancel scheduled post' });
     }
   });
 
