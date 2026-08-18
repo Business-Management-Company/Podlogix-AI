@@ -173,7 +173,7 @@ export default function Engagement() {
     }
   };
 
-  const tabButton = (key: EngagementTab, label: string, Icon: React.ComponentType<{ size?: number; className?: string }>) => (
+  const tabButton = (key: EngagementTab, label: string, Icon: React.ElementType) => (
     <button
       onClick={() => setTab(key)}
       className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
