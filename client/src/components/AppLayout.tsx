@@ -82,12 +82,12 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Shows", url: "/shows", icon: Mic, group: "Podcast" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Podcast" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
-  { title: "Guests", url: "/guests", icon: UserPlus, group: "Communication" },
-  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
-  // Discover/Directory live under Communication: they exist to find and keep
+  { title: "Guests", url: "/guests", icon: UserPlus, group: "Guests & CRM" },
+  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Guests & CRM" },
+  // Discover/Directory live under Guests & CRM: they exist to find and keep
   // guests, feeding the CRM/email side — not to manage posting.
-  { title: "Discover", url: "/social/discover", icon: Compass, group: "Communication" },
-  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Communication" },
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests & CRM" },
+  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Guests & CRM" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
@@ -129,7 +129,7 @@ interface RailItem {
 const RAIL_ITEMS: RailItem[] = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
   { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
-  { title: "Communication", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Communication" },
+  { title: "Guests & CRM", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Guests & CRM" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
   { title: "Studio", icon: Sparkles, url: "/dashboard/ai", isActive: (leaf) => leaf?.group === "Studio" },
 ];
