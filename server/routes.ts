@@ -4881,13 +4881,27 @@ Respond in this exact JSON format:
   app.post('/api/social/ai-write', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const { focus, customFocus, tone, direction, platforms } = req.body ?? {};
+      const { focus, customFocus, tone, direction, platforms, episodeId } = req.body ?? {};
       if (!process.env.OPENAI_API_KEY) {
         return res.status(503).json({ message: 'AI writing needs the OpenAI key configured' });
       }
 
       const podcasts = await storage.getPodcastsByUserId(userId);
       const show = podcasts[0] ?? null;
+
+      // "My Show" focus can target a specific episode — verify it's theirs.
+      let episodeContext = '';
+      if (episodeId) {
+        const episode = await storage.getEpisode(String(episodeId));
+        if (episode && podcasts.some((p) => p.id === episode.podcastId)) {
+          const notes = String(episode.description || episode.showNotes || '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 500);
+          episodeContext = `\nThe post promotes this specific episode: "${episode.title}"${notes ? ` — ${notes}` : ''}. Tease it; don't give everything away.`;
+        }
+      }
       const showContext = show
         ? `The creator hosts the podcast "${show.title}"${show.description ? ` — ${String(show.description).slice(0, 300)}` : ''}.`
         : 'The creator hosts a podcast.';
@@ -4908,7 +4922,7 @@ Respond in this exact JSON format:
       }[String(p).toLowerCase()] ?? 2200)), 2200);
 
       const system = `You write social media posts for podcast creators.
-${focusMap[String(focus)] ?? focusMap.general}
+${focusMap[String(focus)] ?? focusMap.general}${episodeContext}
 Tone: ${toneLine}
 The post must fit in ${Math.min(tightest, 2200)} characters (the tightest selected platform). No markdown formatting — plain text with natural line breaks only.
 Respond with JSON: {"post": "<the post text, no hashtags in it>", "hashtags": ["five", "relevant", "hashtags", "without", "#"]}`;
@@ -4968,6 +4982,51 @@ Respond with JSON: {"post": "<the post text, no hashtags in it>", "hashtags": ["
     } catch (error) {
       console.error('AI image error:', error);
       res.status(500).json({ message: 'Image generation failed — try again' });
+    }
+  });
+
+  // Attach an episode's (or show's) artwork as post media. The artwork URL
+  // comes from our own DB — never the client — so fetching it is safe; the
+  // image still gets content-type and size checks, and lands in our bucket
+  // so the posting route's Supabase-host guard passes.
+  app.post('/api/social/episode-artwork', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { episodeId } = req.body ?? {};
+      if (!episodeId) return res.status(400).json({ message: 'episodeId is required' });
+      const episode = await storage.getEpisode(String(episodeId));
+      const podcasts = await storage.getPodcastsByUserId(userId);
+      const podcast = episode ? podcasts.find((p) => p.id === episode.podcastId) : undefined;
+      if (!episode || !podcast) return res.status(404).json({ message: 'Episode not found' });
+
+      const sourceUrl = episode.artworkUrl || podcast.artworkUrl || null;
+      if (!sourceUrl) return res.status(404).json({ message: 'No artwork on this episode or show yet' });
+
+      const supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
+      try {
+        if (supabaseHost && new URL(sourceUrl).host === supabaseHost) {
+          return res.json({ url: sourceUrl });
+        }
+      } catch { /* relative path — resolve below */ }
+
+      const absolute = sourceUrl.startsWith('http')
+        ? sourceUrl
+        : `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}${sourceUrl}`;
+      const response = await fetch(absolute);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.startsWith('image/')) {
+        return res.status(422).json({ message: "Couldn't fetch the artwork image" });
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > 15 * 1024 * 1024) {
+        return res.status(422).json({ message: 'Artwork is too large to attach' });
+      }
+      const url = await storeImageBuffer(buffer, `artwork/${userId}`, contentType);
+      if (!url) return res.status(500).json({ message: "Couldn't store the artwork" });
+      res.json({ url });
+    } catch (error) {
+      console.error('Episode artwork error:', error);
+      res.status(500).json({ message: "Couldn't attach artwork" });
     }
   });
 

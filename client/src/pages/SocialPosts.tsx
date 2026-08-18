@@ -45,6 +45,15 @@ interface MediaLibraryItem {
   permalink: string | null;
 }
 
+interface EpisodeSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  publishedAt: string | null;
+  episodeNumber: number | null;
+}
+
 const ALL_PLATFORMS = [
   "instagram", "youtube", "facebook", "linkedin", "x", "tiktok",
   "threads", "reddit", "pinterest", "bluesky", "discord", "telegram",
@@ -148,6 +157,7 @@ export default function SocialPosts() {
 
   const [focus, setFocus] = useState<string>("show");
   const [customFocus, setCustomFocus] = useState("");
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState("");
   const [tone, setTone] = useState<string>("pro");
   const [composeMode, setComposeMode] = useState<ComposeMode>("type");
   const [aiDirection, setAiDirection] = useState("");
@@ -198,6 +208,65 @@ export default function SocialPosts() {
     retry: false,
   });
   const drafts = (postsData?.posts ?? []).filter((p) => p.status === "draft");
+
+  // "My Show" focus anchors the post to a real episode (the Ausha pattern).
+  const { data: dashboardData } = useQuery<{ podcasts: Array<{ id: string; title: string }> }>({
+    queryKey: ["/api/dashboard"],
+    enabled: focus === "show",
+  });
+  const podcastId = dashboardData?.podcasts?.[0]?.id;
+  const { data: episodesData } = useQuery<EpisodeSummary[]>({
+    queryKey: ["/api/podcasts", podcastId, "episodes"],
+    queryFn: async () => {
+      const res = await fetch(`/api/podcasts/${podcastId}/episodes`);
+      if (!res.ok) throw new Error("episodes unavailable");
+      return res.json();
+    },
+    enabled: focus === "show" && !!podcastId,
+  });
+  const episodes = useMemo(
+    () =>
+      [...(episodesData ?? [])].sort((a, b) => {
+        if (a.status !== b.status) return a.status === "published" ? -1 : 1;
+        const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return tb - ta;
+      }),
+    [episodesData]
+  );
+
+  const pickEpisode = (id: string) => {
+    setSelectedEpisodeId(id);
+    const ep = episodes.find((e) => e.id === id);
+    if (!ep) return;
+    setAiDirection(`Promote the episode "${ep.title}" — hook listeners without spoiling it`);
+    if (!content.trim()) {
+      const firstLine = (ep.description ?? "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .split(/(?<=[.!?])\s/)[0]
+        ?.slice(0, 200) ?? "";
+      setContent(`🎙️ New episode: ${ep.title}${firstLine ? `\n\n${firstLine}` : ""}\n\nListen now — link in bio.`);
+    }
+  };
+
+  const artworkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/social/episode-artwork", { episodeId: selectedEpisodeId });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "Couldn't attach artwork");
+      return body as { url: string };
+    },
+    onSuccess: (data) => {
+      setMediaUrl(data.url);
+      setMediaType("photo");
+      setMediaSizeMB(null);
+      toast({ title: "Artwork attached" });
+    },
+    onError: (err: Error) =>
+      toast({ title: "Couldn't attach artwork", description: err.message, variant: "destructive" }),
+  });
 
   const { data: libraryData } = useQuery<{ items: MediaLibraryItem[] }>({
     queryKey: ["/api/media-library"],
@@ -318,6 +387,7 @@ export default function SocialPosts() {
         tone,
         direction: aiDirection.trim() || undefined,
         platforms: effectiveSelected,
+        episodeId: focus === "show" && selectedEpisodeId ? selectedEpisodeId : undefined,
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message || "AI writing failed");
@@ -601,6 +671,45 @@ export default function SocialPosts() {
                   value={customFocus}
                   onChange={(e) => setCustomFocus(e.target.value)}
                 />
+              )}
+              {focus === "show" && (
+                episodes.length === 0 ? (
+                  <p className="mt-3 text-xs text-zinc-400">
+                    No episodes yet — posts will promote your show in general.{" "}
+                    <Link href="/episodes" className="font-medium text-zinc-600 underline">Add an episode</Link>
+                  </p>
+                ) : (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <select
+                      value={selectedEpisodeId}
+                      onChange={(e) => pickEpisode(e.target.value)}
+                      className="h-9 min-w-[240px] flex-1 rounded-md border border-zinc-200 px-2 text-sm text-zinc-700"
+                    >
+                      <option value="">Pick an episode to promote…</option>
+                      {episodes.map((ep) => (
+                        <option key={ep.id} value={ep.id}>
+                          {ep.episodeNumber ? `#${ep.episodeNumber} · ` : ""}{ep.title}
+                          {ep.status !== "published" ? " (draft)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedEpisodeId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => artworkMutation.mutate()}
+                        disabled={artworkMutation.isPending}
+                      >
+                        {artworkMutation.isPending ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        Use artwork
+                      </Button>
+                    )}
+                  </div>
+                )
               )}
 
               {/* Post to */}
