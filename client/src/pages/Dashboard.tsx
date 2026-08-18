@@ -133,7 +133,7 @@ export default function Dashboard() {
 
   if (authLoading || dataLoading) {
     return (
-      <div className="max-w-2xl mx-auto px-8 pt-10 pb-16 space-y-6">
+      <div className="max-w-2xl px-8 pt-10 pb-16 space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-32" />
         <div className="space-y-2 pt-4">
@@ -152,7 +152,7 @@ export default function Dashboard() {
   const hasShows = (data?.podcasts || []).length > 0;
 
   return (
-    <div className="max-w-2xl mx-auto px-8 pt-10 pb-16">
+    <div className="max-w-2xl px-8 pt-10 pb-16">
 
       {/* ── Greeting ──────────────────────────────────────────────────────── */}
       <div className="mb-8">

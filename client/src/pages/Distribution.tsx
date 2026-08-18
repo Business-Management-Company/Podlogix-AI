@@ -125,7 +125,7 @@ export default function Distribution() {
   if (authLoading || podcastsLoading || channelsLoading) {
     return (
       <div className="min-h-full bg-background">
-        <div className="mx-auto w-full max-w-6xl px-6 py-8">
+        <div className="w-full max-w-6xl px-6 py-8">
           <Skeleton className="h-96 w-full rounded-xl" />
         </div>
       </div>
@@ -134,7 +134,7 @@ export default function Distribution() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
+      <main className="w-full max-w-6xl px-6 py-8 space-y-6">
         <h1 className="text-2xl font-semibold tracking-tight">Distribution</h1>
         {!podcast ? (
           <Card>

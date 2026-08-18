@@ -347,7 +347,7 @@ export default function BrandDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card/50 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
+        <div className="w-full px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center">
               <Users className="h-5 w-5 text-white" />
@@ -377,7 +377,7 @@ export default function BrandDashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-7xl space-y-8">
+      <main className="w-full px-4 py-8 max-w-7xl space-y-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

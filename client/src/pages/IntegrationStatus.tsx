@@ -70,7 +70,7 @@ export default function IntegrationStatus() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Integration Status</h1>
         <p className="text-sm text-muted-foreground mt-1">

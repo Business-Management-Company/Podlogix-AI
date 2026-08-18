@@ -935,7 +935,7 @@ export default function ClientPortal() {
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full px-4 py-8">
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle>Sign In Required</CardTitle>
@@ -952,7 +952,7 @@ export default function ClientPortal() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="w-full px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">

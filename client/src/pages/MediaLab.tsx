@@ -183,7 +183,7 @@ export default function MediaLab() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-8">
+    <div className="w-full max-w-3xl px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">

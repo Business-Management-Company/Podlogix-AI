@@ -145,7 +145,7 @@ export default function ListenerAnalytics() {
   return (
     <div className="min-h-full bg-background">
       <header className="border-b bg-card/50 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="w-full px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild data-testid="button-back">
               <Link href="/listener">
@@ -160,7 +160,7 @@ export default function ListenerAnalytics() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-7xl space-y-8">
+      <main className="w-full px-4 py-8 max-w-7xl space-y-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

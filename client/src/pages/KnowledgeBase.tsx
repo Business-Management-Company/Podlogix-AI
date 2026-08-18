@@ -297,7 +297,7 @@ export default function KnowledgeBase() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="mx-auto w-full max-w-6xl px-6 py-8">
+      <main className="w-full max-w-6xl px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

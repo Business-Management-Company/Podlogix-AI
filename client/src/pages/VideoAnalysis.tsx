@@ -284,7 +284,7 @@ export default function VideoAnalysis() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8 space-y-6">
+    <div className="w-full max-w-6xl px-6 py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Video Analysis</h1>
         <p className="text-muted-foreground">

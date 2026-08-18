@@ -229,7 +229,7 @@ export default function DashboardCertify() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="mx-auto w-full max-w-6xl px-6 py-8">
+      <main className="w-full max-w-6xl px-6 py-8">
         <h1 className="text-2xl font-semibold tracking-tight mb-6">Voice Certification</h1>
         <div className="mb-12">
           <div className="mb-6">

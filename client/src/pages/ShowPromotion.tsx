@@ -113,7 +113,7 @@ export default function ShowPromotion() {
     lookupMutation.error instanceof Error && lookupMutation.error.message.includes("not configured");
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Promotion</h1>
