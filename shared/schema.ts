@@ -856,6 +856,24 @@ export const studios = pgTable("studios", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Scenes — one-click stage presets (Countdown, Welcome, Outro…): a layout
+// plus optional media. Clicking a scene applies both instantly.
+export const studioScenes = pgTable("studio_scenes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  studioId: varchar("studio_id").notNull(), // -> studios.id
+  name: varchar("name").notNull(),
+  layout: varchar("layout").notNull().default("fullscreen"),
+  mediaUrl: text("media_url"),
+  mediaType: varchar("media_type"), // video | image | null
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertStudioSceneSchema = createInsertSchema(studioScenes).omit({ id: true, createdAt: true });
+export type StudioScene = typeof studioScenes.$inferSelect;
+export type InsertStudioScene = z.infer<typeof insertStudioSceneSchema>;
+
 export const insertStudioSchema = createInsertSchema(studios).omit({ id: true, createdAt: true });
 export type Studio = typeof studios.$inferSelect;
 export type InsertStudio = z.infer<typeof insertStudioSchema>;

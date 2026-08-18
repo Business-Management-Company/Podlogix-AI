@@ -568,29 +568,36 @@ export default function KnowledgeBase() {
                           transition={{ duration: 0.2 }}
                         >
                           <CardContent className="pt-2 border-t mt-2">
-                            {article.figure && (
-                              <div className="mb-4 overflow-x-auto rounded-lg border bg-white p-3">
-                                {article.figure}
+                            <div className={article.figure ? "gap-6 md:grid md:grid-cols-[minmax(0,1fr)_360px]" : ""}>
+                              <div>
+                                <div className="space-y-2 text-sm text-muted-foreground">
+                                  {article.content.map((line, index) => (
+                                    <p
+                                      key={index}
+                                      className={
+                                        line.endsWith(":") ? "font-semibold text-foreground mt-4" : ""
+                                      }
+                                    >
+                                      {line}
+                                    </p>
+                                  ))}
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-4">
+                                  {article.tags.map((tag) => (
+                                    <Badge key={tag} variant="outline" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
                               </div>
-                            )}
-                            <div className="space-y-2 text-sm text-muted-foreground">
-                              {article.content.map((line, index) => (
-                                <p
-                                  key={index}
-                                  className={
-                                    line.endsWith(":") ? "font-semibold text-foreground mt-4" : ""
-                                  }
-                                >
-                                  {line}
-                                </p>
-                              ))}
-                            </div>
-                            <div className="flex flex-wrap gap-1 mt-4">
-                              {article.tags.map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
+                              {article.figure && (
+                                <div className="mt-4 md:mt-0">
+                                  {/* Rides along as you scroll the article */}
+                                  <div className="md:sticky md:top-4 overflow-x-auto rounded-lg border bg-white p-3">
+                                    {article.figure}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </motion.div>

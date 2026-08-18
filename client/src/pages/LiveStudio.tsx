@@ -15,7 +15,7 @@ import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 import { generateSrt, generateVtt, downloadText, type CaptionSegment } from "@/lib/captions";
 import { StudioCompositor, STUDIO_LAYOUTS, type StudioLayout } from "@/lib/studio-compositor";
-import type { LiveMark, LiveSession, Studio } from "@shared/schema";
+import type { LiveMark, LiveSession, Studio, StudioScene } from "@shared/schema";
 
 /**
  * /studio/live — the Live Studio.
@@ -92,7 +92,11 @@ export default function LiveStudio() {
   const [layout, setLayout] = useState<StudioLayout>("fullscreen");
   const [recording, setRecording] = useState(false);
   const [uploadingVod, setUploadingVod] = useState(false);
-  const [railTab, setRailTab] = useState<"layout" | "media" | "prompter">("layout");
+  const [railTab, setRailTab] = useState<"media" | "prompter">("media");
+
+  // ── Scenes (Restream-style): named stage presets — layout + optional media ──
+  const [sceneName, setSceneName] = useState("");
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
 
   // ── Media on the stage (play a video / show an image from the library) ──
   const mediaElRef = useRef<HTMLVideoElement | null>(null);
@@ -161,6 +165,16 @@ export default function LiveStudio() {
   const { data: studiosData } = useQuery<{ studios: Studio[] }>({ queryKey: ["/api/studios"] });
   const studios = studiosData?.studios ?? [];
   const activeStudio = studios.find((s) => s.id === activeStudioId) ?? null;
+
+  const { data: scenesData } = useQuery<{ scenes: StudioScene[] }>({
+    queryKey: ["/api/studios", activeStudioId, "scenes"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/studios/${activeStudioId}/scenes`);
+      return res.json();
+    },
+    enabled: !!activeStudioId,
+  });
+  const scenes = scenesData?.scenes ?? [];
 
   const session = data?.session ?? null;
   const marks = data?.marks ?? [];
@@ -349,6 +363,42 @@ export default function LiveStudio() {
     if (!el) return;
     if (el.paused) { void el.play().catch(() => {}); setMediaPaused(false); }
     else { el.pause(); setMediaPaused(true); }
+  };
+
+  const addSceneMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/studios/${activeStudioId}/scenes`, {
+        name: sceneName.trim(),
+        layout,
+        mediaUrl: stageMedia?.url ?? null,
+        mediaType: stageMedia?.type ?? null,
+      });
+      if (!res.ok) throw new Error("save failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studios", activeStudioId, "scenes"] });
+      setSceneName("");
+      toast({ title: "Scene saved", description: "It captured the current layout and media." });
+    },
+    onError: () => toast({ title: "Couldn't save the scene", variant: "destructive" }),
+  });
+
+  const deleteSceneMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/studios/scenes/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/studios", activeStudioId, "scenes"] }),
+  });
+
+  // One click sets the whole stage: layout + media together.
+  const applyScene = (s: StudioScene) => {
+    setLayout(s.layout as StudioLayout);
+    compositor().setLayout(s.layout as StudioLayout);
+    if (s.mediaUrl) {
+      playOnStage({ caption: s.name, mediaType: s.mediaType, mediaUrl: s.mediaUrl, platform: "scene" });
+    } else {
+      clearStageMedia();
+    }
+    setActiveSceneId(s.id);
   };
 
   const stopAllSources = () => {
@@ -862,6 +912,69 @@ export default function LiveStudio() {
       {activeStudio && view === "stage" && (
       <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl ring-1 ring-zinc-800/60">
         <div className="flex flex-col gap-4 lg:flex-row">
+          {/* Scenes — one-click stage presets, Restream-style */}
+          <div className="w-full shrink-0 space-y-2 lg:w-44">
+            <div className="flex gap-1.5">
+              <Input
+                value={sceneName}
+                onChange={(e) => setSceneName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && sceneName.trim()) addSceneMutation.mutate(); }}
+                placeholder="Scene name"
+                className="h-8 border-zinc-700 bg-zinc-900 text-xs text-zinc-100 placeholder:text-zinc-600"
+              />
+              <button
+                onClick={() => sceneName.trim() && addSceneMutation.mutate()}
+                disabled={!sceneName.trim() || addSceneMutation.isPending}
+                title="Save the current stage (layout + media) as a scene"
+                className="shrink-0 rounded-lg bg-zinc-800 p-2 text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-40"
+              >
+                {addSceneMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              </button>
+            </div>
+            {scenes.length === 0 ? (
+              <p className="rounded-xl bg-zinc-900 p-2.5 text-[10px] leading-relaxed text-zinc-600">
+                Set the stage how you like it (layout + media), name it, and hit +. Countdown, Welcome, Outro —
+                one click each during the show.
+              </p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
+                {scenes.map((s) => (
+                  <div
+                    key={s.id}
+                    className={`group relative w-36 shrink-0 lg:w-full ${""}`}
+                  >
+                    <button
+                      onClick={() => applyScene(s)}
+                      className={`w-full overflow-hidden rounded-xl border text-left transition-colors ${
+                        activeSceneId === s.id ? "border-primary ring-1 ring-primary" : "border-zinc-800 hover:border-zinc-600"
+                      }`}
+                    >
+                      {s.mediaUrl ? (
+                        s.mediaType === "video" ? (
+                          <video src={s.mediaUrl} muted className="h-16 w-full bg-black object-cover" />
+                        ) : (
+                          <img src={s.mediaUrl} alt="" className="h-16 w-full bg-black object-cover" />
+                        )
+                      ) : (
+                        <div className="flex h-16 w-full items-center justify-center bg-zinc-900">
+                          <LayoutThumb id={s.layout as StudioLayout} />
+                        </div>
+                      )}
+                      <p className="truncate bg-zinc-900 px-2 py-1.5 text-[11px] font-medium text-zinc-200">{s.name}</p>
+                    </button>
+                    <button
+                      onClick={() => deleteSceneMutation.mutate(s.id)}
+                      className="absolute right-1 top-1 hidden rounded-full bg-black/70 p-1 text-zinc-400 hover:text-red-400 group-hover:block"
+                      aria-label={`Delete scene ${s.name}`}
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Stage column */}
           <div className="min-w-0 flex-1 space-y-3">
             <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-900" ref={stageRef}>
@@ -900,38 +1013,61 @@ export default function LiveStudio() {
               )}
             </div>
 
-            {/* Control bar */}
-            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-900 p-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleCamera}
-                className={`border-zinc-700 bg-transparent text-zinc-200 hover:bg-zinc-800 hover:text-white ${cameraOn ? "ring-1 ring-emerald-500" : ""}`}
-              >
-                <Camera className="mr-1.5 h-4 w-4" />
-                {cameraOn ? "Stop Camera" : "Start Camera"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleScreen}
-                className={`border-zinc-700 bg-transparent text-zinc-200 hover:bg-zinc-800 hover:text-white ${screenOn ? "ring-1 ring-emerald-500" : ""}`}
-              >
-                <MonitorUp className="mr-1.5 h-4 w-4" />
-                {screenOn ? "Stop Sharing" : "Share Screen"}
-              </Button>
+            {/* Layouts — under the stage, Restream-style: minis, no words */}
+            <div className="flex items-center justify-center gap-1.5 rounded-xl bg-zinc-900 p-2">
+              {STUDIO_LAYOUTS.map((l) => {
+                const sources = [cameraOn, screenOn, guestOn, mediaOn].filter(Boolean).length;
+                const dimmed = l.id !== "fullscreen" && sources < 2;
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => setLayout(l.id)}
+                    title={dimmed ? `${l.label} — needs a second source (screen, media, or guest)` : l.label}
+                    aria-label={l.label}
+                    className={`rounded-lg p-1 ring-1 transition-all ${
+                      layout === l.id ? "ring-primary" : "ring-transparent hover:ring-zinc-600"
+                    } ${dimmed ? "opacity-40" : ""}`}
+                  >
+                    <LayoutThumb id={l.id} />
+                  </button>
+                );
+              })}
+            </div>
 
+            {/* Control bar — icons carry it; hover for names */}
+            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-900 p-3">
+              <button
+                onClick={toggleCamera}
+                title={cameraOn ? "Stop camera" : "Start camera"}
+                aria-label={cameraOn ? "Stop camera" : "Start camera"}
+                className={`rounded-full p-2.5 transition-colors ${
+                  cameraOn ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                }`}
+              >
+                <Camera size={17} />
+              </button>
+              <button
+                onClick={toggleScreen}
+                title={screenOn ? "Stop sharing" : "Share screen"}
+                aria-label={screenOn ? "Stop sharing" : "Share screen"}
+                className={`rounded-full p-2.5 transition-colors ${
+                  screenOn ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                }`}
+              >
+                <MonitorUp size={17} />
+              </button>
               {guestRoomsReady && (
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
                   onClick={() => void inviteGuest()}
                   disabled={inviteBusy}
-                  className={`border-zinc-700 bg-transparent text-zinc-200 hover:bg-zinc-800 hover:text-white ${guestOn ? "ring-1 ring-emerald-500" : ""}`}
+                  title={guestOn ? "Guest connected — copy the link again" : "Invite a guest (copies the link)"}
+                  aria-label="Invite a guest"
+                  className={`rounded-full p-2.5 transition-colors disabled:opacity-50 ${
+                    guestOn ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  }`}
                 >
-                  {inviteBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <UserPlus className="mr-1.5 h-4 w-4" />}
-                  {guestOn ? "Copy guest link" : "Invite Guest"}
-                </Button>
+                  {inviteBusy ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />}
+                </button>
               )}
 
               <div className="mx-1 h-6 w-px bg-zinc-700" />
@@ -1029,10 +1165,9 @@ export default function LiveStudio() {
           <div className="shrink-0 space-y-3 max-lg:!w-full" style={{ width: railWidth }}>
             <div className="flex rounded-lg bg-zinc-900 p-1">
               {([
-                ["layout", "Layout", LayoutGrid],
                 ["media", "Media", Clapperboard],
                 ["prompter", "Prompter", Type],
-              ] as ["layout" | "media" | "prompter", string, React.ElementType][]).map(([id, label, Icon]) => (
+              ] as ["media" | "prompter", string, React.ElementType][]).map(([id, label, Icon]) => (
                 <button
                   key={id}
                   onClick={() => setRailTab(id)}
@@ -1113,36 +1248,6 @@ export default function LiveStudio() {
                 )}
                 <p className="px-1 text-[10px] leading-relaxed text-zinc-600">
                   Media takes the big slot — your camera goes picture-in-picture. Audio is in the mix and the recording.
-                </p>
-              </div>
-            ) : railTab === "layout" ? (
-              <div className="space-y-2">
-                {STUDIO_LAYOUTS.map((l) => {
-                  const needsBoth = l.id !== "fullscreen";
-                  const sources = [cameraOn, screenOn, guestOn, mediaOn].filter(Boolean).length;
-                  const dimmed = needsBoth && sources < 2;
-                  return (
-                    <button
-                      key={l.id}
-                      onClick={() => setLayout(l.id)}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
-                        layout === l.id
-                          ? "border-primary bg-primary/10"
-                          : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
-                      } ${dimmed ? "opacity-50" : ""}`}
-                    >
-                      <LayoutThumb id={l.id} />
-                      <span className="min-w-0">
-                        <p className="text-sm font-semibold text-zinc-100">{l.label}</p>
-                        <p className="text-[11px] text-zinc-500">
-                          {dimmed ? "Needs a second source (screen, media, or guest)" : l.hint}
-                        </p>
-                      </span>
-                    </button>
-                  );
-                })}
-                <p className="px-1 text-[10px] leading-relaxed text-zinc-600">
-                  Layouts are baked into the recording — switch them live and the file follows.
                 </p>
               </div>
             ) : (

@@ -5488,6 +5488,47 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     }
   });
 
+  app.get('/api/studios/:id/scenes', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json({ scenes: await storage.getStudioScenes(req.params.id, req.session.userId!) });
+    } catch (error) {
+      console.error('Error listing scenes:', error);
+      res.status(500).json({ message: 'Failed to load scenes' });
+    }
+  });
+
+  app.post('/api/studios/:id/scenes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const owned = await storage.getStudios(userId);
+      if (!owned.some((s) => s.id === req.params.id)) return res.status(404).json({ message: 'Studio not found' });
+      const name = String(req.body?.name ?? '').trim().slice(0, 60);
+      if (!name) return res.status(400).json({ message: 'Name the scene' });
+      const VALID_LAYOUTS = ['fullscreen', 'pip-br', 'pip-bl', 'pip-tr', 'pip-tl', 'split'];
+      const layout = VALID_LAYOUTS.includes(req.body?.layout) ? req.body.layout : 'fullscreen';
+      const mediaUrl = typeof req.body?.mediaUrl === 'string' && req.body.mediaUrl ? req.body.mediaUrl : null;
+      const mediaType = ['video', 'image'].includes(req.body?.mediaType) ? req.body.mediaType : null;
+      const scene = await storage.createStudioScene({
+        userId, studioId: req.params.id, name, layout,
+        mediaUrl, mediaType: mediaUrl ? mediaType : null, position: 0,
+      });
+      res.json({ scene });
+    } catch (error) {
+      console.error('Error creating scene:', error);
+      res.status(500).json({ message: 'Failed to save the scene' });
+    }
+  });
+
+  app.delete('/api/studios/scenes/:sceneId', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteStudioScene(req.params.sceneId, req.session.userId!);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting scene:', error);
+      res.status(500).json({ message: 'Failed to delete the scene' });
+    }
+  });
+
   app.delete('/api/studios/:id', isAuthenticated, async (req: any, res) => {
     try {
       await storage.deleteStudio(req.params.id, req.session.userId!);

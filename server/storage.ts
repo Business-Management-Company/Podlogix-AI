@@ -5,7 +5,7 @@ import {
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, contactNotes, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems, liveSessions, liveMarks,
-  studios,
+  studios, studioScenes,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -23,7 +23,7 @@ import {
   type SavedCreator, type InsertSavedCreator,
   type MediaLibraryItem, type InsertMediaLibraryItem,
   type LiveSession, type InsertLiveSession, type LiveMark, type InsertLiveMark,
-  type Studio, type InsertStudio,
+  type Studio, type InsertStudio, type StudioScene, type InsertStudioScene,
   type VideoAnalysis, type InsertVideoAnalysis,
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
@@ -175,6 +175,9 @@ export interface IStorage {
   getStudios(userId: string): Promise<Studio[]>;
   getStudioByInviteCode(code: string): Promise<Studio | undefined>;
   updateStudioInviteCode(id: string, userId: string, code: string): Promise<void>;
+  getStudioScenes(studioId: string, userId: string): Promise<StudioScene[]>;
+  createStudioScene(scene: InsertStudioScene): Promise<StudioScene>;
+  deleteStudioScene(id: string, userId: string): Promise<void>;
   createStudio(studio: InsertStudio): Promise<Studio>;
   deleteStudio(id: string, userId: string): Promise<void>;
   createLiveMark(mark: InsertLiveMark): Promise<LiveMark>;
@@ -858,6 +861,21 @@ export class DatabaseStorage implements IStorage {
   async updateStudioInviteCode(id: string, userId: string, code: string): Promise<void> {
     await db.update(studios).set({ guestInviteCode: code })
       .where(and(eq(studios.id, id), eq(studios.userId, userId)));
+  }
+
+  async getStudioScenes(studioId: string, userId: string): Promise<StudioScene[]> {
+    return await db.select().from(studioScenes)
+      .where(and(eq(studioScenes.studioId, studioId), eq(studioScenes.userId, userId)))
+      .orderBy(studioScenes.position, studioScenes.createdAt);
+  }
+
+  async createStudioScene(scene: InsertStudioScene): Promise<StudioScene> {
+    const [created] = await db.insert(studioScenes).values(scene).returning();
+    return created;
+  }
+
+  async deleteStudioScene(id: string, userId: string): Promise<void> {
+    await db.delete(studioScenes).where(and(eq(studioScenes.id, id), eq(studioScenes.userId, userId)));
   }
 
   async createStudio(studio: InsertStudio): Promise<Studio> {
