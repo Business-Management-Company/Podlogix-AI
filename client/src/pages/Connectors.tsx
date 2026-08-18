@@ -248,7 +248,7 @@ export default function Connectors() {
 
   const connectPostingMutation = useMutation({
     mutationFn: async (platform: string) => {
-      const res = await apiRequest("POST", "/api/upload-post/connect-url", { platforms: [platform] });
+      const res = await apiRequest("POST", "/api/upload-post/connect-url", { platforms: [platform], returnTo: "/connectors" });
       return res.json();
     },
     onSuccess: (data) => {
@@ -301,36 +301,6 @@ export default function Connectors() {
     },
   });
 
-  const connectInstagramMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("GET", `/api/creator/instagram/auth?t=${Date.now()}`);
-      const data = await res.json();
-      return data.url;
-    },
-    onSuccess: (url) => { window.location.href = url; },
-    onError: () => toast({ title: "Error", description: "Failed to connect to Instagram", variant: "destructive" }),
-  });
-
-  const connectLinkedInMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("GET", "/api/creator/linkedin/auth");
-      const data = await res.json();
-      return data.authUrl;
-    },
-    onSuccess: (authUrl) => { window.location.href = authUrl; },
-    onError: () => toast({ title: "Error", description: "Failed to connect to LinkedIn", variant: "destructive" }),
-  });
-
-  const connectFacebookMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("GET", `/api/creator/facebook/auth?t=${Date.now()}`);
-      const data = await res.json();
-      return data.url;
-    },
-    onSuccess: (url) => { window.location.href = url; },
-    onError: () => toast({ title: "Error", description: "Failed to connect to Facebook", variant: "destructive" }),
-  });
-
   const addProfileMutation = useMutation({
     mutationFn: async ({ platform, profileUrl }: { platform: string; profileUrl: string }) => {
       const res = await apiRequest("POST", "/api/creator/social-profiles", { platform, profileUrl });
@@ -381,12 +351,6 @@ export default function Connectors() {
   const availableUrlPlatforms = urlBasedPlatforms.filter(
     (p) => !creatorProfiles.some((profile) => profile.platform === p)
   );
-
-  const oauthAnalytics = [
-    { platform: "instagram", connect: connectInstagramMutation, connected: creatorProfiles.some((p) => p.platform === "instagram" && p.instagramAccountId) },
-    { platform: "linkedin", connect: connectLinkedInMutation, connected: creatorProfiles.some((p) => p.platform === "linkedin") },
-    { platform: "facebook", connect: connectFacebookMutation, connected: creatorProfiles.some((p) => p.platform === "facebook") },
-  ];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8">
@@ -509,28 +473,6 @@ export default function Connectors() {
               }
             />
           ))}
-          {oauthAnalytics
-            .filter((entry) => !entry.connected)
-            .map((entry) => (
-              <ConnectorRow
-                key={entry.platform}
-                icon={platformIcons[entry.platform]}
-                name={platformNames[entry.platform]}
-                detail="Connect with your account for richer stats"
-                status="off"
-                statusLabel="Not connected"
-                action={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => entry.connect.mutate()}
-                    disabled={entry.connect.isPending}
-                  >
-                    {entry.connect.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Connect"}
-                  </Button>
-                }
-              />
-            ))}
         </Card>
       </section>
 

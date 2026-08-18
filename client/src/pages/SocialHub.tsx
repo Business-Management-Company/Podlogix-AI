@@ -116,7 +116,7 @@ export default function SocialHub() {
 
   const connectMutation = useMutation({
     mutationFn: async (platforms: string[]) => {
-      const res = await apiRequest("POST", "/api/upload-post/connect-url", { platforms });
+      const res = await apiRequest("POST", "/api/upload-post/connect-url", { platforms, returnTo: "/dashboard/social-hub" });
       return res.json();
     },
     onSuccess: (data) => {

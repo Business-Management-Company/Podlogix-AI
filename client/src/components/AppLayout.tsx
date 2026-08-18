@@ -79,29 +79,26 @@ interface NavItem {
 
 const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Dashboard", url: "/today", icon: LayoutDashboard, exact: true },
-  { title: "Shows", url: "/shows", icon: Mic, group: "Content" },
-  { title: "Episodes", url: "/episodes", icon: List, group: "Content" },
-  { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
-  { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Content" },
-  { title: "Guests", url: "/guests", icon: UserPlus, group: "Communication" },
-  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
-  // Discover/Directory live under Communication: they exist to find and keep
+  { title: "Shows", url: "/shows", icon: Mic, group: "Podcast" },
+  { title: "Episodes", url: "/episodes", icon: List, group: "Podcast" },
+  { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
+  { title: "Guests", url: "/guests", icon: UserPlus, group: "Guests & CRM" },
+  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Guests & CRM" },
+  // Discover/Directory live under Guests & CRM: they exist to find and keep
   // guests, feeding the CRM/email side — not to manage posting.
-  { title: "Discover", url: "/social/discover", icon: Compass, group: "Communication" },
-  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Communication" },
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests & CRM" },
+  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Guests & CRM" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
   { title: "Campaign", url: "/social/posts?tab=campaign", icon: CalendarRange, group: "Social" },
   { title: "Cadence", url: "/social/posts?tab=cadence", icon: Repeat, group: "Social" },
   { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
+  { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Social" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
   { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
-  { title: "Voice Certification", url: "/dashboard/certify", icon: ShieldCheck, group: "Identity" },
-  { title: "Identity Protection", url: "/identity", icon: Shield, group: "Identity" },
-  { title: "Likeness Certification", url: "/dashboard/certify-likeness", icon: Fingerprint, group: "Identity" },
   { title: "Workspace Settings", url: "/settings", icon: Settings, group: "Settings" },
   // Ungrouped: standalone page reached from the rail's plug icon — no panel group,
   // but listed here so the active-leaf matcher lights the rail icon on /connectors.
@@ -131,11 +128,10 @@ interface RailItem {
 // every leaf in the rail too.
 const RAIL_ITEMS: RailItem[] = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
-  { title: "Content", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Content" },
-  { title: "Communication", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Communication" },
+  { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
+  { title: "Guests & CRM", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Guests & CRM" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
   { title: "Studio", icon: Sparkles, url: "/dashboard/ai", isActive: (leaf) => leaf?.group === "Studio" },
-  { title: "Identity", icon: ShieldCheck, url: "/dashboard/certify", isActive: (leaf) => leaf?.group === "Identity" },
 ];
 
 /** Nav for a single show's context — shown in the panel when inside /shows/:id. */
