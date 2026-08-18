@@ -240,6 +240,17 @@ interface TeamInvitation {
   createdAt: string | null;
 }
 
+/** Consumption bar for the Financials cards — amber at 70% used, red at 90%. */
+function UsageMeter({ used, total }: { used: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+  const tone = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500";
+  return (
+    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+      <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const getTabFromUrl = () => new URLSearchParams(window.location.search).get("tab") || "overview";
@@ -296,12 +307,14 @@ export default function AdminDashboard() {
     fixedTotalUsd: number;
     icCredits: { available: number; used: number } | null;
     icCreditUsd: number;
+    icMonthlyCredits: number;
     ffmpegConsumption: {
       used_minutes: number;
       remaining_minutes: number;
       quota_minutes: number;
       plan: string;
     } | null;
+    profileSlots: { used: number; total: number } | null;
   }
 
   const { data: financials, isLoading: financialsLoading } = useQuery<AdminFinancials>({
@@ -1648,7 +1661,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                         <CardTitle className="text-sm font-medium">Fixed subscriptions</CardTitle>
@@ -1679,6 +1692,12 @@ export default function AdminDashboard() {
                             ? `${financials.icCredits.used.toFixed(0)} used to date · $${financials.icCreditUsd.toFixed(2)}/credit · full lookup = 1 credit`
                             : "API key not configured"}
                         </p>
+                        {financials.icCredits && (
+                          <UsageMeter
+                            used={financials.icMonthlyCredits - financials.icCredits.available}
+                            total={financials.icMonthlyCredits}
+                          />
+                        )}
                       </CardContent>
                     </Card>
                     <Card>
@@ -1697,6 +1716,33 @@ export default function AdminDashboard() {
                             ? `of ${financials.ffmpegConsumption.quota_minutes}/mo · ${financials.ffmpegConsumption.plan} plan · resets monthly`
                             : "Consumption API unavailable"}
                         </p>
+                        {financials.ffmpegConsumption && (
+                          <UsageMeter
+                            used={financials.ffmpegConsumption.used_minutes}
+                            total={financials.ffmpegConsumption.quota_minutes}
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">Upload-Post profile slots</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {financials.profileSlots
+                            ? `${financials.profileSlots.used} / ${financials.profileSlots.total}`
+                            : "—"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {financials.profileSlots
+                            ? "connected creator profiles on the $50 plan"
+                            : "Profiles API unavailable"}
+                        </p>
+                        {financials.profileSlots && (
+                          <UsageMeter used={financials.profileSlots.used} total={financials.profileSlots.total} />
+                        )}
                       </CardContent>
                     </Card>
                   </div>

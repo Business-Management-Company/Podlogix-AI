@@ -159,6 +159,37 @@ export default function SocialPosts() {
     onError: () => toast({ title: "Couldn't cancel", variant: "destructive" }),
   });
 
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editCaption, setEditCaption] = useState("");
+
+  const startEditJob = (job: ScheduledJob) => {
+    setEditingJobId(job.job_id);
+    setEditDate(job.scheduled_date ? job.scheduled_date.slice(0, 16) : "");
+    setEditTitle(job.title ?? "");
+    setEditCaption("");
+  };
+
+  // Blank fields are omitted so Upload-Post keeps the current value.
+  const editScheduledMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PATCH", `/api/upload-post/scheduled/${editingJobId}`, {
+        scheduledAt: editDate ? new Date(editDate).toISOString() : undefined,
+        title: editTitle.trim() || undefined,
+        caption: editCaption.trim() || undefined,
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditingJobId(null);
+      refetchScheduled();
+      toast({ title: "Scheduled post updated" });
+    },
+    onError: () => toast({ title: "Couldn't update", variant: "destructive" }),
+  });
+
   const platformDisabledReason = (platform: string): string | null => {
     if (!connected.has(platform)) return "Not connected";
     if (!mediaUrl && MEDIA_REQUIRED.has(platform)) return "Needs photo or video";
@@ -462,24 +493,65 @@ export default function SocialPosts() {
                 <SectionHeader title={`Scheduled (${scheduledJobs.length})`} />
                 <Card padding="none" className="divide-y divide-zinc-100">
                   {scheduledJobs.map((job) => (
-                    <div key={job.job_id} className="flex items-center gap-3 px-4 py-3">
-                      <CalendarClock size={14} className="shrink-0 text-zinc-400" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-zinc-700">{job.title || "(untitled post)"}</p>
-                        <p className="text-[11px] text-zinc-400">
-                          {Array.isArray(job.platform) ? job.platform.join(", ") : job.platform}
-                          {job.scheduled_date && ` · ${new Date(job.scheduled_date).toLocaleString()}`}
-                        </p>
+                    <div key={job.job_id} className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <CalendarClock size={14} className="shrink-0 text-zinc-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-zinc-700">{job.title || "(untitled post)"}</p>
+                          <p className="text-[11px] text-zinc-400">
+                            {Array.isArray(job.platform) ? job.platform.join(", ") : job.platform}
+                            {job.scheduled_date && ` · ${new Date(job.scheduled_date).toLocaleString()}`}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={() => (editingJobId === job.job_id ? setEditingJobId(null) : startEditJob(job))}
+                        >
+                          {editingJobId === job.job_id ? "Close" : "Edit"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="shrink-0 text-red-500 hover:text-red-600"
+                          onClick={() => cancelScheduledMutation.mutate(job.job_id)}
+                          disabled={cancelScheduledMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="shrink-0 text-red-500 hover:text-red-600"
-                        onClick={() => cancelScheduledMutation.mutate(job.job_id)}
-                        disabled={cancelScheduledMutation.isPending}
-                      >
-                        Cancel
-                      </Button>
+                      {editingJobId === job.job_id && (
+                        <div className="mt-3 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                          <Input
+                            type="datetime-local"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="max-w-xs"
+                          />
+                          <Input
+                            placeholder="Title"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                          />
+                          <Textarea
+                            placeholder="New caption (leave blank to keep current)"
+                            value={editCaption}
+                            onChange={(e) => setEditCaption(e.target.value)}
+                            rows={2}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => editScheduledMutation.mutate()}
+                            disabled={editScheduledMutation.isPending}
+                          >
+                            {editScheduledMutation.isPending ? (
+                              <Loader2 size={14} className="mr-1.5 animate-spin" />
+                            ) : null}
+                            Save changes
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </Card>

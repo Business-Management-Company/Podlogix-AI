@@ -52,6 +52,7 @@ import ShowOverview from "@/pages/ShowOverview";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import SocialDiscover from "@/pages/SocialDiscover";
 import SocialPosts from "@/pages/SocialPosts";
+import Engagement from "@/pages/Engagement";
 import MediaLibrary from "@/pages/MediaLibrary";
 import Directory from "@/pages/Directory";
 import MediaLab from "@/pages/MediaLab";
@@ -218,6 +219,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/video-analysis" component={VideoAnalysis} />
         <Route path="/dashboard/social-hub" component={SocialHub} />
         <Route path="/social/posts" component={SocialPosts} />
+        <Route path="/social/engagement" component={Engagement} />
         <Route path="/media-library" component={MediaLibrary} />
         <Route path="/social/discover" component={SocialDiscover} />
         <Route path="/social/directory" component={Directory} />

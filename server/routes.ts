@@ -3262,7 +3262,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const [icCredits, ffmpegConsumption] = await Promise.all([
+      const [icCredits, ffmpegConsumption, profileSlots] = await Promise.all([
         (async () => {
           try {
             const apiKey = getInfluencersClubApiKey();
@@ -3285,6 +3285,20 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
             return data?.consumption ?? null;
           } catch { return null; }
         })(),
+        (async () => {
+          // The $50 plan includes 25 connected-profile slots; the users listing
+          // returns every profile on the API key, so its length is slots in use.
+          try {
+            const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users`, {
+              headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            return Array.isArray((data as any).profiles)
+              ? { used: (data as any).profiles.length, total: 25 }
+              : null;
+          } catch { return null; }
+        })(),
       ]);
 
       const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
@@ -3293,7 +3307,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         fixedTotalUsd,
         icCredits,
         icCreditUsd: 0.6,
+        icMonthlyCredits: 500,
         ffmpegConsumption,
+        profileSlots,
       });
     } catch (error) {
       console.error('Error building admin financials:', error);
@@ -4333,6 +4349,23 @@ Respond in this exact JSON format:
           })
           .map((a) => [a.platform, a.profilePictureUrl!])
       );
+      // Facebook posts land on a Page (the posting route always targets the first
+      // managed page), so the pill should carry the Page's name — showing the
+      // personal profile name would misstate where posts actually go.
+      let facebookPageName: string | null = null;
+      if (connected.some(([platform]) => platform === 'facebook')) {
+        try {
+          const pagesResponse = await fetch(
+            `${UPLOAD_POST_API_BASE}/api/uploadposts/facebook/pages?profile=${encodeURIComponent(uploadPostUsername)}`,
+            { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+          );
+          if (pagesResponse.ok) {
+            const pagesData = await pagesResponse.json().catch(() => ({}));
+            facebookPageName = ((pagesData as any).pages ?? (pagesData as any).data ?? [])[0]?.name ?? null;
+          }
+        } catch { /* fall back to the profile name */ }
+      }
+
       await storage.deleteUploadPostAccountsByUser(userId);
       const accounts = [];
       for (const [platform, account] of connected) {
@@ -4343,7 +4376,8 @@ Respond in this exact JSON format:
           uploadPostUsername,
           platform,
           platformAccountId: null,
-          platformUsername: (account.handle || account.display_name || platform).replace(/^@/, ''),
+          platformUsername: (platform === 'facebook' && facebookPageName ? facebookPageName
+            : (account.handle || account.display_name || platform)).replace(/^@/, ''),
           profileUrl: null,
           profilePictureUrl: avatarUrl,
           isConnected: true,
@@ -4503,7 +4537,8 @@ Respond in this exact JSON format:
 
       const localPost = await storage.createUploadPostPost({
         userId,
-        uploadPostPostId: (data as any).post_id?.toString() ?? (data as any).request_id ?? null,
+        // job_id first: it's what the upload_completed webhook sends back.
+        uploadPostPostId: (data as any).job_id?.toString() ?? (data as any).post_id?.toString() ?? (data as any).request_id ?? null,
         platforms,
         content: content ?? '',
         mediaUrls: mediaUrl ? [mediaUrl] : null,
@@ -4703,6 +4738,211 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error cancelling scheduled post:', error);
       res.status(500).json({ message: 'Failed to cancel scheduled post' });
+    }
+  });
+
+  app.patch('/api/upload-post/scheduled/:jobId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { scheduledAt, title, caption } = req.body ?? {};
+      const payload: Record<string, string> = {};
+      if (scheduledAt) payload.scheduled_date = new Date(scheduledAt).toISOString();
+      if (typeof title === 'string' && title.trim()) payload.title = title.trim();
+      if (typeof caption === 'string' && caption.trim()) payload.caption = caption.trim();
+      if (Object.keys(payload).length === 0) {
+        return res.status(400).json({ message: 'Nothing to update' });
+      }
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/schedule/${req.params.jobId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to update scheduled post' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error updating scheduled post:', error);
+      res.status(500).json({ message: 'Failed to update scheduled post' });
+    }
+  });
+
+  // Upload-Post webhook receiver. upload_completed fires on BOTH published and
+  // failed posts (support-confirmed), carrying job_id + result.{success,url,error}.
+  // Reauth events need no handling here — the accounts sync already surfaces
+  // reauth_required on every fetch. Always 200 so Upload-Post doesn't retry.
+  // Point the dashboard webhook at /api/webhooks/upload-post?secret=<value of
+  // UPLOAD_POST_WEBHOOK_SECRET>; without the env var the endpoint accepts all
+  // (dev convenience), with it set a bad secret is rejected.
+  app.post('/api/webhooks/upload-post', async (req, res) => {
+    try {
+      const secret = process.env.UPLOAD_POST_WEBHOOK_SECRET;
+      if (secret && req.query.secret !== secret) {
+        return res.status(401).json({ message: 'Invalid webhook secret' });
+      }
+
+      const event = req.body ?? {};
+      const jobId = event.job_id?.toString() ?? event.request_id?.toString() ?? null;
+      const result = event.result ?? event;
+      const hasOutcome = typeof result?.success === 'boolean';
+
+      if (jobId && hasOutcome) {
+        const post = await storage.getUploadPostPostByExternalId(jobId);
+        if (post) {
+          await storage.updateUploadPostPost(post.id, {
+            status: result.success ? 'published' : 'failed',
+            publishedAt: result.success ? new Date() : null,
+            errorMessage: result.success ? null : (result.error?.toString() ?? 'Publish failed'),
+          });
+        } else {
+          console.warn('upload_completed webhook for unknown job_id:', jobId);
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error('Error handling Upload-Post webhook:', error);
+      // Still 200 — a retry storm won't fix a handler bug.
+      res.json({ received: true });
+    }
+  });
+
+  // ============ ENGAGEMENT: INSTAGRAM DMS + COMMENTS ============
+  // DMs are Instagram-only today (support-confirmed); other platforms error.
+  // Reading covers the full inbox. Sending is bound by Instagram's 24-hour
+  // window (recipient must have messaged first) and a daily cap that 429s.
+
+  app.get('/api/upload-post/dms/conversations', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const response = await fetch(
+        `${UPLOAD_POST_API_BASE}/api/uploadposts/dms/conversations?platform=instagram&user=${encodeURIComponent(uploadPostUsername)}`,
+        { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to load conversations' });
+      }
+      res.json({ conversations: (data as any).conversations ?? [] });
+    } catch (error) {
+      console.error('Error fetching DM conversations:', error);
+      res.status(500).json({ message: 'Failed to load conversations' });
+    }
+  });
+
+  app.post('/api/upload-post/dms/send', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const { recipientId, message } = req.body ?? {};
+      if (!recipientId || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ message: 'recipientId and message are required' });
+      }
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/dms/send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: 'instagram',
+          user: uploadPostUsername,
+          recipient_id: recipientId,
+          message: message.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const readable = response.status === 429
+          ? "Daily DM limit reached — Instagram caps how many DMs can go out per day. Try again tomorrow."
+          : (data as any)?.message || "Couldn't send the message — Instagram only allows replies within 24 hours of the person's last message.";
+        return res.status(response.status).json({ message: readable });
+      }
+      res.json({ success: true, messageId: (data as any).message_id });
+    } catch (error) {
+      console.error('Error sending DM:', error);
+      res.status(500).json({ message: 'Failed to send message' });
+    }
+  });
+
+  // Comments: list + reply/create + delete across instagram/facebook/youtube/
+  // linkedin (TikTok has no public API). Instagram only supports *replies* to
+  // existing comments; YouTube needs a reconnect with the youtube.force-ssl scope.
+  const COMMENT_PLATFORMS = new Set(['instagram', 'facebook', 'youtube', 'linkedin']);
+
+  app.get('/api/upload-post/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const platform = String(req.query.platform || 'instagram').toLowerCase();
+      const postUrl = String(req.query.postUrl || '').trim();
+      const after = String(req.query.after || '').trim();
+      if (!COMMENT_PLATFORMS.has(platform)) {
+        return res.status(400).json({ message: 'Comments are available for Instagram, Facebook, YouTube, and LinkedIn' });
+      }
+      if (!postUrl) {
+        return res.status(400).json({ message: 'postUrl is required' });
+      }
+      const params = new URLSearchParams({ platform, user: uploadPostUsername, post_url: postUrl });
+      if (after) params.set('after', after);
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/comments?${params}`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const readable = response.status === 403 && platform === 'youtube'
+          ? 'YouTube needs to be reconnected with comment permissions — go to Connectors and reconnect YouTube.'
+          : (data as any)?.message || 'Failed to load comments';
+        return res.status(response.status).json({ message: readable });
+      }
+      res.json({ comments: (data as any).comments ?? [], pagination: (data as any).pagination ?? null });
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      res.status(500).json({ message: 'Failed to load comments' });
+    }
+  });
+
+  app.post('/api/upload-post/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const { platform, message, postUrl, commentId } = req.body ?? {};
+      const platformKey = String(platform || '').toLowerCase();
+      if (!COMMENT_PLATFORMS.has(platformKey)) {
+        return res.status(400).json({ message: 'Comments are available for Instagram, Facebook, YouTube, and LinkedIn' });
+      }
+      if (typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ message: 'message is required' });
+      }
+      if (platformKey === 'instagram' && !commentId) {
+        return res.status(400).json({ message: 'Instagram only supports replying to an existing comment' });
+      }
+      if (!commentId && !postUrl) {
+        return res.status(400).json({ message: 'postUrl or commentId is required' });
+      }
+      const body: Record<string, string> = {
+        platform: platformKey,
+        user: uploadPostUsername,
+        message: message.trim(),
+      };
+      if (commentId) body.comment_id = commentId;
+      else body.post_url = postUrl;
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/comments/create`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to post comment' });
+      }
+      res.json({ success: true, id: (data as any).id });
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      res.status(500).json({ message: 'Failed to post comment' });
     }
   });
 

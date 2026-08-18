@@ -108,7 +108,18 @@ export async function mirrorExternalMedia(
   try {
     if (!isSupabaseStorageConfigured() || !isAllowedMirrorHost(sourceUrl)) return null;
 
-    const response = await fetch(sourceUrl);
+    // Instagram's CDN refuses plain datacenter fetches (Facebook's allows them) —
+    // browser-shaped headers get through; persistent 403s would need an edge-worker
+    // fallback.
+    const response = await fetch(sourceUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/*,video/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.instagram.com/",
+      },
+    });
     if (!response.ok) return null;
 
     const contentType = response.headers.get("content-type") || "";
