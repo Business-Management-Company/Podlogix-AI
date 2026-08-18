@@ -9,7 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { Check, Download, ExternalLink, Film, Image as ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  AudioLines, Check, Clapperboard, Download, ExternalLink, Film, FolderOpen,
+  Image as ImageIcon, Loader2, Search, Sparkles, Trash2,
+} from "lucide-react";
 import {
   SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
   SiReddit, SiPinterest, SiBluesky,
@@ -49,16 +53,61 @@ const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>
 /** Platforms whose /media API returns importable files (not just permalinks). */
 const PERMALINK_ONLY = new Set(["tiktok", "youtube"]);
 
+type LibraryFilter = "all" | "video" | "audio" | "studio" | "refined";
+
+const FILTERS: Array<{ key: LibraryFilter; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "video", label: "Videos" },
+  { key: "audio", label: "Audio" },
+  { key: "studio", label: "From the studio" },
+  { key: "refined", label: "Refined" },
+];
+
+function StatCard({
+  icon: Icon, value, label, tint,
+}: { icon: React.ComponentType<{ className?: string }>; value: number; label: string; tint: string }) {
+  return (
+    <Card className="flex items-center gap-3">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tint}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span>
+        <span className="block text-xl font-semibold tabular-nums leading-tight text-zinc-950">{value}</span>
+        <span className="block text-[11px] font-medium text-zinc-500">{label}</span>
+      </span>
+    </Card>
+  );
+}
+
 export default function MediaLibrary() {
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [importPlatform, setImportPlatform] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
+  const [filter, setFilter] = useState<LibraryFilter>("all");
+  const [query, setQuery] = useState("");
+
   const { data: libraryData, isLoading } = useQuery<{ items: MediaLibraryItem[] }>({
     queryKey: ["/api/media-library"],
   });
   const items = libraryData?.items ?? [];
+
+  const stats = {
+    total: items.length,
+    videos: items.filter((i) => i.mediaType === "video").length,
+    audio: items.filter((i) => i.mediaType === "audio").length,
+    refined: items.filter((i) => i.platform === "media-lab").length,
+  };
+
+  const visible = items.filter((i) => {
+    if (filter === "video" && i.mediaType !== "video") return false;
+    if (filter === "audio" && i.mediaType !== "audio") return false;
+    if (filter === "studio" && i.platform !== "live") return false;
+    if (filter === "refined" && i.platform !== "media-lab") return false;
+    if (query && !(i.caption ?? "").toLowerCase().includes(query.toLowerCase())) return false;
+    return true;
+  });
 
   const { data: accountsData } = useQuery<{ accounts: UploadPostAccount[] }>({
     queryKey: ["/api/upload-post/accounts"],
@@ -132,6 +181,42 @@ export default function MediaLibrary() {
         </Button>
       </div>
 
+      {items.length > 0 && (
+        <>
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard icon={FolderOpen} value={stats.total} label="Total files" tint="bg-blue-50 text-blue-600" />
+            <StatCard icon={Clapperboard} value={stats.videos} label="Videos" tint="bg-violet-50 text-violet-600" />
+            <StatCard icon={AudioLines} value={stats.audio} label="Audio" tint="bg-emerald-50 text-emerald-600" />
+            <StatCard icon={Sparkles} value={stats.refined} label="Refined" tint="bg-amber-50 text-amber-600" />
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    filter === f.key ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <div className="relative ml-auto w-full sm:w-56">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+              <Input
+                placeholder="Search files…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="aspect-square w-full rounded-xl" />)}
@@ -142,15 +227,28 @@ export default function MediaLibrary() {
           title="Your library is empty"
           description="Import your existing posts from connected channels and they'll be here, ready to reuse in new posts."
         />
+      ) : visible.length === 0 ? (
+        <Card className="py-10 text-center text-sm text-zinc-500">
+          Nothing matches this filter{query ? ` and “${query}”` : ""}.
+        </Card>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {items.map((item) => {
-            const Icon = PLATFORM_ICONS[item.platform] ?? ImageIcon;
+          {visible.map((item) => {
+            const Icon =
+              PLATFORM_ICONS[item.platform] ??
+              (item.platform === "live" ? Clapperboard : item.platform === "media-lab" ? Sparkles : ImageIcon);
             const visual = item.mediaUrl ?? item.thumbnailUrl;
             return (
               <Card key={item.id} padding="none" className="group overflow-hidden">
                 <div className="relative aspect-square bg-zinc-100">
-                  {visual ? (
+                  {item.mediaType === "audio" && item.mediaUrl ? (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-emerald-50/60 px-3">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                        <AudioLines className="h-5 w-5 text-emerald-600" />
+                      </span>
+                      <audio src={item.mediaUrl} controls className="w-full" preload="none" />
+                    </div>
+                  ) : visual ? (
                     item.mediaType === "video" && item.mediaUrl ? (
                       <video src={item.mediaUrl} className="h-full w-full object-cover" />
                     ) : (
@@ -178,9 +276,21 @@ export default function MediaLibrary() {
                     <Trash2 size={12} />
                   </button>
                 </div>
-                {item.caption && (
-                  <p className="truncate px-3 py-2 text-xs text-zinc-600">{item.caption}</p>
-                )}
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <p className="min-w-0 flex-1 truncate text-xs text-zinc-600">
+                    {item.caption || item.platform}
+                  </p>
+                  {item.platform === "live" && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                      <Clapperboard className="h-2.5 w-2.5" /> Studio
+                    </span>
+                  )}
+                  {item.platform === "media-lab" && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                      <Sparkles className="h-2.5 w-2.5" /> Refined
+                    </span>
+                  )}
+                </div>
               </Card>
             );
           })}
