@@ -803,7 +803,7 @@ export default function LiveStudio() {
           </button>
         )}
         {activeStudio && (
-          <div className="mr-2 flex items-center gap-1 rounded-lg bg-zinc-900 p-1" title="Streaming out arrives with LiveKit egress \u2014 your channel setup saves now">
+          <div className="mr-2 flex items-center gap-1 rounded-lg bg-zinc-900 p-1" title="Streaming out arrives with LiveKit egress — your channel setup saves now">
             <span className="rounded-md bg-zinc-700 px-4 py-1.5 text-sm font-semibold text-white">Record Only</span>
             <span className="cursor-not-allowed rounded-md px-4 py-1.5 text-sm font-medium text-zinc-600">Stream + Record</span>
           </div>
@@ -896,7 +896,7 @@ export default function LiveStudio() {
           <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Custom RTMP</p>
             <Input
-              placeholder="rtmp://\u2026 server URL"
+              placeholder="rtmp:// server URL"
               value={rtmpUrl}
               onChange={(e) => { setRtmpUrl(e.target.value); persistChannels(channelPicks, e.target.value, rtmpKey); }}
               className="border-zinc-700 bg-zinc-950 font-mono text-xs text-zinc-100"
@@ -986,7 +986,7 @@ export default function LiveStudio() {
                         </p>
                       </div>
                       <Button size="sm" className="shrink-0 bg-red-600 text-white hover:bg-red-700" onClick={() => setActiveStudioId(s.id)}>
-                        Enter Studio \u2192
+                        Enter Studio →
                       </Button>
                     </div>
                   </div>
@@ -1006,7 +1006,7 @@ export default function LiveStudio() {
             ["Add channels", Object.values(channelPicks).some(Boolean), () => setChannelsOpen(true)],
           ] as Array<[string, boolean, (() => void) | null]>).map(([label, doneStep, go], i) => (
             <span key={label} className="flex items-center gap-2">
-              {i > 0 && <span className="text-zinc-700">\u2192</span>}
+              {i > 0 && <span className="text-zinc-700">→</span>}
               <button
                 onClick={go ?? undefined}
                 disabled={!go}
