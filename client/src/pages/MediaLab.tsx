@@ -36,6 +36,14 @@ interface FfmpegJob {
 
 const PRESETS = [
   {
+    id: "refine",
+    label: "Refine Audio — the one-click cleanup",
+    description: "Cuts dead air and long pauses, masters loudness to podcast standard (-16 LUFS). Real editing, not a filter toggle.",
+    outputExtension: "mp3",
+    command:
+      "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}",
+  },
+  {
     id: "mp4",
     label: "Convert to MP4 (H.264)",
     description: "Universal, widely compatible format.",
@@ -286,9 +294,30 @@ export default function MediaLab() {
                   <div className="mt-1.5"><StatusBadge status={job.status} /></div>
                 </div>
                 {job.status === "FINISHED" && (
-                  <a href={`/api/media-lab/ffmpeg/jobs/${job.job_id}/download`} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Download</Button>
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const res = await apiRequest("POST", "/api/media-lab/collect", {
+                            jobId: job.job_id,
+                            extension: preset.outputExtension,
+                            title: `${preset.label} — ${new Date().toLocaleDateString()}`,
+                          });
+                          if (!res.ok) throw new Error();
+                          toast({ title: "Saved to your Media Library" });
+                        } catch {
+                          toast({ title: "Couldn't save to library", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      Save to library
+                    </Button>
+                    <a href={`/api/media-lab/ffmpeg/jobs/${job.job_id}/download`} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Download</Button>
+                    </a>
+                  </div>
                 )}
               </div>
             )}

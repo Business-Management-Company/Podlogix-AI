@@ -117,6 +117,28 @@ export async function storeVideoBuffer(
   }
 }
 
+/** Stores an audio buffer (e.g. a refined episode) and returns our public URL, or null. */
+export async function storeAudioBuffer(
+  buffer: Buffer,
+  prefix: string,
+  contentType = "audio/mpeg",
+): Promise<string | null> {
+  try {
+    if (!isSupabaseStorageConfigured() || buffer.length === 0) return null;
+    const ext = contentType.includes("wav") ? ".wav" : contentType.includes("mp4") || contentType.includes("m4a") ? ".m4a" : ".mp3";
+    const objectKey = `${prefix}/${randomUUID()}${ext}`;
+    const supabase = getClient();
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(objectKey, buffer, { contentType, upsert: false });
+    if (error) return null;
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(objectKey);
+    return data.publicUrl;
+  } catch {
+    return null;
+  }
+}
+
 /** Stores a raw image buffer (e.g. AI-generated) and returns our public URL, or null. */
 export async function storeImageBuffer(
   buffer: Buffer,
