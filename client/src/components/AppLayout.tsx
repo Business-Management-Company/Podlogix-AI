@@ -52,6 +52,7 @@ import {
   GalleryVerticalEnd,
   MessageCircle,
   Radio,
+  Server,
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -139,6 +140,7 @@ function showNavItems(showId: string): NavItem[] {
     { title: "Episodes", url: `${base}/episodes`, icon: List },
     { title: "Promotion", url: `${base}/promotion`, icon: Megaphone },
     { title: "Distribution", url: `${base}/distribution`, icon: Share2 },
+    { title: "Hosting", url: `${base}/hosting`, icon: Server },
     { title: "Audience", url: `${base}/audience`, icon: Users },
     { title: "Show Settings", url: `${base}/settings`, icon: Settings2 },
   ];
@@ -308,13 +310,20 @@ export function AppLayout({ children }: AppLayoutProps) {
                 )}
               </button>
             );
-            return railExpanded ? (
-              <div key={item.url}>{btn}</div>
-            ) : (
-              <Tooltip key={item.url} delayDuration={300}>
-                <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">{item.title}</TooltipContent>
-              </Tooltip>
+            return (
+              <div key={item.url}>
+                {item.title === "Settings" && (
+                  <div className={`my-1.5 h-px bg-white/[0.08] ${railExpanded ? "" : "mx-auto w-8"}`} />
+                )}
+                {railExpanded ? (
+                  btn
+                ) : (
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs font-medium">{item.title}</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
             );
           })}
         </div>
