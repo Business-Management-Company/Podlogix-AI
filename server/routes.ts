@@ -4456,6 +4456,48 @@ Respond in this exact JSON format:
     }
   });
 
+  // Rich per-platform analytics from Upload-Post (followers, reach, views,
+  // likes/comments/shares/saves, 30-day reach timeseries, demographics).
+  // Included in the flat plan — no metered cost.
+  app.get('/api/upload-post/analytics', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const platforms = String(req.query.platforms || '').trim();
+      if (!platforms) {
+        return res.status(400).json({ message: 'platforms query param is required' });
+      }
+
+      // Facebook analytics need a page_id — resolve the first managed page, best-effort.
+      let pageIdParam = '';
+      if (platforms.split(',').includes('facebook')) {
+        try {
+          const pagesResponse = await fetch(
+            `${UPLOAD_POST_API_BASE}/api/uploadposts/facebook/pages?profile=${encodeURIComponent(uploadPostUsername)}`,
+            { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+          );
+          if (pagesResponse.ok) {
+            const pagesData = await pagesResponse.json();
+            const firstPage = (pagesData.pages ?? pagesData.data ?? [])[0];
+            if (firstPage?.id) pageIdParam = `&page_id=${encodeURIComponent(firstPage.id)}`;
+          }
+        } catch { /* analytics still succeed for other platforms */ }
+      }
+
+      const response = await fetch(
+        `${UPLOAD_POST_API_BASE}/api/analytics/${encodeURIComponent(uploadPostUsername)}?platforms=${encodeURIComponent(platforms)}${pageIdParam}`,
+        { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: 'Failed to fetch analytics' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching Upload-Post analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch analytics' });
+    }
+  });
+
   // Pinterest boards for the board picker (required per pin)
   app.get('/api/upload-post/pinterest/boards', isAuthenticated, async (req: any, res) => {
     try {
