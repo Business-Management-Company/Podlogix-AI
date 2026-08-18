@@ -7,7 +7,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured } from "./services/supabaseStorageService";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -4242,8 +4242,11 @@ Respond in this exact JSON format:
       // Default to every platform included in our Upload-Post plan.
       const { platforms = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin', 'x', 'threads', 'reddit', 'pinterest', 'bluesky', 'discord', 'telegram'] } = req.body;
 
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers['host'] || 'localhost:5000';
+      const host = req.headers['host'] || 'localhost:5001';
+      // Local dev has no TLS — a hardcoded https default sent users back to
+      // https://localhost and an SSL error after connecting.
+      const isLocal = host.startsWith('localhost') || host.startsWith('127.');
+      const protocol = (req.headers['x-forwarded-proto'] as string) || (isLocal ? 'http' : 'https');
       const baseUrl = `${protocol}://${host}`;
 
       const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users/generate-jwt`, {
@@ -4317,10 +4320,24 @@ Respond in this exact JSON format:
         ([, value]) => value && typeof value === 'object'
       ) as [string, { display_name?: string; handle?: string; social_images?: string }][];
 
-      // Sync accounts to local database
+      // Sync accounts to local database. Avatar URLs from Upload-Post are
+      // expiring CDN links — mirror them into our storage once and reuse the
+      // mirrored copy on subsequent syncs.
+      const previousAccounts = await storage.getUploadPostAccountsByUser(userId);
+      const supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
+      const mirroredByPlatform = new Map(
+        previousAccounts
+          .filter((a) => {
+            try { return supabaseHost && a.profilePictureUrl && new URL(a.profilePictureUrl).host === supabaseHost; }
+            catch { return false; }
+          })
+          .map((a) => [a.platform, a.profilePictureUrl!])
+      );
       await storage.deleteUploadPostAccountsByUser(userId);
       const accounts = [];
       for (const [platform, account] of connected) {
+        const avatarUrl = mirroredByPlatform.get(platform)
+          ?? (account.social_images ? await mirrorExternalMedia(account.social_images, `avatars/${userId}`) : null);
         const created = await storage.createUploadPostAccount({
           userId,
           uploadPostUsername,
@@ -4328,7 +4345,7 @@ Respond in this exact JSON format:
           platformAccountId: null,
           platformUsername: (account.handle || account.display_name || platform).replace(/^@/, ''),
           profileUrl: null,
-          profilePictureUrl: account.social_images || null,
+          profilePictureUrl: avatarUrl,
           isConnected: true,
         });
         // reauth_required=true on an account object means its token expired and the
@@ -4425,6 +4442,22 @@ Respond in this exact JSON format:
       if (scheduledAt) form.append('scheduled_date', new Date(scheduledAt).toISOString());
       if (wantsReddit && subreddit?.trim()) form.append('subreddit', subreddit.trim().replace(/^r\//i, ''));
       if (wantsPinterest && pinterestBoardId) form.append('pinterest_board_id', pinterestBoardId);
+
+      // Facebook posts land on a Page, and the API needs the page id explicitly.
+      // Use the first managed page (the one chosen on the connect screen).
+      if (platforms.some((p: string) => p.toLowerCase() === 'facebook')) {
+        try {
+          const pagesResponse = await fetch(
+            `${UPLOAD_POST_API_BASE}/api/uploadposts/facebook/pages?profile=${encodeURIComponent(uploadPostUsername)}`,
+            { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+          );
+          if (pagesResponse.ok) {
+            const pagesData = await pagesResponse.json();
+            const firstPage = (pagesData.pages ?? pagesData.data ?? [])[0];
+            if (firstPage?.id) form.append('facebook_page_id', firstPage.id);
+          }
+        } catch { /* let Upload-Post surface its own error if pages can't load */ }
+      }
 
       let endpoint: string;
       if (mediaUrl && mediaType === 'video') {
@@ -4524,6 +4557,94 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error fetching Upload-Post analytics:', error);
       res.status(500).json({ message: 'Failed to fetch analytics' });
+    }
+  });
+
+  // ============ MEDIA LIBRARY (back-catalog import via Upload-Post /media) ============
+
+  // Browse a connected channel's existing posts (for the import picker).
+  // Quirks per Upload-Post support: TikTok/YouTube return permalink only (no
+  // media_url); LinkedIn rejects cursors.
+  app.get('/api/upload-post/media', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const platform = String(req.query.platform || '');
+      if (!platform) return res.status(400).json({ message: 'platform is required' });
+      const cursor = req.query.cursor ? String(req.query.cursor) : null;
+
+      const params = new URLSearchParams({ platform, user: uploadPostUsername, limit: '24' });
+      if (cursor && platform !== 'linkedin') params.set('cursor', cursor);
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/media?${params}`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to fetch media' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching channel media:', error);
+      res.status(500).json({ message: 'Failed to fetch media' });
+    }
+  });
+
+  // Import selected posts: mirror media/thumbnails into OUR storage, then save.
+  app.post('/api/media-library/import', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { platform, items } = req.body ?? {};
+      if (!platform || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'platform and items are required' });
+      }
+      if (items.length > 50) {
+        return res.status(400).json({ message: 'Import at most 50 items at a time' });
+      }
+
+      let imported = 0;
+      for (const item of items) {
+        if (!item?.id) continue;
+        const [mediaUrl, thumbnailUrl] = await Promise.all([
+          item.media_url ? mirrorExternalMedia(item.media_url, `media-library/${userId}`) : Promise.resolve(null),
+          item.thumbnail_url ? mirrorExternalMedia(item.thumbnail_url, `media-library/${userId}`) : Promise.resolve(null),
+        ]);
+        const created = await storage.createMediaLibraryItem({
+          userId,
+          platform,
+          externalId: String(item.id),
+          caption: item.caption ?? null,
+          mediaType: item.media_type ?? (mediaUrl ? 'image' : 'link'),
+          mediaUrl,
+          thumbnailUrl,
+          permalink: item.permalink ?? null,
+          postedAt: item.timestamp ? new Date(item.timestamp) : null,
+        });
+        if (created) imported += 1;
+      }
+      res.json({ success: true, imported, skipped: items.length - imported });
+    } catch (error) {
+      console.error('Error importing media:', error);
+      res.status(500).json({ message: 'Failed to import media' });
+    }
+  });
+
+  app.get('/api/media-library', isAuthenticated, async (req: any, res) => {
+    try {
+      const items = await storage.getMediaLibraryItemsByUser(req.session.userId!);
+      res.json({ items });
+    } catch (error) {
+      console.error('Error fetching media library:', error);
+      res.status(500).json({ message: 'Failed to fetch media library' });
+    }
+  });
+
+  app.delete('/api/media-library/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteMediaLibraryItem(req.params.id, req.session.userId!);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting media item:', error);
+      res.status(500).json({ message: 'Failed to delete media item' });
     }
   });
 

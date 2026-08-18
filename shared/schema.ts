@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real, uniqueIndex } from "drizzle-orm/pg-core";
 export { serial };
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -854,6 +854,36 @@ export const insertSavedCreatorSchema = createInsertSchema(savedCreators).omit({
 
 export type SavedCreator = typeof savedCreators.$inferSelect;
 export type InsertSavedCreator = z.infer<typeof insertSavedCreatorSchema>;
+
+// Media Library — posts imported from the creator's existing channels via
+// Upload-Post's /media back-catalog API. mediaUrl/thumbnailUrl are OUR mirrored
+// copies (platform CDN links expire); permalink-only rows (TikTok/YouTube)
+// have mediaUrl null and link out instead.
+export const mediaLibraryItems = pgTable(
+  "media_library_items",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: varchar("user_id").notNull(),
+    platform: varchar("platform").notNull(),
+    externalId: varchar("external_id").notNull(),
+    caption: text("caption"),
+    mediaType: varchar("media_type"), // image, video, carousel, link
+    mediaUrl: text("media_url"),
+    thumbnailUrl: text("thumbnail_url"),
+    permalink: text("permalink"),
+    postedAt: timestamp("posted_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [uniqueIndex("media_library_user_platform_external").on(table.userId, table.platform, table.externalId)]
+);
+
+export const insertMediaLibraryItemSchema = createInsertSchema(mediaLibraryItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type MediaLibraryItem = typeof mediaLibraryItems.$inferSelect;
+export type InsertMediaLibraryItem = z.infer<typeof insertMediaLibraryItemSchema>;
 
 // YouTube Video Analysis
 export const videoAnalyses = pgTable("video_analyses", {

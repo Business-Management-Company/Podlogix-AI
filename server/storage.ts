@@ -4,7 +4,7 @@ import {
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
-  adminCreatorList, guestPipelineEntries, savedCreators,
+  adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -20,6 +20,7 @@ import {
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
   type GuestPipelineEntry, type InsertGuestPipelineEntry,
   type SavedCreator, type InsertSavedCreator,
+  type MediaLibraryItem, type InsertMediaLibraryItem,
   type VideoAnalysis, type InsertVideoAnalysis,
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
@@ -159,6 +160,10 @@ export interface IStorage {
   getSavedCreatorsByUser(userId: string): Promise<SavedCreator[]>;
   createSavedCreator(entry: InsertSavedCreator): Promise<SavedCreator>;
   deleteSavedCreator(id: string, userId: string): Promise<void>;
+  // Media Library
+  getMediaLibraryItemsByUser(userId: string): Promise<MediaLibraryItem[]>;
+  createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem | undefined>;
+  deleteMediaLibraryItem(id: string, userId: string): Promise<void>;
   // Email Templates
   getEmailTemplates(userId: string): Promise<EmailTemplate[]>;
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
@@ -781,6 +786,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSavedCreator(id: string, userId: string): Promise<void> {
     await db.delete(savedCreators).where(and(eq(savedCreators.id, id), eq(savedCreators.userId, userId)));
+  }
+
+  // Media Library
+  async getMediaLibraryItemsByUser(userId: string): Promise<MediaLibraryItem[]> {
+    return await db.select().from(mediaLibraryItems)
+      .where(eq(mediaLibraryItems.userId, userId))
+      .orderBy(desc(mediaLibraryItems.postedAt));
+  }
+
+  async createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem | undefined> {
+    // Re-imports of the same post are no-ops (unique on user+platform+external id).
+    const [created] = await db.insert(mediaLibraryItems).values(item).onConflictDoNothing().returning();
+    return created;
+  }
+
+  async deleteMediaLibraryItem(id: string, userId: string): Promise<void> {
+    await db.delete(mediaLibraryItems).where(and(eq(mediaLibraryItems.id, id), eq(mediaLibraryItems.userId, userId)));
   }
 
   // Email Templates
