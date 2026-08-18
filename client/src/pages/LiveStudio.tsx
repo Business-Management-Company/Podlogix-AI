@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download, FileText,
-  LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Sparkles, Square, Trash2,
-  Type, UserPlus, XCircle,
+  LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Share2, Sparkles, Square,
+  Trash2, Type, UserPlus, Wand2, XCircle,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -145,12 +145,11 @@ export default function LiveStudio() {
   // ── AI moment detection ──
   // ── Post-production pipeline (the Refiner) ──
   type StepState = "idle" | "running" | "done" | "failed";
-  const [pipeline, setPipeline] = useState<{ transcribe: StepState; detect: StepState; refine: StepState }>({
-    transcribe: "idle", detect: "idle", refine: "idle",
+  const [pipeline, setPipeline] = useState<{ transcribe: StepState; detect: StepState }>({
+    transcribe: "idle", detect: "idle",
   });
   const [pipelineBusy, setPipelineBusy] = useState(false);
   const [transcript, setTranscript] = useState<{ text: string; segments: CaptionSegment[] } | null>(null);
-  const [minutesSaved, setMinutesSaved] = useState<number | null>(null);
   const [clipFormat, setClipFormat] = useState<"wide" | "vertical">("wide");
 
   // ── Captions ──
@@ -162,7 +161,28 @@ export default function LiveStudio() {
   const [guestFeed, setGuestFeed] = useState<RemoteFeed>({ stream: null, name: "" });
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [channelsOpen, setChannelsOpen] = useState(false);
+  // Channel picks + RTMP details persist per studio (browser-local until
+  // Stream + Record ships on LiveKit egress — setup now, stream later).
+  const [channelPicks, setChannelPicks] = useState<Record<string, boolean>>({});
+  const [rtmpUrl, setRtmpUrl] = useState("");
+  const [rtmpKey, setRtmpKey] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
+
+  useEffect(() => {
+    if (!activeStudioId) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(`podlogix.channels.${activeStudioId}`) || "{}");
+      setChannelPicks(saved.picks ?? {});
+      setRtmpUrl(saved.rtmpUrl ?? "");
+      setRtmpKey(saved.rtmpKey ?? "");
+    } catch { /* fresh studio */ }
+  }, [activeStudioId]);
+
+  const persistChannels = (picks: Record<string, boolean>, url: string, key: string) => {
+    if (!activeStudioId) return;
+    localStorage.setItem(`podlogix.channels.${activeStudioId}`, JSON.stringify({ picks, rtmpUrl: url, rtmpKey: key }));
+  };
 
   const { data, isLoading } = useQuery<{ session: LiveSession | null; marks: LiveMark[] }>({
     queryKey: ["/api/live/current"],
@@ -544,8 +564,7 @@ export default function LiveStudio() {
       setCaptions(null);
       // A fresh show gets a fresh pipeline.
       setTranscript(null);
-      setMinutesSaved(null);
-      setPipeline({ transcribe: "idle", detect: "idle", refine: "idle" });
+      setPipeline({ transcribe: "idle", detect: "idle" });
       if (anySource) startRecording();
       toast({
         title: "You're live on the clock",
@@ -675,15 +694,6 @@ export default function LiveStudio() {
   // ── The Refiner: real post-production, one button. Every checkmark below
   // corresponds to an actual transformation — never a timer. ──
 
-  const mediaDuration = (url: string, kind: "audio" | "video") =>
-    new Promise<number>((resolve) => {
-      const el = document.createElement(kind);
-      el.preload = "metadata";
-      el.onloadedmetadata = () => resolve(el.duration || 0);
-      el.onerror = () => resolve(0);
-      el.src = url;
-    });
-
   const stepTranscribe = async (): Promise<{ text: string; segments: CaptionSegment[] }> => {
     if (transcript) return transcript;
     setPipeline((p) => ({ ...p, transcribe: "running" }));
@@ -723,58 +733,13 @@ export default function LiveStudio() {
     }
   };
 
-  const stepRefine = async () => {
-    if (!session) return;
-    setPipeline((p) => ({ ...p, refine: "running" }));
-    try {
-      // Same command as the Media Lab preset; keep them in step.
-      const cmd = "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
-      const submit = await apiRequest("POST", "/api/media-lab/ffmpeg/jobs", {
-        files: [vodUrl.trim()],
-        full_command: cmd,
-        output_extension: "mp3",
-      });
-      const sub = await submit.json().catch(() => ({}));
-      if (!submit.ok || !sub.job_id) throw new Error(sub.message ?? "Couldn't start the refine");
-      for (let i = 0; i < 150; i++) {
-        await new Promise((r) => setTimeout(r, 4000));
-        const st = await apiRequest("GET", `/api/media-lab/ffmpeg/jobs/${sub.job_id}`);
-        const js = await st.json().catch(() => ({}));
-        const status = String(js.status ?? "").toUpperCase();
-        if (status === "FINISHED" || status === "COMPLETED") break;
-        if (status === "ERROR" || status === "FAILED") throw new Error("The refine failed in processing");
-        if (i === 149) throw new Error("Timed out waiting for the refine");
-      }
-      const collect = await apiRequest("POST", "/api/media-lab/collect", {
-        jobId: sub.job_id,
-        extension: "mp3",
-        title: `${session.title} \u2014 refined audio`,
-      });
-      const col = await collect.json().catch(() => ({}));
-      if (!collect.ok) throw new Error(col.message ?? "Couldn't store the refined audio");
-      // Honest math: how much dead air actually left the file.
-      if (col.url) {
-        const [orig, refined] = await Promise.all([
-          mediaDuration(vodUrl.trim(), "video"),
-          mediaDuration(String(col.url), "audio"),
-        ]);
-        setMinutesSaved(orig > 0 && refined > 0 && orig > refined ? (orig - refined) / 60 : 0);
-      }
-      setPipeline((p) => ({ ...p, refine: "done" }));
-    } catch (e) {
-      setPipeline((p) => ({ ...p, refine: "failed" }));
-      throw e;
-    }
-  };
-
   const runPipeline = async () => {
     if (!session || !vodUrl.trim() || pipelineBusy) return;
     setPipelineBusy(true);
     try {
       const t = await stepTranscribe();
       await stepDetect(t);
-      await stepRefine();
-      toast({ title: "Post-production complete", description: "Moments marked, audio refined \u2014 cut the keepers below." });
+      toast({ title: "Moments marked", description: "Cut the keepers below \u2014 the Refinery handles the audio polish." });
     } catch (e) {
       toast({
         title: "The pipeline stopped",
@@ -830,18 +795,26 @@ export default function LiveStudio() {
         )}
         <div className="flex-1" />
         {activeStudio && (
-          <div className="mr-2 flex items-center gap-1 rounded-lg bg-zinc-900 p-0.5" title="Streaming out to YouTube/Twitch is on the roadmap">
-            <span className="rounded-md bg-zinc-700 px-2.5 py-1 text-[11px] font-medium text-white">Record Only</span>
-            <span className="cursor-not-allowed rounded-md px-2.5 py-1 text-[11px] font-medium text-zinc-600">Stream + Record</span>
+          <button
+            onClick={() => setChannelsOpen(true)}
+            className="mr-2 flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800"
+          >
+            <Share2 className="h-4 w-4 text-zinc-400" /> Channels
+          </button>
+        )}
+        {activeStudio && (
+          <div className="mr-2 flex items-center gap-1 rounded-lg bg-zinc-900 p-1" title="Streaming out arrives with LiveKit egress \u2014 your channel setup saves now">
+            <span className="rounded-md bg-zinc-700 px-4 py-1.5 text-sm font-semibold text-white">Record Only</span>
+            <span className="cursor-not-allowed rounded-md px-4 py-1.5 text-sm font-medium text-zinc-600">Stream + Record</span>
           </div>
         )}
         {activeStudio && endedWithMarks && !liveNow && (
-          <div className="flex rounded-lg bg-zinc-900 p-0.5">
+          <div className="flex rounded-lg bg-zinc-900 p-1">
             {(["stage", "edit"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
                   view === v ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
@@ -885,10 +858,64 @@ export default function LiveStudio() {
         </DialogContent>
       </Dialog>
 
+      {/* Channels — pick destinations now; streaming ships with LiveKit egress */}
+      <Dialog open={channelsOpen} onOpenChange={setChannelsOpen}>
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Channels</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Where this studio will stream when you go live with Stream + Record. Your setup saves now —
+              multistreaming switches on when our streaming engine ships.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            {["YouTube", "Facebook", "LinkedIn", "X (Twitter)", "Twitch", "Instagram"].map((name) => {
+              const on = !!channelPicks[name];
+              return (
+                <button
+                  key={name}
+                  onClick={() => {
+                    const next = { ...channelPicks, [name]: !on };
+                    setChannelPicks(next);
+                    persistChannels(next, rtmpUrl, rtmpKey);
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 transition-colors hover:border-zinc-600"
+                >
+                  <span className="text-sm font-medium text-zinc-200">{name}</span>
+                  <span
+                    className={`relative h-5 w-9 rounded-full transition-colors ${on ? "bg-emerald-500" : "bg-zinc-700"}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`}
+                    />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Custom RTMP</p>
+            <Input
+              placeholder="rtmp://\u2026 server URL"
+              value={rtmpUrl}
+              onChange={(e) => { setRtmpUrl(e.target.value); persistChannels(channelPicks, e.target.value, rtmpKey); }}
+              className="border-zinc-700 bg-zinc-950 font-mono text-xs text-zinc-100"
+            />
+            <Input
+              type="password"
+              placeholder="Stream key"
+              value={rtmpKey}
+              onChange={(e) => { setRtmpKey(e.target.value); persistChannels(channelPicks, rtmpUrl, e.target.value); }}
+              className="border-zinc-700 bg-zinc-950 font-mono text-xs text-zinc-100"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ═══ Studio lobby — pick a room or build one ═══ */}
       {!activeStudio && (
         <div className="rounded-2xl bg-zinc-950 p-6 ring-1 ring-zinc-800/60">
-          <div className="mx-auto max-w-2xl space-y-6 py-10">
+          <div className="mx-auto max-w-3xl space-y-6 py-10">
             <div className="text-center">
               <Radio className="mx-auto h-8 w-8 text-red-500" />
               <h1 className="mt-2 text-xl font-semibold text-zinc-100">Your studios</h1>
@@ -920,28 +947,51 @@ export default function LiveStudio() {
             {studios.length === 0 ? (
               <p className="text-center text-sm text-zinc-600">No studios yet — create your first one above.</p>
             ) : (
-              <ul className="space-y-2">
-                {studios.map((s) => (
-                  <li key={s.id} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
-                    <Radio className="h-4 w-4 shrink-0 text-zinc-500" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">{s.name}</span>
-                    <Button size="sm" className="h-8" onClick={() => setActiveStudioId(s.id)}>
-                      Enter
-                    </Button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Delete “${s.name}”? Past recordings and clips stay in your library.`)) {
-                          deleteStudioMutation.mutate(s.id);
-                        }
+              <div className="grid gap-4 sm:grid-cols-2">
+                {studios.map((s, i) => (
+                  <div
+                    key={s.id}
+                    className="group overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 transition-colors hover:border-zinc-600"
+                  >
+                    <div
+                      className="relative flex h-28 items-center justify-center"
+                      style={{
+                        background: [
+                          "linear-gradient(135deg, #2a1a3e 0%, #0f2740 100%)",
+                          "linear-gradient(135deg, #3e1a1a 0%, #402a0f 100%)",
+                          "linear-gradient(135deg, #1a3e2e 0%, #0f2440 100%)",
+                        ][i % 3],
                       }}
-                      className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                      aria-label={`Delete ${s.name}`}
                     >
-                      <Trash2 size={14} />
-                    </button>
-                  </li>
+                      <span className="flex h-12 w-16 items-center justify-center rounded-lg bg-black/30 ring-1 ring-white/20">
+                        <Radio className="h-5 w-5 text-white/70" />
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete \u201c${s.name}\u201d? Past recordings and clips stay in your library.`)) {
+                            deleteStudioMutation.mutate(s.id);
+                          }
+                        }}
+                        className="absolute right-2 top-2 hidden rounded-full bg-black/50 p-1.5 text-zinc-300 hover:text-red-400 group-hover:block"
+                        aria-label={`Delete ${s.name}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-zinc-100">{s.name}</p>
+                        <p className="text-[11px] text-zinc-500">
+                          Studio{s.createdAt ? ` \u00b7 since ${new Date(s.createdAt).toLocaleDateString()}` : ""}
+                        </p>
+                      </div>
+                      <Button size="sm" className="shrink-0 bg-red-600 text-white hover:bg-red-700" onClick={() => setActiveStudioId(s.id)}>
+                        Enter Studio \u2192
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
         </div>
@@ -1344,78 +1394,34 @@ export default function LiveStudio() {
                 <Link href="/media-library" className="text-zinc-300 underline">Media Library</Link>
               </p>
             </div>
-            <Button
-              onClick={() => void runPipeline()}
-              disabled={pipelineBusy || !vodUrl.trim()}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              {pipelineBusy ? (
-                <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  Refining your show…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-1.5 h-4 w-4" />
-                  Refine my show
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* The pipeline — every checkmark is a real transformation */}
-          <div className="grid gap-2 sm:grid-cols-3">
-            {([
-              ["transcribe", "Transcription", "Whisper listens to the whole show"],
-              ["detect", "Find the moments", "AI marks the clip-worthy parts"],
-              ["refine", "Refine audio", "Dead air cut, loudness mastered"],
-            ] as const).map(([key, label, sub]) => {
-              const state = pipeline[key];
-              return (
-                <div
-                  key={key}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
-                    state === "done"
-                      ? "border-emerald-500/40 bg-emerald-500/5"
-                      : state === "failed"
-                        ? "border-red-500/40 bg-red-500/5"
-                        : "border-zinc-800 bg-zinc-900"
-                  }`}
-                >
-                  {state === "running" ? (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-zinc-300" />
-                  ) : state === "done" ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                  ) : state === "failed" ? (
-                    <XCircle className="h-4 w-4 shrink-0 text-red-400" />
-                  ) : (
-                    <Circle className="h-4 w-4 shrink-0 text-zinc-700" />
-                  )}
-                  <span className="min-w-0">
-                    <span className="block text-xs font-semibold text-zinc-100">{label}</span>
-                    <span className="block truncate text-[10px] text-zinc-500">{sub}</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Honest numbers — computed from the actual files, or not shown */}
-          {(transcript || minutesSaved !== null || clipsReady > 0) && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {([
-                ["Minutes saved", minutesSaved !== null ? minutesSaved.toFixed(1) : "\u2014"],
-                ["Fillers heard", fillersFound !== null ? String(fillersFound) : "\u2014"],
-                ["Words transcribed", wordsTranscribed !== null ? wordsTranscribed.toLocaleString() : "\u2014"],
-                ["Clips ready", String(clipsReady)],
-              ] as const).map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-center">
-                  <p className="text-lg font-bold tabular-nums text-zinc-100">{value}</p>
-                  <p className="text-[10px] font-medium text-zinc-500">{label}</p>
-                </div>
-              ))}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => void runPipeline()}
+                disabled={pipelineBusy || !vodUrl.trim()}
+                variant="outline"
+                className="border-zinc-700 bg-transparent text-zinc-200 hover:bg-zinc-800"
+              >
+                {pipelineBusy ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    {pipeline.transcribe === "running" ? "Listening\u2026" : "Scanning\u2026"}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-1.5 h-4 w-4" />
+                    Find clips with AI
+                  </>
+                )}
+              </Button>
+              <Link href={`/studio/refine?src=${encodeURIComponent(vodUrl.trim())}`}>
+                <Button className="bg-red-600 text-white hover:bg-red-700">
+                  <Wand2 className="mr-1.5 h-4 w-4" />
+                  Refine this show
+                </Button>
+              </Link>
             </div>
-          )}
+          </div>
+
           {uploadingVod && (
             <p className="flex items-center gap-2 text-xs font-medium text-zinc-400">
               <Loader2 size={12} className="animate-spin" /> Uploading your recording — the VOD attaches itself when it lands.

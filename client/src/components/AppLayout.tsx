@@ -53,6 +53,7 @@ import {
   MessageCircle,
   Radio,
   Server,
+  Wand2,
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -97,6 +98,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   // Campaign and Cadence are tabs inside Posts — no separate panel entries.
   { title: "Bio Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Live Studio", url: "/studio/live", icon: Radio, group: "Studio" },
+  { title: "Refinery", url: "/studio/refine", icon: Wand2, group: "Studio" },
   { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
   { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
