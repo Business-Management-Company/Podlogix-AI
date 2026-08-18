@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
+import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession } from "./services/livekitService";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
@@ -5357,6 +5358,73 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     } catch (error) {
       console.error('Error ending live session:', error);
       res.status(500).json({ message: 'Failed to end the session' });
+    }
+  });
+
+  // ---- Guest rooms (LiveKit) -------------------------------------------
+  // Tokens are minted here, server-side; the LiveKit secret never ships to
+  // the browser. Guests authenticate with the session's invite code alone.
+
+  app.get('/api/live/livekit-status', isAuthenticated, async (_req: any, res) => {
+    res.json({ configured: isLiveKitConfigured() });
+  });
+
+  app.post('/api/live/sessions/:id/guest-link', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: 'Guest rooms are not configured yet (LiveKit keys missing).' });
+      }
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      if (session.endedAt) return res.status(400).json({ message: 'This show has ended — start a new one to invite guests.' });
+      let code = session.guestInviteCode;
+      if (!code) {
+        code = crypto.randomUUID();
+        await storage.updateLiveSession(session.id, { guestInviteCode: code });
+      }
+      const origin = `${req.protocol}://${req.get('host')}`;
+      res.json({ code, url: `${origin}/studio/guest?code=${code}` });
+    } catch (error) {
+      console.error('Error creating guest link:', error);
+      res.status(500).json({ message: 'Failed to create the guest link' });
+    }
+  });
+
+  // Public: a guest trades an invite code + display name for a room token.
+  app.post('/api/live/guest/join', async (req: any, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: 'Guest rooms are not configured.' });
+      }
+      const code = String(req.body?.code ?? '').trim();
+      const name = String(req.body?.name ?? '').trim().slice(0, 60);
+      if (!code || !name) return res.status(400).json({ message: 'An invite code and your name are required.' });
+      const session = await storage.getLiveSessionByInviteCode(code);
+      if (!session) return res.status(404).json({ message: 'This invite link is not valid.' });
+      if (session.endedAt) return res.status(410).json({ message: 'This show has ended.' });
+      const identity = `guest-${crypto.randomUUID().slice(0, 8)}`;
+      const token = await mintRoomToken(roomNameForSession(session.id), identity, name);
+      res.json({ token, url: liveKitUrl(), roomTitle: session.title });
+    } catch (error) {
+      console.error('Error joining guest room:', error);
+      res.status(500).json({ message: 'Failed to join the room' });
+    }
+  });
+
+  app.post('/api/live/sessions/:id/host-token', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: 'Guest rooms are not configured yet (LiveKit keys missing).' });
+      }
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      const token = await mintRoomToken(roomNameForSession(session.id), `host-${userId.slice(0, 8)}`, 'Host');
+      res.json({ token, url: liveKitUrl() });
+    } catch (error) {
+      console.error('Error minting host token:', error);
+      res.status(500).json({ message: 'Failed to join the room' });
     }
   });
 

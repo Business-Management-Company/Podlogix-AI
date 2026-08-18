@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2, Mic, MicOff,
-  MonitorUp, Radio, Scissors, Sparkles, Square, Type,
+  MonitorUp, Radio, Scissors, Sparkles, Square, Type, UserPlus,
 } from "lucide-react";
+import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 import { generateSrt, generateVtt, downloadText, type CaptionSegment } from "@/lib/captions";
 import { StudioCompositor, STUDIO_LAYOUTS, type StudioLayout } from "@/lib/studio-compositor";
@@ -77,13 +78,25 @@ export default function LiveStudio() {
   const [captionBusyId, setCaptionBusyId] = useState<string | null>(null);
   const [captions, setCaptions] = useState<{ markId: string; text: string; segments: CaptionSegment[] } | null>(null);
 
+  // ── Guest room (LiveKit) ──
+  const liveRoomRef = useRef<LiveRoom | null>(null);
+  const [guestFeed, setGuestFeed] = useState<RemoteFeed>({ stream: null, name: "" });
+  const [inviteBusy, setInviteBusy] = useState(false);
+
   const { data, isLoading } = useQuery<{ session: LiveSession | null; marks: LiveMark[] }>({
     queryKey: ["/api/live/current"],
   });
   const session = data?.session ?? null;
   const marks = data?.marks ?? [];
   const liveNow = !!session && !session.endedAt;
-  const anySource = cameraOn || screenOn;
+  const guestOn = !!guestFeed.stream;
+  const anySource = cameraOn || screenOn || guestOn;
+
+  const { data: lkStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ["/api/live/livekit-status"],
+    retry: false,
+  });
+  const guestRoomsReady = !!lkStatus?.configured;
 
   const compositor = () => {
     if (!compositorRef.current) {
@@ -194,8 +207,58 @@ export default function LiveStudio() {
     setScreenOn(false);
   };
 
+  // ── Guest room ──
+  const leaveGuestRoom = () => {
+    void liveRoomRef.current?.disconnect();
+    liveRoomRef.current = null;
+    compositorRef.current?.setGuest(null);
+    setGuestFeed({ stream: null, name: "" });
+  };
+
+  const inviteGuest = async () => {
+    if (!session || session.endedAt) return;
+    setInviteBusy(true);
+    try {
+      const linkRes = await apiRequest("POST", `/api/live/sessions/${session.id}/guest-link`, {});
+      const link = await linkRes.json().catch(() => ({}));
+      if (!linkRes.ok) throw new Error(link.message || "Couldn't create the guest link");
+
+      // Join the room ourselves (once) so the guest lands on a live stage.
+      if (!liveRoomRef.current) {
+        const tokRes = await apiRequest("POST", `/api/live/sessions/${session.id}/host-token`, {});
+        const tok = await tokRes.json().catch(() => ({}));
+        if (!tokRes.ok) throw new Error(tok.message || "Couldn't join the guest room");
+        const room = new LiveRoom();
+        liveRoomRef.current = room;
+        await room.connect(tok.url, tok.token, (feed) => {
+          compositor().setGuest(feed.stream);
+          setGuestFeed(feed);
+        });
+        await room.publish(cameraStreamRef.current);
+      }
+
+      await navigator.clipboard.writeText(link.url);
+      toast({ title: "Guest link copied", description: "Send it to your guest — they appear on the stage when they join." });
+    } catch (e) {
+      toast({
+        title: "Couldn't invite a guest",
+        description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  // Keep our published tracks in step with the camera source.
+  useEffect(() => {
+    if (liveRoomRef.current?.connected) void liveRoomRef.current.publish(cameraStreamRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraOn]);
+
   useEffect(() => () => {
     stopAllSources();
+    leaveGuestRoom();
     compositorRef.current?.stop();
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,6 +343,7 @@ export default function LiveStudio() {
     },
     onSuccess: () => {
       refresh();
+      leaveGuestRoom();
       if (session && recorderRef.current) void stopRecorderAndAttach(session.id);
       toast({
         title: `Show ended — ${marks.length} moment${marks.length === 1 ? "" : "s"} marked`,
@@ -452,6 +516,11 @@ export default function LiveStudio() {
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> REC
                 </span>
               )}
+              {guestOn && (
+                <span className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white">
+                  <UserPlus className="h-3 w-3" /> {guestFeed.name || "Guest"} is on the stage
+                </span>
+              )}
               {liveNow && (
                 <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-red-600/90 px-3 py-1 text-[11px] font-bold text-white">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
@@ -542,6 +611,17 @@ export default function LiveStudio() {
                     {flash ? "Marked!" : "Mark moment"}
                     <span className="ml-1.5 rounded bg-white/20 px-1 text-[10px] font-semibold">space</span>
                   </Button>
+                  {guestRoomsReady && (
+                    <Button
+                      onClick={() => void inviteGuest()}
+                      disabled={inviteBusy}
+                      variant="outline"
+                      className="border-zinc-600 bg-transparent text-zinc-100 hover:bg-zinc-800"
+                    >
+                      {inviteBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <UserPlus className="mr-1.5 h-4 w-4" />}
+                      {guestOn ? "Copy guest link" : "Invite a guest"}
+                    </Button>
+                  )}
                   <Button
                     onClick={() => endMutation.mutate()}
                     disabled={endMutation.isPending}
@@ -598,7 +678,8 @@ export default function LiveStudio() {
               <div className="space-y-2">
                 {STUDIO_LAYOUTS.map((l) => {
                   const needsBoth = l.id !== "fullscreen";
-                  const dimmed = needsBoth && !(cameraOn && screenOn);
+                  const sources = [cameraOn, screenOn, guestOn].filter(Boolean).length;
+                  const dimmed = needsBoth && sources < 2;
                   return (
                     <button
                       key={l.id}
@@ -611,7 +692,7 @@ export default function LiveStudio() {
                     >
                       <p className="text-sm font-semibold text-zinc-100">{l.label}</p>
                       <p className="text-[11px] text-zinc-500">
-                        {dimmed ? "Needs camera + screen" : l.hint}
+                        {dimmed ? "Needs a second source (screen or guest)" : l.hint}
                       </p>
                     </button>
                   );

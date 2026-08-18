@@ -173,7 +173,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // The Live Studio wants the whole frame — collapse the panel on entry.
   useEffect(() => {
-    if (location.startsWith("/studio/live")) setPanelOpen(false);
+    if (location.startsWith("/studio/live") || location.startsWith("/studio/guest")) setPanelOpen(false);
   }, [location]);
   const [railExpanded, setRailExpanded] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
