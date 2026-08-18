@@ -7,7 +7,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer } from "./services/supabaseStorageService";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -5379,6 +5379,26 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
         updates.vodOffsetSeconds = Math.max(0, Math.floor(Number(req.body.vodOffsetSeconds) || 0));
       }
       const updated = await storage.updateLiveSession(session.id, updates);
+
+      // A studio recording (in our own bucket) is real content — file it in
+      // the Media Library so the Lab, Speaking Analysis, and composer see it.
+      try {
+        const supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
+        if (typeof updates.vodUrl === 'string' && supabaseHost && new URL(updates.vodUrl).host === supabaseHost) {
+          await storage.createMediaLibraryItem({
+            userId,
+            platform: 'live',
+            externalId: `recording-${session.id}`,
+            caption: `${session.title} — full recording`,
+            mediaType: 'video',
+            mediaUrl: updates.vodUrl,
+            thumbnailUrl: null,
+            permalink: null,
+            postedAt: new Date(),
+          });
+        }
+      } catch { /* library filing is best-effort */ }
+
       res.json({ session: updated });
     } catch (error) {
       console.error('Error updating live session:', error);
@@ -5815,6 +5835,46 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
     } catch (error) {
       console.error('Error downloading FFmpeg result:', error);
       res.status(500).json({ message: 'Failed to download result' });
+    }
+  });
+
+  // Pull a finished Media Lab job into the user's own storage + Media Library.
+  // Same law as clips: their result URLs expire, ours don't.
+  app.post('/api/media-lab/collect', isAuthenticated, isBetaTester, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const jobId = String(req.body?.jobId ?? '');
+      if (!jobId) return res.status(400).json({ message: 'jobId is required' });
+      const extension = String(req.body?.extension ?? 'mp4').toLowerCase();
+      const isAudio = ['mp3', 'm4a', 'wav'].includes(extension);
+      const dl = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${encodeURIComponent(jobId)}/download`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      if (!dl.ok) return res.status(dl.status === 404 ? 404 : 502).json({ message: `Result not ready (HTTP ${dl.status})` });
+      const buffer = Buffer.from(await dl.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > 80 * 1024 * 1024) {
+        return res.status(413).json({ message: buffer.length === 0 ? 'Empty result' : 'Result too large to store' });
+      }
+      const contentType = dl.headers.get('content-type') || (isAudio ? 'audio/mpeg' : 'video/mp4');
+      const url = isAudio
+        ? await storeAudioBuffer(buffer, `media-lab/${userId}`, contentType)
+        : await storeVideoBuffer(buffer, `media-lab/${userId}`, contentType);
+      if (!url) return res.status(502).json({ message: "Couldn't store the result" });
+      const media = await storage.createMediaLibraryItem({
+        userId,
+        platform: 'media-lab',
+        externalId: jobId,
+        caption: String(req.body?.title ?? 'Media Lab output').slice(0, 200),
+        mediaType: isAudio ? 'audio' : 'video',
+        mediaUrl: url,
+        thumbnailUrl: null,
+        permalink: null,
+        postedAt: new Date(),
+      });
+      res.json({ success: true, url, media });
+    } catch (error) {
+      console.error('Media Lab collect error:', error);
+      res.status(500).json({ message: "Couldn't save the result" });
     }
   });
 
