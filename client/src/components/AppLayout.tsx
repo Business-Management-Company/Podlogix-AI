@@ -46,6 +46,9 @@ import {
   BookMarked,
   FlaskConical,
   Puzzle,
+  PenSquare,
+  CalendarRange,
+  Repeat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -79,10 +82,15 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Listen", url: "/listener", icon: Headphones, group: "Content" },
   { title: "Guests", url: "/guests", icon: UserPlus, group: "Communication" },
   { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Communication" },
+  // Discover/Directory live under Communication: they exist to find and keep
+  // guests, feeding the CRM/email side — not to manage posting.
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Communication" },
+  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Communication" },
+  { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
+  { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
+  { title: "Campaign", url: "/social/posts?tab=campaign", icon: CalendarRange, group: "Social" },
+  { title: "Cadence", url: "/social/posts?tab=cadence", icon: Repeat, group: "Social" },
   { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
-  { title: "Posts", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
-  { title: "Discover", url: "/social/discover", icon: Compass, group: "Social" },
-  { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Social" },
   { title: "AI Studio", url: "/dashboard/ai", icon: Sparkles, group: "Studio" },
   { title: "Video Analysis", url: "/dashboard/video-analysis", icon: Video, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
