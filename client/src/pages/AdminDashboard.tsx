@@ -16,11 +16,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { motion } from "framer-motion";
-import { 
-  Users, 
-  Shield, 
-  ShieldCheck, 
-  Activity, 
+import {
+  Users,
+  Shield,
+  ShieldCheck,
+  Activity,
+  Sparkles,
   Podcast, 
   Fingerprint,
   ArrowLeft,
@@ -303,7 +304,7 @@ export default function AdminDashboard() {
   });
 
   interface AdminFinancials {
-    services: { name: string; purpose: string; monthlyUsd: number | null; notes?: string }[];
+    services: { name: string; purpose: string; monthlyUsd: number | null; notes?: string; linkUrl?: string }[];
     fixedTotalUsd: number;
     icCredits: { available: number; used: number } | null;
     icCreditUsd: number;
@@ -315,6 +316,8 @@ export default function AdminDashboard() {
       plan: string;
     } | null;
     profileSlots: { used: number; total: number } | null;
+    openaiCosts: { monthToDateUsd: number } | null;
+    estimatedMonthlyUsd: number;
   }
 
   const { data: financials, isLoading: financialsLoading } = useQuery<AdminFinancials>({
@@ -1661,7 +1664,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                         <CardTitle className="text-sm font-medium">Fixed subscriptions</CardTitle>
@@ -1675,6 +1678,39 @@ export default function AdminDashboard() {
                           {financials.services.filter((s) => s.monthlyUsd === null).length > 0
                             ? "plus usage-based services below"
                             : "all plans priced"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">Est. monthly burn</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          ${financials.estimatedMonthlyUsd.toFixed(2)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          fixed plans + every metered cost readable live
+                          {financials.openaiCosts ? "" : " (OpenAI pending admin key)"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">OpenAI spend (month to date)</CardTitle>
+                        <Sparkles className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {financials.openaiCosts
+                            ? `$${financials.openaiCosts.monthToDateUsd.toFixed(2)}`
+                            : "—"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {financials.openaiCosts
+                            ? "AI Write, images, AI Studio, transcription"
+                            : "Set OPENAI_ADMIN_KEY to pull live spend"}
                         </p>
                       </CardContent>
                     </Card>
@@ -1763,6 +1799,16 @@ export default function AdminDashboard() {
                               <p className="text-sm text-muted-foreground">{service.purpose}</p>
                               {service.notes && (
                                 <p className="text-xs text-muted-foreground/70">{service.notes}</p>
+                              )}
+                              {service.linkUrl && (
+                                <a
+                                  href={service.linkUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs font-medium text-primary underline underline-offset-2"
+                                >
+                                  Open dashboard
+                                </a>
                               )}
                             </div>
                             <div className="shrink-0 text-right">
