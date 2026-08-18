@@ -7,7 +7,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia } from "./services/supabaseStorageService";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -4864,6 +4864,110 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error sending DM:', error);
       res.status(500).json({ message: 'Failed to send message' });
+    }
+  });
+
+  // ============ COMPOSER AI (write + images) ============
+  // Ported from Empowerify's composer, grounded in the creator's own podcast.
+
+  const AI_TONES: Record<string, string> = {
+    pro: 'Professional and polished. Clear, confident, no slang, minimal emoji.',
+    casual: 'Casual and friendly, like talking to a friend. Contractions welcome, one or two emoji fine.',
+    funny: 'Witty and playful. Light humor that lands without being cringey.',
+    promo: 'Promotional and action-driven. Strong hook, clear call to action, urgency without hype.',
+    edu: 'Educational and generous. Teach one concrete thing; lead with the insight.',
+  };
+
+  app.post('/api/social/ai-write', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { focus, customFocus, tone, direction, platforms } = req.body ?? {};
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'AI writing needs the OpenAI key configured' });
+      }
+
+      const podcasts = await storage.getPodcastsByUserId(userId);
+      const show = podcasts[0] ?? null;
+      const showContext = show
+        ? `The creator hosts the podcast "${show.title}"${show.description ? ` — ${String(show.description).slice(0, 300)}` : ''}.`
+        : 'The creator hosts a podcast.';
+
+      const focusMap: Record<string, string> = {
+        show: `${showContext} Write a social post that promotes the show or a recent episode and gives people a reason to listen.`,
+        general: `${showContext} Write a social post sharing a useful tip, insight, or piece of news from their subject area. Value first, show second.`,
+        personal: `${showContext} Write a personal, authentic post that shows the human behind the mic — a lesson, a behind-the-scenes moment, a candid thought.`,
+        custom: `${showContext} Write a social post about: ${String(customFocus || direction || 'a general update')}.`,
+      };
+
+      const toneLine = AI_TONES[String(tone)] ?? AI_TONES.pro;
+      const platformList: string[] = Array.isArray(platforms) ? platforms : [];
+      const tightest = Math.min(...platformList.map((p) => ({
+        x: 280, bluesky: 300, threads: 500, pinterest: 500, discord: 2000,
+        instagram: 2200, tiktok: 2200, linkedin: 3000, telegram: 4096,
+        youtube: 5000, facebook: 63206, reddit: 40000,
+      }[String(p).toLowerCase()] ?? 2200)), 2200);
+
+      const system = `You write social media posts for podcast creators.
+${focusMap[String(focus)] ?? focusMap.general}
+Tone: ${toneLine}
+The post must fit in ${Math.min(tightest, 2200)} characters (the tightest selected platform). No markdown formatting — plain text with natural line breaks only.
+Respond with JSON: {"post": "<the post text, no hashtags in it>", "hashtags": ["five", "relevant", "hashtags", "without", "#"]}`;
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 700,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `Topic/direction: ${String(direction || customFocus || 'surprise me — something on-brand')}` },
+        ],
+      });
+      const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      res.json({
+        post: typeof parsed.post === 'string' ? parsed.post : '',
+        hashtags: Array.isArray(parsed.hashtags)
+          ? parsed.hashtags.slice(0, 5).map((h: unknown) => String(h).replace(/^#/, ''))
+          : [],
+      });
+    } catch (error) {
+      console.error('AI write error:', error);
+      res.status(500).json({ message: 'AI writing failed — try again' });
+    }
+  });
+
+  app.post('/api/social/ai-image', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { prompt, count } = req.body ?? {};
+      if (typeof prompt !== 'string' || !prompt.trim()) {
+        return res.status(400).json({ message: 'prompt is required' });
+      }
+      if (!process.env.OPENAI_API_KEY && !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'Image generation needs the OpenAI key configured' });
+      }
+      if (!isSupabaseStorageConfigured()) {
+        return res.status(503).json({ message: 'Storage is not configured' });
+      }
+      const n = Math.min(Math.max(1, Number(count) || 2), 4);
+      const fullPrompt = `${prompt.trim()}, photorealistic, professional photo, high quality, no text, no words`;
+      const { generateImageBuffer } = await import('./replit_integrations/image/client');
+      const buffers = await Promise.all(
+        Array.from({ length: n }, () => generateImageBuffer(fullPrompt).catch(() => null))
+      );
+      const urls = (
+        await Promise.all(
+          buffers.filter((b): b is Buffer => !!b).map((b) => storeImageBuffer(b, `ai-images/${userId}`))
+        )
+      ).filter((u): u is string => !!u);
+      if (urls.length === 0) {
+        return res.status(500).json({ message: 'Image generation failed — try again' });
+      }
+      res.json({ urls });
+    } catch (error) {
+      console.error('AI image error:', error);
+      res.status(500).json({ message: 'Image generation failed — try again' });
     }
   });
 
