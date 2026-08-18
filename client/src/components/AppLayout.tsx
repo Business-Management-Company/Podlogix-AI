@@ -94,11 +94,10 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
-  { title: "Campaign", url: "/social/posts?tab=campaign", icon: CalendarRange, group: "Social" },
-  { title: "Cadence", url: "/social/posts?tab=cadence", icon: Repeat, group: "Social" },
-  { title: "Link Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
-  { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Social" },
+  // Campaign and Cadence are tabs inside Posts — no separate panel entries.
+  { title: "Bio Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Live Studio", url: "/studio/live", icon: Radio, group: "Studio" },
+  { title: "Media Library", url: "/media-library", icon: GalleryVerticalEnd, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
   { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
   { title: "Workspace Settings", url: "/settings", icon: Settings, group: "Settings" },

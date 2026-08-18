@@ -5555,6 +5555,47 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     res.json({ configured: isLiveKitConfigured() });
   });
 
+  // Studio-keyed guest room: invites work before the show is live — the
+  // guest waits in the green room, the host sees them the moment both join.
+  app.post('/api/studios/:id/guest-link', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: 'Guest rooms are not configured yet (LiveKit keys missing).' });
+      }
+      const owned = await storage.getStudios(userId);
+      const studio = owned.find((s) => s.id === req.params.id);
+      if (!studio) return res.status(404).json({ message: 'Studio not found' });
+      let code = studio.guestInviteCode;
+      if (!code) {
+        code = crypto.randomUUID();
+        await storage.updateStudioInviteCode(studio.id, userId, code);
+      }
+      const origin = `${req.protocol}://${req.get('host')}`;
+      res.json({ code, url: `${origin}/studio/guest?code=${code}` });
+    } catch (error) {
+      console.error('Error creating studio guest link:', error);
+      res.status(500).json({ message: 'Failed to create the guest link' });
+    }
+  });
+
+  app.post('/api/studios/:id/host-token', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: 'Guest rooms are not configured yet (LiveKit keys missing).' });
+      }
+      const owned = await storage.getStudios(userId);
+      const studio = owned.find((s) => s.id === req.params.id);
+      if (!studio) return res.status(404).json({ message: 'Studio not found' });
+      const token = await mintRoomToken(`studio-${studio.id}`, `host-${userId.slice(0, 8)}`, 'Host');
+      res.json({ token, url: liveKitUrl() });
+    } catch (error) {
+      console.error('Error minting studio host token:', error);
+      res.status(500).json({ message: 'Failed to join the room' });
+    }
+  });
+
   app.post('/api/live/sessions/:id/guest-link', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
@@ -5586,10 +5627,16 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       const code = String(req.body?.code ?? '').trim();
       const name = String(req.body?.name ?? '').trim().slice(0, 60);
       if (!code || !name) return res.status(400).json({ message: 'An invite code and your name are required.' });
+      const identity = `guest-${crypto.randomUUID().slice(0, 8)}`;
+      const studio = await storage.getStudioByInviteCode(code);
+      if (studio) {
+        const token = await mintRoomToken(`studio-${studio.id}`, identity, name);
+        return res.json({ token, url: liveKitUrl(), roomTitle: studio.name });
+      }
+      // Legacy: codes minted per-session before rooms moved to studios.
       const session = await storage.getLiveSessionByInviteCode(code);
       if (!session) return res.status(404).json({ message: 'This invite link is not valid.' });
       if (session.endedAt) return res.status(410).json({ message: 'This show has ended.' });
-      const identity = `guest-${crypto.randomUUID().slice(0, 8)}`;
       const token = await mintRoomToken(roomNameForSession(session.id), identity, name);
       res.json({ token, url: liveKitUrl(), roomTitle: session.title });
     } catch (error) {

@@ -78,6 +78,29 @@ export default function LiveStudio() {
   );
   const [newStudioName, setNewStudioName] = useState("");
   const [view, setView] = useState<"stage" | "edit">("stage");
+  // Right panel width — drag its left edge to resize (persisted per browser).
+  const [railWidth, setRailWidth] = useState<number>(() => {
+    const saved = Number(localStorage.getItem("podlogix.studio.rail"));
+    return saved >= 220 && saved <= 480 ? saved : 280;
+  });
+  const railDrag = useRef<{ startX: number; startW: number } | null>(null);
+
+  const onRailDragStart = (e: React.PointerEvent) => {
+    railDrag.current = { startX: e.clientX, startW: railWidth };
+    const onMove = (ev: PointerEvent) => {
+      if (!railDrag.current) return;
+      const w = Math.min(480, Math.max(220, railDrag.current.startW + (railDrag.current.startX - ev.clientX)));
+      setRailWidth(w);
+    };
+    const onUp = () => {
+      railDrag.current = null;
+      setRailWidth((w) => { localStorage.setItem("podlogix.studio.rail", String(w)); return w; });
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   // ── Teleprompter ──
   const [prompterOn, setPrompterOn] = useState(false);
@@ -315,16 +338,17 @@ export default function LiveStudio() {
   };
 
   const inviteGuest = async () => {
-    if (!session || session.endedAt) return;
+    if (!activeStudio) return;
     setInviteBusy(true);
     try {
-      const linkRes = await apiRequest("POST", `/api/live/sessions/${session.id}/guest-link`, {});
+      const linkRes = await apiRequest("POST", `/api/studios/${activeStudio.id}/guest-link`, {});
       const link = await linkRes.json().catch(() => ({}));
       if (!linkRes.ok) throw new Error(link.message || "Couldn't create the guest link");
 
-      // Join the room ourselves (once) so the guest lands on a live stage.
+      // Join the room ourselves (once) so the guest lands on a live stage —
+      // works before the show starts: prep together, then go live.
       if (!liveRoomRef.current) {
-        const tokRes = await apiRequest("POST", `/api/live/sessions/${session.id}/host-token`, {});
+        const tokRes = await apiRequest("POST", `/api/studios/${activeStudio.id}/host-token`, {});
         const tok = await tokRes.json().catch(() => ({}));
         if (!tokRes.ok) throw new Error(tok.message || "Couldn't join the guest room");
         const room = new LiveRoom();
@@ -337,7 +361,7 @@ export default function LiveStudio() {
       }
 
       await navigator.clipboard.writeText(link.url);
-      toast({ title: "Guest link copied", description: "Send it to your guest — they appear on the stage when they join." });
+      toast({ title: "Guest link copied", description: "Send it to your guest — they appear on the stage when they join, live or not." });
     } catch (e) {
       toast({
         title: "Couldn't invite a guest",
@@ -358,7 +382,7 @@ export default function LiveStudio() {
   useEffect(() => () => {
     stopAllSources();
     leaveGuestRoom();
-    compositorRef.current?.stop();
+    compositorRef.current?.dispose();
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -672,6 +696,12 @@ export default function LiveStudio() {
           </>
         )}
         <div className="flex-1" />
+        {activeStudio && (
+          <div className="mr-2 flex items-center gap-1 rounded-lg bg-zinc-900 p-0.5" title="Streaming out to YouTube/Twitch is on the roadmap">
+            <span className="rounded-md bg-zinc-700 px-2.5 py-1 text-[11px] font-medium text-white">Record Only</span>
+            <span className="cursor-not-allowed rounded-md px-2.5 py-1 text-[11px] font-medium text-zinc-600">Stream + Record</span>
+          </div>
+        )}
         {activeStudio && endedWithMarks && !liveNow && (
           <div className="flex rounded-lg bg-zinc-900 p-0.5">
             {(["stage", "edit"] as const).map((v) => (
@@ -754,9 +784,9 @@ export default function LiveStudio() {
       {/* ═══ The studio room — full frame, no chrome ═══ */}
       {activeStudio && view === "stage" && (
       <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl ring-1 ring-zinc-800/60">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="flex flex-col gap-4 lg:flex-row">
           {/* Stage column */}
-          <div className="space-y-3">
+          <div className="min-w-0 flex-1 space-y-3">
             <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-900" ref={stageRef}>
               {!anySource && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[radial-gradient(ellipse_at_center,rgba(63,63,70,0.6),rgba(9,9,11,0.9))]">
@@ -814,6 +844,19 @@ export default function LiveStudio() {
                 {screenOn ? "Stop Sharing" : "Share Screen"}
               </Button>
 
+              {guestRoomsReady && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void inviteGuest()}
+                  disabled={inviteBusy}
+                  className={`border-zinc-700 bg-transparent text-zinc-200 hover:bg-zinc-800 hover:text-white ${guestOn ? "ring-1 ring-emerald-500" : ""}`}
+                >
+                  {inviteBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <UserPlus className="mr-1.5 h-4 w-4" />}
+                  {guestOn ? "Copy guest link" : "Invite Guest"}
+                </Button>
+              )}
+
               <div className="mx-1 h-6 w-px bg-zinc-700" />
               <button
                 onClick={toggleMic}
@@ -865,17 +908,6 @@ export default function LiveStudio() {
                     {flash ? "Marked!" : "Mark moment"}
                     <span className="ml-1.5 rounded bg-white/20 px-1 text-[10px] font-semibold">space</span>
                   </Button>
-                  {guestRoomsReady && (
-                    <Button
-                      onClick={() => void inviteGuest()}
-                      disabled={inviteBusy}
-                      variant="outline"
-                      className="border-zinc-600 bg-transparent text-zinc-100 hover:bg-zinc-800"
-                    >
-                      {inviteBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <UserPlus className="mr-1.5 h-4 w-4" />}
-                      {guestOn ? "Copy guest link" : "Invite a guest"}
-                    </Button>
-                  )}
                   <Button
                     onClick={() => endMutation.mutate()}
                     disabled={endMutation.isPending}
@@ -908,8 +940,16 @@ export default function LiveStudio() {
             )}
           </div>
 
+          {/* Drag the edge to give the stage or the panel more room */}
+          <div
+            onPointerDown={onRailDragStart}
+            className="hidden w-1.5 shrink-0 cursor-col-resize rounded-full bg-zinc-800/70 transition-colors hover:bg-zinc-600 lg:block"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panel"
+          />
           {/* Right rail */}
-          <div className="space-y-3">
+          <div className="shrink-0 space-y-3 max-lg:!w-full" style={{ width: railWidth }}>
             <div className="flex rounded-lg bg-zinc-900 p-1">
               {([
                 ["layout", "Layout", LayoutGrid],
@@ -931,6 +971,14 @@ export default function LiveStudio() {
 
             {railTab === "media" ? (
               <div className="space-y-2">
+                <a
+                  href="/media-library"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-700 py-2 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+                >
+                  <Plus size={13} /> Add media — opens your library in a new tab
+                </a>
                 {stageMedia && (
                   <div className="space-y-2 rounded-xl border border-primary/40 bg-zinc-900 p-3">
                     <p className="truncate text-xs font-semibold text-zinc-100">On the stage: {stageMedia.caption}</p>

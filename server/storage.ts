@@ -173,6 +173,8 @@ export interface IStorage {
   updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined>;
   getLiveSessionByInviteCode(code: string): Promise<LiveSession | undefined>;
   getStudios(userId: string): Promise<Studio[]>;
+  getStudioByInviteCode(code: string): Promise<Studio | undefined>;
+  updateStudioInviteCode(id: string, userId: string, code: string): Promise<void>;
   createStudio(studio: InsertStudio): Promise<Studio>;
   deleteStudio(id: string, userId: string): Promise<void>;
   createLiveMark(mark: InsertLiveMark): Promise<LiveMark>;
@@ -846,6 +848,16 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(studios)
       .where(eq(studios.userId, userId))
       .orderBy(desc(studios.createdAt));
+  }
+
+  async getStudioByInviteCode(code: string): Promise<Studio | undefined> {
+    const [studio] = await db.select().from(studios).where(eq(studios.guestInviteCode, code));
+    return studio;
+  }
+
+  async updateStudioInviteCode(id: string, userId: string, code: string): Promise<void> {
+    await db.update(studios).set({ guestInviteCode: code })
+      .where(and(eq(studios.id, id), eq(studios.userId, userId)));
   }
 
   async createStudio(studio: InsertStudio): Promise<Studio> {

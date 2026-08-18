@@ -850,6 +850,9 @@ export const studios = pgTable("studios", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
   name: varchar("name").notNull(),
+  // Guest room invite code (LiveKit) — the room belongs to the studio, so
+  // guests can join the green room before the show goes live.
+  guestInviteCode: varchar("guest_invite_code"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
