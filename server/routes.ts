@@ -3262,7 +3262,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const [icCredits, ffmpegConsumption] = await Promise.all([
+      const [icCredits, ffmpegConsumption, profileSlots] = await Promise.all([
         (async () => {
           try {
             const apiKey = getInfluencersClubApiKey();
@@ -3285,6 +3285,20 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
             return data?.consumption ?? null;
           } catch { return null; }
         })(),
+        (async () => {
+          // The $50 plan includes 25 connected-profile slots; the users listing
+          // returns every profile on the API key, so its length is slots in use.
+          try {
+            const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/users`, {
+              headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            return Array.isArray((data as any).profiles)
+              ? { used: (data as any).profiles.length, total: 25 }
+              : null;
+          } catch { return null; }
+        })(),
       ]);
 
       const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
@@ -3293,7 +3307,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         fixedTotalUsd,
         icCredits,
         icCreditUsd: 0.6,
+        icMonthlyCredits: 500,
         ffmpegConsumption,
+        profileSlots,
       });
     } catch (error) {
       console.error('Error building admin financials:', error);
@@ -4333,6 +4349,23 @@ Respond in this exact JSON format:
           })
           .map((a) => [a.platform, a.profilePictureUrl!])
       );
+      // Facebook posts land on a Page (the posting route always targets the first
+      // managed page), so the pill should carry the Page's name — showing the
+      // personal profile name would misstate where posts actually go.
+      let facebookPageName: string | null = null;
+      if (connected.some(([platform]) => platform === 'facebook')) {
+        try {
+          const pagesResponse = await fetch(
+            `${UPLOAD_POST_API_BASE}/api/uploadposts/facebook/pages?profile=${encodeURIComponent(uploadPostUsername)}`,
+            { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+          );
+          if (pagesResponse.ok) {
+            const pagesData = await pagesResponse.json().catch(() => ({}));
+            facebookPageName = ((pagesData as any).pages ?? (pagesData as any).data ?? [])[0]?.name ?? null;
+          }
+        } catch { /* fall back to the profile name */ }
+      }
+
       await storage.deleteUploadPostAccountsByUser(userId);
       const accounts = [];
       for (const [platform, account] of connected) {
@@ -4343,7 +4376,8 @@ Respond in this exact JSON format:
           uploadPostUsername,
           platform,
           platformAccountId: null,
-          platformUsername: (account.handle || account.display_name || platform).replace(/^@/, ''),
+          platformUsername: (platform === 'facebook' && facebookPageName ? facebookPageName
+            : (account.handle || account.display_name || platform)).replace(/^@/, ''),
           profileUrl: null,
           profilePictureUrl: avatarUrl,
           isConnected: true,
@@ -4703,6 +4737,35 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error cancelling scheduled post:', error);
       res.status(500).json({ message: 'Failed to cancel scheduled post' });
+    }
+  });
+
+  app.patch('/api/upload-post/scheduled/:jobId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { scheduledAt, title, caption } = req.body ?? {};
+      const payload: Record<string, string> = {};
+      if (scheduledAt) payload.scheduled_date = new Date(scheduledAt).toISOString();
+      if (typeof title === 'string' && title.trim()) payload.title = title.trim();
+      if (typeof caption === 'string' && caption.trim()) payload.caption = caption.trim();
+      if (Object.keys(payload).length === 0) {
+        return res.status(400).json({ message: 'Nothing to update' });
+      }
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/schedule/${req.params.jobId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to update scheduled post' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error updating scheduled post:', error);
+      res.status(500).json({ message: 'Failed to update scheduled post' });
     }
   });
 
