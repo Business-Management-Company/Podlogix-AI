@@ -4613,7 +4613,8 @@ Respond in this exact JSON format:
           platform,
           externalId: String(item.id),
           caption: item.caption ?? null,
-          mediaType: item.media_type ?? (mediaUrl ? 'image' : 'link'),
+          // Upload-Post returns media_type UPPERCASE (IMAGE/VIDEO/CAROUSEL_ALBUM)
+          mediaType: (item.media_type ?? (mediaUrl ? 'image' : 'link')).toLowerCase(),
           mediaUrl,
           thumbnailUrl,
           permalink: item.permalink ?? null,
