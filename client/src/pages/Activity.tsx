@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { SiGooglecalendar, SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX } from "react-icons/si";
 import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
+import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import type { Episode, EmailContact, GuestPipelineEntry } from "@shared/schema";
@@ -189,8 +190,15 @@ function ProgressRing({ percent, size = 84, stroke = 9, color = "#10b981" }: { p
 
 export default function Activity() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { data, isLoading } = useQuery<DashboardData>({ queryKey: ["/api/dashboard"] });
   const podcast = data?.podcasts?.[0];
+
+  const copyBioLink = () => {
+    if (!data?.profile?.slug) return;
+    navigator.clipboard.writeText(`${window.location.origin}/p/${data.profile.slug}`);
+    toast({ title: "Bio link copied!" });
+  };
 
   const firstName = user?.firstName || "there";
   const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
@@ -295,6 +303,33 @@ export default function Activity() {
               Have you verified your voice yet?
               <ArrowRight size={11} />
             </Link>
+          </div>
+
+          {/* Command-center quick actions — mirrors MilCrunch's dashboard header */}
+          <div className="absolute right-6 top-4 z-20 hidden items-center gap-2 sm:flex lg:right-10 lg:top-5">
+            <Link
+              href="/dashboard/social-hub"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-lg transition-transform hover:scale-[1.03]"
+            >
+              <Share2 size={13} />
+              Create Post
+            </Link>
+            <Link
+              href="/dashboard/profile"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+            >
+              <Link2 size={13} />
+              Edit Bio
+            </Link>
+            {data?.profile?.slug && (
+              <button
+                onClick={copyBioLink}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              >
+                <ExternalLink size={13} />
+                Copy Bio Link
+              </button>
+            )}
           </div>
           <div className="relative z-10 flex min-h-[280px] max-w-[560px] flex-col items-start justify-center px-6 pb-6 pt-9 sm:min-h-[320px] sm:px-8 sm:pb-8 sm:pt-12 lg:px-10 lg:pb-10 lg:pt-14">
             <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-white">
