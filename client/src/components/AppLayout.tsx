@@ -50,6 +50,7 @@ import {
   CalendarRange,
   Repeat,
   GalleryVerticalEnd,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -89,6 +90,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Communication" },
   { title: "Directory", url: "/social/directory", icon: BookMarked, group: "Communication" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
+  { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
   { title: "Campaign", url: "/social/posts?tab=campaign", icon: CalendarRange, group: "Social" },
   { title: "Cadence", url: "/social/posts?tab=cadence", icon: Repeat, group: "Social" },

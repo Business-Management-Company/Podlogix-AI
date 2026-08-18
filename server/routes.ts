@@ -4810,6 +4810,142 @@ Respond in this exact JSON format:
     }
   });
 
+  // ============ ENGAGEMENT: INSTAGRAM DMS + COMMENTS ============
+  // DMs are Instagram-only today (support-confirmed); other platforms error.
+  // Reading covers the full inbox. Sending is bound by Instagram's 24-hour
+  // window (recipient must have messaged first) and a daily cap that 429s.
+
+  app.get('/api/upload-post/dms/conversations', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const response = await fetch(
+        `${UPLOAD_POST_API_BASE}/api/uploadposts/dms/conversations?platform=instagram&user=${encodeURIComponent(uploadPostUsername)}`,
+        { headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to load conversations' });
+      }
+      res.json({ conversations: (data as any).conversations ?? [] });
+    } catch (error) {
+      console.error('Error fetching DM conversations:', error);
+      res.status(500).json({ message: 'Failed to load conversations' });
+    }
+  });
+
+  app.post('/api/upload-post/dms/send', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const { recipientId, message } = req.body ?? {};
+      if (!recipientId || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ message: 'recipientId and message are required' });
+      }
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/dms/send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: 'instagram',
+          user: uploadPostUsername,
+          recipient_id: recipientId,
+          message: message.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const readable = response.status === 429
+          ? "Daily DM limit reached — Instagram caps how many DMs can go out per day. Try again tomorrow."
+          : (data as any)?.message || "Couldn't send the message — Instagram only allows replies within 24 hours of the person's last message.";
+        return res.status(response.status).json({ message: readable });
+      }
+      res.json({ success: true, messageId: (data as any).message_id });
+    } catch (error) {
+      console.error('Error sending DM:', error);
+      res.status(500).json({ message: 'Failed to send message' });
+    }
+  });
+
+  // Comments: list + reply/create + delete across instagram/facebook/youtube/
+  // linkedin (TikTok has no public API). Instagram only supports *replies* to
+  // existing comments; YouTube needs a reconnect with the youtube.force-ssl scope.
+  const COMMENT_PLATFORMS = new Set(['instagram', 'facebook', 'youtube', 'linkedin']);
+
+  app.get('/api/upload-post/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const platform = String(req.query.platform || 'instagram').toLowerCase();
+      const postUrl = String(req.query.postUrl || '').trim();
+      const after = String(req.query.after || '').trim();
+      if (!COMMENT_PLATFORMS.has(platform)) {
+        return res.status(400).json({ message: 'Comments are available for Instagram, Facebook, YouTube, and LinkedIn' });
+      }
+      if (!postUrl) {
+        return res.status(400).json({ message: 'postUrl is required' });
+      }
+      const params = new URLSearchParams({ platform, user: uploadPostUsername, post_url: postUrl });
+      if (after) params.set('after', after);
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/comments?${params}`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const readable = response.status === 403 && platform === 'youtube'
+          ? 'YouTube needs to be reconnected with comment permissions — go to Connectors and reconnect YouTube.'
+          : (data as any)?.message || 'Failed to load comments';
+        return res.status(response.status).json({ message: readable });
+      }
+      res.json({ comments: (data as any).comments ?? [], pagination: (data as any).pagination ?? null });
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      res.status(500).json({ message: 'Failed to load comments' });
+    }
+  });
+
+  app.post('/api/upload-post/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const uploadPostUsername = `podlogix_${req.session.userId!}`;
+      const { platform, message, postUrl, commentId } = req.body ?? {};
+      const platformKey = String(platform || '').toLowerCase();
+      if (!COMMENT_PLATFORMS.has(platformKey)) {
+        return res.status(400).json({ message: 'Comments are available for Instagram, Facebook, YouTube, and LinkedIn' });
+      }
+      if (typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ message: 'message is required' });
+      }
+      if (platformKey === 'instagram' && !commentId) {
+        return res.status(400).json({ message: 'Instagram only supports replying to an existing comment' });
+      }
+      if (!commentId && !postUrl) {
+        return res.status(400).json({ message: 'postUrl or commentId is required' });
+      }
+      const body: Record<string, string> = {
+        platform: platformKey,
+        user: uploadPostUsername,
+        message: message.trim(),
+      };
+      if (commentId) body.comment_id = commentId;
+      else body.post_url = postUrl;
+      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/comments/create`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({ message: (data as any)?.message || 'Failed to post comment' });
+      }
+      res.json({ success: true, id: (data as any).id });
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      res.status(500).json({ message: 'Failed to post comment' });
+    }
+  });
+
   // Get user's posts
   app.get('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
     try {
