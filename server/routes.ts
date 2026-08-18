@@ -7,7 +7,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia } from "./services/supabaseStorageService";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -4864,6 +4864,253 @@ Respond in this exact JSON format:
     } catch (error) {
       console.error('Error sending DM:', error);
       res.status(500).json({ message: 'Failed to send message' });
+    }
+  });
+
+  // ============ COMPOSER AI (write + images) ============
+  // Ported from Empowerify's composer, grounded in the creator's own podcast.
+
+  const AI_TONES: Record<string, string> = {
+    pro: 'Professional and polished. Clear, confident, no slang, minimal emoji.',
+    casual: 'Casual and friendly, like talking to a friend. Contractions welcome, one or two emoji fine.',
+    funny: 'Witty and playful. Light humor that lands without being cringey.',
+    promo: 'Promotional and action-driven. Strong hook, clear call to action, urgency without hype.',
+    edu: 'Educational and generous. Teach one concrete thing; lead with the insight.',
+  };
+
+  const PLATFORM_CHAR_LIMITS: Record<string, number> = {
+    x: 280, bluesky: 300, threads: 500, pinterest: 500, discord: 2000,
+    instagram: 2200, tiktok: 2200, linkedin: 3000, telegram: 4096,
+    youtube: 5000, reddit: 40000, facebook: 63206,
+  };
+  const tightestCharLimit = (platforms: unknown): number => {
+    const list = Array.isArray(platforms) ? platforms : [];
+    return Math.min(
+      ...list.map((p) => PLATFORM_CHAR_LIMITS[String(p).toLowerCase()] ?? 2200),
+      2200,
+    );
+  };
+
+  app.post('/api/social/ai-write', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { focus, customFocus, tone, direction, platforms, episodeId } = req.body ?? {};
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'AI writing needs the OpenAI key configured' });
+      }
+
+      const podcasts = await storage.getPodcastsByUserId(userId);
+      const show = podcasts[0] ?? null;
+
+      // "My Show" focus can target a specific episode — verify it's theirs.
+      let episodeContext = '';
+      if (episodeId) {
+        const episode = await storage.getEpisode(String(episodeId));
+        if (episode && podcasts.some((p) => p.id === episode.podcastId)) {
+          const notes = String(episode.description || episode.showNotes || '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 500);
+          episodeContext = `\nThe post promotes this specific episode: "${episode.title}"${notes ? ` — ${notes}` : ''}. Tease it; don't give everything away.`;
+        }
+      }
+      const showContext = show
+        ? `The creator hosts the podcast "${show.title}"${show.description ? ` — ${String(show.description).slice(0, 300)}` : ''}.`
+        : 'The creator hosts a podcast.';
+
+      const focusMap: Record<string, string> = {
+        show: `${showContext} Write a social post that promotes the show or a recent episode and gives people a reason to listen.`,
+        general: `${showContext} Write a social post sharing a useful tip, insight, or piece of news from their subject area. Value first, show second.`,
+        personal: `${showContext} Write a personal, authentic post that shows the human behind the mic — a lesson, a behind-the-scenes moment, a candid thought.`,
+        custom: `${showContext} Write a social post about: ${String(customFocus || direction || 'a general update')}.`,
+      };
+
+      const toneLine = AI_TONES[String(tone)] ?? AI_TONES.pro;
+      const platformList: string[] = Array.isArray(platforms) ? platforms : [];
+      const tightest = tightestCharLimit(platformList);
+
+      const system = `You write social media posts for podcast creators.
+${focusMap[String(focus)] ?? focusMap.general}${episodeContext}
+Tone: ${toneLine}
+The post must fit in ${Math.min(tightest, 2200)} characters (the tightest selected platform). No markdown formatting — plain text with natural line breaks only.
+Respond with JSON: {"post": "<the post text, no hashtags in it>", "hashtags": ["five", "relevant", "hashtags", "without", "#"]}`;
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 700,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `Topic/direction: ${String(direction || customFocus || 'surprise me — something on-brand')}` },
+        ],
+      });
+      const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      res.json({
+        post: typeof parsed.post === 'string' ? parsed.post : '',
+        hashtags: Array.isArray(parsed.hashtags)
+          ? parsed.hashtags.slice(0, 5).map((h: unknown) => String(h).replace(/^#/, ''))
+          : [],
+      });
+    } catch (error) {
+      console.error('AI write error:', error);
+      res.status(500).json({ message: 'AI writing failed — try again' });
+    }
+  });
+
+  app.post('/api/social/ai-image', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { prompt, count } = req.body ?? {};
+      if (typeof prompt !== 'string' || !prompt.trim()) {
+        return res.status(400).json({ message: 'prompt is required' });
+      }
+      if (!process.env.OPENAI_API_KEY && !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'Image generation needs the OpenAI key configured' });
+      }
+      if (!isSupabaseStorageConfigured()) {
+        return res.status(503).json({ message: 'Storage is not configured' });
+      }
+      const n = Math.min(Math.max(1, Number(count) || 2), 4);
+      const fullPrompt = `${prompt.trim()}, photorealistic, professional photo, high quality, no text, no words`;
+      const { generateImageBuffer } = await import('./replit_integrations/image/client');
+      const buffers = await Promise.all(
+        Array.from({ length: n }, () => generateImageBuffer(fullPrompt).catch(() => null))
+      );
+      const urls = (
+        await Promise.all(
+          buffers.filter((b): b is Buffer => !!b).map((b) => storeImageBuffer(b, `ai-images/${userId}`))
+        )
+      ).filter((u): u is string => !!u);
+      if (urls.length === 0) {
+        return res.status(500).json({ message: 'Image generation failed — try again' });
+      }
+      res.json({ urls });
+    } catch (error) {
+      console.error('AI image error:', error);
+      res.status(500).json({ message: 'Image generation failed — try again' });
+    }
+  });
+
+  // Batch generation for Campaigns and Cadences: the client sends dated slots
+  // (each with a theme), one gpt call writes the whole series with varied
+  // angles, and the client schedules each post through the normal posts route.
+  app.post('/api/social/ai-batch', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { slots, tone, platforms, theme, mode } = req.body ?? {};
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'AI writing needs the OpenAI key configured' });
+      }
+      if (!Array.isArray(slots) || slots.length === 0) {
+        return res.status(400).json({ message: 'slots are required' });
+      }
+      if (slots.length > 30) {
+        return res.status(400).json({ message: 'Plan 30 posts or fewer at a time' });
+      }
+
+      const podcasts = await storage.getPodcastsByUserId(userId);
+      const show = podcasts[0] ?? null;
+      const showContext = show
+        ? `The creator hosts the podcast "${show.title}"${show.description ? ` — ${String(show.description).slice(0, 300)}` : ''}.`
+        : 'The creator hosts a podcast.';
+      const toneLine = AI_TONES[String(tone)] ?? AI_TONES.pro;
+      const limit = tightestCharLimit(platforms);
+
+      const slotLines = slots
+        .map((s: any, i: number) => `${i + 1}. ${new Date(s.date).toDateString()} — theme: ${String(s.theme || theme || 'general')}`)
+        .join('\n');
+      const system = `You write a series of social media posts for a podcast creator.
+${showContext}
+${mode === 'cadence'
+  ? 'This is a recurring weekly cadence — each day has its own theme.'
+  : `This is a campaign around one theme: ${String(theme || 'a themed push')}.`}
+Write exactly one post per slot below, in order. Every post must take a DIFFERENT angle — vary the hook and format (question, bold claim, mini-story, list, stat); never reuse phrasing between posts.
+Tone: ${toneLine}
+Each post must fit in ${limit} characters. Plain text with natural line breaks; no hashtags inside the post body.
+Slots:
+${slotLines}
+Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"<the text>","hashtags":["five","relevant","tags","without","symbol"]}]}`;
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 4000,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: 'Write the series now.' },
+        ],
+      });
+      const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      const generated = Array.isArray(parsed.posts) ? parsed.posts : [];
+      const posts = slots.map((s: any, i: number) => {
+        const g = generated.find((p: any) => p?.slot === i + 1) ?? generated[i] ?? {};
+        return {
+          date: s.date,
+          theme: s.theme ?? theme ?? null,
+          title: typeof g.title === 'string' ? g.title : `Post ${i + 1}`,
+          post: typeof g.post === 'string' ? g.post : '',
+          hashtags: Array.isArray(g.hashtags)
+            ? g.hashtags.slice(0, 5).map((h: unknown) => String(h).replace(/^#/, ''))
+            : [],
+        };
+      }).filter((p: { post: string }) => p.post.trim().length > 0);
+      if (posts.length === 0) {
+        return res.status(500).json({ message: 'Generation came back empty — try again' });
+      }
+      res.json({ posts });
+    } catch (error) {
+      console.error('AI batch error:', error);
+      res.status(500).json({ message: 'Batch generation failed — try again' });
+    }
+  });
+
+  // Attach an episode's (or show's) artwork as post media. The artwork URL
+  // comes from our own DB — never the client — so fetching it is safe; the
+  // image still gets content-type and size checks, and lands in our bucket
+  // so the posting route's Supabase-host guard passes.
+  app.post('/api/social/episode-artwork', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { episodeId } = req.body ?? {};
+      if (!episodeId) return res.status(400).json({ message: 'episodeId is required' });
+      const episode = await storage.getEpisode(String(episodeId));
+      const podcasts = await storage.getPodcastsByUserId(userId);
+      const podcast = episode ? podcasts.find((p) => p.id === episode.podcastId) : undefined;
+      if (!episode || !podcast) return res.status(404).json({ message: 'Episode not found' });
+
+      const sourceUrl = episode.artworkUrl || podcast.artworkUrl || null;
+      if (!sourceUrl) return res.status(404).json({ message: 'No artwork on this episode or show yet' });
+
+      const supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
+      try {
+        if (supabaseHost && new URL(sourceUrl).host === supabaseHost) {
+          return res.json({ url: sourceUrl });
+        }
+      } catch { /* relative path — resolve below */ }
+
+      const absolute = sourceUrl.startsWith('http')
+        ? sourceUrl
+        : `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}${sourceUrl}`;
+      const response = await fetch(absolute);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.startsWith('image/')) {
+        return res.status(422).json({ message: "Couldn't fetch the artwork image" });
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > 15 * 1024 * 1024) {
+        return res.status(422).json({ message: 'Artwork is too large to attach' });
+      }
+      const url = await storeImageBuffer(buffer, `artwork/${userId}`, contentType);
+      if (!url) return res.status(500).json({ message: "Couldn't store the artwork" });
+      res.json({ url });
+    } catch (error) {
+      console.error('Episode artwork error:', error);
+      res.status(500).json({ message: "Couldn't attach artwork" });
     }
   });
 

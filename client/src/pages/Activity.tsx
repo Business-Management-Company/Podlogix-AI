@@ -1,17 +1,19 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   ArrowRight,
   BarChart3,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Circle,
   ExternalLink,
   Link2,
   Mail,
   Mic,
+  PenSquare,
   Radio,
   Rss,
   Share2,
@@ -19,6 +21,12 @@ import {
   Sparkles,
   UserPlus,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SiGooglecalendar, SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX } from "react-icons/si";
 import { Card, CardRow, EmptyState, SectionHeader, TopStat } from "@/components/kit";
 import { useToast } from "@/hooks/use-toast";
@@ -217,9 +225,28 @@ export default function Activity() {
     retry: false,
   });
 
-  // Locally-cached Upload-Post connections (synced whenever Social Hub loads).
+  // Live Upload-Post sync (not the local cache) so the strip carries the
+  // Facebook Page identity and fresh reauth state, same as Social Hub.
   const { data: socialAccounts } = useQuery<{ accounts: ConnectedSocialAccount[] }>({
-    queryKey: ["/api/upload-post/local-accounts"],
+    queryKey: ["/api/upload-post/accounts"],
+    retry: false,
+  });
+
+  const connectedPlatformKeys = (socialAccounts?.accounts ?? [])
+    .filter((a) => a.isConnected)
+    .map((a) => a.platform.toLowerCase());
+
+  // Follower counts per platform from Upload-Post analytics (shares Social
+  // Hub's cache key, so navigating between the two pages costs one fetch).
+  const { data: uploadPostAnalytics } = useQuery<Record<string, { followers?: number; message?: string }>>({
+    queryKey: ["/api/upload-post/analytics", connectedPlatformKeys.join(",")],
+    queryFn: async () => {
+      const res = await fetch(`/api/upload-post/analytics?platforms=${connectedPlatformKeys.join(",")}`);
+      if (!res.ok) throw new Error("analytics unavailable");
+      return res.json();
+    },
+    enabled: connectedPlatformKeys.length > 0,
+    staleTime: 5 * 60_000,
     retry: false,
   });
 
@@ -254,9 +281,15 @@ export default function Activity() {
   const liveCount = Object.values(data?.distributionStatus ?? {}).filter((s) => s === "approved").length;
   const totalFollowers = promotion?.accounts?.reduce((sum, a) => sum + (a.followers || 0), 0) ?? 0;
 
-  const followersByPlatform = new Map(
+  // Prefer live Upload-Post analytics; fall back to the IC analytics profiles.
+  const followersByPlatform = new Map<string | undefined, number | undefined>(
     (promotion?.accounts ?? []).map((a) => [a.platform?.toLowerCase(), a.followers])
   );
+  for (const [platform, stats] of Object.entries(uploadPostAnalytics ?? {})) {
+    if (stats && typeof stats.followers === "number" && stats.followers > 0) {
+      followersByPlatform.set(platform.toLowerCase(), stats.followers);
+    }
+  }
   const connectedSocials = (socialAccounts?.accounts ?? []).filter((a) => a.isConnected);
 
   const recentEpisodes = useMemo(
@@ -347,33 +380,89 @@ export default function Activity() {
 
       {connectedSocials.length > 0 && (
         <section className="mb-6">
-          <div className="flex flex-wrap items-center gap-2.5">
+          <h3 className="mb-3 text-base font-semibold text-zinc-950">Connected accounts</h3>
+          <div className="flex flex-wrap items-stretch gap-3">
             {connectedSocials.map((account) => {
+              const platformKey = account.platform.toLowerCase();
               const Icon = {
                 instagram: SiInstagram, youtube: SiYoutube, facebook: SiFacebook,
                 linkedin: SiLinkedin, tiktok: SiTiktok, x: SiX, twitter: SiX,
-              }[account.platform.toLowerCase()];
-              const followers = followersByPlatform.get(account.platform.toLowerCase());
+              }[platformKey];
+              // Brand chip colors matching each platform's mark.
+              const badgeClass = {
+                facebook: "bg-[#1877F2] text-white",
+                instagram: "bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white",
+                linkedin: "bg-[#0A66C2] text-white",
+                x: "bg-black text-white",
+                twitter: "bg-black text-white",
+                youtube: "bg-[#FF0000] text-white",
+                tiktok: "bg-black text-white",
+              }[platformKey] ?? "bg-zinc-700 text-white";
+              const followers = followersByPlatform.get(platformKey);
+              const followerNoun = platformKey === "youtube" ? "subscribers" : "followers";
+              const displayName = account.platformUsername
+                ? (platformKey === "facebook" || platformKey === "linkedin"
+                    ? account.platformUsername
+                    : `@${account.platformUsername.replace(/^@/, "")}`)
+                : account.platform;
               return (
-                <Link key={account.platform} href="/dashboard/social-hub">
-                  <span className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-zinc-200 bg-white py-1.5 pl-1.5 pr-3.5 transition-colors hover:border-zinc-300">
-                    {account.profilePictureUrl ? (
-                      <img src={account.profilePictureUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
-                    ) : Icon ? (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100">
-                        <Icon className="h-3 w-3 text-zinc-600" />
+                <DropdownMenu key={account.platform}>
+                  <DropdownMenuTrigger asChild>
+                    <button className="group flex items-center gap-3 rounded-2xl border border-zinc-800/60 bg-zinc-900 py-2.5 pl-2.5 pr-3.5 text-left shadow-sm transition-colors hover:bg-zinc-800">
+                      <span className="relative shrink-0">
+                        {account.profilePictureUrl ? (
+                          <img
+                            src={account.profilePictureUrl}
+                            alt=""
+                            className="h-10 w-10 rounded-full border border-white/10 object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-700 text-sm font-semibold text-white">
+                            {displayName.replace(/^@/, "")[0]?.toUpperCase()}
+                          </span>
+                        )}
+                        {Icon && (
+                          <span
+                            className={`absolute -bottom-1 -left-1 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-zinc-900 ${badgeClass}`}
+                          >
+                            <Icon className="h-2.5 w-2.5" />
+                          </span>
+                        )}
                       </span>
-                    ) : null}
-                    <span className="text-xs font-medium text-zinc-900">
-                      {account.platformUsername ? `@${account.platformUsername}` : account.platform}
-                    </span>
-                    {typeof followers === "number" && followers > 0 && (
-                      <span className="text-[11px] text-zinc-400">
-                        {followers >= 1000 ? `${(followers / 1000).toFixed(1)}K` : followers} followers
+                      <span className="min-w-0">
+                        <span className="block max-w-[160px] truncate text-sm font-semibold text-white">
+                          {displayName}
+                        </span>
+                        <span className="block text-xs text-zinc-400">
+                          {typeof followers === "number" && followers > 0
+                            ? `${followers >= 1000 ? `${(followers / 1000).toFixed(1)}K` : followers} ${followerNoun}`
+                            : "Connected"}
+                        </span>
                       </span>
-                    )}
-                  </span>
-                </Link>
+                      <ChevronDown
+                        size={14}
+                        className="ml-1 shrink-0 text-zinc-500 transition-transform group-data-[state=open]:rotate-180"
+                      />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/social-hub" className="flex items-center gap-2">
+                        <BarChart3 size={14} /> View analytics
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/social/posts" className="flex items-center gap-2">
+                        <PenSquare size={14} /> Create post
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/connectors" className="flex items-center gap-2">
+                        <Link2 size={14} /> Manage connection
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               );
             })}
           </div>
