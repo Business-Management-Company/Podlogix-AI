@@ -4,6 +4,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -158,6 +161,8 @@ export default function LiveStudio() {
   const liveRoomRef = useRef<LiveRoom | null>(null);
   const [guestFeed, setGuestFeed] = useState<RemoteFeed>({ stream: null, name: "" });
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const { data, isLoading } = useQuery<{ session: LiveSession | null; marks: LiveMark[] }>({
     queryKey: ["/api/live/current"],
@@ -444,8 +449,9 @@ export default function LiveStudio() {
         await room.publish(cameraStreamRef.current);
       }
 
-      await navigator.clipboard.writeText(link.url);
-      toast({ title: "Guest link copied", description: "Send it to your guest — they appear on the stage when they join, live or not." });
+      setInviteUrl(link.url);
+      setInviteCopied(false);
+      await navigator.clipboard.writeText(link.url).catch(() => {});
     } catch (e) {
       toast({
         title: "Couldn't invite a guest",
@@ -845,6 +851,39 @@ export default function LiveStudio() {
           </div>
         )}
       </div>
+
+      {/* Guest invite — the link, visible and copyable */}
+      <Dialog open={!!inviteUrl} onOpenChange={(v) => !v && setInviteUrl(null)}>
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Invite your guest</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Send this link any way you like. No account needed — they check their camera in the green room,
+              then appear on your stage, live or not. The link keeps working for this studio, show after show.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <Input
+              readOnly
+              value={inviteUrl ?? ""}
+              onFocus={(e) => e.target.select()}
+              className="flex-1 border-zinc-700 bg-zinc-900 font-mono text-xs text-zinc-100"
+            />
+            <Button
+              onClick={() => {
+                if (!inviteUrl) return;
+                void navigator.clipboard.writeText(inviteUrl).then(() => {
+                  setInviteCopied(true);
+                  setTimeout(() => setInviteCopied(false), 2000);
+                });
+              }}
+              className={inviteCopied ? "bg-emerald-600 text-white hover:bg-emerald-600" : "bg-red-600 text-white hover:bg-red-700"}
+            >
+              {inviteCopied ? "Copied ✓" : "Copy"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ═══ Studio lobby — pick a room or build one ═══ */}
       {!activeStudio && (
