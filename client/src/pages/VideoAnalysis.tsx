@@ -68,6 +68,17 @@ export default function VideoAnalysis() {
   const analyze = async () => {
     const url = selectedUrl ?? manualUrl.trim();
     if (!url) return;
+    // YouTube pages aren't media files — the browser can't read audio out of
+    // them. Catch it early with a real explanation instead of "Failed to fetch".
+    if (/(^https?:\/\/)?([^/]*\.)?(youtube\.com|youtu\.be)\//i.test(url)) {
+      toast({
+        title: "YouTube links can't be analyzed",
+        description:
+          "YouTube gives us a web page, not the video file. Pick one of your own recordings above, or paste a direct .mp4 link.",
+        variant: "destructive",
+      });
+      return;
+    }
     setResult(null);
     try {
       setPhase("extracting");

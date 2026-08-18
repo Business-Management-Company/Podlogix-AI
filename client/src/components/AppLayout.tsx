@@ -52,6 +52,7 @@ import {
   GalleryVerticalEnd,
   MessageCircle,
   Radio,
+  WandSparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -105,13 +106,6 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Connectors", url: "/connectors", icon: Plug },
 ];
 
-// Rail bottom cluster — standalone destinations that live on the dark rail only.
-const RAIL_BOTTOM: RailItem[] = [
-  { title: "Help Center", icon: HelpCircle, url: "/help", isActive: () => false },
-  { title: "Connectors", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
-  { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
-];
-
 interface RailItem {
   title: string;
   icon: LucideIcon;
@@ -131,7 +125,10 @@ const RAIL_ITEMS: RailItem[] = [
   { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
   { title: "Guests & CRM", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Guests & CRM" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
-  { title: "Studio", icon: Sparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" },
+  { title: "Studio", icon: WandSparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" },
+  { title: "Connectors", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
+  { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
+  { title: "Help Center", icon: HelpCircle, url: "/help", isActive: () => false },
 ];
 
 /** Nav for a single show's context — shown in the panel when inside /shows/:id. */
@@ -325,46 +322,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Bottom icons */}
         <div className={`flex flex-col gap-1 py-3 border-t border-white/[0.06] ${railExpanded ? "px-2" : "items-center"}`}>
 
-          {RAIL_BOTTOM.map((item) => {
-            const isActive = item.isActive(activeLeaf);
-            const Icon = item.icon;
-            const btn = (
-              <Link href={item.url}>
-                <button
-                  className={`
-                    flex items-center h-10 rounded-xl transition-all duration-150
-                    ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
-                    ${isActive ? "bg-white/10" : "hover:bg-white/[0.06]"}
-                  `}
-                  aria-label={item.title}
-                >
-                  <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-slate-200" : "text-slate-500"}`} />
-                  {railExpanded && (
-                    <span className={`text-sm truncate ${isActive ? "text-slate-200" : "text-slate-400"}`}>{item.title}</span>
-                  )}
-                </button>
-              </Link>
-            );
-            return railExpanded ? (
-              <div key={item.url}>{btn}</div>
-            ) : (
-              <Tooltip key={item.url} delayDuration={300}>
-                <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">{item.title}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-
-          {/* Admin cluster — Admin for admins; SaaS Portal + Integrations for superadmins */}
-          {[
-            ...(adminCheck?.isAdmin ? [{ title: "Admin", icon: ShieldCheck, url: "/admin" }] : []),
-            ...(adminCheck?.isSuperAdmin
-              ? [
-                  { title: "SaaS Portal", icon: Building2, url: "/saas-admin" },
-                  { title: "Integrations", icon: Puzzle, url: "/admin/integrations" },
-                ]
-              : []),
-          ].map((item) => {
+          {/* Bottom cluster is deliberately just Admin (SaaS Portal and
+              Integrations live inside the Admin page) + the profile avatar. */}
+          {(adminCheck?.isAdmin ? [{ title: "Admin", icon: ShieldCheck, url: "/admin" }] : []).map((item) => {
             const Icon = item.icon;
             const btn = (
               <Link href={item.url}>

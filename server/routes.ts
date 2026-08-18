@@ -4776,6 +4776,94 @@ Respond in this exact JSON format:
   });
 
   // Import selected posts: mirror media/thumbnails into OUR storage, then save.
+  // Add one item by hand: an uploaded file (already in our bucket), a direct
+  // media URL (downloaded into our bucket), or a YouTube link (kept as a
+  // linked reference — we don't rip YouTube videos).
+  app.post('/api/media-library/add', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const title = String(req.body?.title ?? '').trim().slice(0, 200);
+      let url: URL;
+      try { url = new URL(String(req.body?.url ?? '')); } catch {
+        return res.status(400).json({ message: 'Paste a valid link first' });
+      }
+      if (url.protocol !== 'https:') return res.status(400).json({ message: 'The link must be https' });
+
+      const extOf = (p: string) => (/\.([a-z0-9]{2,5})(?:$|\?)/i.exec(p)?.[1] ?? '').toLowerCase();
+      const AUDIO_EXT = new Set(['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac']);
+      const VIDEO_EXT = new Set(['mp4', 'webm', 'mov', 'mkv', 'm4v']);
+
+      // YouTube: store the link itself, not the file.
+      if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(url.host)) {
+        const item = await storage.createMediaLibraryItem({
+          userId,
+          platform: 'youtube',
+          externalId: `link-${crypto.createHash('sha1').update(url.toString()).digest('hex').slice(0, 16)}`,
+          caption: title || 'YouTube video',
+          mediaType: 'video',
+          mediaUrl: null,
+          thumbnailUrl: null,
+          permalink: url.toString(),
+          postedAt: new Date(),
+        });
+        return res.json({ item, linked: true });
+      }
+
+      const supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
+      const ext = extOf(url.pathname);
+      const mediaType = AUDIO_EXT.has(ext) ? 'audio' : VIDEO_EXT.has(ext) ? 'video' : 'image';
+
+      // Already in our bucket (fresh upload) — just file it.
+      if (supabaseHost && url.host === supabaseHost) {
+        const item = await storage.createMediaLibraryItem({
+          userId,
+          platform: 'upload',
+          externalId: `upload-${crypto.createHash('sha1').update(url.toString()).digest('hex').slice(0, 16)}`,
+          caption: title || 'Uploaded media',
+          mediaType,
+          mediaUrl: url.toString(),
+          thumbnailUrl: null,
+          permalink: null,
+          postedAt: new Date(),
+        });
+        return res.json({ item });
+      }
+
+      // External direct file: copy it into our bucket (never keep foreign URLs).
+      const dl = await fetch(url.toString());
+      if (!dl.ok) return res.status(400).json({ message: `That link refused the download (HTTP ${dl.status})` });
+      const contentType = dl.headers.get('content-type') || '';
+      if (!/^(video|audio|image)\//.test(contentType)) {
+        return res.status(400).json({ message: 'That link is a web page, not a media file. Paste a direct .mp4/.mp3 link — or use Upload.' });
+      }
+      const buffer = Buffer.from(await dl.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > MAX_CLIP_BYTES) {
+        return res.status(413).json({ message: buffer.length === 0 ? 'That file is empty' : 'That file is over the 80MB link limit — upload it instead' });
+      }
+      const stored = contentType.startsWith('audio/')
+        ? await storeAudioBuffer(buffer, `imports/${userId}`, contentType)
+        : contentType.startsWith('image/')
+          ? await storeImageBuffer(buffer, `imports/${userId}`, contentType)
+          : await storeVideoBuffer(buffer, `imports/${userId}`, contentType);
+      if (!stored) return res.status(502).json({ message: "Couldn't store the file" });
+      const item = await storage.createMediaLibraryItem({
+        userId,
+        platform: 'upload',
+        externalId: `import-${crypto.createHash('sha1').update(url.toString()).digest('hex').slice(0, 16)}`,
+        caption: title || url.pathname.split('/').pop() || 'Imported media',
+        mediaType: contentType.startsWith('audio/') ? 'audio' : contentType.startsWith('image/') ? 'image' : 'video',
+        mediaUrl: stored,
+        thumbnailUrl: null,
+        permalink: null,
+        postedAt: new Date(),
+      });
+      res.json({ item });
+    } catch (error) {
+      console.error('Error adding media:', error);
+      res.status(500).json({ message: 'Failed to add that to the library' });
+    }
+  });
+
   app.post('/api/media-library/import', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;

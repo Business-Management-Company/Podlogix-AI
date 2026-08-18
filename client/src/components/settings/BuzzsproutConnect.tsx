@@ -452,9 +452,9 @@ export function BuzzsproutConnect() {
       )}
 
       {episodes.length === 0 && !episodesQuery.isLoading && (
-        <div className="rounded-xl border border-white/[0.04] bg-white/[0.01] py-8 text-center text-sm text-muted-foreground/40">
+        <p className="text-xs text-muted-foreground/50">
           No episodes yet — click "Sync now" to import from Buzzsprout.
-        </div>
+        </p>
       )}
     </div>
   );

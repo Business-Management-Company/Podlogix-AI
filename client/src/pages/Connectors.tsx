@@ -373,49 +373,75 @@ export default function Connectors() {
         <p className="mb-3 text-xs text-zinc-500">
           Accounts Podlogix can publish to. Connecting opens a secure linking page.
         </p>
-        <Card padding="none" className="divide-y divide-zinc-100">
-          {POSTING_PLATFORMS.map((platform) => {
-            const account = postingAccounts.get(platform);
-            const isConnecting = connectingPlatform === platform && connectPostingMutation.isPending;
-            const status = account?.reauthRequired ? "warn" : account ? "connected" : "off";
-            const statusLabel = account?.reauthRequired
-              ? "Reconnect needed"
-              : account
-                ? "Connected"
-                : "Not connected";
-            return (
-              <ConnectorRow
-                key={platform}
-                icon={platformIcons[platform] ?? <Link2 className="h-4 w-4" />}
-                name={platformNames[platform] ?? platform}
-                detail={account?.platformUsername ? `@${account.platformUsername}` : undefined}
-                status={status}
-                statusLabel={statusLabel}
-                action={
+        {POSTING_PLATFORMS.some((platform) => postingAccounts.get(platform)) && (
+          <Card padding="none" className="mb-3 divide-y divide-zinc-100">
+            {POSTING_PLATFORMS.filter((platform) => postingAccounts.get(platform)).map((platform) => {
+              const account = postingAccounts.get(platform)!;
+              const isConnecting = connectingPlatform === platform && connectPostingMutation.isPending;
+              return (
+                <ConnectorRow
+                  key={platform}
+                  icon={platformIcons[platform] ?? <Link2 className="h-4 w-4" />}
+                  name={platformNames[platform] ?? platform}
+                  detail={account.platformUsername ? `@${account.platformUsername}` : undefined}
+                  status={account.reauthRequired ? "warn" : "connected"}
+                  statusLabel={account.reauthRequired ? "Reconnect needed" : "Connected"}
+                  action={
+                    <Button
+                      size="sm"
+                      variant={account.reauthRequired ? "outline" : "ghost"}
+                      onClick={() => {
+                        setConnectingPlatform(platform);
+                        connectPostingMutation.mutate(platform);
+                      }}
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : account.reauthRequired ? (
+                        "Reconnect"
+                      ) : (
+                        "Manage"
+                      )}
+                    </Button>
+                  }
+                />
+              );
+            })}
+          </Card>
+        )}
+        {POSTING_PLATFORMS.some((platform) => !postingAccounts.get(platform)) && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {POSTING_PLATFORMS.filter((platform) => !postingAccounts.get(platform)).map((platform) => {
+              const isConnecting = connectingPlatform === platform && connectPostingMutation.isPending;
+              return (
+                <div
+                  key={platform}
+                  className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-50">
+                    {platformIcons[platform] ?? <Link2 className="h-4 w-4" />}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800">
+                    {platformNames[platform] ?? platform}
+                  </span>
                   <Button
                     size="sm"
-                    variant={account && !account.reauthRequired ? "ghost" : "outline"}
+                    variant="outline"
+                    className="h-7 shrink-0 text-xs"
                     onClick={() => {
                       setConnectingPlatform(platform);
                       connectPostingMutation.mutate(platform);
                     }}
                     disabled={isConnecting}
                   >
-                    {isConnecting ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : account?.reauthRequired ? (
-                      "Reconnect"
-                    ) : account ? (
-                      "Manage"
-                    ) : (
-                      "Connect"
-                    )}
+                    {isConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Connect"}
                   </Button>
-                }
-              />
-            );
-          })}
-        </Card>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* ── Analytics profiles ── */}

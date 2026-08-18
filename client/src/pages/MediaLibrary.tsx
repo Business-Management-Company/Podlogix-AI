@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -10,9 +10,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ObjectUploader } from "@/components/ObjectUploader";
 import {
   AudioLines, Check, Clapperboard, Download, ExternalLink, Film, FolderOpen,
-  Image as ImageIcon, Loader2, Search, Sparkles, Trash2,
+  Image as ImageIcon, Link2, Loader2, Plus, Search, Sparkles, Trash2, Upload,
 } from "lucide-react";
 import {
   SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
@@ -160,6 +161,60 @@ export default function MediaLibrary() {
     },
   });
 
+  // ── Add media by hand: upload a file, or paste a link ──
+  const [addOpen, setAddOpen] = useState(false);
+  const [addUrl, setAddUrl] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const uploadPathRef = useRef<string | null>(null);
+
+  const getUploadParams = async (file: File) => {
+    const res = await apiRequest("POST", "/api/uploads/request-url", {
+      name: file.name, size: file.size, contentType: file.type,
+    });
+    const data = await res.json();
+    uploadPathRef.current = data.objectPath;
+    return { method: "PUT" as const, url: data.uploadURL };
+  };
+
+  const fileUploaded = async (name?: string) => {
+    if (!uploadPathRef.current) return;
+    try {
+      const res = await apiRequest("POST", "/api/media-library/add", {
+        url: uploadPathRef.current, title: name ?? "",
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
+      toast({ title: "Added to your library" });
+      setAddOpen(false);
+    } catch {
+      toast({ title: "Couldn't add that file", variant: "destructive" });
+    }
+  };
+
+  const addByLink = async () => {
+    setAddBusy(true);
+    try {
+      const res = await apiRequest("POST", "/api/media-library/add", { url: addUrl.trim() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Couldn't add that link");
+      queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
+      toast({
+        title: data.linked ? "YouTube link saved" : "Added to your library",
+        description: data.linked ? "Saved as a linked reference — the file itself stays on YouTube." : undefined,
+      });
+      setAddUrl("");
+      setAddOpen(false);
+    } catch (e) {
+      toast({
+        title: "Couldn't add that",
+        description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   const togglePick = (id: string) =>
     setPicked((prev) => {
       const next = new Set(prev);
@@ -176,10 +231,53 @@ export default function MediaLibrary() {
             Everything you've already published, pulled into one place — ready to reuse.
           </p>
         </div>
-        <Button onClick={() => setImportOpen(true)} data-testid="button-import">
-          <Download className="mr-1.5 h-4 w-4" /> Import from your channels
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={() => setAddOpen(true)} data-testid="button-add-media">
+            <Plus className="mr-1.5 h-4 w-4" /> Add media
+          </Button>
+          <Button onClick={() => setImportOpen(true)} data-testid="button-import">
+            <Download className="mr-1.5 h-4 w-4" /> Import from your channels
+          </Button>
+        </div>
       </div>
+
+      {/* Add media dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add media</DialogTitle>
+            <DialogDescription>
+              Upload a file from your computer, or paste a link. Direct video/audio links get copied into your
+              storage; YouTube links are saved as linked references.
+            </DialogDescription>
+          </DialogHeader>
+          <ObjectUploader
+            maxFileSize={100 * 1024 * 1024}
+            onGetUploadParameters={getUploadParams}
+            onComplete={(r) => void fileUploaded((r.successful[0] as { name?: string } | undefined)?.name)}
+            buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-8 !text-zinc-500 hover:!bg-zinc-50"
+          >
+            <Upload className="h-5 w-5" />
+            <span className="text-xs font-medium">Upload video or audio</span>
+            <span className="text-[11px] text-zinc-400">Up to 100MB</span>
+          </ObjectUploader>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Link2 className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+              <Input
+                placeholder="…or paste a link — .mp4, .mp3, or YouTube"
+                value={addUrl}
+                onChange={(e) => setAddUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && addUrl.trim()) void addByLink(); }}
+                className="pl-8"
+              />
+            </div>
+            <Button onClick={() => void addByLink()} disabled={!addUrl.trim() || addBusy}>
+              {addBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {items.length > 0 && (
         <>
