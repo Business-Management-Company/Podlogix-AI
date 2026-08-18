@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2, Mic, MicOff,
-  MonitorUp, Radio, Scissors, Square, Type,
+  MonitorUp, Radio, Scissors, Sparkles, Square, Type,
 } from "lucide-react";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 import { generateSrt, generateVtt, downloadText, type CaptionSegment } from "@/lib/captions";
@@ -69,6 +69,9 @@ export default function LiveStudio() {
   const [prompterOn, setPrompterOn] = useState(false);
   const [prompterScript, setPrompterScript] = useState("");
   const [prompterSpeed, setPrompterSpeed] = useState<PrompterSpeed>("normal");
+
+  // ── AI moment detection ──
+  const [detectPhase, setDetectPhase] = useState<"idle" | "listening" | "scanning">("idle");
 
   // ── Captions ──
   const [captionBusyId, setCaptionBusyId] = useState<string | null>(null);
@@ -383,6 +386,44 @@ export default function LiveStudio() {
     }
   };
 
+  // The producer's ear: transcribe the VOD, let AI file the strong moments
+  // as marks, ready to cut in the Editing Room.
+  const findMomentsWithAi = async () => {
+    if (!session || !vodUrl.trim()) return;
+    try {
+      setDetectPhase("listening");
+      const wav = await extractAudioAsWav(vodUrl.trim());
+      const tRes = await fetch("/api/social/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "audio/wav" },
+        body: wav,
+      });
+      const tData = await tRes.json().catch(() => ({}));
+      if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
+
+      setDetectPhase("scanning");
+      const dRes = await apiRequest("POST", `/api/live/sessions/${session.id}/detect-moments`, {
+        segments: tData.segments ?? [],
+      });
+      const dData = await dRes.json().catch(() => ({}));
+      if (!dRes.ok) throw new Error(dData.message || "Detection failed");
+      refresh();
+      const found = (dData.marks ?? []).length;
+      toast({
+        title: found > 0 ? `${found} moment${found === 1 ? "" : "s"} found` : "No clip-worthy moments found",
+        description: found > 0 ? "They're in your Editing Room below — cut the keepers." : "Manual marks still work — you know your show best.",
+      });
+    } catch (e) {
+      toast({
+        title: "Couldn't scan the recording",
+        description: e instanceof Error ? e.message.replace(/^\d{3}:\s*/, "") : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setDetectPhase("idle");
+    }
+  };
+
   const endedWithMarks = session?.endedAt && marks.length > 0;
   const prompterDuration = Math.max(
     12,
@@ -428,23 +469,6 @@ export default function LiveStudio() {
                 </div>
               )}
             </div>
-
-            {/* CLIP THAT — the whole point */}
-            {liveNow && (
-              <button
-                type="button"
-                onClick={() => void clip()}
-                className={`w-full select-none rounded-2xl py-8 text-2xl font-black tracking-wide text-white shadow-xl transition-all ${
-                  flash ? "scale-[0.99] bg-emerald-500" : "bg-primary hover:opacity-90 active:scale-[0.99]"
-                }`}
-              >
-                <Scissors className="mr-3 -mt-1 inline h-7 w-7" />
-                {flash ? "MARKED!" : "CLIP THAT"}
-                <span className="mt-1 block text-[11px] font-medium normal-case tracking-normal text-white/70">
-                  or hit the spacebar
-                </span>
-              </button>
-            )}
 
             {/* Control bar */}
             <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-900 p-3">
@@ -509,14 +533,24 @@ export default function LiveStudio() {
                   </Button>
                 </>
               ) : (
-                <Button
-                  onClick={() => endMutation.mutate()}
-                  disabled={endMutation.isPending}
-                  variant="outline"
-                  className="border-zinc-600 bg-transparent text-zinc-100 hover:bg-zinc-800"
-                >
-                  <Square className="mr-2 h-4 w-4" /> End show ({marks.length} marked)
-                </Button>
+                <>
+                  <Button
+                    onClick={() => void clip()}
+                    className={`transition-all ${flash ? "bg-emerald-500 text-white hover:bg-emerald-500" : ""}`}
+                  >
+                    <Scissors className="mr-1.5 h-4 w-4" />
+                    {flash ? "Marked!" : "Mark moment"}
+                    <span className="ml-1.5 rounded bg-white/20 px-1 text-[10px] font-semibold">space</span>
+                  </Button>
+                  <Button
+                    onClick={() => endMutation.mutate()}
+                    disabled={endMutation.isPending}
+                    variant="outline"
+                    className="border-zinc-600 bg-transparent text-zinc-100 hover:bg-zinc-800"
+                  >
+                    <Square className="mr-2 h-4 w-4" /> End show ({marks.length} marked)
+                  </Button>
+                </>
               )}
             </div>
 
@@ -624,9 +658,34 @@ export default function LiveStudio() {
       {/* ═══ After the show ═══ */}
       {isLoading ? null : endedWithMarks && !liveNow ? (
         <div className="mt-3 space-y-3 rounded-2xl bg-zinc-950 p-4">
-          <p className="text-sm font-semibold text-zinc-100">
-            Last show: {marks.length} marked moment{marks.length === 1 ? "" : "s"}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-zinc-100">Editing Room</p>
+              <p className="text-xs text-zinc-500">
+                Last show · {marks.length} moment{marks.length === 1 ? "" : "s"} · cut clips land in your{" "}
+                <Link href="/media-library" className="text-zinc-300 underline">Media Library</Link>
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-zinc-700 bg-transparent text-xs text-zinc-200 hover:bg-zinc-800"
+              onClick={() => void findMomentsWithAi()}
+              disabled={detectPhase !== "idle" || !vodUrl.trim()}
+            >
+              {detectPhase !== "idle" ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  {detectPhase === "listening" ? "Listening…" : "Scanning…"}
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Find clips with AI
+                </>
+              )}
+            </Button>
+          </div>
           {uploadingVod && (
             <p className="flex items-center gap-2 text-xs font-medium text-zinc-400">
               <Loader2 size={12} className="animate-spin" /> Uploading your recording — the VOD attaches itself when it lands.
