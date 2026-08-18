@@ -252,14 +252,14 @@ export default function MediaLibrary() {
             </DialogDescription>
           </DialogHeader>
           <ObjectUploader
-            maxFileSize={100 * 1024 * 1024}
+            maxFileSize={500 * 1024 * 1024}
             onGetUploadParameters={getUploadParams}
             onComplete={(r) => void fileUploaded((r.successful[0] as { name?: string } | undefined)?.name)}
             buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-8 !text-zinc-500 hover:!bg-zinc-50"
           >
             <Upload className="h-5 w-5" />
             <span className="text-xs font-medium">Upload video or audio</span>
-            <span className="text-[11px] text-zinc-400">Up to 100MB</span>
+            <span className="text-[11px] text-zinc-400">Up to 500MB</span>
           </ObjectUploader>
           <div className="flex gap-2">
             <div className="relative flex-1">
