@@ -161,7 +161,9 @@ export default function SocialPosts() {
 
   const platformDisabledReason = (platform: string): string | null => {
     if (!connected.has(platform)) return "Not connected";
-    if (!mediaUrl && MEDIA_REQUIRED.has(platform)) return "Needs photo or video";
+    // YouTube is video-only; the other media-first platforms accept photos too.
+    if (platform === "youtube" && mediaType !== "video") return "Add a video to unlock";
+    if (!mediaUrl && MEDIA_REQUIRED.has(platform)) return "Add media to unlock";
     if (mediaUrl && mediaType && mediaSizeMB !== null) {
       const conflicts = mediaSizeConflicts([platform], mediaSizeMB, mediaType);
       if (conflicts.length > 0) {
@@ -295,7 +297,12 @@ export default function SocialPosts() {
           <div className="space-y-4">
             {/* Platform picker */}
             <Card padding="lg">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
+                <p className="text-[11px] text-zinc-400">
+                  Instagram, TikTok &amp; Pinterest unlock with media · YouTube with video
+                </p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {ALL_PLATFORMS.map((platform) => {
                   const meta = PLATFORM_META[platform];
