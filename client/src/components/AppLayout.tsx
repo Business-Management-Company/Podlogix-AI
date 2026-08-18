@@ -252,6 +252,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         : "text-muted-foreground hover:bg-muted hover:text-foreground"
     }`;
 
+  // The studio takes the whole screen — no rail, no search, no avatar.
+  // "Exit Studio" inside the page is the way back to the normal app.
+  if (location.startsWith("/studio/live") || location.startsWith("/studio/guest")) {
+    return <div className="h-screen w-full overflow-y-auto bg-zinc-950">{children}</div>;
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
 
