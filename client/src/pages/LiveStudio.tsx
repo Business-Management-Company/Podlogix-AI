@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  AudioLines, Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2, Mic, MicOff,
-  MonitorUp, Radio, Scissors, Sparkles, Square, Type, UserPlus,
+  ArrowLeft, AudioLines, Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2,
+  Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Sparkles, Square, Trash2, Type, UserPlus,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 import { generateSrt, generateVtt, downloadText, type CaptionSegment } from "@/lib/captions";
 import { StudioCompositor, STUDIO_LAYOUTS, type StudioLayout } from "@/lib/studio-compositor";
-import type { LiveMark, LiveSession } from "@shared/schema";
+import type { LiveMark, LiveSession, Studio } from "@shared/schema";
 
 /**
  * /studio/live — the Live Studio.
@@ -66,6 +66,14 @@ export default function LiveStudio() {
   const [uploadingVod, setUploadingVod] = useState(false);
   const [railTab, setRailTab] = useState<"layout" | "prompter">("layout");
 
+  // ── Studios (named rooms) ──
+  const [, navigate] = useLocation();
+  const [activeStudioId, setActiveStudioId] = useState<string | null>(
+    () => localStorage.getItem("podlogix.studio") || null,
+  );
+  const [newStudioName, setNewStudioName] = useState("");
+  const [view, setView] = useState<"stage" | "edit">("stage");
+
   // ── Teleprompter ──
   const [prompterOn, setPrompterOn] = useState(false);
   const [prompterScript, setPrompterScript] = useState("");
@@ -87,6 +95,10 @@ export default function LiveStudio() {
   const { data, isLoading } = useQuery<{ session: LiveSession | null; marks: LiveMark[] }>({
     queryKey: ["/api/live/current"],
   });
+  const { data: studiosData } = useQuery<{ studios: Studio[] }>({ queryKey: ["/api/studios"] });
+  const studios = studiosData?.studios ?? [];
+  const activeStudio = studios.find((s) => s.id === activeStudioId) ?? null;
+
   const session = data?.session ?? null;
   const marks = data?.marks ?? [];
   const liveNow = !!session && !session.endedAt;
@@ -136,6 +148,39 @@ export default function LiveStudio() {
   }, [liveNow, session]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/live/current"] });
+
+  useEffect(() => {
+    if (activeStudioId) localStorage.setItem("podlogix.studio", activeStudioId);
+    else localStorage.removeItem("podlogix.studio");
+  }, [activeStudioId]);
+
+  // A show already on the air pulls you straight into its studio.
+  useEffect(() => {
+    if (liveNow && session?.studioId && session.studioId !== activeStudioId) {
+      setActiveStudioId(session.studioId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveNow, session?.studioId]);
+
+  const createStudioMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/studios", { name: newStudioName.trim() });
+      if (!res.ok) throw new Error("create failed");
+      return res.json();
+    },
+    onSuccess: (data: { studio: Studio }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studios"] });
+      setNewStudioName("");
+      setActiveStudioId(data.studio.id);
+    },
+    onError: () => toast({ title: "Couldn't create the studio", variant: "destructive" }),
+  });
+
+  const deleteStudioMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/studios/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/studios"] }),
+    onError: () => toast({ title: "Couldn't delete the studio", variant: "destructive" }),
+  });
 
   // ── Sources ──
   const toggleCamera = async () => {
@@ -319,7 +364,10 @@ export default function LiveStudio() {
   // ── Session ──
   const startMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/live/sessions", { title });
+      const res = await apiRequest("POST", "/api/live/sessions", {
+        title: title.trim() || activeStudio?.name || "",
+        studioId: activeStudio?.id,
+      });
       if (!res.ok) throw new Error("start failed");
       return res.json();
     },
@@ -531,7 +579,12 @@ export default function LiveStudio() {
     }
   };
 
-  const endedWithMarks = session?.endedAt && marks.length > 0;
+  const endedWithMarks = !!session?.endedAt && marks.length > 0;
+
+  // The frame swaps to the Editing Room when a show with marks wraps.
+  useEffect(() => {
+    setView(endedWithMarks && !liveNow ? "edit" : "stage");
+  }, [endedWithMarks, liveNow]);
   const prompterDuration = Math.max(
     12,
     Math.round(prompterScript.split(/\s+/).filter(Boolean).length / PROMPTER_SPEEDS[prompterSpeed])
@@ -541,8 +594,113 @@ export default function LiveStudio() {
     <div className="w-full p-3">
       <style>{`@keyframes prompter-scroll { from { transform: translateY(100%); } to { transform: translateY(-100%); } }`}</style>
 
+      {/* The only chrome in the studio: the way out, where you are, and the frame toggle */}
+      <div className="mb-3 flex items-center gap-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/today")}
+          className="text-zinc-400 hover:bg-zinc-800 hover:text-white"
+        >
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> Exit Studio
+        </Button>
+        {activeStudio && (
+          <>
+            <span className="text-zinc-700">/</span>
+            <button
+              onClick={() => setActiveStudioId(null)}
+              disabled={liveNow}
+              className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50"
+            >
+              Studios
+            </button>
+            <span className="text-zinc-700">/</span>
+            <span className="px-1 text-sm font-semibold text-zinc-100">{activeStudio.name}</span>
+          </>
+        )}
+        <div className="flex-1" />
+        {activeStudio && endedWithMarks && !liveNow && (
+          <div className="flex rounded-lg bg-zinc-900 p-0.5">
+            {(["stage", "edit"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  view === v ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {v === "stage" ? "Stage" : "Editing Room"}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ═══ Studio lobby — pick a room or build one ═══ */}
+      {!activeStudio && (
+        <div className="rounded-2xl bg-zinc-950 p-6 ring-1 ring-zinc-800/60">
+          <div className="mx-auto max-w-2xl space-y-6 py-10">
+            <div className="text-center">
+              <Radio className="mx-auto h-8 w-8 text-red-500" />
+              <h1 className="mt-2 text-xl font-semibold text-zinc-100">Your studios</h1>
+              <p className="mt-1 text-sm text-zinc-500">
+                A studio is a room you come back to — name it after the show it hosts.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={newStudioName}
+                onChange={(e) => setNewStudioName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && newStudioName.trim()) createStudioMutation.mutate(); }}
+                placeholder="New studio name — e.g. The Morning Desk"
+                className="flex-1 border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-600"
+              />
+              <Button
+                onClick={() => createStudioMutation.mutate()}
+                disabled={!newStudioName.trim() || createStudioMutation.isPending}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {createStudioMutation.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-1.5 h-4 w-4" />
+                )}
+                Create studio
+              </Button>
+            </div>
+            {studios.length === 0 ? (
+              <p className="text-center text-sm text-zinc-600">No studios yet — create your first one above.</p>
+            ) : (
+              <ul className="space-y-2">
+                {studios.map((s) => (
+                  <li key={s.id} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
+                    <Radio className="h-4 w-4 shrink-0 text-zinc-500" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">{s.name}</span>
+                    <Button size="sm" className="h-8" onClick={() => setActiveStudioId(s.id)}>
+                      Enter
+                    </Button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete “${s.name}”? Past recordings and clips stay in your library.`)) {
+                          deleteStudioMutation.mutate(s.id);
+                        }
+                      }}
+                      className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                      aria-label={`Delete ${s.name}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ═══ The studio room — full frame, no chrome ═══ */}
-      <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl">
+      {activeStudio && view === "stage" && (
+      <div className="rounded-2xl bg-zinc-950 p-4 shadow-2xl ring-1 ring-zinc-800/60">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           {/* Stage column */}
           <div className="space-y-3">
@@ -778,10 +936,11 @@ export default function LiveStudio() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* ═══ After the show ═══ */}
-      {isLoading ? null : endedWithMarks && !liveNow ? (
-        <div className="mt-3 space-y-3 rounded-2xl bg-zinc-950 p-4">
+      {/* ═══ Editing Room — same frame, swapped in ═══ */}
+      {isLoading ? null : activeStudio && view === "edit" && endedWithMarks && !liveNow ? (
+        <div className="space-y-3 rounded-2xl bg-zinc-950 p-4 ring-1 ring-zinc-800/60">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-zinc-100">Editing Room</p>

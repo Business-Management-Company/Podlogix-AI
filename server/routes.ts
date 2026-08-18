@@ -5378,6 +5378,38 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     }
   }
 
+  // ---- Studios (named rooms) -------------------------------------------
+  app.get('/api/studios', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json({ studios: await storage.getStudios(req.session.userId!) });
+    } catch (error) {
+      console.error('Error listing studios:', error);
+      res.status(500).json({ message: 'Failed to load studios' });
+    }
+  });
+
+  app.post('/api/studios', isAuthenticated, async (req: any, res) => {
+    try {
+      const name = String(req.body?.name ?? '').trim().slice(0, 80);
+      if (!name) return res.status(400).json({ message: 'Give the studio a name' });
+      const studio = await storage.createStudio({ userId: req.session.userId!, name });
+      res.json({ studio });
+    } catch (error) {
+      console.error('Error creating studio:', error);
+      res.status(500).json({ message: 'Failed to create the studio' });
+    }
+  });
+
+  app.delete('/api/studios/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteStudio(req.params.id, req.session.userId!);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting studio:', error);
+      res.status(500).json({ message: 'Failed to delete the studio' });
+    }
+  });
+
   app.get('/api/live/current', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
@@ -5400,7 +5432,13 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
         await storage.updateLiveSession(latest.id, { endedAt: new Date() });
       }
       const title = String(req.body?.title ?? '').trim().slice(0, 120) || 'Live session';
-      const session = await storage.createLiveSession({ userId, title, startedAt: new Date() });
+      // Sessions may belong to a named studio — only one the user owns.
+      let studioId: string | null = null;
+      if (typeof req.body?.studioId === 'string' && req.body.studioId) {
+        const owned = await storage.getStudios(userId);
+        if (owned.some((s) => s.id === req.body.studioId)) studioId = req.body.studioId;
+      }
+      const session = await storage.createLiveSession({ userId, title, studioId, startedAt: new Date() });
       res.json({ session });
     } catch (error) {
       console.error('Error starting live session:', error);

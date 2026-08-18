@@ -843,6 +843,20 @@ export const insertContactNoteSchema = createInsertSchema(contactNotes).omit({
 export type ContactNote = typeof contactNotes.$inferSelect;
 export type InsertContactNote = z.infer<typeof insertContactNoteSchema>;
 
+// Named studios — persistent rooms a creator sets up once and returns to.
+// A studio is identity (name) + a home for its sessions; deleting a studio
+// leaves past sessions and clips untouched.
+export const studios = pgTable("studios", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: varchar("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertStudioSchema = createInsertSchema(studios).omit({ id: true, createdAt: true });
+export type Studio = typeof studios.$inferSelect;
+export type InsertStudio = z.infer<typeof insertStudioSchema>;
+
 // Live Studio: mark moments during a live show, cut them into clips after.
 // The creator streams wherever they already stream — this records WHEN the
 // good moments happened; the VOD gets attached afterwards and marks become
@@ -858,6 +872,7 @@ export const liveSessions = pgTable("live_sessions", {
   vodOffsetSeconds: integer("vod_offset_seconds").notNull().default(0),
   // Guest room invite code (LiveKit). Valid only while the session is open.
   guestInviteCode: varchar("guest_invite_code"),
+  studioId: varchar("studio_id"), // -> studios.id (nullable: pre-studio sessions)
   createdAt: timestamp("created_at").defaultNow(),
 });
 

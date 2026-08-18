@@ -5,6 +5,7 @@ import {
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, contactNotes, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems, liveSessions, liveMarks,
+  studios,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -22,6 +23,7 @@ import {
   type SavedCreator, type InsertSavedCreator,
   type MediaLibraryItem, type InsertMediaLibraryItem,
   type LiveSession, type InsertLiveSession, type LiveMark, type InsertLiveMark,
+  type Studio, type InsertStudio,
   type VideoAnalysis, type InsertVideoAnalysis,
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
@@ -170,6 +172,9 @@ export interface IStorage {
   getLiveSession(id: string): Promise<LiveSession | undefined>;
   updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined>;
   getLiveSessionByInviteCode(code: string): Promise<LiveSession | undefined>;
+  getStudios(userId: string): Promise<Studio[]>;
+  createStudio(studio: InsertStudio): Promise<Studio>;
+  deleteStudio(id: string, userId: string): Promise<void>;
   createLiveMark(mark: InsertLiveMark): Promise<LiveMark>;
   getLiveMarks(sessionId: string): Promise<LiveMark[]>;
   getLiveMark(id: string): Promise<LiveMark | undefined>;
@@ -835,6 +840,21 @@ export class DatabaseStorage implements IStorage {
   async getLiveSessionByInviteCode(code: string): Promise<LiveSession | undefined> {
     const [session] = await db.select().from(liveSessions).where(eq(liveSessions.guestInviteCode, code));
     return session;
+  }
+
+  async getStudios(userId: string): Promise<Studio[]> {
+    return await db.select().from(studios)
+      .where(eq(studios.userId, userId))
+      .orderBy(desc(studios.createdAt));
+  }
+
+  async createStudio(studio: InsertStudio): Promise<Studio> {
+    const [created] = await db.insert(studios).values(studio).returning();
+    return created;
+  }
+
+  async deleteStudio(id: string, userId: string): Promise<void> {
+    await db.delete(studios).where(and(eq(studios.id, id), eq(studios.userId, userId)));
   }
 
   async updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined> {
