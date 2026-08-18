@@ -711,6 +711,8 @@ export const emailContacts = pgTable("email_contacts", {
   email: varchar("email").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
+  company: varchar("company"),
+  title: varchar("title"),
   category: varchar("category").default("subscriber"), // guest, subscriber, sponsor, collaborator, team
   notes: text("notes"),
   tags: text("tags").array(),
@@ -823,6 +825,23 @@ export const insertGuestPipelineEntrySchema = createInsertSchema(guestPipelineEn
   createdAt: true,
   updatedAt: true,
 });
+
+// Timestamped notes on a contact — the CRM activity trail.
+export const contactNotes = pgTable("contact_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull(), // -> email_contacts.id
+  userId: varchar("user_id").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertContactNoteSchema = createInsertSchema(contactNotes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ContactNote = typeof contactNotes.$inferSelect;
+export type InsertContactNote = z.infer<typeof insertContactNoteSchema>;
 
 export type GuestPipelineEntry = typeof guestPipelineEntries.$inferSelect;
 export type InsertGuestPipelineEntry = z.infer<typeof insertGuestPipelineEntrySchema>;
