@@ -205,7 +205,8 @@ export default function MediaLab() {
       </div>
 
       <section className="mb-6">
-        <SectionHeader title="1. Upload a video" />
+        <SectionHeader title="1. Pick your source" />
+        <LibrarySourcePicker current={videoUrl} onPick={(url) => setVideoUrl(url)} />
         <Card padding="lg">
           {videoUrl ? (
             <div className="flex items-center gap-3">
@@ -223,7 +224,7 @@ export default function MediaLab() {
               buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-10 !text-zinc-500 hover:!bg-zinc-50"
             >
               <Upload className="h-5 w-5" />
-              <span className="text-xs font-medium">Upload video</span>
+              <span className="text-xs font-medium">Or upload a new video</span>
               <span className="text-[11px] text-zinc-400">Up to 100MB</span>
             </ObjectUploader>
           )}
@@ -374,5 +375,43 @@ export default function MediaLab() {
         </Card>
       </section>
     </div>
+  );
+}
+
+
+interface LibraryVideo {
+  id: string;
+  caption: string | null;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  platform: string;
+}
+
+/** Grab a source straight from the Media Library — live-studio clips and
+ *  recordings included. The lab and the studio share one shelf. */
+function LibrarySourcePicker({ current, onPick }: { current: string | null; onPick: (url: string) => void }) {
+  const { data } = useQuery<{ items: LibraryVideo[] }>({ queryKey: ["/api/media-library"], retry: false });
+  const videos = (data?.items ?? []).filter((i) => i.mediaType === "video" && i.mediaUrl);
+  if (videos.length === 0) return null;
+  return (
+    <Card padding="lg" className="mb-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">From your library</p>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {videos.slice(0, 12).map((v) => (
+          <button
+            key={v.id}
+            onClick={() => onPick(v.mediaUrl!)}
+            className={`w-40 shrink-0 overflow-hidden rounded-lg border text-left transition-colors ${
+              current === v.mediaUrl ? "border-zinc-950 ring-1 ring-zinc-950" : "border-zinc-200 hover:border-zinc-400"
+            }`}
+          >
+            <video src={v.mediaUrl!} className="h-20 w-full bg-black object-cover" muted />
+            <p className="truncate px-2 py-1 text-[11px] text-zinc-600">
+              {v.caption || v.platform}
+            </p>
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }

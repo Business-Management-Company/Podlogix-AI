@@ -4140,6 +4140,85 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // Speaking analysis over a transcript we produced ourselves (Whisper) —
+  // replaces the brittle YouTube-caption scrape. gpt-4o grades presence,
+  // speaking ability, and fillers; appearance needs video and stays null.
+  app.post('/api/video-analysis/speech', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { transcript, durationSeconds, title, mediaUrl } = req.body ?? {};
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'Analysis needs the OpenAI key configured' });
+      }
+      const text = String(transcript ?? '').trim();
+      if (text.length < 20) {
+        return res.status(400).json({ message: 'Not enough speech to analyze — the clip may be music or silence' });
+      }
+      const seconds = Math.max(1, Math.floor(Number(durationSeconds) || 0));
+      const words = text.split(/\s+/).filter(Boolean).length;
+      const wpm = seconds > 1 ? Math.round((words / seconds) * 60) : null;
+
+      const FILLERS = ['um', 'uh', 'like', 'you know', 'sort of', 'kind of', 'basically', 'actually'];
+      const lower = ` ${text.toLowerCase()} `;
+      const fillerCounts: Record<string, number> = {};
+      for (const f of FILLERS) {
+        const count = lower.split(` ${f} `).length - 1;
+        if (count > 0) fillerCounts[f] = count;
+      }
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 900,
+        messages: [
+          {
+            role: 'system',
+            content: `You are a speaking coach for podcasters. Grade the transcript of a spoken recording.
+Speaking pace: ${wpm ?? 'unknown'} words/minute. Filler counts already measured: ${JSON.stringify(fillerCounts)}.
+Respond with JSON: {"presenceScore": 1-100, "speakingAbilityScore": 1-100, "fillerWordsScore": 1-100,
+"presenceFeedback": "<2 sentences on confidence/energy/authority>",
+"speakingAbilityFeedback": "<2 sentences on clarity, structure, pacing>",
+"fillerWordsFeedback": "<2 sentences on filler usage with the counts>",
+"overallFeedback": "<3 sentences: the one thing to keep, the one thing to fix, and how>"}`,
+          },
+          { role: 'user', content: text.slice(0, 12000) },
+        ],
+      });
+      const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      const clamp = (n: unknown) => Math.max(1, Math.min(100, Math.round(Number(n) || 0))) || null;
+      const presence = clamp(parsed.presenceScore);
+      const speaking = clamp(parsed.speakingAbilityScore);
+      const fillers = clamp(parsed.fillerWordsScore);
+      const overall = presence && speaking && fillers ? Math.round((presence + speaking + fillers) / 3) : null;
+
+      const analysis = await storage.createVideoAnalysis({
+        userId,
+        videoUrl: String(mediaUrl ?? ''),
+        videoId: `speech-${Date.now()}`,
+        videoTitle: String(title ?? 'Speaking analysis').slice(0, 120),
+        transcript: text.slice(0, 20000),
+        presenceScore: presence,
+        speakingAbilityScore: speaking,
+        fillerWordsScore: fillers,
+        appearanceScore: null,
+        overallScore: overall,
+        presenceFeedback: String(parsed.presenceFeedback ?? ''),
+        speakingAbilityFeedback: String(parsed.speakingAbilityFeedback ?? ''),
+        fillerWordsFeedback: String(parsed.fillerWordsFeedback ?? ''),
+        appearanceFeedback: null,
+        overallFeedback: String(parsed.overallFeedback ?? ''),
+        fillerWordsDetected: fillerCounts,
+        status: 'completed',
+      });
+      res.json({ analysis });
+    } catch (error) {
+      console.error('Speech analysis error:', error);
+      res.status(500).json({ message: 'Analysis failed — try again' });
+    }
+  });
+
   app.get('/api/video-analysis/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
