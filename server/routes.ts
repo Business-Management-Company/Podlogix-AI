@@ -3201,6 +3201,22 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       if (req.params.id === requestingUserId) {
         return res.status(400).json({ message: 'Cannot delete your own account' });
       }
+
+      // Deleting our user does NOT free their Upload-Post profile slot (25 on
+      // the plan) — release it explicitly, best-effort.
+      try {
+        const key = process.env.UPLOAD_POST_API_KEY;
+        if (key) {
+          await fetch('https://api.upload-post.com/api/uploadposts/users', {
+            method: 'DELETE',
+            headers: { 'Authorization': `ApiKey ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: `podlogix_${req.params.id}` }),
+          });
+        }
+      } catch (cleanupError) {
+        console.error('Upload-Post profile cleanup failed (slot may leak):', cleanupError);
+      }
+
       await authStorage.deleteUser(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -4358,6 +4374,19 @@ Respond in this exact JSON format:
       if (!content && !mediaUrl) {
         return res.status(400).json({ message: 'Content or media is required' });
       }
+      // Media must come from our own storage bucket — the server fetches this
+      // URL, so anything else is an open relay.
+      if (mediaUrl) {
+        try {
+          const supabaseHost = new URL(process.env.SUPABASE_URL!).host;
+          if (new URL(mediaUrl).host !== supabaseHost) {
+            return res.status(400).json({ message: 'Media must be uploaded through Podlogix first' });
+          }
+        } catch {
+          return res.status(400).json({ message: 'Invalid media URL' });
+        }
+      }
+
       const wantsReddit = platforms.some((p: string) => p.toLowerCase() === 'reddit');
       const wantsPinterest = platforms.some((p: string) => p.toLowerCase() === 'pinterest');
       if (!draft && wantsReddit && !subreddit?.trim()) {
@@ -4578,6 +4607,17 @@ Respond in this exact JSON format:
       const { videoUrl, platforms } = req.body ?? {};
       if (!videoUrl || !Array.isArray(platforms) || platforms.length === 0) {
         return res.status(400).json({ message: 'videoUrl and platforms (non-empty array) are required' });
+      }
+
+      // Only analyze videos from OUR storage. An open URL here would let anyone
+      // burn the monthly analysis allowance on arbitrary files.
+      try {
+        const supabaseHost = new URL(process.env.SUPABASE_URL!).host;
+        if (new URL(videoUrl).host !== supabaseHost) {
+          return res.status(400).json({ message: 'Video must be uploaded through Podlogix first' });
+        }
+      } catch {
+        return res.status(400).json({ message: 'Invalid video URL' });
       }
 
       // Pull the video from storage and forward it as multipart — Upload-Post only accepts a file here.

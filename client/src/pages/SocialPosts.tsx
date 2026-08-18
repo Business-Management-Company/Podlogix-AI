@@ -42,6 +42,37 @@ const ALL_PLATFORMS = [
 /** Platforms that reject text-only posts — they need a photo or video attached. */
 const MEDIA_REQUIRED = new Set(["instagram", "youtube", "tiktok", "pinterest"]);
 
+/**
+ * Per-platform photo size caps in MB (support-confirmed). Oversize uploads die
+ * at Upload-Post's proxy as an unexplained 413, so we block them client-side
+ * with a reason instead. X also caps at 4 images.
+ */
+const PHOTO_LIMIT_MB: Record<string, number> = {
+  facebook: 10, linkedin: 8, instagram: 8, threads: 8, x: 5,
+};
+
+/** Video caps in MB — Instagram Reels 300MB/15min and Threads 100MB/5min are the tight ones. */
+const VIDEO_LIMIT_MB: Record<string, number> = {
+  instagram: 300, threads: 100,
+};
+
+function mediaSizeConflicts(platforms: string[], sizeMB: number, type: "photo" | "video"): string[] {
+  const limits = type === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB;
+  return platforms.filter((p) => limits[p] !== undefined && sizeMB > limits[p]);
+}
+
+function readablePostError(status: number | undefined, fallback: string): string {
+  switch (status) {
+    case 413: return "That file is too large for one of the selected platforms — try a smaller file.";
+    case 401:
+    case 403: return "A connected account needs to be reconnected before posting.";
+    case 429: return "Posting too fast — give it a minute and try again.";
+    default:
+      if (status && status >= 500) return "Upload-Post is having trouble right now — your content is safe, try again shortly.";
+      return fallback;
+  }
+}
+
 const PLATFORM_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   instagram: { label: "Instagram", icon: SiInstagram },
   youtube: { label: "YouTube", icon: SiYoutube },
@@ -76,6 +107,7 @@ export default function SocialPosts() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [subreddit, setSubreddit] = useState("");
   const [pinterestBoardId, setPinterestBoardId] = useState("");
+  const [mediaSizeMB, setMediaSizeMB] = useState<number | null>(null);
 
   const { data: accountsData } = useQuery<{ accounts: UploadPostAccount[] }>({
     queryKey: ["/api/upload-post/accounts"],
@@ -130,6 +162,13 @@ export default function SocialPosts() {
   const platformDisabledReason = (platform: string): string | null => {
     if (!connected.has(platform)) return "Not connected";
     if (!mediaUrl && MEDIA_REQUIRED.has(platform)) return "Needs photo or video";
+    if (mediaUrl && mediaType && mediaSizeMB !== null) {
+      const conflicts = mediaSizeConflicts([platform], mediaSizeMB, mediaType);
+      if (conflicts.length > 0) {
+        const limit = (mediaType === "photo" ? PHOTO_LIMIT_MB : VIDEO_LIMIT_MB)[platform];
+        return `File over ${limit}MB limit`;
+      }
+    }
     return null;
   };
 
@@ -169,7 +208,7 @@ export default function SocialPosts() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Failed");
+        throw new Error(readablePostError(res.status, data.message || "Something went wrong — try again."));
       }
       return res.json();
     },
@@ -359,6 +398,7 @@ export default function SocialPosts() {
                     if (!file) return;
                     setMediaUrl(file.uploadURL);
                     setMediaType(file.type.startsWith("video/") ? "video" : "photo");
+                    setMediaSizeMB(file.size / (1024 * 1024));
                   }}
                   buttonClassName="!h-auto !w-full !flex-col !gap-1.5 !border !border-dashed !border-zinc-300 !bg-white !py-8 !text-zinc-500 hover:!bg-zinc-50"
                 >
