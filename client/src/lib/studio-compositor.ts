@@ -44,6 +44,9 @@ export class StudioCompositor {
   private camVideo: HTMLVideoElement;
   private screenVideo: HTMLVideoElement;
   private guestVideo: HTMLVideoElement;
+  private mediaVideoEl: HTMLVideoElement | null = null;
+  private mediaImageEl: HTMLImageElement | null = null;
+  private mediaAudio: MediaStream | null = null;
   private state: CompositorState = { layout: "fullscreen", camera: null, screen: null, guest: null };
   private raf = 0;
   private audioCtx: AudioContext | null = null;
@@ -94,12 +97,34 @@ export class StudioCompositor {
     this.rewireAudio();
   }
 
+  /** Play a media file on the stage — takes the big slot, audio in the mix. */
+  setMediaVideo(el: HTMLVideoElement | null) {
+    this.mediaVideoEl = el;
+    this.mediaImageEl = null;
+    this.mediaAudio = null;
+    if (el) {
+      try {
+        // Needs CORS-clean media (our bucket serves it) or the canvas taints.
+        this.mediaAudio = (el as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.() ?? null;
+      } catch { this.mediaAudio = null; }
+    }
+    this.rewireAudio();
+  }
+
+  /** Show an image on the stage (artwork, a slide, a lower third). */
+  setMediaImage(el: HTMLImageElement | null) {
+    this.mediaImageEl = el;
+    this.mediaVideoEl = null;
+    this.mediaAudio = null;
+    this.rewireAudio();
+  }
+
   /** Rebuild the audio graph from whatever sources currently have audio tracks. */
   private rewireAudio() {
     if (!this.audioCtx || !this.audioDest) return;
     for (const src of this.audioSources) src.disconnect();
     this.audioSources = [];
-    for (const stream of [this.state.camera, this.state.screen, this.state.guest]) {
+    for (const stream of [this.state.camera, this.state.screen, this.state.guest, this.mediaAudio]) {
       if (stream && stream.getAudioTracks().length > 0) {
         const node = this.audioCtx.createMediaStreamSource(stream);
         node.connect(this.audioDest);
@@ -109,9 +134,9 @@ export class StudioCompositor {
   }
 
   /** cover-fit draw preserving aspect ratio */
-  private drawCover(video: HTMLVideoElement, x: number, y: number, w: number, h: number) {
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
+  private drawCover(video: HTMLVideoElement | HTMLImageElement, x: number, y: number, w: number, h: number) {
+    const vw = video instanceof HTMLVideoElement ? video.videoWidth : video.naturalWidth;
+    const vh = video instanceof HTMLVideoElement ? video.videoHeight : video.naturalHeight;
     if (!vw || !vh) return;
     const scale = Math.max(w / vw, h / vh);
     const dw = vw * scale;
@@ -152,18 +177,27 @@ export class StudioCompositor {
     ctx.fillRect(0, 0, W, H);
 
     const hasCam = !!this.state.camera && this.camVideo.videoWidth > 0;
-    const hasScreen = !!this.state.screen && this.screenVideo.videoWidth > 0;
     const hasGuest = !!this.state.guest && this.guestVideo.videoWidth > 0;
+    // Playing media takes the big slot; otherwise the shared screen has it.
+    const mediaEl: HTMLVideoElement | HTMLImageElement | null =
+      this.mediaVideoEl && this.mediaVideoEl.videoWidth > 0
+        ? this.mediaVideoEl
+        : this.mediaImageEl && this.mediaImageEl.naturalWidth > 0
+          ? this.mediaImageEl
+          : null;
+    const screenLive = !!this.state.screen && this.screenVideo.videoWidth > 0;
+    const bigEl = mediaEl ?? (screenLive ? this.screenVideo : null);
+    const hasScreen = !!bigEl;
 
     if (hasScreen && hasCam && hasGuest) {
       if (layout.startsWith("pip")) {
         // Screen big; host pip in the chosen corner, guest mirrored across.
-        this.drawCover(this.screenVideo, 0, 0, W, H);
+        this.drawCover(bigEl!, 0, 0, W, H);
         this.drawPip(this.camVideo, layout);
         this.drawPip(this.guestVideo, mirrorPip(layout));
       } else {
         // Screen left, the two people stacked on the right.
-        this.drawCover(this.screenVideo, 0, 0, W / 2, H);
+        this.drawCover(bigEl!, 0, 0, W / 2, H);
         this.drawCover(this.camVideo, W / 2, 0, W / 2, H / 2);
         this.drawCover(this.guestVideo, W / 2, H / 2, W / 2, H / 2);
         this.divider(W / 2 - 1, 0, 2, H);
@@ -172,17 +206,17 @@ export class StudioCompositor {
     } else if (hasScreen && (hasCam || hasGuest)) {
       const person = hasCam ? this.camVideo : this.guestVideo;
       if (layout.startsWith("pip")) {
-        this.drawCover(this.screenVideo, 0, 0, W, H);
+        this.drawCover(bigEl!, 0, 0, W, H);
         this.drawPip(person, layout);
       } else if (layout === "split") {
-        this.drawCover(this.screenVideo, 0, 0, W / 2, H);
+        this.drawCover(bigEl!, 0, 0, W / 2, H);
         this.drawCover(person, W / 2, 0, W / 2, H);
         this.divider(W / 2 - 1, 0, 2, H);
       } else {
-        this.drawCover(this.screenVideo, 0, 0, W, H);
+        this.drawCover(bigEl!, 0, 0, W, H);
       }
     } else if (hasScreen) {
-      this.drawCover(this.screenVideo, 0, 0, W, H);
+      this.drawCover(bigEl!, 0, 0, W, H);
     } else if (hasCam && hasGuest) {
       if (layout.startsWith("pip")) {
         this.drawCover(this.guestVideo, 0, 0, W, H);

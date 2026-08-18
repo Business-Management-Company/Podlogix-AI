@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, AudioLines, Camera, CameraOff, Clock, Download, FileText, LayoutGrid, Loader2,
-  Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Sparkles, Square, Trash2, Type, UserPlus,
+  ArrowLeft, AudioLines, Camera, CameraOff, Clapperboard, Clock, Download, FileText, LayoutGrid,
+  Loader2, Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Sparkles, Square, Trash2, Type, UserPlus,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -64,7 +64,12 @@ export default function LiveStudio() {
   const [layout, setLayout] = useState<StudioLayout>("fullscreen");
   const [recording, setRecording] = useState(false);
   const [uploadingVod, setUploadingVod] = useState(false);
-  const [railTab, setRailTab] = useState<"layout" | "prompter">("layout");
+  const [railTab, setRailTab] = useState<"layout" | "media" | "prompter">("layout");
+
+  // ── Media on the stage (play a video / show an image from the library) ──
+  const mediaElRef = useRef<HTMLVideoElement | null>(null);
+  const [stageMedia, setStageMedia] = useState<{ url: string; type: "video" | "image"; caption: string } | null>(null);
+  const [mediaPaused, setMediaPaused] = useState(false);
 
   // ── Studios (named rooms) ──
   const [, navigate] = useLocation();
@@ -104,7 +109,16 @@ export default function LiveStudio() {
   const marks = data?.marks ?? [];
   const liveNow = !!session && !session.endedAt;
   const guestOn = !!guestFeed.stream;
-  const anySource = cameraOn || screenOn || guestOn;
+  const mediaOn = !!stageMedia;
+  const anySource = cameraOn || screenOn || guestOn || mediaOn;
+
+  const { data: libraryData } = useQuery<{ items: Array<{ id: string; caption: string | null; mediaType: string | null; mediaUrl: string | null; platform: string }> }>({
+    queryKey: ["/api/media-library"],
+    retry: false,
+  });
+  const stageableMedia = (libraryData?.items ?? []).filter(
+    (i) => i.mediaUrl && (i.mediaType === "video" || i.mediaType === "image"),
+  );
 
   const { data: lkStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/live/livekit-status"],
@@ -243,7 +257,45 @@ export default function LiveStudio() {
     setCamHidden(next);
   };
 
+  const clearStageMedia = () => {
+    mediaElRef.current?.pause();
+    mediaElRef.current = null;
+    compositorRef.current?.setMediaVideo(null);
+    compositorRef.current?.setMediaImage(null);
+    setStageMedia(null);
+    setMediaPaused(false);
+  };
+
+  const playOnStage = (item: { caption: string | null; mediaType: string | null; mediaUrl: string | null; platform: string }) => {
+    if (!item.mediaUrl) return;
+    clearStageMedia();
+    if (item.mediaType === "video") {
+      const el = document.createElement("video");
+      el.crossOrigin = "anonymous";
+      el.src = item.mediaUrl;
+      el.onended = () => setMediaPaused(true);
+      void el.play().catch(() => {});
+      mediaElRef.current = el;
+      compositor().setMediaVideo(el);
+    } else {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => compositor().setMediaImage(img);
+      img.src = item.mediaUrl;
+    }
+    setStageMedia({ url: item.mediaUrl, type: item.mediaType === "video" ? "video" : "image", caption: item.caption || item.platform });
+    setMediaPaused(false);
+  };
+
+  const toggleStageMediaPause = () => {
+    const el = mediaElRef.current;
+    if (!el) return;
+    if (el.paused) { void el.play().catch(() => {}); setMediaPaused(false); }
+    else { el.pause(); setMediaPaused(true); }
+  };
+
   const stopAllSources = () => {
+    clearStageMedia();
     cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     cameraStreamRef.current = null;
@@ -861,8 +913,9 @@ export default function LiveStudio() {
             <div className="flex rounded-lg bg-zinc-900 p-1">
               {([
                 ["layout", "Layout", LayoutGrid],
+                ["media", "Media", Clapperboard],
                 ["prompter", "Prompter", Type],
-              ] as ["layout" | "prompter", string, React.ElementType][]).map(([id, label, Icon]) => (
+              ] as ["layout" | "media" | "prompter", string, React.ElementType][]).map(([id, label, Icon]) => (
                 <button
                   key={id}
                   onClick={() => setRailTab(id)}
@@ -876,11 +929,72 @@ export default function LiveStudio() {
               ))}
             </div>
 
-            {railTab === "layout" ? (
+            {railTab === "media" ? (
+              <div className="space-y-2">
+                {stageMedia && (
+                  <div className="space-y-2 rounded-xl border border-primary/40 bg-zinc-900 p-3">
+                    <p className="truncate text-xs font-semibold text-zinc-100">On the stage: {stageMedia.caption}</p>
+                    <div className="flex gap-2">
+                      {stageMedia.type === "video" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 flex-1 border-zinc-700 bg-transparent text-xs text-zinc-200 hover:bg-zinc-800"
+                          onClick={toggleStageMediaPause}
+                        >
+                          {mediaPaused ? "Play" : "Pause"}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 flex-1 border-zinc-700 bg-transparent text-xs text-zinc-200 hover:bg-zinc-800"
+                        onClick={clearStageMedia}
+                      >
+                        Clear stage
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {stageableMedia.length === 0 ? (
+                  <p className="rounded-xl bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-500">
+                    Nothing in your library yet — recordings, clips, and anything you add via Media Library land here,
+                    ready to play on the stage.
+                  </p>
+                ) : (
+                  <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                    {stageableMedia.slice(0, 20).map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => playOnStage(item)}
+                        className={`flex w-full items-center gap-2.5 rounded-xl border p-2 text-left transition-colors ${
+                          stageMedia?.url === item.mediaUrl
+                            ? "border-primary bg-primary/10"
+                            : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
+                        }`}
+                      >
+                        {item.mediaType === "video" ? (
+                          <video src={item.mediaUrl!} muted className="h-10 w-16 shrink-0 rounded bg-black object-cover" />
+                        ) : (
+                          <img src={item.mediaUrl!} alt="" className="h-10 w-16 shrink-0 rounded bg-black object-cover" />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-medium text-zinc-100">{item.caption || item.platform}</span>
+                          <span className="block text-[10px] text-zinc-500">{item.mediaType === "video" ? "Play on stage" : "Show on stage"}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="px-1 text-[10px] leading-relaxed text-zinc-600">
+                  Media takes the big slot — your camera goes picture-in-picture. Audio is in the mix and the recording.
+                </p>
+              </div>
+            ) : railTab === "layout" ? (
               <div className="space-y-2">
                 {STUDIO_LAYOUTS.map((l) => {
                   const needsBoth = l.id !== "fullscreen";
-                  const sources = [cameraOn, screenOn, guestOn].filter(Boolean).length;
+                  const sources = [cameraOn, screenOn, guestOn, mediaOn].filter(Boolean).length;
                   const dimmed = needsBoth && sources < 2;
                   return (
                     <button
@@ -894,7 +1008,7 @@ export default function LiveStudio() {
                     >
                       <p className="text-sm font-semibold text-zinc-100">{l.label}</p>
                       <p className="text-[11px] text-zinc-500">
-                        {dimmed ? "Needs a second source (screen or guest)" : l.hint}
+                        {dimmed ? "Needs a second source (screen, media, or guest)" : l.hint}
                       </p>
                     </button>
                   );
