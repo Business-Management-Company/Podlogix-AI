@@ -4339,54 +4339,101 @@ Respond in this exact JSON format:
     }
   });
 
-  // Create a post via Upload-Post
+  // Platforms that accept a pure text post on Upload-Post's /api/upload_text.
+  // Instagram/YouTube/TikTok/Pinterest are media-first — they need a photo or video.
+  const TEXT_CAPABLE_PLATFORMS = new Set(['x', 'linkedin', 'facebook', 'threads', 'reddit', 'bluesky', 'discord', 'telegram']);
+
+  // Create a post via Upload-Post. Routes to the correct endpoint by media type:
+  // text -> /api/upload_text, photo -> /api/upload_photos (file forwarded as
+  // multipart), video -> /api/upload (accepts a URL directly).
   app.post('/api/upload-post/posts', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const uploadPostUsername = `podlogix_${userId}`;
-      const { platforms, content, mediaUrl, scheduledAt } = req.body;
+      const { platforms, content, mediaUrl, mediaType, scheduledAt, draft } = req.body;
 
       if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
         return res.status(400).json({ message: 'At least one platform is required' });
       }
-
       if (!content && !mediaUrl) {
         return res.status(400).json({ message: 'Content or media is required' });
       }
 
-      const postData: any = {
-        user: uploadPostUsername,
-        platform: platforms,
-        title: content,
-      };
-
-      if (scheduledAt) {
-        postData.publish_at = new Date(scheduledAt).toISOString().replace('T', ' ').split('.')[0];
+      // Drafts never touch Upload-Post — they're a local save.
+      if (draft) {
+        const localDraft = await storage.createUploadPostPost({
+          userId,
+          uploadPostPostId: null,
+          platforms,
+          content: content ?? '',
+          mediaUrls: mediaUrl ? [mediaUrl] : null,
+          scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+          status: 'draft',
+        });
+        return res.json({ success: true, post: localDraft });
       }
 
-      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/upload`, {
+      if (!mediaUrl) {
+        const incompatible = platforms.filter((p: string) => !TEXT_CAPABLE_PLATFORMS.has(p.toLowerCase()));
+        if (incompatible.length > 0) {
+          return res.status(400).json({
+            message: `Text-only posts aren't supported on ${incompatible.join(', ')} — attach a photo or video first`,
+          });
+        }
+      }
+
+      const form = new FormData();
+      form.append('user', uploadPostUsername);
+      if (content) form.append('title', content);
+      if (scheduledAt) form.append('scheduled_date', new Date(scheduledAt).toISOString());
+
+      let endpoint: string;
+      if (mediaUrl && mediaType === 'video') {
+        endpoint = '/api/upload';
+        // The video endpoint's platform vocabulary uses "twitter" where the others use "x".
+        for (const p of platforms) form.append('platform[]', p.toLowerCase() === 'x' ? 'twitter' : p);
+        form.append('video', mediaUrl); // accepts a URL directly
+      } else if (mediaUrl) {
+        endpoint = '/api/upload_photos';
+        for (const p of platforms) form.append('platform[]', p);
+        // photos[] wants a file — fetch from storage and forward as multipart.
+        const photoResponse = await fetch(mediaUrl);
+        if (!photoResponse.ok) {
+          return res.status(400).json({ message: 'Could not read the uploaded photo' });
+        }
+        const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+        const buffer = Buffer.from(await photoResponse.arrayBuffer());
+        const fileName = (() => {
+          try {
+            const base = new URL(mediaUrl).pathname.split('/').pop();
+            return base && base.includes('.') ? base : 'photo.jpg';
+          } catch { return 'photo.jpg'; }
+        })();
+        form.append('photos[]', new Blob([buffer], { type: contentType }), fileName);
+      } else {
+        endpoint = '/api/upload_text';
+        for (const p of platforms) form.append('platform[]', p);
+      }
+
+      const response = await fetch(`${UPLOAD_POST_API_BASE}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(postData),
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+        body: form,
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const error = await response.text();
-        console.error('Upload-Post create post error:', error);
-        return res.status(response.status).json({ message: 'Failed to create post' });
+        console.error('Upload-Post create post error:', response.status, data);
+        return res.status(response.status).json({
+          message: (data as any)?.message || (data as any)?.error || 'Failed to create post',
+        });
       }
 
-      const data = await response.json();
-
-      // Save to local database
       const localPost = await storage.createUploadPostPost({
         userId,
-        uploadPostPostId: data.post_id?.toString(),
+        uploadPostPostId: (data as any).post_id?.toString() ?? (data as any).request_id ?? null,
         platforms,
-        content,
+        content: content ?? '',
         mediaUrls: mediaUrl ? [mediaUrl] : null,
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         status: scheduledAt ? 'scheduled' : 'published',
