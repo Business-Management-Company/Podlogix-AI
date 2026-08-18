@@ -4878,6 +4878,19 @@ Respond in this exact JSON format:
     edu: 'Educational and generous. Teach one concrete thing; lead with the insight.',
   };
 
+  const PLATFORM_CHAR_LIMITS: Record<string, number> = {
+    x: 280, bluesky: 300, threads: 500, pinterest: 500, discord: 2000,
+    instagram: 2200, tiktok: 2200, linkedin: 3000, telegram: 4096,
+    youtube: 5000, reddit: 40000, facebook: 63206,
+  };
+  const tightestCharLimit = (platforms: unknown): number => {
+    const list = Array.isArray(platforms) ? platforms : [];
+    return Math.min(
+      ...list.map((p) => PLATFORM_CHAR_LIMITS[String(p).toLowerCase()] ?? 2200),
+      2200,
+    );
+  };
+
   app.post('/api/social/ai-write', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
@@ -4915,11 +4928,7 @@ Respond in this exact JSON format:
 
       const toneLine = AI_TONES[String(tone)] ?? AI_TONES.pro;
       const platformList: string[] = Array.isArray(platforms) ? platforms : [];
-      const tightest = Math.min(...platformList.map((p) => ({
-        x: 280, bluesky: 300, threads: 500, pinterest: 500, discord: 2000,
-        instagram: 2200, tiktok: 2200, linkedin: 3000, telegram: 4096,
-        youtube: 5000, facebook: 63206, reddit: 40000,
-      }[String(p).toLowerCase()] ?? 2200)), 2200);
+      const tightest = tightestCharLimit(platformList);
 
       const system = `You write social media posts for podcast creators.
 ${focusMap[String(focus)] ?? focusMap.general}${episodeContext}
@@ -4982,6 +4991,81 @@ Respond with JSON: {"post": "<the post text, no hashtags in it>", "hashtags": ["
     } catch (error) {
       console.error('AI image error:', error);
       res.status(500).json({ message: 'Image generation failed — try again' });
+    }
+  });
+
+  // Batch generation for Campaigns and Cadences: the client sends dated slots
+  // (each with a theme), one gpt call writes the whole series with varied
+  // angles, and the client schedules each post through the normal posts route.
+  app.post('/api/social/ai-batch', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { slots, tone, platforms, theme, mode } = req.body ?? {};
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'AI writing needs the OpenAI key configured' });
+      }
+      if (!Array.isArray(slots) || slots.length === 0) {
+        return res.status(400).json({ message: 'slots are required' });
+      }
+      if (slots.length > 30) {
+        return res.status(400).json({ message: 'Plan 30 posts or fewer at a time' });
+      }
+
+      const podcasts = await storage.getPodcastsByUserId(userId);
+      const show = podcasts[0] ?? null;
+      const showContext = show
+        ? `The creator hosts the podcast "${show.title}"${show.description ? ` — ${String(show.description).slice(0, 300)}` : ''}.`
+        : 'The creator hosts a podcast.';
+      const toneLine = AI_TONES[String(tone)] ?? AI_TONES.pro;
+      const limit = tightestCharLimit(platforms);
+
+      const slotLines = slots
+        .map((s: any, i: number) => `${i + 1}. ${new Date(s.date).toDateString()} — theme: ${String(s.theme || theme || 'general')}`)
+        .join('\n');
+      const system = `You write a series of social media posts for a podcast creator.
+${showContext}
+${mode === 'cadence'
+  ? 'This is a recurring weekly cadence — each day has its own theme.'
+  : `This is a campaign around one theme: ${String(theme || 'a themed push')}.`}
+Write exactly one post per slot below, in order. Every post must take a DIFFERENT angle — vary the hook and format (question, bold claim, mini-story, list, stat); never reuse phrasing between posts.
+Tone: ${toneLine}
+Each post must fit in ${limit} characters. Plain text with natural line breaks; no hashtags inside the post body.
+Slots:
+${slotLines}
+Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"<the text>","hashtags":["five","relevant","tags","without","symbol"]}]}`;
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 4000,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: 'Write the series now.' },
+        ],
+      });
+      const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      const generated = Array.isArray(parsed.posts) ? parsed.posts : [];
+      const posts = slots.map((s: any, i: number) => {
+        const g = generated.find((p: any) => p?.slot === i + 1) ?? generated[i] ?? {};
+        return {
+          date: s.date,
+          theme: s.theme ?? theme ?? null,
+          title: typeof g.title === 'string' ? g.title : `Post ${i + 1}`,
+          post: typeof g.post === 'string' ? g.post : '',
+          hashtags: Array.isArray(g.hashtags)
+            ? g.hashtags.slice(0, 5).map((h: unknown) => String(h).replace(/^#/, ''))
+            : [],
+        };
+      }).filter((p: { post: string }) => p.post.trim().length > 0);
+      if (posts.length === 0) {
+        return res.status(500).json({ message: 'Generation came back empty — try again' });
+      }
+      res.json({ posts });
+    } catch (error) {
+      console.error('AI batch error:', error);
+      res.status(500).json({ message: 'Batch generation failed — try again' });
     }
   });
 

@@ -3,11 +3,12 @@ import { Link, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Card, EmptyState, SectionHeader } from "@/components/kit";
+import { Card, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { PostsCalendar, type CalendarEntry } from "@/components/PostsCalendar";
 import {
   CalendarClock, CalendarRange, Check, ImagePlus, Loader2, Mic, MicOff, PenSquare,
   Repeat, Send, Save, Sparkles, Upload, Wand2, X as XIcon,
@@ -117,6 +118,17 @@ function readablePostError(status: number | undefined, fallback: string): string
     default:
       if (status && status >= 500) return "Upload-Post is having trouble right now — your content is safe, try again shortly.";
       return fallback;
+  }
+}
+
+/** apiRequest throws `<status>: <raw body>` on non-ok — recover the server's message. */
+function cleanApiError(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const body = raw.replace(/^\d{3}:\s*/, "");
+  try {
+    return JSON.parse(body).message || fallback;
+  } catch {
+    return body || fallback;
   }
 }
 
@@ -265,8 +277,112 @@ export default function SocialPosts() {
       toast({ title: "Artwork attached" });
     },
     onError: (err: Error) =>
-      toast({ title: "Couldn't attach artwork", description: err.message, variant: "destructive" }),
+      toast({ title: "Couldn't attach artwork", description: cleanApiError(err, "Couldn't attach artwork"), variant: "destructive" }),
   });
+
+  // ---------- Campaign / Cadence planning ----------
+  interface PlanPost { date: string; title: string; post: string; hashtags: string[] }
+  const [planPosts, setPlanPosts] = useState<PlanPost[]>([]);
+  const [campaignTheme, setCampaignTheme] = useState("");
+  const [campaignStart, setCampaignStart] = useState("");
+  const [campaignEnd, setCampaignEnd] = useState("");
+  const [campaignCount, setCampaignCount] = useState(6);
+  const [cadenceDays, setCadenceDays] = useState<number[]>([1, 3, 5]);
+  const [cadenceThemes, setCadenceThemes] = useState<Record<number, string>>({});
+  const [cadenceWeeks, setCadenceWeeks] = useState(2);
+  const [planTime, setPlanTime] = useState("10:00");
+  const [scheduleProgress, setScheduleProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const campaignSlots = () => {
+    if (!campaignStart || !campaignEnd) return [];
+    const start = new Date(`${campaignStart}T${planTime}`);
+    const end = new Date(`${campaignEnd}T${planTime}`);
+    if (Number.isNaN(start.getTime()) || end < start) return [];
+    const n = Math.max(1, Math.min(30, campaignCount));
+    const span = end.getTime() - start.getTime();
+    return Array.from({ length: n }, (_, i) => ({
+      date: new Date(start.getTime() + (n === 1 ? 0 : (span * i) / (n - 1))).toISOString(),
+      theme: campaignTheme,
+    }));
+  };
+
+  const cadenceSlots = () => {
+    const [h, m] = planTime.split(":").map(Number);
+    const slots: { date: string; theme: string }[] = [];
+    for (let w = 0; w < cadenceWeeks; w++) {
+      for (const dow of cadenceDays) {
+        const d = new Date();
+        d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7) + w * 7);
+        d.setHours(h, m || 0, 0, 0);
+        if (d.getTime() <= Date.now()) continue;
+        slots.push({ date: d.toISOString(), theme: cadenceThemes[dow]?.trim() || campaignTheme.trim() || "general" });
+      }
+    }
+    return slots.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 30);
+  };
+
+  const planMutation = useMutation({
+    mutationFn: async (mode: "campaign" | "cadence") => {
+      const slots = mode === "campaign" ? campaignSlots() : cadenceSlots();
+      if (slots.length === 0) {
+        throw new Error(mode === "campaign" ? "Pick a valid date range first" : "Pick at least one day of the week");
+      }
+      const res = await apiRequest("POST", "/api/social/ai-batch", {
+        slots,
+        tone,
+        platforms: effectiveSelected,
+        theme: campaignTheme.trim() || undefined,
+        mode,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "Generation failed");
+      return body as { posts: PlanPost[] };
+    },
+    onSuccess: (data) => {
+      setPlanPosts(data.posts);
+      toast({ title: `${data.posts.length} posts drafted`, description: "Review and edit each one, then schedule the lot." });
+    },
+    onError: (err: Error) =>
+      toast({ title: "Couldn't generate the plan", description: cleanApiError(err, "Generation failed"), variant: "destructive" }),
+  });
+
+  const updatePlanPost = (i: number, patch: Partial<PlanPost>) =>
+    setPlanPosts((prev) => prev.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const removePlanPost = (i: number) => setPlanPosts((prev) => prev.filter((_, j) => j !== i));
+
+  const scheduleAllPlan = async () => {
+    const total = planPosts.length;
+    setScheduleProgress({ done: 0, total });
+    let ok = 0;
+    for (let i = 0; i < planPosts.length; i++) {
+      const p = planPosts[i];
+      try {
+        const res = await apiRequest("POST", "/api/upload-post/posts", {
+          platforms: effectiveSelected,
+          content: p.hashtags.length > 0
+            ? `${p.post.trim()}\n\n${p.hashtags.map((h) => `#${h}`).join(" ")}`
+            : p.post.trim(),
+          mediaUrl: null,
+          mediaType: null,
+          scheduledAt: new Date(p.date).toISOString(),
+          draft: false,
+          subreddit: wantsReddit ? subreddit : undefined,
+          pinterestBoardId: wantsPinterest ? pinterestBoardId : undefined,
+        });
+        if (res.ok) ok++;
+      } catch { /* counted below */ }
+      setScheduleProgress({ done: i + 1, total });
+    }
+    setScheduleProgress(null);
+    setPlanPosts([]);
+    refetchScheduled();
+    queryClient.invalidateQueries({ queryKey: ["/api/upload-post/posts"] });
+    toast(
+      ok === total
+        ? { title: `All ${total} posts scheduled` }
+        : { title: `${ok} of ${total} posts scheduled`, description: "The rest failed — check connections and try again.", variant: "destructive" }
+    );
+  };
 
   const { data: libraryData } = useQuery<{ items: MediaLibraryItem[] }>({
     queryKey: ["/api/media-library"],
@@ -401,7 +517,7 @@ export default function SocialPosts() {
       toast({ title: "Post drafted", description: "Edit it, swap hashtags, then post." });
     },
     onError: (err: Error) =>
-      toast({ title: "Couldn't generate", description: err.message, variant: "destructive" }),
+      toast({ title: "Couldn't generate", description: cleanApiError(err, "AI writing failed"), variant: "destructive" }),
   });
 
   // ---------- Voice (Web Speech API dictation) ----------
@@ -452,7 +568,7 @@ export default function SocialPosts() {
     },
     onSuccess: (data) => setAiImages((prev) => [...prev, ...data.urls].slice(0, 4)),
     onError: (err: Error) =>
-      toast({ title: "Couldn't generate images", description: err.message, variant: "destructive" }),
+      toast({ title: "Couldn't generate images", description: cleanApiError(err, "Image generation failed"), variant: "destructive" }),
   });
 
   const resetComposer = () => {
@@ -549,6 +665,106 @@ export default function SocialPosts() {
   const charCount = finalContent.length;
   const previewAccount = previewPlatform ? accountByPlatform.get(previewPlatform) : null;
 
+  const calendarEntries: CalendarEntry[] = [
+    ...scheduledJobs
+      .filter((j) => j.scheduled_date)
+      .map((j) => ({ date: j.scheduled_date!, label: j.title || "Post", kind: "scheduled" as const })),
+    ...planPosts.map((p) => ({ date: p.date, label: p.title || p.post.slice(0, 24), kind: "proposal" as const })),
+  ];
+
+  // Platform chips + reddit/pinterest extras — shared by all three composer tabs.
+  const renderPlatformSection = () => (
+    <>
+      <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
+      <div className="flex flex-wrap gap-2">
+        {ALL_PLATFORMS.map((platform) => {
+          const meta = PLATFORM_META[platform];
+          const isConnected = connected.has(platform);
+          const reason = platformDisabledReason(platform);
+          const active = effectiveSelected.includes(platform);
+          if (!isConnected) {
+            return (
+              <Link
+                key={platform}
+                href="/connectors"
+                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-amber-300 hover:text-zinc-600"
+              >
+                <meta.icon className="h-3 w-3" />
+                {meta.label}
+                <span className="text-[10px] font-semibold text-amber-600">Connect</span>
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={platform}
+              onClick={() => togglePlatform(platform)}
+              disabled={!!reason}
+              title={reason ?? undefined}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                active
+                  ? "border-zinc-950 bg-zinc-950 text-white"
+                  : reason
+                    ? "cursor-not-allowed border-zinc-100 text-zinc-300"
+                    : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
+              }`}
+              data-testid={`platform-${platform}`}
+            >
+              {active && <Check className="h-3 w-3" />}
+              <meta.icon className="h-3 w-3" />
+              {meta.label}
+              {reason && <span className="text-[10px] font-normal">· {reason}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {(wantsReddit || wantsPinterest) && (
+        <div className="mt-3 flex flex-wrap gap-3 border-t border-zinc-100 pt-3">
+          {wantsReddit && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-zinc-500">r/</span>
+              <Input
+                placeholder="subreddit"
+                value={subreddit}
+                onChange={(e) => setSubreddit(e.target.value)}
+                className="h-8 w-44 text-xs"
+              />
+            </div>
+          )}
+          {wantsPinterest && (
+            <select
+              value={pinterestBoardId}
+              onChange={(e) => setPinterestBoardId(e.target.value)}
+              className="h-8 rounded-md border border-zinc-200 px-2 text-xs text-zinc-700"
+            >
+              <option value="">Choose a Pinterest board…</option>
+              {pinterestBoards.map((board) => (
+                <option key={board.id} value={board.id}>{board.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const renderToneChips = () => (
+    <div className="flex gap-1">
+      {TONES.map((t) => (
+        <button
+          key={t.key}
+          onClick={() => setTone(t.key)}
+          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+            tone === t.key ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300" : "text-zinc-400 hover:bg-zinc-100"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
   const renderPreviewCard = () => {
     if (!previewPlatform || !previewAccount) {
       return (
@@ -628,15 +844,181 @@ export default function SocialPosts() {
       </div>
 
       {tab !== "single" ? (
-        <EmptyState
-          icon={tab === "campaign" ? CalendarRange : Repeat}
-          title={tab === "campaign" ? "Campaigns are coming soon" : "Cadences are coming soon"}
-          description={
-            tab === "campaign"
-              ? "Run a date-to-date push around one theme — a launch, an event, a promotion — with every post planned across the range."
-              : "Set a weekly rhythm — Monday/Wednesday/Friday, themes or calls-to-action per day — and let your channels stay active on autopilot."
-          }
-        />
+        <div className="grid gap-6 lg:grid-cols-9">
+          <div className="space-y-4 lg:col-span-5">
+            <Card padding="lg">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                  {tab === "campaign" ? "Plan a campaign" : "Set your weekly rhythm"}
+                </p>
+                {renderToneChips()}
+              </div>
+              <p className="mb-4 text-xs text-zinc-500">
+                {tab === "campaign"
+                  ? "A date-to-date push on one theme — a launch, an event, a promotion. AI drafts every post; you edit, then schedule the lot."
+                  : "Pick your days and give each a theme or call-to-action. AI drafts the coming weeks; you edit, then schedule the lot."}
+              </p>
+
+              {tab === "campaign" ? (
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Campaign theme — e.g. 'Season 3 launch' or 'Veteran Small Business Week'"
+                    value={campaignTheme}
+                    onChange={(e) => setCampaignTheme(e.target.value)}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input type="date" value={campaignStart} onChange={(e) => setCampaignStart(e.target.value)} className="w-auto" />
+                    <span className="text-xs text-zinc-400">to</span>
+                    <Input type="date" value={campaignEnd} onChange={(e) => setCampaignEnd(e.target.value)} className="w-auto" />
+                    <select
+                      value={campaignCount}
+                      onChange={(e) => setCampaignCount(Number(e.target.value))}
+                      className="h-9 rounded-md border border-zinc-200 px-2 text-sm text-zinc-700"
+                    >
+                      {[3, 4, 5, 6, 8, 10, 12, 15, 20].map((n) => (
+                        <option key={n} value={n}>{n} posts</option>
+                      ))}
+                    </select>
+                    <Input type="time" value={planTime} onChange={(e) => setPlanTime(e.target.value)} className="w-auto" />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {([["Sun", 0], ["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6]] as const).map(([label, dow]) => (
+                      <button
+                        key={dow}
+                        onClick={() =>
+                          setCadenceDays((prev) =>
+                            prev.includes(dow) ? prev.filter((d) => d !== dow) : [...prev, dow].sort()
+                          )
+                        }
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          cadenceDays.includes(dow)
+                            ? "border-zinc-950 bg-zinc-950 text-white"
+                            : "border-zinc-200 text-zinc-500 hover:border-zinc-400"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {cadenceDays.map((dow) => (
+                    <div key={dow} className="flex items-center gap-2">
+                      <span className="w-9 shrink-0 text-xs font-medium text-zinc-500">
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}
+                      </span>
+                      <Input
+                        placeholder="Theme or call-to-action for this day — e.g. 'episode highlight' or 'ask a question'"
+                        value={cadenceThemes[dow] ?? ""}
+                        onChange={(e) => setCadenceThemes((prev) => ({ ...prev, [dow]: e.target.value }))}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={cadenceWeeks}
+                      onChange={(e) => setCadenceWeeks(Number(e.target.value))}
+                      className="h-9 rounded-md border border-zinc-200 px-2 text-sm text-zinc-700"
+                    >
+                      {[1, 2, 3, 4].map((w) => (
+                        <option key={w} value={w}>next {w} week{w > 1 ? "s" : ""}</option>
+                      ))}
+                    </select>
+                    <Input type="time" value={planTime} onChange={(e) => setPlanTime(e.target.value)} className="w-auto" />
+                  </div>
+                </div>
+              )}
+
+              {renderPlatformSection()}
+              {effectiveSelected.length === 0 && (
+                <p className="mt-3 text-[11px] font-medium text-amber-600">⚠ Select at least one platform before generating</p>
+              )}
+              <Button
+                className="mt-4 w-full"
+                disabled={effectiveSelected.length === 0 || planMutation.isPending}
+                onClick={() => planMutation.mutate(tab as "campaign" | "cadence")}
+              >
+                {planMutation.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                )}
+                {planMutation.isPending
+                  ? "Drafting your posts…"
+                  : planPosts.length > 0
+                    ? "Regenerate plan →"
+                    : tab === "campaign" ? "Generate campaign →" : "Generate cadence →"}
+              </Button>
+            </Card>
+
+            {planPosts.length > 0 && (
+              <section>
+                <SectionHeader title={`Review (${planPosts.length} posts)`} />
+                <Card padding="none" className="divide-y divide-zinc-100">
+                  {planPosts.map((p, i) => (
+                    <div key={i} className="space-y-2 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="datetime-local"
+                          value={p.date.slice(0, 16)}
+                          onChange={(e) => updatePlanPost(i, { date: e.target.value ? new Date(e.target.value).toISOString() : p.date })}
+                          className="h-8 w-auto text-xs"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-zinc-500">{p.title}</span>
+                        <button
+                          onClick={() => removePlanPost(i)}
+                          className="shrink-0 rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500"
+                          aria-label="Remove this post"
+                        >
+                          <XIcon size={13} />
+                        </button>
+                      </div>
+                      <Textarea
+                        value={p.post}
+                        onChange={(e) => updatePlanPost(i, { post: e.target.value })}
+                        rows={3}
+                        className="resize-none text-sm"
+                      />
+                      {p.hashtags.length > 0 && (
+                        <p className="text-[11px] text-zinc-400">{p.hashtags.map((h) => `#${h}`).join(" ")}</p>
+                      )}
+                    </div>
+                  ))}
+                </Card>
+                <Button
+                  className="mt-3 w-full"
+                  disabled={scheduleProgress !== null}
+                  onClick={scheduleAllPlan}
+                >
+                  {scheduleProgress ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      Scheduling {scheduleProgress.done}/{scheduleProgress.total}…
+                    </>
+                  ) : (
+                    <>
+                      <CalendarClock className="mr-1.5 h-4 w-4" />
+                      Schedule all {planPosts.length} posts
+                    </>
+                  )}
+                </Button>
+              </section>
+            )}
+          </div>
+
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-6 space-y-4">
+              <PostsCalendar entries={calendarEntries} />
+              {scheduledJobs.length > 0 && (
+                <p className="text-[11px] text-zinc-400">
+                  {scheduledJobs.length} post{scheduledJobs.length === 1 ? "" : "s"} already scheduled — manage them on the Single Post tab.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-9">
           {/* ---------------- Left column ---------------- */}
@@ -712,97 +1094,14 @@ export default function SocialPosts() {
                 )
               )}
 
-              {/* Post to */}
-              <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Post to</p>
-              <div className="flex flex-wrap gap-2">
-                {ALL_PLATFORMS.map((platform) => {
-                  const meta = PLATFORM_META[platform];
-                  const isConnected = connected.has(platform);
-                  const reason = platformDisabledReason(platform);
-                  const active = effectiveSelected.includes(platform);
-                  if (!isConnected) {
-                    return (
-                      <Link
-                        key={platform}
-                        href="/connectors"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-amber-300 hover:text-zinc-600"
-                      >
-                        <meta.icon className="h-3 w-3" />
-                        {meta.label}
-                        <span className="text-[10px] font-semibold text-amber-600">Connect</span>
-                      </Link>
-                    );
-                  }
-                  return (
-                    <button
-                      key={platform}
-                      onClick={() => togglePlatform(platform)}
-                      disabled={!!reason}
-                      title={reason ?? undefined}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        active
-                          ? "border-zinc-950 bg-zinc-950 text-white"
-                          : reason
-                            ? "cursor-not-allowed border-zinc-100 text-zinc-300"
-                            : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
-                      }`}
-                      data-testid={`platform-${platform}`}
-                    >
-                      {active && <Check className="h-3 w-3" />}
-                      <meta.icon className="h-3 w-3" />
-                      {meta.label}
-                      {reason && <span className="text-[10px] font-normal">· {reason}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {(wantsReddit || wantsPinterest) && (
-                <div className="mt-3 flex flex-wrap gap-3 border-t border-zinc-100 pt-3">
-                  {wantsReddit && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-zinc-500">r/</span>
-                      <Input
-                        placeholder="subreddit"
-                        value={subreddit}
-                        onChange={(e) => setSubreddit(e.target.value)}
-                        className="h-8 w-44 text-xs"
-                      />
-                    </div>
-                  )}
-                  {wantsPinterest && (
-                    <select
-                      value={pinterestBoardId}
-                      onChange={(e) => setPinterestBoardId(e.target.value)}
-                      className="h-8 rounded-md border border-zinc-200 px-2 text-xs text-zinc-700"
-                    >
-                      <option value="">Choose a Pinterest board…</option>
-                      {pinterestBoards.map((board) => (
-                        <option key={board.id} value={board.id}>{board.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
+              {renderPlatformSection()}
             </Card>
 
             {/* Create your post */}
             <Card padding="lg">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Create your post</p>
-                <div className="flex gap-1">
-                  {TONES.map((t) => (
-                    <button
-                      key={t.key}
-                      onClick={() => setTone(t.key)}
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        tone === t.key ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300" : "text-zinc-400 hover:bg-zinc-100"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+                {renderToneChips()}
               </div>
 
               <div className="mb-3 flex rounded-lg bg-zinc-100 p-1">
