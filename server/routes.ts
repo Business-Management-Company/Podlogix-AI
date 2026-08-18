@@ -3255,14 +3255,14 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     { name: "influencers.club (Pro)", purpose: "Guest research & social analytics (credit-based)", monthlyUsd: 299, notes: "Includes 500 export credits/mo · extra credits $0.60 each · full enrich = 1 credit (~$0.60/lookup)" },
     { name: "Upload-Post", purpose: "Social posting + FFmpeg 1,000 min/mo + 300 video analyses/mo", monthlyUsd: 50, notes: "25 profiles · unlimited uploads · 2 seats" },
     { name: "Supabase (Pro)", purpose: "Postgres + storage", monthlyUsd: 25 },
-    { name: "Vercel (Pro)", purpose: "Hosting (podlogix.io)", monthlyUsd: 20, notes: "Per seat; shared across Podlogix projects" },
-    { name: "Resend (Pro)", purpose: "Transactional email", monthlyUsd: 20 },
-    { name: "Anthropic API", purpose: "AI features (bio writer, briefings, analysis)", monthlyUsd: null, notes: "Usage-based — per-call metering not wired up yet" },
+    { name: "Vercel (Pro)", purpose: "Hosting (podlogix.io)", monthlyUsd: 20, notes: "Per seat · on-demand build/bandwidth overages bill separately (no public billing API — watch the dashboard)", linkUrl: "https://vercel.com/podlogix" },
+    { name: "Resend (Pro)", purpose: "Transactional email", monthlyUsd: 20, notes: "No public spend API — overage visible in their dashboard", linkUrl: "https://resend.com/overview" },
+    { name: "OpenAI API", purpose: "AI Write, AI images, AI Studio, transcription", monthlyUsd: null, notes: "Usage-based — month-to-date pulls live once OPENAI_ADMIN_KEY is set (platform.openai.com → Admin keys)", linkUrl: "https://platform.openai.com/usage" },
   ];
 
   app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const [icCredits, ffmpegConsumption, profileSlots] = await Promise.all([
+      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts] = await Promise.all([
         (async () => {
           try {
             const apiKey = getInfluencersClubApiKey();
@@ -3299,6 +3299,35 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
               : null;
           } catch { return null; }
         })(),
+        (async () => {
+          // OpenAI's costs endpoint needs an ADMIN key (org-scoped), not the
+          // regular API key — returns daily buckets since the 1st of the month.
+          try {
+            const adminKey = process.env.OPENAI_ADMIN_KEY;
+            if (!adminKey) return null;
+            const monthStart = new Date();
+            monthStart.setUTCDate(1);
+            monthStart.setUTCHours(0, 0, 0, 0);
+            const params = new URLSearchParams({
+              start_time: String(Math.floor(monthStart.getTime() / 1000)),
+              limit: '31',
+            });
+            const response = await fetch(`https://api.openai.com/v1/organization/costs?${params}`, {
+              headers: { 'Authorization': `Bearer ${adminKey}` },
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            const monthToDateUsd = ((data as any).data ?? []).reduce(
+              (sum: number, bucket: any) =>
+                sum + (bucket.results ?? []).reduce(
+                  (s: number, r: any) => s + (typeof r.amount?.value === 'number' ? r.amount.value : 0),
+                  0,
+                ),
+              0,
+            );
+            return { monthToDateUsd };
+          } catch { return null; }
+        })(),
       ]);
 
       const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
@@ -3310,6 +3339,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         icMonthlyCredits: 500,
         ffmpegConsumption,
         profileSlots,
+        openaiCosts,
+        // Fixed subscriptions plus every metered cost we can read live.
+        estimatedMonthlyUsd: fixedTotalUsd + (openaiCosts?.monthToDateUsd ?? 0),
       });
     } catch (error) {
       console.error('Error building admin financials:', error);
