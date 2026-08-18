@@ -48,6 +48,103 @@ interface Article {
   category: string;
   icon: React.ReactNode;
   tags: string[];
+  figure?: React.ReactNode;
+}
+
+/* ── Figures: drawn diagrams that sit beside the words. They're generated from
+   the same design (not screenshots), so they never go stale-blurry — and they
+   can label the parts a screenshot can't. ── */
+
+function StudioFigure() {
+  return (
+    <svg viewBox="0 0 640 250" className="h-auto w-full max-w-xl" role="img" aria-label="Diagram of the Live Studio screen">
+      <text x="14" y="20" fontSize="12" fill="#71717a">← Exit Studio</text>
+      <text x="120" y="20" fontSize="12" fill="#a1a1aa">/ Studios / The Morning Desk</text>
+      <rect x="10" y="32" width="450" height="170" rx="12" fill="#18181b" />
+      <text x="235" y="112" fontSize="13" fill="#a1a1aa" textAnchor="middle">The stage — what you see is what records</text>
+      <rect x="22" y="42" width="46" height="18" rx="9" fill="#dc2626" />
+      <text x="45" y="55" fontSize="10" fill="#fff" textAnchor="middle">LIVE</text>
+      <rect x="478" y="32" width="152" height="170" rx="12" fill="#27272a" />
+      <text x="554" y="56" fontSize="11" fill="#e4e4e7" textAnchor="middle">Layout · Prompter</text>
+      <rect x="490" y="68" width="128" height="26" rx="6" fill="#3f3f46" />
+      <text x="554" y="85" fontSize="10" fill="#d4d4d8" textAnchor="middle">Fullscreen</text>
+      <rect x="490" y="100" width="128" height="26" rx="6" fill="#3f3f46" />
+      <text x="554" y="117" fontSize="10" fill="#d4d4d8" textAnchor="middle">Split screen</text>
+      <rect x="490" y="132" width="128" height="26" rx="6" fill="#3f3f46" />
+      <text x="554" y="149" fontSize="10" fill="#d4d4d8" textAnchor="middle">PiP corners</text>
+      <rect x="10" y="212" width="620" height="30" rx="10" fill="#27272a" />
+      <text x="24" y="231" fontSize="11" fill="#d4d4d8">Start Camera · Share Screen · mic/cam</text>
+      <rect x="292" y="217" width="150" height="20" rx="6" fill="#3f3f46" />
+      <text x="367" y="231" fontSize="10" fill="#fff" textAnchor="middle">Mark moment · space</text>
+      <rect x="556" y="217" width="64" height="20" rx="6" fill="#dc2626" />
+      <text x="588" y="231" fontSize="10" fill="#fff" textAnchor="middle">Go live</text>
+    </svg>
+  );
+}
+
+function GuestFlowFigure() {
+  return (
+    <svg viewBox="0 0 640 150" className="h-auto w-full max-w-xl" role="img" aria-label="Diagram of the guest invite flow">
+      <rect x="8" y="30" width="180" height="86" rx="10" fill="#fafafa" stroke="#e4e4e7" />
+      <text x="98" y="55" fontSize="11" fontWeight="600" fill="#18181b" textAnchor="middle">1 · Invite a guest</text>
+      <text x="98" y="76" fontSize="10" fill="#71717a" textAnchor="middle">Click the button mid-show —</text>
+      <text x="98" y="90" fontSize="10" fill="#71717a" textAnchor="middle">the link copies itself. Text it.</text>
+      <text x="204" y="78" fontSize="14" fill="#a1a1aa">→</text>
+      <rect x="224" y="30" width="180" height="86" rx="10" fill="#fafafa" stroke="#e4e4e7" />
+      <text x="314" y="55" fontSize="11" fontWeight="600" fill="#18181b" textAnchor="middle">2 · Green room</text>
+      <text x="314" y="76" fontSize="10" fill="#71717a" textAnchor="middle">Guest opens it — no account.</text>
+      <text x="314" y="90" fontSize="10" fill="#71717a" textAnchor="middle">Camera check, type a name.</text>
+      <text x="420" y="78" fontSize="14" fill="#a1a1aa">→</text>
+      <rect x="440" y="30" width="192" height="86" rx="10" fill="#18181b" />
+      <rect x="452" y="44" width="80" height="58" rx="4" fill="#3f3f46" />
+      <rect x="540" y="44" width="80" height="58" rx="4" fill="#52525b" />
+      <text x="492" y="78" fontSize="10" fill="#e4e4e7" textAnchor="middle">You</text>
+      <text x="580" y="78" fontSize="10" fill="#e4e4e7" textAnchor="middle">Guest</text>
+      <text x="536" y="132" fontSize="10" fill="#71717a" textAnchor="middle">3 · On the stage — and in the recording</text>
+    </svg>
+  );
+}
+
+function EditingRoomFigure() {
+  return (
+    <svg viewBox="0 0 640 170" className="h-auto w-full max-w-xl" role="img" aria-label="Diagram of how marks become clips">
+      <text x="8" y="18" fontSize="11" fill="#71717a">Your show's timeline — each dot is a moment you marked (or AI found)</text>
+      <rect x="8" y="30" width="624" height="10" rx="5" fill="#e4e4e7" />
+      <circle cx="120" cy="35" r="6" fill="#d84b2d" />
+      <circle cx="300" cy="35" r="6" fill="#d84b2d" />
+      <circle cx="500" cy="35" r="6" fill="#d84b2d" />
+      <rect x="240" y="52" width="120" height="14" rx="4" fill="#fbeeea" />
+      <line x1="300" y1="40" x2="300" y2="52" stroke="#d84b2d" strokeWidth="1.5" />
+      <text x="300" y="63" fontSize="9" fill="#d84b2d" textAnchor="middle">20s before ← mark → 10s after</text>
+      <text x="300" y="86" fontSize="12" fill="#a1a1aa" textAnchor="middle">↓ Cut clip</text>
+      <rect x="212" y="96" width="176" height="52" rx="10" fill="#fafafa" stroke="#e4e4e7" />
+      <text x="300" y="118" fontSize="11" fontWeight="600" fill="#18181b" textAnchor="middle">A 30-second clip</text>
+      <text x="300" y="134" fontSize="10" fill="#71717a" textAnchor="middle">+ captions (.srt/.vtt) · 16:9 or 9:16</text>
+      <text x="470" y="122" fontSize="11" fill="#71717a">→ lands in your Media Library</text>
+    </svg>
+  );
+}
+
+function RecordingJourneyFigure() {
+  return (
+    <svg viewBox="0 0 640 120" className="h-auto w-full max-w-xl" role="img" aria-label="Diagram of where a recording goes after the show">
+      <rect x="8" y="36" width="120" height="48" rx="10" fill="#18181b" />
+      <text x="68" y="58" fontSize="11" fill="#fff" textAnchor="middle">End show</text>
+      <text x="68" y="74" fontSize="9" fill="#a1a1aa" textAnchor="middle">recording uploads</text>
+      <text x="140" y="64" fontSize="14" fill="#a1a1aa">→</text>
+      <rect x="162" y="36" width="150" height="48" rx="10" fill="#fafafa" stroke="#e4e4e7" />
+      <text x="237" y="58" fontSize="11" fontWeight="600" fill="#18181b" textAnchor="middle">Media Library</text>
+      <text x="237" y="74" fontSize="9" fill="#71717a" textAnchor="middle">files itself, named after the show</text>
+      <text x="324" y="64" fontSize="14" fill="#a1a1aa">→</text>
+      <rect x="346" y="36" width="150" height="48" rx="10" fill="#fafafa" stroke="#e4e4e7" />
+      <text x="421" y="58" fontSize="11" fontWeight="600" fill="#18181b" textAnchor="middle">MP4 conversion</text>
+      <text x="421" y="74" fontSize="9" fill="#71717a" textAnchor="middle">automatic, in the background</text>
+      <text x="508" y="64" fontSize="14" fill="#a1a1aa">→</text>
+      <rect x="530" y="36" width="102" height="48" rx="10" fill="#fbeeea" />
+      <text x="581" y="58" fontSize="11" fontWeight="600" fill="#b0341a" textAnchor="middle">Plays</text>
+      <text x="581" y="74" fontSize="9" fill="#b0341a" textAnchor="middle">everywhere</text>
+    </svg>
+  );
 }
 
 const articles: Article[] = [
@@ -110,6 +207,7 @@ const articles: Article[] = [
   // ── Studio ──
   {
     id: "live-studio",
+    figure: <StudioFigure />,
     title: "The Live Studio",
     description: "Record a show with your camera and screen — like a TV studio in your browser.",
     category: "Studio",
@@ -130,6 +228,7 @@ const articles: Article[] = [
   },
   {
     id: "guests",
+    figure: <GuestFlowFigure />,
     title: "Inviting a guest onto your show",
     description: "Send one link. Your guest appears on your stage — no account needed.",
     category: "Studio",
@@ -147,6 +246,7 @@ const articles: Article[] = [
   },
   {
     id: "editing-room",
+    figure: <EditingRoomFigure />,
     title: "The Editing Room",
     description: "After the show: turn bookmarks into clips, add captions, clean the audio.",
     category: "Studio",
@@ -164,6 +264,7 @@ const articles: Article[] = [
   },
   {
     id: "recordings",
+    figure: <RecordingJourneyFigure />,
     title: "Where your recording goes",
     description: "It saves itself, files itself, and converts itself. Here's the journey.",
     category: "Studio",
@@ -193,6 +294,7 @@ const articles: Article[] = [
       "• The chips filter the grid: All, Videos, Audio, From the studio, Refined.",
       "• Each card has a badge that tells you where the file came from: 'Studio' means it came out of the Live Studio, 'Refined' means the Media Lab cleaned or converted it, and a platform icon means it was imported from a social account.",
       "'Import from your channels' copies your old social posts into the library so you can reuse them.",
+      "'Add media' lets you put your own files in: upload a video or audio file from your computer, or paste a link. A direct file link (.mp4, .mp3) gets copied into your storage. A YouTube link is saved as a reference — the video stays on YouTube, but you can find it here.",
     ],
   },
   {
@@ -462,6 +564,11 @@ export default function KnowledgeBase() {
                           transition={{ duration: 0.2 }}
                         >
                           <CardContent className="pt-2 border-t mt-2">
+                            {article.figure && (
+                              <div className="mb-4 overflow-x-auto rounded-lg border bg-white p-3">
+                                {article.figure}
+                              </div>
+                            )}
                             <div className="space-y-2 text-sm text-muted-foreground">
                               {article.content.map((line, index) => (
                                 <p

@@ -717,10 +717,22 @@ export default function AdminDashboard() {
               </p>
             </div>
           </div>
-          <Badge variant={adminCheck.isSuperAdmin ? "default" : "secondary"} className="gap-1">
-            {adminCheck.isSuperAdmin ? <Crown className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
-            {adminCheck.role}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {adminCheck.isSuperAdmin && (
+              <>
+                <Link href="/saas-admin">
+                  <Button variant="outline" size="sm" data-testid="button-saas-portal">SaaS Portal</Button>
+                </Link>
+                <Link href="/admin/integrations">
+                  <Button variant="outline" size="sm" data-testid="button-integrations">Integrations</Button>
+                </Link>
+              </>
+            )}
+            <Badge variant={adminCheck.isSuperAdmin ? "default" : "secondary"} className="gap-1">
+              {adminCheck.isSuperAdmin ? <Crown className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+              {adminCheck.role}
+            </Badge>
+          </div>
         </motion.div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">

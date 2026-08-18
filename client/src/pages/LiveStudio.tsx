@@ -394,6 +394,7 @@ export default function LiveStudio() {
     onSuccess: () => {
       refresh();
       leaveGuestRoom();
+      if (marks.length > 0) setView("edit");
       if (session && recorderRef.current) void stopRecorderAndAttach(session.id);
       toast({
         title: `Show ended — ${marks.length} moment${marks.length === 1 ? "" : "s"} marked`,
@@ -583,10 +584,8 @@ export default function LiveStudio() {
 
   const endedWithMarks = !!session?.endedAt && marks.length > 0;
 
-  // The frame swaps to the Editing Room when a show with marks wraps.
-  useEffect(() => {
-    setView(endedWithMarks && !liveNow ? "edit" : "stage");
-  }, [endedWithMarks, liveNow]);
+  // Stage is home. The frame only swaps to the Editing Room at the moment a
+  // show ends (see endMutation) — never on page load.
   const prompterDuration = Math.max(
     12,
     Math.round(prompterScript.split(/\s+/).filter(Boolean).length / PROMPTER_SPEEDS[prompterSpeed])
