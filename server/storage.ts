@@ -175,6 +175,7 @@ export interface IStorage {
   getLiveMark(id: string): Promise<LiveMark | undefined>;
   updateLiveMark(id: string, updates: Partial<LiveMark>): Promise<LiveMark | undefined>;
   createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem | undefined>;
+  updateMediaLibraryItemMedia(userId: string, platform: string, externalId: string, mediaUrl: string): Promise<void>;
   deleteMediaLibraryItem(id: string, userId: string): Promise<void>;
   // Email Templates
   getEmailTemplates(userId: string): Promise<EmailTemplate[]>;
@@ -866,6 +867,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(mediaLibraryItems)
       .where(eq(mediaLibraryItems.userId, userId))
       .orderBy(desc(mediaLibraryItems.postedAt));
+  }
+
+  async updateMediaLibraryItemMedia(userId: string, platform: string, externalId: string, mediaUrl: string): Promise<void> {
+    await db.update(mediaLibraryItems).set({ mediaUrl })
+      .where(and(
+        eq(mediaLibraryItems.userId, userId),
+        eq(mediaLibraryItems.platform, platform),
+        eq(mediaLibraryItems.externalId, externalId),
+      ));
   }
 
   async createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem | undefined> {
