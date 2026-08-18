@@ -5465,6 +5465,67 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     }
   });
 
+  // The producer's ear: gpt-4o reads the Whisper transcript and finds the
+  // strong moments — hooks, quotes, stories — and files them as AI marks so
+  // the Editing Room fills itself. The host's manual marks stay first-class.
+  app.post('/api/live/sessions/:id/detect-moments', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ message: 'Moment detection needs the OpenAI key configured' });
+      }
+      const segments: Array<{ start: number; end: number; text: string }> = Array.isArray(req.body?.segments) ? req.body.segments : [];
+      if (segments.length < 3) {
+        return res.status(400).json({ message: 'Not enough speech to scan — the recording may be music or silence' });
+      }
+      const transcript = segments
+        .map((s) => `[${Math.floor(Number(s.start) || 0)}s] ${String(s.text ?? '').trim()}`)
+        .join('\n')
+        .slice(0, 15000);
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 700,
+        messages: [
+          {
+            role: 'system',
+            content: `You are a live producer scanning a show transcript (lines are prefixed with [seconds]).
+Find up to 5 clip-worthy moments — strong hooks, provocative statements, self-contained stories, quotable lines, funny exchanges.
+Each moment must stand alone as a ~30-second vertical clip.
+Respond with JSON: {"moments":[{"startSeconds": <number, when the moment begins>, "title": "<punchy 5-9 word clip title>", "kind": "hook|quote|story|funny", "confidence": 1-100}]}
+Order by confidence, best first. If nothing is clip-worthy, return an empty array.`,
+          },
+          { role: 'user', content: transcript },
+        ],
+      });
+      const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      const moments = (Array.isArray(parsed.moments) ? parsed.moments : []).slice(0, 5);
+      const created = [];
+      for (const m of moments) {
+        const startSeconds = Math.max(0, Math.floor(Number(m.startSeconds) || 0));
+        // The cut window reaches PRE_ROLL back from the mark, so placing the
+        // mark PRE_ROLL after the moment start makes the clip begin AT it.
+        const mark = await storage.createLiveMark({
+          sessionId: session.id,
+          userId,
+          atSeconds: startSeconds + LIVE_PRE_ROLL,
+          note: `AI ${String(m.kind ?? 'moment')} \u00b7 ${String(m.title ?? 'Untitled moment').slice(0, 90)}`,
+          clipStatus: 'marked',
+        });
+        created.push({ ...mark, confidence: Math.max(1, Math.min(100, Math.round(Number(m.confidence) || 50))) });
+      }
+      res.json({ marks: created });
+    } catch (error) {
+      console.error('Moment detection error:', error);
+      res.status(500).json({ message: 'Moment detection failed — try again' });
+    }
+  });
+
   app.get('/api/live/marks/:id/cut-status', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
