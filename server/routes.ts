@@ -7,7 +7,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer } from "./services/supabaseStorageService";
+import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer } from "./services/supabaseStorageService";
 import { mintVoiceCertificate, isBlockchainConfigured, getWalletBalance } from "./blockchain";
 import { getMetaApiStatus, checkForPotentialImpersonators, isMetaConfigured } from "./services/metaApi";
 import { 
@@ -5182,6 +5182,213 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     } catch (error) {
       console.error('Episode artwork error:', error);
       res.status(500).json({ message: "Couldn't attach artwork" });
+    }
+  });
+
+  // ============ LIVE STUDIO (mark moments live, cut clips after) ============
+  // Ported from MilCrunch's Live Companion. The creator streams wherever they
+  // already stream; this records WHEN the good moments happened, then turns
+  // marks into clips via Upload-Post's FFmpeg jobs — command built server-side
+  // from validated numbers ONLY, clip downloaded into OUR storage (their
+  // result URLs expire), filed in the media library.
+
+  const LIVE_PRE_ROLL = 20;  // people press CLIP after the good part happens
+  const LIVE_POST_ROLL = 10;
+  const MAX_CLIP_BYTES = 80 * 1024 * 1024;
+  const FFMPEG_JOBS_BASE = `${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs`;
+
+  app.get('/api/live/current', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLatestLiveSession(userId);
+      if (!session) return res.json({ session: null, marks: [] });
+      const marks = await storage.getLiveMarks(session.id);
+      res.json({ session, marks });
+    } catch (error) {
+      console.error('Error loading live session:', error);
+      res.status(500).json({ message: 'Failed to load session' });
+    }
+  });
+
+  app.post('/api/live/sessions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      // One open session at a time — close any stragglers first.
+      const latest = await storage.getLatestLiveSession(userId);
+      if (latest && !latest.endedAt) {
+        await storage.updateLiveSession(latest.id, { endedAt: new Date() });
+      }
+      const title = String(req.body?.title ?? '').trim().slice(0, 120) || 'Live session';
+      const session = await storage.createLiveSession({ userId, title, startedAt: new Date() });
+      res.json({ session });
+    } catch (error) {
+      console.error('Error starting live session:', error);
+      res.status(500).json({ message: 'Failed to start the session' });
+    }
+  });
+
+  app.post('/api/live/sessions/:id/end', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      const updated = await storage.updateLiveSession(session.id, { endedAt: new Date() });
+      res.json({ session: updated });
+    } catch (error) {
+      console.error('Error ending live session:', error);
+      res.status(500).json({ message: 'Failed to end the session' });
+    }
+  });
+
+  app.post('/api/live/sessions/:id/marks', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      if (session.endedAt) return res.status(400).json({ message: 'The show has ended' });
+      // Server-authoritative clock — client latency can't skew the mark.
+      const atSeconds = Math.max(0, Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000));
+      const mark = await storage.createLiveMark({ sessionId: session.id, userId, atSeconds, clipStatus: 'marked' });
+      res.json({ mark });
+    } catch (error) {
+      console.error('Error creating mark:', error);
+      res.status(500).json({ message: 'Failed to mark the moment' });
+    }
+  });
+
+  app.patch('/api/live/marks/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const mark = await storage.getLiveMark(req.params.id);
+      if (!mark || mark.userId !== userId) return res.status(404).json({ message: 'Mark not found' });
+      const note = typeof req.body?.note === 'string' ? req.body.note.slice(0, 500) : undefined;
+      const updated = await storage.updateLiveMark(mark.id, { ...(note !== undefined ? { note } : {}) });
+      res.json({ mark: updated });
+    } catch (error) {
+      console.error('Error updating mark:', error);
+      res.status(500).json({ message: 'Failed to save the note' });
+    }
+  });
+
+  // Submit the trim job. The ffmpeg command is assembled here from validated
+  // numbers only — user text never reaches full_command.
+  app.post('/api/live/marks/:id/cut', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const mark = await storage.getLiveMark(req.params.id);
+      if (!mark || mark.userId !== userId) return res.status(404).json({ message: 'Mark not found' });
+
+      let vodUrl: URL;
+      try { vodUrl = new URL(String(req.body?.vodUrl ?? '')); } catch {
+        return res.status(400).json({ message: 'Paste the recording\u2019s direct video URL first' });
+      }
+      if (vodUrl.protocol !== 'https:') return res.status(400).json({ message: 'The VOD URL must be https' });
+      const offset = Math.floor(Number(req.body?.offsetSeconds) || 0);
+      const start = Math.max(0, mark.atSeconds + offset - LIVE_PRE_ROLL);
+      const duration = LIVE_PRE_ROLL + LIVE_POST_ROLL;
+      if (!Number.isFinite(start) || start < 0 || duration < 5 || duration > 120) {
+        return res.status(400).json({ message: 'Invalid clip window' });
+      }
+
+      // Their worker requires the literal {output} placeholder (a hardcoded
+      // filename is rejected with "full_command debe contener {output}").
+      const cmd = `ffmpeg -ss ${start} -i {input} -t ${duration} -c:v libx264 -preset veryfast -c:a aac -movflags +faststart {output}`;
+      const response = await fetch(`${FFMPEG_JOBS_BASE}/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ files: [vodUrl.toString()], full_command: cmd, output_extension: 'mp4' }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 429) {
+        return res.status(429).json({ message: "This month's FFmpeg minutes are used up — the allowance resets monthly." });
+      }
+      const jobId = (data as any).job_id ?? (data as any).jobId ?? (data as any).id;
+      if (!response.ok || !jobId) {
+        return res.status(response.status >= 400 ? response.status : 502).json({ message: (data as any)?.message || 'Could not start the cut' });
+      }
+      await storage.updateLiveMark(mark.id, { clipStatus: 'cutting', clipJobId: String(jobId) });
+      // Remember the VOD on the session so a reload keeps the panel filled.
+      await storage.updateLiveSession(mark.sessionId, { vodUrl: vodUrl.toString(), vodOffsetSeconds: offset });
+      res.json({ jobId: String(jobId) });
+    } catch (error) {
+      console.error('Error starting cut:', error);
+      res.status(500).json({ message: 'Clip service unreachable' });
+    }
+  });
+
+  app.get('/api/live/marks/:id/cut-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const mark = await storage.getLiveMark(req.params.id);
+      if (!mark || mark.userId !== userId || !mark.clipJobId) return res.status(404).json({ message: 'No cut in progress' });
+      const response = await fetch(`${FFMPEG_JOBS_BASE}/${encodeURIComponent(mark.clipJobId)}`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      const status = String((data as any).status ?? 'UNKNOWN');
+      let hint: string | undefined;
+      if (['failed', 'error'].includes(status.toLowerCase())) {
+        // Stamp it so Retry survives a reload.
+        await storage.updateLiveMark(mark.id, { clipStatus: 'failed' });
+        const exc = String((data as any).exc_info ?? '');
+        if (exc.includes('403')) hint = "The VOD host refused the download — use a direct, publicly downloadable video URL.";
+        else if (exc.includes('404')) hint = 'The VOD URL was not found — check the link.';
+      }
+      res.status(response.ok ? 200 : response.status).json({ status, ...(hint ? { hint } : {}) });
+    } catch (error) {
+      console.error('Error checking cut status:', error);
+      res.status(500).json({ message: 'Failed to check the cut' });
+    }
+  });
+
+  // Pull the finished clip into OUR storage and file it in the media library.
+  // Upload-Post's result URLs expire — same law as every platform CDN.
+  app.post('/api/live/marks/:id/collect', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const mark = await storage.getLiveMark(req.params.id);
+      if (!mark || mark.userId !== userId || !mark.clipJobId) return res.status(404).json({ message: 'No cut to collect' });
+      const session = await storage.getLiveSession(mark.sessionId);
+
+      const dl = await fetch(`${FFMPEG_JOBS_BASE}/${encodeURIComponent(mark.clipJobId)}/download`, {
+        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+      });
+      if (!dl.ok) {
+        await storage.updateLiveMark(mark.id, { clipStatus: 'failed' });
+        return res.status(dl.status === 404 ? 404 : 502).json({ message: `Clip not ready (HTTP ${dl.status})` });
+      }
+      const buffer = Buffer.from(await dl.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > MAX_CLIP_BYTES) {
+        await storage.updateLiveMark(mark.id, { clipStatus: 'failed' });
+        return res.status(413).json({ message: buffer.length === 0 ? 'Empty clip' : 'Clip too large to store' });
+      }
+
+      const clipUrl = await storeVideoBuffer(buffer, `clips/${userId}`, dl.headers.get('content-type') || 'video/mp4');
+      if (!clipUrl) {
+        await storage.updateLiveMark(mark.id, { clipStatus: 'failed' });
+        return res.status(502).json({ message: "Couldn't store the clip" });
+      }
+
+      const media = await storage.createMediaLibraryItem({
+        userId,
+        platform: 'live',
+        externalId: mark.clipJobId,
+        caption: (mark.note || `${session?.title ?? 'Live clip'} \u2014 mark`).slice(0, 200),
+        mediaType: 'video',
+        mediaUrl: clipUrl,
+        thumbnailUrl: null,
+        permalink: null,
+        postedAt: new Date(),
+      });
+      await storage.updateLiveMark(mark.id, { clipStatus: 'ready', clipMediaId: media?.id ?? null });
+      res.json({ success: true, clipUrl });
+    } catch (error) {
+      console.error('Error collecting clip:', error);
+      await storage.updateLiveMark(req.params.id, { clipStatus: 'failed' }).catch(() => {});
+      res.status(502).json({ message: 'Clip service unreachable' });
     }
   });
 

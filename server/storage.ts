@@ -4,7 +4,7 @@ import {
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, contactNotes, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
-  adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems,
+  adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems, liveSessions, liveMarks,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
@@ -21,6 +21,7 @@ import {
   type GuestPipelineEntry, type InsertGuestPipelineEntry,
   type SavedCreator, type InsertSavedCreator,
   type MediaLibraryItem, type InsertMediaLibraryItem,
+  type LiveSession, type InsertLiveSession, type LiveMark, type InsertLiveMark,
   type VideoAnalysis, type InsertVideoAnalysis,
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
@@ -164,6 +165,14 @@ export interface IStorage {
   deleteSavedCreator(id: string, userId: string): Promise<void>;
   // Media Library
   getMediaLibraryItemsByUser(userId: string): Promise<MediaLibraryItem[]>;
+  createLiveSession(session: InsertLiveSession): Promise<LiveSession>;
+  getLatestLiveSession(userId: string): Promise<LiveSession | undefined>;
+  getLiveSession(id: string): Promise<LiveSession | undefined>;
+  updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined>;
+  createLiveMark(mark: InsertLiveMark): Promise<LiveMark>;
+  getLiveMarks(sessionId: string): Promise<LiveMark[]>;
+  getLiveMark(id: string): Promise<LiveMark | undefined>;
+  updateLiveMark(id: string, updates: Partial<LiveMark>): Promise<LiveMark | undefined>;
   createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem | undefined>;
   deleteMediaLibraryItem(id: string, userId: string): Promise<void>;
   // Email Templates
@@ -803,6 +812,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Media Library
+  async createLiveSession(session: InsertLiveSession): Promise<LiveSession> {
+    const [created] = await db.insert(liveSessions).values(session).returning();
+    return created;
+  }
+
+  async getLatestLiveSession(userId: string): Promise<LiveSession | undefined> {
+    const [session] = await db.select().from(liveSessions)
+      .where(eq(liveSessions.userId, userId))
+      .orderBy(desc(liveSessions.startedAt))
+      .limit(1);
+    return session;
+  }
+
+  async getLiveSession(id: string): Promise<LiveSession | undefined> {
+    const [session] = await db.select().from(liveSessions).where(eq(liveSessions.id, id));
+    return session;
+  }
+
+  async updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined> {
+    const [updated] = await db.update(liveSessions).set(updates).where(eq(liveSessions.id, id)).returning();
+    return updated;
+  }
+
+  async createLiveMark(mark: InsertLiveMark): Promise<LiveMark> {
+    const [created] = await db.insert(liveMarks).values(mark).returning();
+    return created;
+  }
+
+  async getLiveMarks(sessionId: string): Promise<LiveMark[]> {
+    return await db.select().from(liveMarks)
+      .where(eq(liveMarks.sessionId, sessionId))
+      .orderBy(liveMarks.atSeconds);
+  }
+
+  async getLiveMark(id: string): Promise<LiveMark | undefined> {
+    const [mark] = await db.select().from(liveMarks).where(eq(liveMarks.id, id));
+    return mark;
+  }
+
+  async updateLiveMark(id: string, updates: Partial<LiveMark>): Promise<LiveMark | undefined> {
+    const [updated] = await db.update(liveMarks).set(updates).where(eq(liveMarks.id, id)).returning();
+    return updated;
+  }
+
   async getMediaLibraryItemsByUser(userId: string): Promise<MediaLibraryItem[]> {
     return await db.select().from(mediaLibraryItems)
       .where(eq(mediaLibraryItems.userId, userId))

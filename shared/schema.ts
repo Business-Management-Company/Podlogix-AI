@@ -843,6 +843,41 @@ export const insertContactNoteSchema = createInsertSchema(contactNotes).omit({
 export type ContactNote = typeof contactNotes.$inferSelect;
 export type InsertContactNote = z.infer<typeof insertContactNoteSchema>;
 
+// Live Studio: mark moments during a live show, cut them into clips after.
+// The creator streams wherever they already stream — this records WHEN the
+// good moments happened; the VOD gets attached afterwards and marks become
+// clips. Deliberately no streaming infra (plan of record).
+export const liveSessions = pgTable("live_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: varchar("title").notNull().default("Live session"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+  vodUrl: text("vod_url"),
+  // Seconds between VOD 0:00 and the moment Go live was pressed here.
+  vodOffsetSeconds: integer("vod_offset_seconds").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const liveMarks = pgTable("live_marks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(), // -> live_sessions.id
+  userId: varchar("user_id").notNull(),
+  atSeconds: integer("at_seconds").notNull(),
+  note: text("note"),
+  clipStatus: varchar("clip_status").notNull().default("marked"), // marked | cutting | ready | failed
+  clipJobId: varchar("clip_job_id"),
+  clipMediaId: varchar("clip_media_id"), // -> media_library_items.id
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLiveSessionSchema = createInsertSchema(liveSessions).omit({ id: true, createdAt: true });
+export const insertLiveMarkSchema = createInsertSchema(liveMarks).omit({ id: true, createdAt: true });
+export type LiveSession = typeof liveSessions.$inferSelect;
+export type InsertLiveSession = z.infer<typeof insertLiveSessionSchema>;
+export type LiveMark = typeof liveMarks.$inferSelect;
+export type InsertLiveMark = z.infer<typeof insertLiveMarkSchema>;
+
 export type GuestPipelineEntry = typeof guestPipelineEntries.$inferSelect;
 export type InsertGuestPipelineEntry = z.infer<typeof insertGuestPipelineEntrySchema>;
 
