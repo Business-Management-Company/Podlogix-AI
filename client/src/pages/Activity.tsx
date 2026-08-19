@@ -147,14 +147,14 @@ function DashCard({
 }) {
   return (
     <section
-      className={`rounded-2xl p-5 ring-1 ${
+      className={`rounded-2xl p-4 ring-1 ${
         elevated
           ? "bg-zinc-900 shadow-[0_18px_50px_rgba(0,0,0,0.4)] ring-white/10"
           : "bg-zinc-900/60 ring-white/[0.06]"
       } ${className}`}
     >
       {(title || action) && (
-        <header className="mb-4 flex items-center justify-between gap-3">
+        <header className="mb-2.5 flex items-center justify-between gap-3">
           {title && <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>}
           {action}
         </header>
@@ -182,7 +182,7 @@ function ActivityChart({ points }: { points: Array<{ label: string; minutes: num
   const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${y(p.minutes).toFixed(1)}`).join(" ");
   const area = `${line} L${w},${h} L0,${h} Z`;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-24 w-full">
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-14 w-full">
       <defs>
         <linearGradient id="dash-area" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#ef4444" stopOpacity="0.35" />
@@ -236,7 +236,7 @@ function MonthCalendar({ eventDays, month, onMonth }: { eventDays: Set<string>; 
           ) : (
             <span key={d} className="flex flex-col items-center">
               <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs tabular-nums ${
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] tabular-nums ${
                   isToday(d) ? "bg-red-600 font-semibold text-white" : "text-zinc-400"
                 }`}
               >
@@ -440,7 +440,7 @@ export default function Activity() {
       if (m.platform === "media-lab") items.push({ at: new Date(m.postedAt), icon: Gem, text: `Refined — ${m.caption || "untitled"}`, tint: "text-amber-400 bg-amber-500/10" });
       else if (m.platform === "live") items.push({ at: new Date(m.postedAt), icon: Scissors, text: `Clip cut — ${m.caption || "untitled"}`, tint: "text-emerald-400 bg-emerald-500/10" });
     }
-    return items.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 5);
+    return items.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 4);
   }, [publishedEpisodes, sessions, mediaItems]);
 
   const hosting = Object.entries(data?.distributionStatus ?? {});
@@ -449,9 +449,9 @@ export default function Activity() {
   if (isLoading) {
     return (
       <div className="min-h-full w-full bg-gradient-to-b from-[#101014] to-[#0a0a0d]">
-        <div className="mx-auto w-full max-w-[1600px] px-6 py-6">
+        <div className="mx-auto w-full max-w-[1600px] px-5 py-4">
           <Skeleton className="mb-6 h-8 w-64 bg-zinc-800" />
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 rounded-2xl bg-zinc-800" />)}
           </div>
         </div>
@@ -461,9 +461,9 @@ export default function Activity() {
 
   return (
     <div className="min-h-full w-full bg-gradient-to-b from-[#101014] to-[#0a0a0d]">
-      <div className="mx-auto w-full max-w-[1600px] px-6 py-6">
+      <div className="mx-auto w-full max-w-[1600px] px-5 py-4">
         {/* ── Header ── */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
             <p className="mt-0.5 text-sm text-zinc-500">
@@ -484,7 +484,7 @@ export default function Activity() {
         </div>
 
         {/* ═══ Level 2 — primary operational cards ═══ */}
-        <div className="mb-5 grid gap-5 lg:grid-cols-3">
+        <div className="mb-3 grid gap-3 lg:grid-cols-3">
           {/* Studio — alive, adaptive */}
           <DashCard elevated title="Studio" action={<CardLink href="/studio/live">Go to Studio <ArrowRight size={12} /></CardLink>}>
             <div className="relative overflow-hidden rounded-xl bg-[radial-gradient(120%_140%_at_10%_0%,#3b1219_0%,#18181b_55%,#101014_100%)] p-4 ring-1 ring-white/[0.06]">
@@ -497,11 +497,11 @@ export default function Activity() {
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> On air
                   </span>
-                  <p className="mt-3 text-lg font-semibold leading-snug text-white">You're live right now</p>
+                  <p className="mt-2 text-base font-semibold leading-snug text-white">You're live right now</p>
                   {liveNow?.startedAt && (
                     <p className="mt-1 text-xs text-zinc-400">Started {timeAgo(new Date(liveNow.startedAt))}</p>
                   )}
-                  <Link href="/studio/live" className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                  <Link href="/studio/live" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
                     Enter Studio <ArrowRight size={14} />
                   </Link>
                 </>
@@ -511,7 +511,7 @@ export default function Activity() {
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400">
                     Up next
                   </span>
-                  <p className="mt-3 text-lg font-semibold leading-snug text-white">
+                  <p className="mt-2 text-base font-semibold leading-snug text-white">
                     {minsToNext !== null && minsToNext <= 1 ? "Starting now" : `In ${minsToNext} minutes`}
                   </p>
                   <p className="mt-1 truncate text-xs text-zinc-400">{nextEvent.title}</p>
@@ -520,7 +520,7 @@ export default function Activity() {
                     <ReadyRow ok={devices?.mic ?? null} label="Mic" detail={devices?.mic ? "detected" : "not found"} />
                     {pickedChannels.length > 0 && <ReadyRow ok label="Channels" detail={pickedChannels.join(" + ")} />}
                   </div>
-                  <Link href="/studio/live" className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                  <Link href="/studio/live" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
                     Enter Studio <ArrowRight size={14} />
                   </Link>
                 </>
@@ -535,7 +535,7 @@ export default function Activity() {
                     Published {freshEpisode.publishedAt ? timeAgo(new Date(freshEpisode.publishedAt)) : ""}
                     {freshEpisode.durationSeconds ? ` · ${fmtRuntime(freshEpisode.durationSeconds)}` : ""}
                   </p>
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-3 flex gap-2">
                     <Link href="/dashboard/social-hub" className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-red-700">
                       <Share2 size={13} /> Promote it
                     </Link>
@@ -554,7 +554,7 @@ export default function Activity() {
                     <ReadyRow ok={devices?.mic ?? null} label="Mic" detail={devices?.mic ? "detected" : "not found yet"} />
                     {pickedChannels.length > 0 && <ReadyRow ok label="Channels" detail={pickedChannels.join(" + ")} />}
                   </div>
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-3 flex gap-2">
                     <Link href="/studio/live" className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-red-700">
                       <span className="h-2 w-2 rounded-full bg-white" /> Start Recording
                     </Link>
@@ -575,14 +575,14 @@ export default function Activity() {
 
           {/* Podcast overview */}
           <DashCard elevated title="Podcast Overview" action={<CardLink href="/episodes">View all episodes <ArrowRight size={12} /></CardLink>}>
-            <div className="mb-4 grid grid-cols-3 gap-2">
+            <div className="mb-3 grid grid-cols-3 gap-2">
               {([
                 [String(episodes.length), "Total episodes"],
                 [String(publishedEpisodes.length), "Published"],
                 [totalRuntime > 0 ? fmtRuntime(totalRuntime) : "—", "Total runtime"],
               ] as const).map(([value, label]) => (
-                <div key={label} className="rounded-xl bg-zinc-950/70 px-3 py-2.5 ring-1 ring-white/[0.05]">
-                  <p className="text-lg font-bold tabular-nums text-white">{value}</p>
+                <div key={label} className="rounded-xl bg-zinc-950/70 px-3 py-1.5 ring-1 ring-white/[0.05]">
+                  <p className="text-base font-bold tabular-nums text-white">{value}</p>
                   <p className="text-[10px] font-medium text-zinc-500">{label}</p>
                 </div>
               ))}
@@ -628,29 +628,29 @@ export default function Activity() {
               <span>minutes on the air per day</span>
               <span>{chartPoints[chartPoints.length - 1]?.label}</span>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {([
                 [String(streams30.length), "Streams · 30d"],
                 [`${Math.round(minutes30)}m`, "On air · 30d"],
                 [String(clipsCount), "Clips & refined"],
                 [totalFollowers > 0 ? compact(totalFollowers) : "—", "Followers"],
               ] as const).map(([value, label]) => (
-                <div key={label} className="rounded-xl bg-zinc-950/70 px-3 py-2.5 ring-1 ring-white/[0.05]">
-                  <p className="text-lg font-bold tabular-nums text-white">{value}</p>
+                <div key={label} className="rounded-xl bg-zinc-950/70 px-3 py-1.5 ring-1 ring-white/[0.05]">
+                  <p className="text-base font-bold tabular-nums text-white">{value}</p>
                   <p className="text-[10px] font-medium text-zinc-500">{label}</p>
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-[10px] text-zinc-600">Only numbers we actually measure — no estimates.</p>
+            <p className="mt-2 text-[10px] text-zinc-600">Only numbers we actually measure — no estimates.</p>
           </DashCard>
         </div>
 
         {/* ═══ Level 3 — business & activity layer ═══ */}
-        <div className="mb-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {/* Social performance — adaptive when nothing is connected */}
           <DashCard title="Social Performance" action={<CardLink href="/dashboard/social-hub">Manage <ArrowRight size={12} /></CardLink>}>
             {connectedSocials.length === 0 ? (
-              <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
+              <div className="flex h-full min-h-[110px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
                 <Share2 className="h-6 w-6 text-zinc-600" />
                 <p className="text-xs leading-relaxed text-zinc-500">
                   Connect your channels and this card fills with real follower numbers.
@@ -661,7 +661,7 @@ export default function Activity() {
               </div>
             ) : (
               <div className="space-y-1">
-                {connectedSocials.slice(0, 6).map((account) => {
+                {connectedSocials.slice(0, 4).map((account) => {
                   const key = account.platform.toLowerCase();
                   const meta = SOCIAL_META[key];
                   const followers = uploadPostAnalytics?.[key]?.followers;
@@ -690,7 +690,7 @@ export default function Activity() {
           {/* Weekly schedule */}
           <DashCard title="Weekly Schedule" action={calendarStatus?.connected ? <span className="flex items-center gap-1 text-[10px] text-zinc-500"><SiGooglecalendar size={10} /> Synced</span> : undefined}>
             {!calendarStatus?.connected ? (
-              <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
+              <div className="flex h-full min-h-[110px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
                 <SiGooglecalendar size={20} className="text-zinc-600" />
                 <p className="text-xs leading-relaxed text-zinc-500">Connect Google Calendar to see your recording week here.</p>
                 <Link href="/connectors" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700">
@@ -703,7 +703,7 @@ export default function Activity() {
               </p>
             ) : (
               <div className="space-y-2">
-                {upcomingEvents.slice(0, 4).map((event) => {
+                {upcomingEvents.slice(0, 3).map((event) => {
                   const start = event.start ? new Date(event.start) : null;
                   return (
                     <a
@@ -748,7 +748,7 @@ export default function Activity() {
           {/* Upcoming releases */}
           <DashCard title="Upcoming Releases" action={<CardLink href="/episodes">View all <ArrowRight size={12} /></CardLink>}>
             {draftEpisodes.length === 0 ? (
-              <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
+              <div className="flex h-full min-h-[110px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
                 <Clapperboard className="h-6 w-6 text-zinc-600" />
                 <p className="text-xs leading-relaxed text-zinc-500">Nothing in the works yet — drafts land here.</p>
                 <Link href="/episodes" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700">
@@ -757,7 +757,7 @@ export default function Activity() {
               </div>
             ) : (
               <div className="space-y-2">
-                {draftEpisodes.slice(0, 4).map((episode) => (
+                {draftEpisodes.slice(0, 3).map((episode) => (
                   <Link key={episode.id} href="/episodes" className="flex items-center gap-2.5 rounded-lg bg-zinc-950/60 px-2.5 py-2 ring-1 ring-white/[0.04] transition-colors hover:ring-white/10">
                     {episode.artworkUrl ? (
                       <img src={episode.artworkUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
@@ -782,7 +782,7 @@ export default function Activity() {
         </div>
 
         {/* ═══ Level 4 — supporting intelligence ═══ */}
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-3">
           {/* Recent activity */}
           <DashCard title="Recent Activity">
             {activity.length === 0 ? (
@@ -815,7 +815,7 @@ export default function Activity() {
               </p>
             ) : (
               <div className="space-y-3">
-                {publishedEpisodes.slice(0, 4).map((episode) => (
+                {publishedEpisodes.slice(0, 3).map((episode) => (
                   <div key={episode.id}>
                     <div className="mb-1 flex items-baseline justify-between gap-3">
                       <p className="min-w-0 flex-1 truncate text-xs text-zinc-300">{episode.title}</p>
@@ -849,9 +849,9 @@ export default function Activity() {
                 <Link
                   key={label}
                   href={href}
-                  className="flex flex-col items-center gap-2 rounded-xl bg-zinc-950/60 px-2 py-3.5 ring-1 ring-white/[0.05] transition-colors hover:ring-white/15"
+                  className="flex flex-col items-center gap-2 rounded-xl bg-zinc-950/60 px-2 py-2 ring-1 ring-white/[0.05] transition-colors hover:ring-white/15"
                 >
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tint}`}>
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tint}`}>
                     <Icon size={15} />
                   </span>
                   <span className="text-center text-[11px] font-medium leading-tight text-zinc-300">{label}</span>
