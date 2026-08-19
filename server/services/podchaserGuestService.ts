@@ -263,10 +263,21 @@ export function isPodchaserConfigured(): boolean {
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 const APPEARANCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 250;
+const creatorDetailCache = new Map<string, { expiresAt: number; value: PodchaserCreatorCandidate }>();
 const creatorSearchCache = new Map<string, { expiresAt: number; value: PodchaserCreatorSearchResult }>();
 const podcastSearchCache = new Map<string, { expiresAt: number; value: PodchaserPodcastSearchResult }>();
 const podcastCreditsCache = new Map<string, { expiresAt: number; value: PodchaserPodcastCreditsResult }>();
 const guestAppearanceCache = new Map<string, { expiresAt: number; value: PodchaserGuestAppearancesResult }>();
+
+export async function getPodchaserCreator(creatorId: string): Promise<PodchaserCreatorCandidate> {
+  const normalizedCreatorId = creatorId.trim();
+  const cached = getCached(creatorDetailCache, normalizedCreatorId);
+  if (cached) return cached;
+  const response = await requestPodchaser<PodchaserCreatorRaw>(`/creators/${encodeURIComponent(normalizedCreatorId)}`);
+  const value = normalizeCreator(response);
+  setCached(creatorDetailCache, normalizedCreatorId, value, APPEARANCE_CACHE_TTL_MS);
+  return value;
+}
 
 export async function searchPodchaserCreators(
   personQuery: string,
