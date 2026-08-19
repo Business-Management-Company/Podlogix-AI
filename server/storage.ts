@@ -29,7 +29,7 @@ import {
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
 } from "@shared/schema";
-import { eq, asc, desc, and, ilike } from "drizzle-orm";
+import { eq, asc, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Subscribers & Messages
@@ -176,6 +176,8 @@ export interface IStorage {
   // Guest Pipeline
   getGuestPipelineEntriesByPodcast(podcastId: string): Promise<GuestPipelineEntry[]>;
   getGuestPipelineEntriesByProspect(guestProspectId: string): Promise<GuestPipelineEntry[]>;
+  getGuestPipelineEntriesByContact(contactId: string): Promise<GuestPipelineEntry[]>;
+  getGuestProspectsByEmail(userId: string, email: string): Promise<GuestProspect[]>;
   getGuestPipelineEntry(id: string): Promise<GuestPipelineEntry | undefined>;
   getGuestPipelineEntryByProspect(podcastId: string, guestProspectId: string): Promise<GuestPipelineEntry | undefined>;
   createGuestPipelineEntry(entry: InsertGuestPipelineEntry): Promise<GuestPipelineEntry>;
@@ -812,7 +814,7 @@ export class DatabaseStorage implements IStorage {
 
   async getEmailContactByEmail(userId: string, email: string): Promise<EmailContact | undefined> {
     const [contact] = await db.select().from(emailContacts)
-      .where(and(eq(emailContacts.userId, userId), ilike(emailContacts.email, email)));
+      .where(and(eq(emailContacts.userId, userId), sql`lower(${emailContacts.email}) = lower(${email})`));
     return contact;
   }
 
@@ -898,6 +900,16 @@ export class DatabaseStorage implements IStorage {
   async getGuestPipelineEntriesByProspect(guestProspectId: string): Promise<GuestPipelineEntry[]> {
     return await db.select().from(guestPipelineEntries)
       .where(eq(guestPipelineEntries.guestProspectId, guestProspectId));
+  }
+
+  async getGuestPipelineEntriesByContact(contactId: string): Promise<GuestPipelineEntry[]> {
+    return await db.select().from(guestPipelineEntries)
+      .where(eq(guestPipelineEntries.contactId, contactId));
+  }
+
+  async getGuestProspectsByEmail(userId: string, email: string): Promise<GuestProspect[]> {
+    return await db.select().from(guestProspects)
+      .where(and(eq(guestProspects.userId, userId), sql`lower(${guestProspects.email}) = lower(${email})`));
   }
 
   async getGuestPipelineEntry(id: string): Promise<GuestPipelineEntry | undefined> {

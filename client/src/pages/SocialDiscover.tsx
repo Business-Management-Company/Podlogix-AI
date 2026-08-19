@@ -295,6 +295,7 @@ export default function SocialDiscover() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/podcasts"] });
       toast({ title: result.charged ? "Email revealed" : "Saved email loaded", description: result.email });
     },

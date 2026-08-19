@@ -177,10 +177,12 @@ export default function Guests() {
     },
     onSuccess: () => {
       invalidateGuests();
+      queryClient.invalidateQueries({ queryKey: ["/api/email/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
       setDraft({});
       toast({ title: "Contact saved" });
     },
-    onError: () => toast({ title: "Couldn't save contact", variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Couldn't save contact", description: error.message, variant: "destructive" }),
   });
 
   const addNoteMutation = useMutation({
@@ -207,6 +209,7 @@ export default function Guests() {
     onSuccess: (result) => {
       invalidateGuests();
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/contacts"] });
       toast({ title: result.charged ? "Email revealed" : "Saved email loaded", description: result.email });
     },
     onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
@@ -547,6 +550,21 @@ export default function Guests() {
                   <section>
                     <SectionHeader title="Contact details" />
                     <div className="space-y-2.5">
+                    <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                      Email address
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                        <Input
+                          type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          className="pl-9"
+                          value={draftValue("email")}
+                          onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                          data-testid="input-guest-contact-email"
+                        />
+                      </div>
+                    </label>
                     <div className="grid grid-cols-2 gap-2.5">
                       <Input
                         placeholder="First name"

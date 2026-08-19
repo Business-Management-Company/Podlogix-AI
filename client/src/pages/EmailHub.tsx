@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { socialProfileSummary } from "@/lib/guest-workflow";
+import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { 
   ChevronRight,
   Mail, 
@@ -36,6 +37,8 @@ export default function EmailHub() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<{ kind: "contact" | "prospect"; id: string } | null>(null);
+  const [contactDraft, setContactDraft] = useState<Partial<EmailContact>>({});
+  const [prospectEmailDraft, setProspectEmailDraft] = useState("");
   const [newContact, setNewContact] = useState({ email: "", firstName: "", lastName: "", category: "subscriber" });
   const [composeEmail, setComposeEmail] = useState({ name: "", subject: "", body: "", recipientType: "all" });
   const [aiPrompt, setAiPrompt] = useState({ purpose: "guest_invite", podcastName: "", recipientName: "", customPrompt: "" });
@@ -80,7 +83,8 @@ export default function EmailHub() {
       const res = await apiRequest('POST', '/api/email/contacts', contact);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (contact) => {
+      queryClient.setQueryData<EmailContact[]>(['/api/email/contacts'], (current = []) => [contact, ...current]);
       queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
       setShowAddContact(false);
       setNewContact({ email: "", firstName: "", lastName: "", category: "subscriber" });
@@ -89,6 +93,68 @@ export default function EmailHub() {
     onError: () => {
       toast({ title: "Error", description: "Failed to add contact", variant: "destructive" });
     },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedContact) throw new Error("Choose a contact first");
+      const res = await apiRequest('PATCH', `/api/email/contacts/${selectedContact.id}`, contactDraft);
+      return res.json() as Promise<EmailContact>;
+    },
+    onSuccess: (contact) => {
+      queryClient.setQueryData<EmailContact[]>(['/api/email/contacts'], (current = []) =>
+        current.map((item) => item.id === contact.id ? contact : item));
+      queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts'] });
+      setContactDraft({});
+      toast({ title: "Contact saved" });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't save contact", description: error.message, variant: "destructive" }),
+  });
+
+  const saveProspectContactMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedProspect) throw new Error("Choose a saved guest first");
+      const res = await apiRequest('PUT', `/api/guest-prospects/${selectedProspect.id}/contact`, {
+        email: prospectEmailDraft,
+      });
+      return res.json() as Promise<{ contact: EmailContact }>;
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<EmailContact[]>(['/api/email/contacts'], (current = []) => {
+        const withoutContact = current.filter((item) => item.id !== result.contact.id);
+        return [result.contact, ...withoutContact];
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts'] });
+      setContactDraft({});
+      setSelectedPerson({ kind: "contact", id: result.contact.id });
+      toast({ title: "Official contact saved", description: result.contact.email });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't save contact", description: error.message, variant: "destructive" }),
+  });
+
+  const revealProspectEmailMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedProspect) throw new Error("Choose a saved guest first");
+      const res = await apiRequest('POST', `/api/guest-prospects/${selectedProspect.id}/reveal-email`);
+      return res.json() as Promise<{ contactId: string; contact: EmailContact; email: string; charged: boolean }>;
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<EmailContact[]>(['/api/email/contacts'], (current = []) => {
+        const withoutContact = current.filter((item) => item.id !== result.contact.id);
+        return [result.contact, ...withoutContact];
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts'] });
+      setContactDraft({});
+      setSelectedPerson({ kind: "contact", id: result.contactId });
+      toast({ title: result.charged ? "Email revealed" : "Official contact loaded", description: result.email });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
   });
 
   const deleteContactMutation = useMutation({
@@ -165,6 +231,19 @@ export default function EmailHub() {
     team: "bg-pink-500/20 text-pink-400",
   };
 
+  const openPerson = (person: { kind: "contact" | "prospect"; id: string }, email = "") => {
+    setSelectedPerson(person);
+    setContactDraft({});
+    setProspectEmailDraft(email);
+  };
+
+  const contactDraftValue = (field: keyof EmailContact): string =>
+    String((contactDraft[field] ?? selectedContact?.[field] ?? "") as string);
+
+  const hasEnrichmentProfile = (prospect: GuestProspect): boolean =>
+    ["instagram", "youtube", "tiktok", "twitter", "twitch"]
+      .some((platform) => Boolean(prospect.socialLinks?.[platform]));
+
   return (
     <div className="w-full max-w-6xl px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -219,12 +298,18 @@ export default function EmailHub() {
                   <DialogTitle>Add New Contact</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input
-                    placeholder="Email address"
-                    value={newContact.email}
-                    onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                    data-testid="input-contact-email"
-                  />
+                  <label className="block space-y-1.5 text-sm font-medium">
+                    Email address
+                    <Input
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      placeholder="name@example.com"
+                      value={newContact.email}
+                      onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                      data-testid="input-contact-email"
+                    />
+                  </label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="First name"
@@ -288,7 +373,7 @@ export default function EmailHub() {
                 <Card key={`prospect-${prospect.id}`} className="p-0">
                   <button
                     type="button"
-                    onClick={() => setSelectedPerson({ kind: "prospect", id: prospect.id })}
+                    onClick={() => openPerson({ kind: "prospect", id: prospect.id }, prospect.email || "")}
                     className="flex w-full items-center gap-3 p-4 text-left"
                   >
                     {prospect.imageUrl ? (
@@ -312,7 +397,7 @@ export default function EmailHub() {
                   <div className="flex items-center gap-2 p-4">
                     <button
                       type="button"
-                      onClick={() => setSelectedPerson({ kind: "contact", id: contact.id })}
+                      onClick={() => openPerson({ kind: "contact", id: contact.id })}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
                       <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium">
@@ -618,15 +703,111 @@ export default function EmailHub() {
                   </section>
                 ) : null}
 
+                {selectedProspect ? (
+                  <section>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Contact details</h3>
+                    <div className="space-y-3 rounded-xl border border-zinc-200 p-4">
+                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                        Email address
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                          <Input
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            className="pl-9"
+                            placeholder="name@example.com"
+                            value={prospectEmailDraft}
+                            onChange={(event) => setProspectEmailDraft(event.target.value)}
+                            data-testid="input-prospect-contact-email"
+                          />
+                        </div>
+                      </label>
+                      <Button
+                        className="w-full"
+                        size="sm"
+                        onClick={() => saveProspectContactMutation.mutate()}
+                        disabled={!prospectEmailDraft.trim() || saveProspectContactMutation.isPending}
+                      >
+                        {saveProspectContactMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}
+                        Save as official contact
+                      </Button>
+                      {!selectedProspect.email ? (
+                        <RevealEmailButton
+                          canReveal={hasEnrichmentProfile(selectedProspect)}
+                          isPending={revealProspectEmailMutation.isPending}
+                          onConfirm={() => revealProspectEmailMutation.mutate()}
+                          className="w-full"
+                        />
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
                 {selectedContact ? (
                   <section>
                     <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Contact details</h3>
-                    <div className="space-y-3 rounded-xl border border-zinc-200 p-4 text-sm">
-                      <div><span className="text-zinc-500">Email</span><p className="font-medium text-zinc-900">{selectedContact.email}</p></div>
-                      {selectedContact.company ? <div><span className="text-zinc-500">Company</span><p className="font-medium text-zinc-900">{selectedContact.company}</p></div> : null}
-                      {selectedContact.title ? <div><span className="text-zinc-500">Role</span><p className="font-medium text-zinc-900">{selectedContact.title}</p></div> : null}
-                      <div><span className="text-zinc-500">Category</span><p className="font-medium capitalize text-zinc-900">{selectedContact.category || "subscriber"}</p></div>
-                      {selectedContact.notes ? <div><span className="text-zinc-500">Notes</span><p className="whitespace-pre-wrap text-zinc-900">{selectedContact.notes}</p></div> : null}
+                    <div className="space-y-3 rounded-xl border border-zinc-200 p-4">
+                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                        Email address
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                          <Input
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            className="pl-9"
+                            value={contactDraftValue("email")}
+                            onChange={(event) => setContactDraft({ ...contactDraft, email: event.target.value })}
+                            data-testid="input-official-contact-email"
+                          />
+                        </div>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="space-y-1.5 text-xs font-medium text-zinc-500">
+                          First name
+                          <Input value={contactDraftValue("firstName")} onChange={(event) => setContactDraft({ ...contactDraft, firstName: event.target.value })} />
+                        </label>
+                        <label className="space-y-1.5 text-xs font-medium text-zinc-500">
+                          Last name
+                          <Input value={contactDraftValue("lastName")} onChange={(event) => setContactDraft({ ...contactDraft, lastName: event.target.value })} />
+                        </label>
+                      </div>
+                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                        Company
+                        <Input value={contactDraftValue("company")} onChange={(event) => setContactDraft({ ...contactDraft, company: event.target.value })} />
+                      </label>
+                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                        Role / title
+                        <Input value={contactDraftValue("title")} onChange={(event) => setContactDraft({ ...contactDraft, title: event.target.value })} />
+                      </label>
+                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                        Category
+                        <Select
+                          value={String(contactDraft.category ?? selectedContact.category ?? "subscriber")}
+                          onValueChange={(category) => setContactDraft({ ...contactDraft, category })}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="guest">Guest</SelectItem>
+                            <SelectItem value="subscriber">Subscriber</SelectItem>
+                            <SelectItem value="sponsor">Sponsor</SelectItem>
+                            <SelectItem value="collaborator">Collaborator</SelectItem>
+                            <SelectItem value="team">Team</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </label>
+                      {Object.keys(contactDraft).length > 0 ? (
+                        <Button
+                          className="w-full"
+                          size="sm"
+                          onClick={() => updateContactMutation.mutate()}
+                          disabled={updateContactMutation.isPending}
+                        >
+                          {updateContactMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                          Save contact details
+                        </Button>
+                      ) : null}
                     </div>
                   </section>
                 ) : null}

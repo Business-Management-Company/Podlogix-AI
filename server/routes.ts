@@ -116,6 +116,14 @@ import {
   searchPodchaserCreators,
   searchPodchaserPodcasts,
 } from "./services/podchaserGuestService";
+import {
+  contactNameParts,
+  emailContactCreateInputSchema,
+  emailContactUpdateInputSchema,
+  guestContactInputSchema,
+  normalizedEmailSchema,
+} from "./services/contactEmailService";
+import type { EmailContact, GuestProspect } from "@shared/schema";
 
 function canonicalGuestMatch(value: string): string {
   return value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
@@ -156,14 +164,45 @@ function extractGuestEnrichmentEmail(payload: any): string | null {
   return null;
 }
 
-function contactNameParts(displayName: string): { firstName: string | null; lastName: string | null } {
-  const parts = displayName
-    .replace(/^(dr|doctor|mr|mrs|ms|prof|professor)\.?\s+/i, '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length === 0) return { firstName: null, lastName: null };
-  return { firstName: parts[0] ?? null, lastName: parts.slice(1).join(' ') || null };
+type GuestContactDetails = Partial<Pick<EmailContact, "firstName" | "lastName" | "company" | "title">>;
+
+async function ensureOfficialGuestContact(
+  userId: string,
+  prospect: GuestProspect,
+  rawEmail: string,
+  details: GuestContactDetails = {},
+  sourceNote = "Email added from a saved guest profile.",
+) {
+  const email = normalizedEmailSchema.parse(rawEmail);
+  let contact = await storage.getEmailContactByEmail(userId, email);
+
+  if (!contact) {
+    const fallbackName = contactNameParts(prospect.name);
+    contact = await storage.createEmailContact({
+      userId,
+      email,
+      firstName: details.firstName ?? fallbackName.firstName,
+      lastName: details.lastName ?? fallbackName.lastName,
+      company: details.company,
+      title: details.title,
+      category: "guest",
+      notes: sourceNote,
+    });
+  } else if (Object.values(details).some((value) => value !== undefined)) {
+    contact = await storage.updateEmailContact(contact.id, userId, details) ?? contact;
+  }
+
+  const updatedProspect = prospect.email?.trim().toLowerCase() === email
+    ? prospect
+    : await storage.updateGuestProspect(prospect.id, userId, { email });
+  if (!updatedProspect) throw new Error("Guest prospect disappeared while saving contact details");
+
+  const entries = await storage.getGuestPipelineEntriesByProspect(prospect.id);
+  await Promise.all(entries
+    .filter((entry) => !entry.contactId)
+    .map((entry) => storage.updateGuestPipelineEntry(entry.id, { contactId: contact!.id })));
+
+  return { prospect: updatedProspect, contact, email };
 }
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
@@ -4035,9 +4074,15 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.post('/api/email/contacts', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const contact = await storage.createEmailContact({ ...req.body, userId });
-      res.json(contact);
+      const input = emailContactCreateInputSchema.parse(req.body);
+      const existing = await storage.getEmailContactByEmail(userId, input.email);
+      if (existing) return res.status(409).json({ message: 'A contact with this email already exists.' });
+      const contact = await storage.createEmailContact({ ...input, userId });
+      res.status(201).json(contact);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid contact details' });
+      }
       console.error('Error creating contact:', error);
       res.status(500).json({ message: 'Failed to create contact' });
     }
@@ -4047,12 +4092,42 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.patch('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const contact = await storage.updateEmailContact(req.params.id, userId, req.body);
+      const existing = await storage.getEmailContact(req.params.id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+
+      const input = emailContactUpdateInputSchema.parse(req.body);
+      if (input.email && input.email !== existing.email.trim().toLowerCase()) {
+        const duplicate = await storage.getEmailContactByEmail(userId, input.email);
+        if (duplicate && duplicate.id !== existing.id) {
+          return res.status(409).json({ message: 'Another contact already uses this email.' });
+        }
+      }
+
+      const contact = await storage.updateEmailContact(req.params.id, userId, input);
       if (!contact) {
         return res.status(404).json({ message: 'Contact not found' });
       }
+
+      if (input.email && input.email !== existing.email.trim().toLowerCase()) {
+        const [emailMatches, linkedEntries] = await Promise.all([
+          storage.getGuestProspectsByEmail(userId, existing.email),
+          storage.getGuestPipelineEntriesByContact(existing.id),
+        ]);
+        const linkedProspectIds = new Set(linkedEntries
+          .map((entry) => entry.guestProspectId)
+          .filter((id): id is string => Boolean(id)));
+        for (const prospect of emailMatches) linkedProspectIds.add(prospect.id);
+        await Promise.all([...linkedProspectIds]
+          .map((prospectId) => storage.updateGuestProspect(prospectId, userId, { email: input.email! })));
+      }
+
       res.json(contact);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid contact details' });
+      }
       console.error('Error updating contact:', error);
       res.status(500).json({ message: 'Failed to update contact' });
     }
@@ -4311,6 +4386,28 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  app.put('/api/guest-prospects/:id/contact', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const prospect = await storage.getGuestProspect(req.params.id, userId);
+      if (!prospect) return res.status(404).json({ message: 'Guest prospect not found' });
+      const input = guestContactInputSchema.parse(req.body);
+      const result = await ensureOfficialGuestContact(userId, prospect, input.email, {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        company: input.company,
+        title: input.title,
+      });
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid contact details' });
+      }
+      console.error('Error saving guest contact:', error);
+      res.status(500).json({ message: 'Failed to save guest contact' });
+    }
+  });
+
   app.post('/api/guest-prospects/:id/reveal-email', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
@@ -4320,7 +4417,8 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       // Persisted contact data is the deduplication boundary: repeat reveals do
       // not call IC or spend another credit.
       if (prospect.email) {
-        return res.json({ prospect, email: prospect.email, charged: false, cached: true });
+        const linked = await ensureOfficialGuestContact(userId, prospect, prospect.email);
+        return res.json({ ...linked, charged: false, cached: true, contactId: linked.contact.id });
       }
 
       const apiKey = getInfluencersClubApiKey()?.trim();
@@ -4357,28 +4455,14 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       const email = extractGuestEnrichmentEmail(data);
       if (!email) return res.status(404).json({ message: 'No verified email was found for this guest.' });
 
-      const updated = await storage.updateGuestProspect(prospect.id, userId, { email });
-      if (!updated) return res.status(404).json({ message: 'Guest prospect not found' });
-
-      let contact = await storage.getEmailContactByEmail(userId, email);
-      if (!contact) {
-        const name = contactNameParts(prospect.name);
-        contact = await storage.createEmailContact({
-          userId,
-          email,
-          firstName: name.firstName,
-          lastName: name.lastName,
-          category: 'guest',
-          notes: 'Email revealed from a saved guest profile.',
-        });
-      }
-
-      const entries = await storage.getGuestPipelineEntriesByProspect(prospect.id);
-      await Promise.all(entries
-        .filter((entry) => !entry.contactId)
-        .map((entry) => storage.updateGuestPipelineEntry(entry.id, { contactId: contact!.id })));
-
-      res.json({ prospect: updated, email, charged: true, cached: false, contactId: contact.id });
+      const linked = await ensureOfficialGuestContact(
+        userId,
+        prospect,
+        email,
+        {},
+        'Email revealed from a saved guest profile.',
+      );
+      res.json({ ...linked, charged: true, cached: false, contactId: linked.contact.id });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         return res.status(504).json({ message: 'Contact enrichment timed out. No result was saved.' });
@@ -4469,15 +4553,20 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         return res.status(201).json({ ...entry, contact: undefined, prospect });
       }
 
-      const contact = addGuestInput.contactId
+      let contact = addGuestInput.contactId
         ? await storage.getEmailContact(addGuestInput.contactId)
-        : await storage.createEmailContact({
+        : undefined;
+      if (!contact && addGuestInput.email) {
+        const email = normalizedEmailSchema.parse(addGuestInput.email);
+        contact = await storage.getEmailContactByEmail(userId, email)
+          ?? await storage.createEmailContact({
             userId,
-            email: addGuestInput.email!,
+            email,
             firstName: addGuestInput.firstName,
             lastName: addGuestInput.lastName,
             category: 'guest',
           });
+      }
 
       if (!contact || contact.userId !== userId) return res.status(404).json({ message: 'Contact not found' });
 
