@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, BookMarked, ChevronRight, Loader2, Mail, Mic2, Trash2, Users } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
+import { MasterContactButton } from "@/components/guest/MasterContactButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
+import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
 import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -35,6 +37,7 @@ interface GuestProspect {
   location?: string | null;
   bio?: string | null;
   email?: string | null;
+  masterContactId?: string | null;
   episodeAppearanceCount?: number | null;
   socialLinks?: Record<string, string> | null;
 }
@@ -84,6 +87,7 @@ export default function Directory() {
   const prospects = prospectData?.prospects ?? [];
   const selectedProspect = prospects.find((prospect) => prospect.id === selectedProspectId) ?? null;
   const appearanceQuery = useGuestAppearances(selectedProspect?.providerPersonId);
+  const promoteContactMutation = usePromoteGuestContact();
   const isLoading = creatorsLoading || prospectsLoading;
 
   const deleteMutation = useMutation({
@@ -300,13 +304,21 @@ export default function Directory() {
               </SheetHeader>
 
               <div className="mt-6 space-y-6">
-                <RevealEmailButton
-                  email={selectedProspect.email}
-                  canReveal={hasEnrichmentProfile(selectedProspect.socialLinks)}
-                  isPending={revealEmailMutation.isPending}
-                  onConfirm={() => revealEmailMutation.mutate(selectedProspect.id)}
-                  className="w-full"
-                />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <MasterContactButton
+                    masterContactId={selectedProspect.masterContactId}
+                    isPending={promoteContactMutation.isPending}
+                    onAdd={() => promoteContactMutation.mutate(selectedProspect.id)}
+                    className="w-full"
+                  />
+                  <RevealEmailButton
+                    email={selectedProspect.email}
+                    canReveal={hasEnrichmentProfile(selectedProspect.socialLinks)}
+                    isPending={revealEmailMutation.isPending}
+                    onConfirm={() => revealEmailMutation.mutate(selectedProspect.id)}
+                    className="w-full"
+                  />
+                </div>
                 <section>
                   <SectionHeader title="Guest research" />
                   <GuestResearchSummary

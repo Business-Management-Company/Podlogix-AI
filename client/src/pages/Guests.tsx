@@ -5,6 +5,7 @@ import {
   Briefcase, ChevronRight, Compass, Loader2, Mail, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
+import { MasterContactButton } from "@/components/guest/MasterContactButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
@@ -24,6 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
+import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { GUEST_STAGES, guestStageMeta } from "@/lib/guest-workflow";
 import type { ContactNote, EmailContact, GuestPipelineEntry, GuestProspect } from "@shared/schema";
@@ -51,7 +53,7 @@ function guestName(contact: EmailContact | undefined, prospect?: GuestProspect) 
   if (prospect?.name) return prospect.name;
   if (!contact) return "Unknown guest";
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
-  return name || contact.email;
+  return name || contact.email || "Unknown guest";
 }
 
 function guestEmail(contact: EmailContact | undefined, prospect?: GuestProspect): string | null {
@@ -218,6 +220,8 @@ export default function Guests() {
     },
     onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
   });
+
+  const promoteContactMutation = usePromoteGuestContact();
 
   const inviteGuest = (entry: GuestEntry) => {
     const email = guestEmail(entry.contact, entry.prospect);
@@ -504,6 +508,15 @@ export default function Guests() {
                     ) : null}
                   </div>
                 </div>
+
+                {selected.prospect ? (
+                  <MasterContactButton
+                    masterContactId={selected.contactId}
+                    isPending={promoteContactMutation.isPending}
+                    onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
+                    className="w-full"
+                  />
+                ) : null}
 
                 {selected.prospect && !guestEmail(selected.contact, selected.prospect) ? (
                   <RevealEmailButton

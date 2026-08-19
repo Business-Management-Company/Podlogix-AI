@@ -35,7 +35,7 @@ export const emailContactUpdateInputSchema = emailContactCreateInputSchema
   .refine((value) => Object.keys(value).length > 0, "At least one contact field is required");
 
 export const guestContactInputSchema = z.object({
-  email: normalizedEmailSchema,
+  email: normalizedEmailSchema.nullish(),
   firstName: nullableText(120),
   lastName: nullableText(120),
   company: nullableText(240),

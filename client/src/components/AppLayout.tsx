@@ -94,7 +94,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
   { title: "Guest Prospects", url: "/social/directory", icon: BookMarked, group: "Guests" },
   { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
-  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Contacts & Outreach" },
+  { title: "Master Contacts", url: "/dashboard/email", icon: Contact, group: "Contacts & Outreach" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },

@@ -32,6 +32,45 @@ import {
 } from "lucide-react";
 import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect } from "@shared/schema";
 
+const EMPTY_PROSPECTS: GuestProspect[] = [];
+
+function contactDisplayName(contact: EmailContact, prospect?: GuestProspect | null): string {
+  return prospect?.name
+    || [contact.firstName, contact.lastName].filter(Boolean).join(" ")
+    || contact.email
+    || "Unnamed contact";
+}
+
+function linkedGuestProspect(contact: EmailContact, prospects: GuestProspect[]): GuestProspect | null {
+  if (contact.guestProspectId) {
+    const directMatch = prospects.find((prospect) => prospect.id === contact.guestProspectId);
+    if (directMatch) return directMatch;
+  }
+  if (!contact.email) return null;
+  const normalizedEmail = contact.email.trim().toLowerCase();
+  return prospects.find((prospect) => prospect.email?.trim().toLowerCase() === normalizedEmail) ?? null;
+}
+
+function MasterContactAvatar({
+  contact,
+  prospectImageById,
+  prospectImageByEmail,
+}: {
+  contact: EmailContact;
+  prospectImageById: Map<string, string>;
+  prospectImageByEmail: Map<string, string>;
+}) {
+  const imageUrl = (contact.guestProspectId ? prospectImageById.get(contact.guestProspectId) : undefined)
+    ?? (contact.email ? prospectImageByEmail.get(contact.email.trim().toLowerCase()) : undefined);
+  return imageUrl ? (
+    <img src={imageUrl} alt="" className="h-10 w-10 rounded-full border border-zinc-200 object-cover" />
+  ) : (
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 font-medium text-primary">
+      {contactDisplayName(contact).slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
 export default function EmailHub() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -52,18 +91,21 @@ export default function EmailHub() {
     queryKey: ['/api/guest-prospects'],
     enabled: isAuthenticated,
   });
-  const prospects = prospectData?.prospects ?? [];
+  const prospects = prospectData?.prospects ?? EMPTY_PROSPECTS;
   const selectedContact = contacts.find((contact) => contact.id === selectedContactId) ?? null;
   const linkedProspect = selectedContact
-    ? prospects.find((prospect) => prospect.email?.trim().toLowerCase() === selectedContact.email.trim().toLowerCase()) ?? null
+    ? linkedGuestProspect(selectedContact, prospects)
     : null;
   const linkedAppearanceQuery = useGuestAppearances(linkedProspect?.providerPersonId);
   const peopleCount = contacts.length;
+  const prospectImageById = useMemo(() => new Map(
+    prospects.filter((prospect) => Boolean(prospect.imageUrl)).map((prospect) => [prospect.id, prospect.imageUrl!] as const),
+  ), [prospects]);
   const prospectImageByEmail = useMemo(() => new Map(
-    (prospectData?.prospects ?? [])
+    prospects
       .filter((prospect) => Boolean(prospect.email && prospect.imageUrl))
       .map((prospect) => [prospect.email!.trim().toLowerCase(), prospect.imageUrl!] as const),
-  ), [prospectData?.prospects]);
+  ), [prospects]);
 
   const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<EmailCampaign[]>({
     queryKey: ['/api/email/campaigns'],
@@ -120,7 +162,10 @@ export default function EmailHub() {
       await apiRequest('DELETE', `/api/email/contacts/${id}`);
     },
     onSuccess: () => {
+      setSelectedContactId(null);
       queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/podcasts'] });
       toast({ title: "Contact deleted" });
     },
   });
@@ -203,9 +248,9 @@ export default function EmailHub() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Mail className="h-6 w-6 text-primary" />
-            Contacts & Email
+            Master Contacts & Email
           </h1>
-          <p className="text-muted-foreground">People you can actually reach by email, including guests, sponsors, subscribers, and team members</p>
+          <p className="text-muted-foreground">Your reusable people list, including guest prospects you choose to promote—even before an email is known</p>
         </div>
         {emailStatus?.configured ? (
           <Badge variant="secondary" className="bg-green-500/20 text-green-400">
@@ -222,7 +267,7 @@ export default function EmailHub() {
         <TabsList>
           <TabsTrigger value="contacts" data-testid="tab-contacts">
             <Users className="h-4 w-4 mr-2" />
-            Contacts ({peopleCount})
+            Master Contacts ({peopleCount})
           </TabsTrigger>
           <TabsTrigger value="campaigns" data-testid="tab-campaigns">
             <Send className="h-4 w-4 mr-2" />
@@ -237,7 +282,7 @@ export default function EmailHub() {
         <TabsContent value="contacts" className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              Guest prospects appear here only after an email address is saved or revealed
+              Guest prospects appear here when you choose Add to Contacts; email can be added later
             </p>
             <Dialog open={showAddContact} onOpenChange={setShowAddContact}>
               <DialogTrigger asChild>
@@ -312,8 +357,8 @@ export default function EmailHub() {
             <Card>
               <CardContent className="p-8 text-left">
                 <Users className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="font-semibold mb-2">No contacts yet</h3>
-                <p className="text-muted-foreground text-sm mb-4">Add someone with an email address, or reveal an email from a Guest Prospect.</p>
+                <h3 className="font-semibold mb-2">No Master Contacts yet</h3>
+                <p className="text-muted-foreground text-sm mb-4">Add someone manually, or choose Add to Contacts from a Guest Prospect.</p>
                 <Button onClick={() => setShowAddContact(true)} data-testid="button-add-first-contact">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Your First Contact
@@ -330,16 +375,16 @@ export default function EmailHub() {
                       onClick={() => openContact(contact.id)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
-                      {prospectImageByEmail.get(contact.email.trim().toLowerCase()) ? (
-                        <img src={prospectImageByEmail.get(contact.email.trim().toLowerCase())} alt="" className="h-10 w-10 rounded-full border border-zinc-200 object-cover" />
-                      ) : <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium">{contact.firstName?.[0] || contact.email[0].toUpperCase()}</div>}
+                      <MasterContactAvatar
+                        contact={contact}
+                        prospectImageById={prospectImageById}
+                        prospectImageByEmail={prospectImageByEmail}
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">
-                          {contact.firstName || contact.lastName 
-                            ? `${contact.firstName || ''} ${contact.lastName || ''}`.trim()
-                            : contact.email}
+                          {contactDisplayName(contact, linkedGuestProspect(contact, prospects))}
                         </span>
-                        <span className="block truncate text-sm text-muted-foreground">{contact.email}</span>
+                        <span className="block truncate text-sm text-muted-foreground">{contact.email || "Email not added"}</span>
                       </span>
                       <Badge className={categoryColors[contact.category || 'subscriber']}>
                         {contact.category}
@@ -602,9 +647,9 @@ export default function EmailHub() {
                   )}
                   <div className="min-w-0">
                     <SheetTitle className="truncate text-left">
-                      {linkedProspect?.name || [selectedContact.firstName, selectedContact.lastName].filter(Boolean).join(" ") || selectedContact.email}
+                      {contactDisplayName(selectedContact, linkedProspect)}
                     </SheetTitle>
-                    <p className="truncate text-sm text-zinc-500">{selectedContact.email}</p>
+                    <p className="truncate text-sm text-zinc-500">{selectedContact.email || "Email not added"}</p>
                   </div>
                 </div>
               </SheetHeader>

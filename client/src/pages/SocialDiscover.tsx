@@ -10,6 +10,7 @@ import {
   type GuestAppearanceResult,
 } from "@/components/guest/GuestAppearanceHistory";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
+import { MasterContactButton } from "@/components/guest/MasterContactButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
+import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
 import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -111,6 +113,7 @@ interface GuestProspect {
   providerPersonId: string;
   name: string;
   email: string | null;
+  masterContactId?: string | null;
   socialLinks: Record<string, string> | null;
 }
 
@@ -277,6 +280,7 @@ export default function SocialDiscover() {
   const { data: prospectData } = useQuery<{ prospects: GuestProspect[] }>({ queryKey: ["/api/guest-prospects"] });
   const activeCreator = creatorDetailQuery.data?.creator ?? selectedCreator;
   const savedProspect = activeCreator ? prospectData?.prospects.find((prospect) => prospect.providerPersonId === activeCreator.id) ?? null : null;
+  const promoteContactMutation = usePromoteGuestContact();
 
   const saveProspectMutation = useMutation({
     mutationFn: async (candidate: CreatorCandidate) => {
@@ -322,6 +326,17 @@ export default function SocialDiscover() {
     },
     onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
   });
+
+  const addToContacts = async () => {
+    try {
+      if (!activeCreator) return;
+      let prospect = savedProspect;
+      if (!prospect) prospect = await saveProspectMutation.mutateAsync(activeCreator);
+      await promoteContactMutation.mutateAsync(prospect.id);
+    } catch {
+      // Both mutations surface their own actionable toast message.
+    }
+  };
 
   const submitSearch = () => {
     const query = searchInput.trim();
@@ -437,10 +452,12 @@ export default function SocialDiscover() {
         pipelineStage={pipelineStage}
         addedToPodcastId={addedToPodcastId}
         savePending={saveProspectMutation.isPending}
+        contactPending={promoteContactMutation.isPending || saveProspectMutation.isPending}
         revealPending={revealEmailMutation.isPending}
         pipelinePending={addToPipelineMutation.isPending}
         onClose={() => setSelectedCreator(null)}
         onSave={() => activeCreator && saveProspectMutation.mutate(activeCreator)}
+        onAddContact={() => void addToContacts()}
         onReveal={() => revealEmailMutation.mutate()}
         onTargetShow={setSelectedTargetShowId}
         onStage={setPipelineStage}
@@ -504,10 +521,12 @@ interface PersonDrawerProps {
   pipelineStage: GuestStage;
   addedToPodcastId: string | null;
   savePending: boolean;
+  contactPending: boolean;
   revealPending: boolean;
   pipelinePending: boolean;
   onClose: () => void;
   onSave: () => void;
+  onAddContact: () => void;
   onReveal: () => void;
   onTargetShow: (id: string) => void;
   onStage: (stage: GuestStage) => void;
@@ -517,7 +536,7 @@ interface PersonDrawerProps {
 function PersonDrawer(props: PersonDrawerProps) {
   const { candidate, prospect, appearances, appearancesLoading, appearancesError } = props;
   return <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}><SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">{candidate ? <><SheetHeader><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader><div className="mt-6 space-y-6">
-    <div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved as Guest Prospect" : "Save as Guest Prospect"}</Button><RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks)} isPending={props.revealPending} onConfirm={props.onReveal} /></div>
+    <div className="grid gap-2 sm:grid-cols-3"><Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved as Prospect" : "Save as Prospect"}</Button><MasterContactButton masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} /><RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks)} isPending={props.revealPending} onConfirm={props.onReveal} /></div>
     <section><SectionHeader title="Guest research" /><GuestResearchSummary subtitle={candidate.subtitle} bio={candidate.bio} location={candidate.location} creditedEpisodes={candidate.episodeAppearanceCount} socialLinks={candidate.socialLinks} /></section>
     <GuestAppearanceHistory guestName={candidate.name} appearances={appearances} isLoading={appearancesLoading} error={appearancesError} />
     <section><SectionHeader title="Add to guest pipeline" />{props.ownedPodcasts.length > 0 ? <div className="space-y-2.5 rounded-xl border border-zinc-200 p-4"><Select value={props.targetShowId} onValueChange={props.onTargetShow}><SelectTrigger><SelectValue placeholder="Choose your show" /></SelectTrigger><SelectContent>{props.ownedPodcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent></Select><Select value={props.pipelineStage} onValueChange={(value) => props.onStage(value as GuestStage)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent></Select><Button className="w-full" onClick={props.onAddPipeline} disabled={!props.targetShowId || props.pipelinePending || props.addedToPodcastId === props.targetShowId}>{props.addedToPodcastId === props.targetShowId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}{props.addedToPodcastId === props.targetShowId ? "Added to Pipeline" : "Add to Guest Pipeline"}</Button></div> : <p className="rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">Connect a show to add this guest to a pipeline. <Link href="/dashboard/rss" className="underline">Connect a show →</Link></p>}</section>

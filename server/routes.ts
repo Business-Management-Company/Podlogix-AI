@@ -167,20 +167,43 @@ function extractGuestEnrichmentEmail(payload: any): string | null {
 
 type GuestContactDetails = Partial<Pick<EmailContact, "firstName" | "lastName" | "company" | "title">>;
 
+class GuestContactConflictError extends Error {}
+
 async function ensureOfficialGuestContact(
   userId: string,
   prospect: GuestProspect,
-  rawEmail: string,
+  rawEmail?: string | null,
   details: GuestContactDetails = {},
-  sourceNote = "Email added from a saved guest profile.",
+  sourceNote = "Added from a saved guest prospect.",
 ) {
-  const email = normalizedEmailSchema.parse(rawEmail);
-  let contact = await storage.getEmailContactByEmail(userId, email);
+  const email = rawEmail ? normalizedEmailSchema.parse(rawEmail) : null;
+  let contact = await storage.getEmailContactByGuestProspect(userId, prospect.id);
+  const emailContact = email ? await storage.getEmailContactByEmail(userId, email) : undefined;
+  if (!contact) contact = emailContact;
+
+  if (contact && emailContact && contact.id !== emailContact.id) {
+    if (emailContact.guestProspectId && emailContact.guestProspectId !== prospect.id) {
+      throw new GuestContactConflictError("That email is already attached to another guest contact.");
+    }
+    contact = await storage.mergeEmailContacts(contact.id, emailContact.id, userId, {
+      guestProspectId: prospect.id,
+      firstName: details.firstName ?? contact.firstName ?? emailContact.firstName,
+      lastName: details.lastName ?? contact.lastName ?? emailContact.lastName,
+      company: details.company ?? contact.company ?? emailContact.company,
+      title: details.title ?? contact.title ?? emailContact.title,
+      notes: contact.notes ?? emailContact.notes,
+    });
+    if (!contact) throw new Error("Unable to merge duplicate master contacts");
+  }
+  if (contact?.guestProspectId && contact.guestProspectId !== prospect.id) {
+    throw new GuestContactConflictError("That contact is already linked to another guest prospect.");
+  }
 
   if (!contact) {
     const fallbackName = contactNameParts(prospect.name);
     contact = await storage.createEmailContact({
       userId,
+      guestProspectId: prospect.id,
       email,
       firstName: details.firstName ?? fallbackName.firstName,
       lastName: details.lastName ?? fallbackName.lastName,
@@ -188,22 +211,33 @@ async function ensureOfficialGuestContact(
       title: details.title,
       category: "guest",
       notes: sourceNote,
+      isSubscribed: false,
     });
-  } else if (Object.values(details).some((value) => value !== undefined)) {
-    contact = await storage.updateEmailContact(contact.id, userId, details) ?? contact;
+  } else {
+    const fallbackName = contactNameParts(prospect.name);
+    const updates: Partial<EmailContact> = {
+      ...details,
+      ...(contact.guestProspectId ? {} : { guestProspectId: prospect.id }),
+      ...(email && contact.email?.trim().toLowerCase() !== email ? { email } : {}),
+      ...(!contact.firstName && details.firstName === undefined ? { firstName: fallbackName.firstName } : {}),
+      ...(!contact.lastName && details.lastName === undefined ? { lastName: fallbackName.lastName } : {}),
+    };
+    if (Object.keys(updates).length > 0) {
+      contact = await storage.updateEmailContact(contact.id, userId, updates) ?? contact;
+    }
   }
 
-  const updatedProspect = prospect.email?.trim().toLowerCase() === email
+  const updatedProspect = !email || prospect.email?.trim().toLowerCase() === email
     ? prospect
     : await storage.updateGuestProspect(prospect.id, userId, { email });
   if (!updatedProspect) throw new Error("Guest prospect disappeared while saving contact details");
 
   const entries = await storage.getGuestPipelineEntriesByProspect(prospect.id);
   await Promise.all(entries
-    .filter((entry) => !entry.contactId)
+    .filter((entry) => entry.contactId !== contact!.id)
     .map((entry) => storage.updateGuestPipelineEntry(entry.id, { contactId: contact!.id })));
 
-  return { prospect: updatedProspect, contact, email };
+  return { prospect: updatedProspect, contact, email: contact.email };
 }
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
@@ -217,7 +251,8 @@ async function sendEmailCampaign(campaignId: string, userId: string, recipientId
     throw new Error('Campaign not found');
   }
 
-  const contacts = await storage.getEmailContacts(userId);
+  const contacts = (await storage.getEmailContacts(userId))
+    .filter((contact): contact is EmailContact & { email: string } => Boolean(contact.email));
   const recipients = recipientIds 
     ? contacts.filter(c => recipientIds.includes(c.id))
     : contacts.filter(c => c.isSubscribed);
@@ -4099,7 +4134,8 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       }
 
       const input = emailContactUpdateInputSchema.parse(req.body);
-      if (input.email && input.email !== existing.email.trim().toLowerCase()) {
+      const existingEmail = existing.email?.trim().toLowerCase() ?? null;
+      if (input.email && input.email !== existingEmail) {
         const duplicate = await storage.getEmailContactByEmail(userId, input.email);
         if (duplicate && duplicate.id !== existing.id) {
           return res.status(409).json({ message: 'Another contact already uses this email.' });
@@ -4111,14 +4147,15 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         return res.status(404).json({ message: 'Contact not found' });
       }
 
-      if (input.email && input.email !== existing.email.trim().toLowerCase()) {
+      if (input.email && input.email !== existingEmail) {
         const [emailMatches, linkedEntries] = await Promise.all([
-          storage.getGuestProspectsByEmail(userId, existing.email),
+          existingEmail ? storage.getGuestProspectsByEmail(userId, existingEmail) : Promise.resolve([]),
           storage.getGuestPipelineEntriesByContact(existing.id),
         ]);
         const linkedProspectIds = new Set(linkedEntries
           .map((entry) => entry.guestProspectId)
           .filter((id): id is string => Boolean(id)));
+        if (existing.guestProspectId) linkedProspectIds.add(existing.guestProspectId);
         for (const prospect of emailMatches) linkedProspectIds.add(prospect.id);
         await Promise.all([...linkedProspectIds]
           .map((prospectId) => storage.updateGuestProspect(prospectId, userId, { email: input.email! })));
@@ -4171,6 +4208,10 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.delete('/api/email/contacts/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
+      const contact = await storage.getEmailContact(req.params.id);
+      if (!contact || contact.userId !== userId) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
       await storage.deleteEmailContact(req.params.id, userId);
       res.json({ success: true });
     } catch (error) {
@@ -4331,8 +4372,25 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/guest-prospects', isAuthenticated, async (req: any, res) => {
     try {
-      const prospects = await storage.getGuestProspectsByUser(req.session.userId!);
-      res.json({ prospects });
+      const userId = req.session.userId!;
+      const [prospects, contacts] = await Promise.all([
+        storage.getGuestProspectsByUser(userId),
+        storage.getEmailContacts(userId),
+      ]);
+      const contactsByProspectId = new Map(contacts
+        .filter((contact) => Boolean(contact.guestProspectId))
+        .map((contact) => [contact.guestProspectId!, contact]));
+      const contactsByEmail = new Map(contacts
+        .filter((contact) => Boolean(contact.email))
+        .map((contact) => [contact.email!.trim().toLowerCase(), contact]));
+      res.json({
+        prospects: prospects.map((prospect) => ({
+          ...prospect,
+          masterContactId: contactsByProspectId.get(prospect.id)?.id
+            ?? (prospect.email ? contactsByEmail.get(prospect.email.trim().toLowerCase())?.id : undefined)
+            ?? null,
+        })),
+      });
     } catch (error) {
       console.error('Error fetching guest prospects:', error);
       res.status(500).json({ message: 'Failed to fetch guest prospects' });
@@ -4414,8 +4472,11 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         company: input.company,
         title: input.title,
       });
-      res.json(result);
+      res.json({ ...result, masterContactId: result.contact.id });
     } catch (error) {
+      if (error instanceof GuestContactConflictError) {
+        return res.status(409).json({ message: error.message });
+      }
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0]?.message || 'Invalid contact details' });
       }
@@ -4480,6 +4541,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       );
       res.json({ ...linked, charged: true, cached: false, contactId: linked.contact.id });
     } catch (error) {
+      if (error instanceof GuestContactConflictError) {
+        return res.status(409).json({ message: error.message });
+      }
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         return res.status(504).json({ message: 'Contact enrichment timed out. No result was saved.' });
       }
@@ -4496,6 +4560,10 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       const pipelineEntries = await storage.getGuestPipelineEntriesByProspect(prospect.id);
       if (pipelineEntries.length > 0) {
         return res.status(409).json({ message: 'Remove this person from the guest pipeline before deleting the prospect.' });
+      }
+      const masterContact = await storage.getEmailContactByGuestProspect(userId, prospect.id);
+      if (masterContact) {
+        await storage.updateEmailContact(masterContact.id, userId, { guestProspectId: null });
       }
       await storage.deleteGuestProspect(prospect.id, userId);
       res.json({ success: true });

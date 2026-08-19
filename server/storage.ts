@@ -159,6 +159,8 @@ export interface IStorage {
   createContactNote(note: InsertContactNote): Promise<ContactNote>;
   getEmailContact(id: string): Promise<EmailContact | undefined>;
   getEmailContactByEmail(userId: string, email: string): Promise<EmailContact | undefined>;
+  getEmailContactByGuestProspect(userId: string, guestProspectId: string): Promise<EmailContact | undefined>;
+  mergeEmailContacts(sourceId: string, targetId: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
   createEmailContact(contact: InsertEmailContact): Promise<EmailContact>;
   updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
   deleteEmailContact(id: string, userId: string): Promise<void>;
@@ -818,6 +820,47 @@ export class DatabaseStorage implements IStorage {
     return contact;
   }
 
+  async getEmailContactByGuestProspect(userId: string, guestProspectId: string): Promise<EmailContact | undefined> {
+    const [contact] = await db.select().from(emailContacts)
+      .where(and(
+        eq(emailContacts.userId, userId),
+        eq(emailContacts.guestProspectId, guestProspectId),
+      ));
+    return contact;
+  }
+
+  async mergeEmailContacts(
+    sourceId: string,
+    targetId: string,
+    userId: string,
+    updates: Partial<EmailContact>,
+  ): Promise<EmailContact | undefined> {
+    return await db.transaction(async (tx: typeof db) => {
+      const source = await tx.select().from(emailContacts)
+        .where(and(eq(emailContacts.id, sourceId), eq(emailContacts.userId, userId)))
+        .then((rows: EmailContact[]) => rows[0]);
+      const target = await tx.select().from(emailContacts)
+        .where(and(eq(emailContacts.id, targetId), eq(emailContacts.userId, userId)))
+        .then((rows: EmailContact[]) => rows[0]);
+      if (!source || !target) return undefined;
+
+      await tx.update(guestPipelineEntries)
+        .set({ contactId: targetId, updatedAt: new Date() })
+        .where(eq(guestPipelineEntries.contactId, sourceId));
+      await tx.update(contactNotes)
+        .set({ contactId: targetId })
+        .where(and(eq(contactNotes.contactId, sourceId), eq(contactNotes.userId, userId)));
+      await tx.delete(emailContacts)
+        .where(and(eq(emailContacts.id, sourceId), eq(emailContacts.userId, userId)));
+
+      const [merged] = await tx.update(emailContacts)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(and(eq(emailContacts.id, targetId), eq(emailContacts.userId, userId)))
+        .returning();
+      return merged;
+    });
+  }
+
   async createEmailContact(contact: InsertEmailContact): Promise<EmailContact> {
     const [created] = await db.insert(emailContacts).values(contact).returning();
     return created;
@@ -832,6 +875,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteEmailContact(id: string, userId: string): Promise<void> {
+    await db.update(guestPipelineEntries)
+      .set({ contactId: null, updatedAt: new Date() })
+      .where(eq(guestPipelineEntries.contactId, id));
     await db.delete(emailContacts).where(and(eq(emailContacts.id, id), eq(emailContacts.userId, userId)));
   }
 
