@@ -24,18 +24,20 @@ test("returns structured guest credits and measures Starter quota use", async ()
     if (url.pathname.endsWith("/usage")) {
       usageCalls += 1;
       return jsonResponse({
-        tier: "starter",
-        quota: 1000,
-        used: usageCalls === 1 ? 10 : 13,
-        remaining: usageCalls === 1 ? 990 : 987,
-        cycle_start: "2026-08-19 00:00:00",
-        cycle_end: "2026-09-18 00:00:00",
+        data: {
+          tier: "starter",
+          quota: 1000,
+          used: usageCalls === 1 ? 10 : 13,
+          remaining: usageCalls === 1 ? 990 : 987,
+          cycle_start: "2026-08-19 00:00:00",
+          cycle_end: "2026-09-18 00:00:00",
+        },
       });
     }
     if (url.pathname.endsWith("/search/creators")) {
       return jsonResponse([
         { pcid: "999", name: "Andrew Huber", episodeAppearanceCount: 50 },
-        { pcid: "452446", name: "Andrew Huberman", bio: "Neuroscientist", episodeAppearanceCount: 410 },
+        { pcid: "452446", name: "Dr. Andrew Huberman", bio: "Neuroscientist", episodeAppearanceCount: 410 },
       ]);
     }
     if (url.pathname.endsWith("/creators/452446/episodes")) {
@@ -96,6 +98,29 @@ test("requires a configured key before making a request", async () => {
     (error: unknown) => error instanceof PodchaserError && error.code === "NOT_CONFIGURED",
   );
   assert.equal(fetchCalled, false);
+});
+
+test("marks duplicate exact-name creator matches as possible identities", async () => {
+  process.env.PODCHASER_API_KEY = "test-podchaser-key";
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/usage")) {
+      return jsonResponse({ tier: "starter", quota: 1000, used: 20, remaining: 980 });
+    }
+    if (url.pathname.endsWith("/search/creators")) {
+      return jsonResponse([
+        { pcid: "first", name: "Alex Smith", subtitle: "Host on Show One", episodeAppearanceCount: 280 },
+        { pcid: "second", name: "Alex Smith", subtitle: "Guest on Show Two", episodeAppearanceCount: 70 },
+      ]);
+    }
+    return jsonResponse({ data: [], pagination: { total_results: 0 } });
+  };
+
+  const result = await probePodchaserGuest("Alex Smith", 10);
+
+  assert.equal(result.selectedCreator?.id, "first");
+  assert.equal(result.identityConfidence, "possible");
+  assert.equal(result.creatorCandidates.length, 2);
 });
 
 test("does not expose the configured key in authentication errors", async () => {
