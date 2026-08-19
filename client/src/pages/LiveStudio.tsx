@@ -982,6 +982,7 @@ export default function LiveStudio() {
               ["home", "Home", HomeIcon, null],
               ["past", "Past streams", Clock, null],
               ["clips", "Clips", Scissors, null],
+              ["refiner", "Refiner", Wand2, "/studio/refine"],
               ["storage", "Storage", FolderOpen, null],
               ["channels", "Channels", Share2, null],
               ["analytics", "Analytics", BarChart3, null],
