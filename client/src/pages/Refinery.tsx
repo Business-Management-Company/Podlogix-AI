@@ -11,7 +11,7 @@ import {
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 
 /**
- * /studio/refine — The Refinery. Post-production as its own room, outside the
+ * /studio/refine — Refiner. Post-production as its own room, outside the
  * live studio: pick any recording, press Refine, watch a REAL pipeline run —
  * every checkmark is an actual transformation of the actual file, and the
  * results are measured, never invented. (The house rule, born from the
@@ -196,10 +196,10 @@ export default function Refinery() {
       <div className="mb-6">
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
           <Wand2 className="h-6 w-6 text-zinc-400" />
-          The Refinery
+          Refiner
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Post-production in one press. Every checkmark is a real transformation of your actual file.
+          Turn raw conversations into clear, compelling content — every checkmark is a real transformation of your actual file.
         </p>
       </div>
 
@@ -345,7 +345,7 @@ export default function Refinery() {
             <StepRow state="soon" label="Enhance video" sub="Re-cut picture to the refined audio" />
           </div>
           <p className="mt-2 px-1 text-[11px] leading-relaxed text-zinc-500">
-            Marked clips and captions live in your studio's Editing Room — the Refinery polishes the whole show.
+            Marked clips and captions live in your studio's Editing Room — Refiner polishes the whole show.
           </p>
         </div>
       </div>
