@@ -101,7 +101,11 @@ const SOURCE_TYPES: SourceType[] = [
   },
 ];
 
-const EVENT_MS = 3400;
+const EVENT_MS = 3800;
+const ENGINE_AT = 900;   // pulse reaches the engine
+const OUTPUT_AT = 2300;  // result lands on the output card
+
+type Phase = "source" | "engine" | "output";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -109,6 +113,7 @@ export function ContentEngine() {
   const reduceMotion = useReducedMotion();
   const [sourceId, setSourceId] = useState(SOURCE_TYPES[0].id);
   const [eventIdx, setEventIdx] = useState(0);
+  const [phase, setPhase] = useState<Phase>("output");
 
   const source = SOURCE_TYPES.find((s) => s.id === sourceId)!;
   const event = source.events[eventIdx % source.events.length];
@@ -120,6 +125,15 @@ export function ContentEngine() {
     const t = setInterval(() => setEventIdx((i) => i + 1), EVENT_MS);
     return () => clearInterval(t);
   }, [reduceMotion, sourceId]);
+
+  // Each event plays as a colored sequence: the element that's engaged lights.
+  useEffect(() => {
+    if (reduceMotion) { setPhase("output"); return; }
+    setPhase("source");
+    const t1 = setTimeout(() => setPhase("engine"), ENGINE_AT);
+    const t2 = setTimeout(() => setPhase("output"), OUTPUT_AT);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [eventIdx, sourceId, reduceMotion]);
 
   const pickSource = (id: string) => {
     setSourceId(id);
@@ -137,7 +151,8 @@ export function ContentEngine() {
         <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={viewportOnce} className="mx-auto mb-6 max-w-2xl text-center">
           <SectionKicker className="text-center">The Content Engine</SectionKicker>
           <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">
-            One stream in. Everything else out.
+            <span className="block">One stream in.</span>
+            <span className="block">Everything else out.</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             Podcast, livestream, conference, or event — Podlogix turns your broadcast into clips, highlights,
@@ -169,7 +184,13 @@ export function ContentEngine() {
 
             {/* 1 · Source */}
             <div className="mx-auto w-full max-w-[240px] shrink-0 lg:mx-0">
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 text-center">
+              <div
+                className={`rounded-2xl border p-5 text-center transition-all duration-500 ${
+                  phase === "source" && !reduceMotion
+                    ? "border-primary/50 bg-primary/[0.05] shadow-[0_0_36px_-12px_rgba(216,75,45,0.55)]"
+                    : "border-white/[0.08] bg-white/[0.02]"
+                }`}
+              >
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
                   <source.Icon className="h-5 w-5 text-foreground/80" />
                 </div>
@@ -188,18 +209,32 @@ export function ContentEngine() {
             </div>
 
             {/* Stream: source → engine */}
-            <div className="relative mx-auto h-11 w-px shrink-0 bg-gradient-to-b from-white/5 via-white/20 to-white/5 lg:mx-4 lg:h-px lg:flex-1 lg:bg-gradient-to-r" aria-hidden>
-              {!reduceMotion && (
-                <>
-                  <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_8px_2px_rgba(216,75,45,0.5)] lg:left-0 lg:top-1/2 lg:-translate-y-1/2 lg:translate-x-0" style={{ animation: "ce-pulse-y 1.7s linear infinite" }} />
-                  <span className="hidden lg:block absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-primary/70 shadow-[0_0_8px_2px_rgba(216,75,45,0.4)]" style={{ animation: "ce-pulse-x 1.7s linear infinite", animationDelay: "0.85s", ["--ce-travel" as string]: "100%" }} />
-                </>
+            <div
+              className={`relative mx-auto h-11 w-px shrink-0 transition-colors duration-300 lg:mx-4 lg:h-px lg:flex-1 ${
+                phase === "source" && !reduceMotion
+                  ? "bg-gradient-to-b from-primary/10 via-primary/70 to-primary/10 lg:bg-gradient-to-r"
+                  : "bg-gradient-to-b from-white/5 via-white/20 to-white/5 lg:bg-gradient-to-r"
+              }`}
+              aria-hidden
+            >
+              {!reduceMotion && phase === "source" && (
+                <span
+                  key={`p1-${eventIdx}`}
+                  className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_10px_3px_rgba(216,75,45,0.6)] lg:left-0 lg:top-1/2 lg:-translate-y-1/2 lg:translate-x-0"
+                  style={{ animation: "ce-pulse-y 0.9s linear forwards", ["--ce-travel" as string]: "100%" }}
+                />
               )}
             </div>
 
             {/* 2 · Podlogix engine */}
             <div className="mx-auto w-full max-w-[280px] shrink-0 lg:mx-0">
-              <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-white/[0.03] p-6 text-center shadow-[0_0_60px_-20px_rgba(216,75,45,0.45)]">
+              <div
+                className={`relative overflow-hidden rounded-2xl border bg-white/[0.03] p-6 text-center transition-all duration-500 ${
+                  phase === "engine" && !reduceMotion
+                    ? "border-primary/70 shadow-[0_0_80px_-16px_rgba(216,75,45,0.75)]"
+                    : "border-primary/25 shadow-[0_0_60px_-24px_rgba(216,75,45,0.35)]"
+                }`}
+              >
                 <div aria-hidden className="pointer-events-none absolute inset-0 opacity-30" style={{ background: "radial-gradient(circle at 50% 0%, rgba(216,75,45,0.25), transparent 65%)" }} />
                 <p className="relative font-display text-xl font-bold tracking-wide text-foreground">PODLOGIX</p>
                 <p className="relative text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Content Engine</p>
@@ -225,9 +260,20 @@ export function ContentEngine() {
             </div>
 
             {/* Branch: engine → outputs */}
-            <div className="relative mx-auto h-11 w-px shrink-0 bg-gradient-to-b from-white/5 via-white/20 to-white/5 lg:mx-4 lg:h-px lg:flex-1 lg:bg-gradient-to-r" aria-hidden>
-              {!reduceMotion && (
-                <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_8px_2px_rgba(216,75,45,0.5)] lg:left-0 lg:top-1/2 lg:-translate-y-1/2 lg:translate-x-0" style={{ animation: "ce-pulse-y 1.7s linear infinite", animationDelay: "0.4s", ["--ce-travel" as string]: "100%" }} />
+            <div
+              className={`relative mx-auto h-11 w-px shrink-0 transition-colors duration-300 lg:mx-4 lg:h-px lg:flex-1 ${
+                phase === "engine" && !reduceMotion
+                  ? "bg-gradient-to-b from-primary/10 via-primary/70 to-primary/10 lg:bg-gradient-to-r"
+                  : "bg-gradient-to-b from-white/5 via-white/20 to-white/5 lg:bg-gradient-to-r"
+              }`}
+              aria-hidden
+            >
+              {!reduceMotion && phase === "engine" && (
+                <span
+                  key={`p2-${eventIdx}`}
+                  className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_10px_3px_rgba(216,75,45,0.6)] lg:left-0 lg:top-1/2 lg:-translate-y-1/2 lg:translate-x-0"
+                  style={{ animation: "ce-pulse-y 1.3s linear forwards", ["--ce-travel" as string]: "100%" }}
+                />
               )}
             </div>
 
@@ -236,7 +282,7 @@ export function ContentEngine() {
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 {primaryOutputs.map((id) => {
                   const o = OUTPUT_TYPES[id];
-                  const active = event.output === id;
+                  const active = event.output === id && (reduceMotion || phase === "output");
                   return (
                     <div
                       key={id}
@@ -262,7 +308,7 @@ export function ContentEngine() {
                 <p className="mt-3 text-[11px] text-muted-foreground/50">
                   Also flowing:{" "}
                   {extraOutputs.map((id, i) => (
-                    <span key={id} className={event.output === id ? "font-semibold text-primary/80" : ""}>
+                    <span key={id} className={event.output === id && (reduceMotion || phase === "output") ? "font-semibold text-primary/80" : ""}>
                       {OUTPUT_TYPES[id].label}
                       {i < extraOutputs.length - 1 ? " · " : ""}
                     </span>
