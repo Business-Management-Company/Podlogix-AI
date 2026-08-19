@@ -6689,7 +6689,12 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       });
       if (!dl.ok) return res.status(dl.status === 404 ? 404 : 502).json({ message: `Result not ready (HTTP ${dl.status})` });
       const buffer = Buffer.from(await dl.arrayBuffer());
-      if (buffer.length === 0 || buffer.length > 80 * 1024 * 1024) {
+      // Refined VIDEOS of full shows are legitimately large — the old 80MB cap
+      // silently killed every long video refine at the finish line. Audio
+      // keeps the tight cap; video gets headroom (outputs are bitrate-capped
+      // client-side to ~250MB/12min).
+      const maxBytes = (isAudio ? 80 : 500) * 1024 * 1024;
+      if (buffer.length === 0 || buffer.length > maxBytes) {
         return res.status(413).json({ message: buffer.length === 0 ? 'Empty result' : 'Result too large to store' });
       }
       const contentType = dl.headers.get('content-type') || (isAudio ? 'audio/mpeg' : 'video/mp4');

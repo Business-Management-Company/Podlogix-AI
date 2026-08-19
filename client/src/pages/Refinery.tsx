@@ -126,13 +126,13 @@ function spanExpr(spans: Array<[number, number]>): string {
  * against its API.
  */
 function normalizeCommand(w: number, h: number): string {
-  return `ffmpeg -y -i {input} -vf "scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,fps=30,setsar=1" -af "aresample=44100,aformat=channel_layouts=stereo" -c:v h264_nvenc -cq 23 -c:a aac -b:a 160k {output}`;
+  return `ffmpeg -y -i {input} -vf "scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,fps=30,setsar=1" -af "aresample=44100,aformat=channel_layouts=stereo" -c:v h264_nvenc -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M -c:a aac -b:a 160k {output}`;
 }
 
 function concatCommand(count: number): string {
   const inputs = Array.from({ length: count }, (_, i) => `-i {input${i}}`).join(" ");
   const pads = Array.from({ length: count }, (_, i) => `[${i}:v][${i}:a]`).join("");
-  return `ffmpeg -y ${inputs} -filter_complex "${pads}concat=n=${count}:v=1:a=1" -c:v h264_nvenc -cq 23 -c:a aac -b:a 160k {output}`;
+  return `ffmpeg -y ${inputs} -filter_complex "${pads}concat=n=${count}:v=1:a=1" -c:v h264_nvenc -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M -c:a aac -b:a 160k {output}`;
 }
 
 /** Width/height probe with the same hard timeout as the duration probe. */
@@ -397,7 +397,7 @@ export default function Refinery() {
           // audio-only pass and say so — never a silent lie in the column.
           const expr = spanExpr(cut.spans);
           const eq = colorCorrect ? ",eq=brightness=0.02:contrast=1.05:saturation=1.1" : "";
-          const videoCmd = `ffmpeg -y -i {input} -vf "select='${expr}',setpts=N/FRAME_RATE/TB${eq}" -af "aselect='${expr}',asetpts=N/SR/TB,loudnorm=I=-16:TP=-1.5:LRA=11" -c:v h264_nvenc -cq 23 -c:a aac -b:a 160k {output}`;
+          const videoCmd = `ffmpeg -y -i {input} -vf "select='${expr}',setpts=N/FRAME_RATE/TB${eq},scale=-2:min(720\\,ih)" -af "aselect='${expr}',asetpts=N/SR/TB,loudnorm=I=-16:TP=-1.5:LRA=11" -c:v h264_nvenc -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M -c:a aac -b:a 160k {output}`;
           try {
             url = await submitAndCollect([selected.url], videoCmd, "mp4", `${selected.title} — refined video`);
             isVideo = true;
@@ -422,7 +422,7 @@ export default function Refinery() {
           // Keep every cut where the editor put it. Color on: gentle eq
           // re-encode; color off: stream-copy the picture untouched.
           const cmd = colorCorrect
-            ? `ffmpeg -y -i {input} -vf eq=brightness=0.02:contrast=1.05:saturation=1.1 -c:v h264_nvenc -cq 23 -af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k {output}`
+            ? `ffmpeg -y -i {input} -vf eq=brightness=0.02:contrast=1.05:saturation=1.1 -c:v h264_nvenc -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M -af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k {output}`
             : `ffmpeg -y -i {input} -c:v copy -af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k {output}`;
           url = await submitAndCollect([selected.url], cmd, "mp4", `${selected.title} — refined video`);
           isVideo = true;
