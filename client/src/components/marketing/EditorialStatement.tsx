@@ -29,16 +29,37 @@ export function EditorialStatement() {
   return (
     <section ref={ref} className="border-y border-white/5 py-32 lg:py-44">
       <div className="container mx-auto px-6">
-        <motion.div style={{ opacity, filter }} className="mx-auto max-w-4xl text-center">
-          <p className="font-display text-3xl font-medium leading-[1.25] tracking-tight text-muted-foreground md:text-4xl lg:text-5xl">
-            Podcasting stopped being just a show.
-          </p>
-          <p className="mt-3 font-display text-3xl font-bold leading-[1.25] tracking-tight md:text-4xl lg:text-5xl">
-            It became a business — sponsors, a team,
-            <br className="hidden md:block" />
-            an audience worth protecting.
-          </p>
-          <p className="mt-8 text-lg text-muted-foreground">Podlogix is where you run all of it.</p>
+        <motion.div style={{ opacity, filter }} className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-4xl text-center">
+            <p className="font-display text-3xl font-medium leading-[1.25] tracking-tight text-muted-foreground md:text-4xl lg:text-5xl">
+              A show stopped being just a show.
+            </p>
+            <p className="mt-3 font-display text-3xl font-bold leading-[1.25] tracking-tight md:text-4xl lg:text-5xl">
+              It's a pipeline — and Podlogix
+              <br className="hidden md:block" />
+              runs every stage of it.
+            </p>
+          </div>
+
+          {/* The pipeline — a real sequence, so the numbering carries meaning */}
+          <ol className="mt-16 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {([
+              ["Create", "Studio, guests, recording"],
+              ["Stream", "RTMP, destinations, live events"],
+              ["Transform", "AI clips, newsletters, posts"],
+              ["Distribute", "Podcast feeds, social, video"],
+              ["Grow", "Subscribers, audience, analytics"],
+              ["Monetize", "Ads, sponsors, tips, memberships"],
+            ] as const).map(([word, sub], i) => (
+              <li key={word} className="border-l-2 border-primary/40 pl-4">
+                <p className="text-xs font-semibold tabular-nums text-primary/70">0{i + 1}</p>
+                <p className="mt-1 font-display text-base font-bold uppercase tracking-[0.18em] text-foreground">
+                  {word}
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{sub}</p>
+              </li>
+            ))}
+          </ol>
         </motion.div>
       </div>
     </section>
