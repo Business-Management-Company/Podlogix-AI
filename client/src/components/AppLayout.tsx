@@ -91,10 +91,12 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Shows", url: "/shows", icon: Mic, group: "Podcast" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Podcast" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
-  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
-  { title: "Guest Prospects", url: "/social/directory", icon: BookMarked, group: "Guests" },
-  { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
-  { title: "Master Contacts", url: "/dashboard/email", icon: Contact, group: "Contacts & Outreach" },
+  { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests & CRM" },
+  { title: "People & Contacts", url: "/dashboard/email", icon: Contact, group: "Guests & CRM" },
+  // Discover/Shortlist live under Guests & CRM: they exist to find and keep
+  // guests, feeding the CRM/email side — not to manage posting.
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests & CRM" },
+  { title: "Shortlist", url: "/social/directory", icon: BookMarked, group: "Guests & CRM" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
@@ -187,6 +189,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const darkChrome = location === "/today";
   const [railExpanded, setRailExpanded] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+
+  // Any page can fire window.dispatchEvent(new CustomEvent("podlogix:openAi")) to open the panel
+  useEffect(() => {
+    const handler = () => setAiOpen(true);
+    window.addEventListener("podlogix:openAi", handler);
+    return () => window.removeEventListener("podlogix:openAi", handler);
+  }, []);
 
   // ── Nav mode: workspace vs. show context ──
   const showMatch = location.match(/^\/shows\/([^/]+)/);
@@ -613,7 +622,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
 
-      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} suppressFloat={location === "/help"} />
+      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} />
 
     </div>
   );
@@ -646,7 +655,7 @@ const GREETING: AiMessage = {
   text: "Hey! I'm your Podlogix AI — ask me anything about your podcast: episode ideas, show notes, growth, sponsorships, or whatever's on your mind. 🎙️",
 };
 
-function AiPanel({ aiOpen, setAiOpen, suppressFloat }: { aiOpen: boolean; setAiOpen: (v: boolean) => void; suppressFloat?: boolean }) {
+function AiPanel({ aiOpen, setAiOpen }: { aiOpen: boolean; setAiOpen: (v: boolean) => void }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<AiMessage[]>([GREETING]);
   const [loading, setLoading] = useState(false);
@@ -749,8 +758,8 @@ function AiPanel({ aiOpen, setAiOpen, suppressFloat }: { aiOpen: boolean; setAiO
 
   return (
     <>
-      {/* Floating trigger — hidden on /help where the AI panel is embedded inline */}
-      {!aiOpen && !suppressFloat && (
+      {/* Floating trigger */}
+      {!aiOpen && (
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
