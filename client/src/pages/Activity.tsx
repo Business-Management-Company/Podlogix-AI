@@ -166,7 +166,7 @@ function DashCard({
 
 function CardLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="flex items-center gap-1 text-xs font-medium text-red-400 transition-colors hover:text-red-300">
+    <Link href={href} className="flex items-center gap-1 text-[13px] font-medium text-red-400 transition-colors hover:text-red-300">
       {children}
     </Link>
   );
@@ -199,7 +199,19 @@ function ActivityChart({ points }: { points: Array<{ label: string; minutes: num
 }
 
 /** Month grid with real event dots — no external calendar widget. */
-function MonthCalendar({ eventDays, month, onMonth }: { eventDays: Set<string>; month: Date; onMonth: (delta: number) => void }) {
+function MonthCalendar({
+  eventDays,
+  month,
+  onMonth,
+  selected,
+  onSelect,
+}: {
+  eventDays: Set<string>;
+  month: Date;
+  onMonth: (delta: number) => void;
+  selected: Date | null;
+  onSelect: (d: Date | null) => void;
+}) {
   const today = new Date();
   const y = month.getFullYear();
   const m = month.getMonth();
@@ -210,11 +222,13 @@ function MonthCalendar({ eventDays, month, onMonth }: { eventDays: Set<string>; 
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   const isToday = (d: number) => d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+  const isSelected = (d: number) =>
+    !!selected && d === selected.getDate() && m === selected.getMonth() && y === selected.getFullYear();
   const key = (d: number) => `${y}-${m}-${d}`;
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-medium text-zinc-300">
+        <p className="text-[13px] font-medium text-zinc-300">
           {month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
         </p>
         <div className="flex gap-1">
@@ -228,20 +242,25 @@ function MonthCalendar({ eventDays, month, onMonth }: { eventDays: Set<string>; 
       </div>
       <div className="grid grid-cols-7 gap-y-1 text-center">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <span key={`${d}${i}`} className="text-[10px] font-semibold uppercase text-zinc-600">{d}</span>
+          <span key={`${d}${i}`} className="text-[11px] font-semibold uppercase text-zinc-600">{d}</span>
         ))}
         {cells.map((d, i) =>
           d === null ? (
             <span key={`b${i}`} />
           ) : (
             <span key={d} className="flex flex-col items-center">
-              <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] tabular-nums ${
-                  isToday(d) ? "bg-red-600 font-semibold text-white" : "text-zinc-400"
+              <button
+                onClick={() => onSelect(isSelected(d) ? null : new Date(y, m, d))}
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs tabular-nums transition-colors ${
+                  isSelected(d)
+                    ? "bg-zinc-100 font-semibold text-zinc-900"
+                    : isToday(d)
+                      ? "bg-red-600 font-semibold text-white"
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
                 }`}
               >
                 {d}
-              </span>
+              </button>
               <span className={`h-1 w-1 rounded-full ${eventDays.has(key(d)) ? "bg-red-400" : "bg-transparent"}`} />
             </span>
           ),
@@ -259,8 +278,8 @@ function ReadyRow({ ok, label, detail }: { ok: boolean | null; label: string; de
       ) : (
         <Circle className="h-4 w-4 shrink-0 text-zinc-600" />
       )}
-      <span className="text-xs font-medium text-zinc-200">{label}</span>
-      {detail && <span className="truncate text-[11px] text-zinc-500">{detail}</span>}
+      <span className="text-[13px] font-medium text-zinc-200">{label}</span>
+      {detail && <span className="truncate text-xs text-zinc-500">{detail}</span>}
     </div>
   );
 }
@@ -413,6 +432,22 @@ export default function Activity() {
 
   // Calendar month state + event-day dots
   const [calMonth, setCalMonth] = useState(() => new Date());
+  // Clicking a calendar date turns the Schedule card into that day's agenda.
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const dayEvents = useMemo(() => {
+    if (!selectedDay) return null;
+    return (calendarEvents?.events ?? [])
+      .filter((e) => {
+        if (!e.start) return false;
+        const d = new Date(e.start);
+        return (
+          d.getFullYear() === selectedDay.getFullYear() &&
+          d.getMonth() === selectedDay.getMonth() &&
+          d.getDate() === selectedDay.getDate()
+        );
+      })
+      .sort((a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime());
+  }, [calendarEvents, selectedDay]);
   const eventDays = useMemo(() => {
     const set = new Set<string>();
     for (const e of calendarEvents?.events ?? []) {
@@ -473,12 +508,12 @@ export default function Activity() {
               />
               {studioMode === "live" && (
                 <>
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> On air
                   </span>
                   <p className="mt-2 text-base font-semibold leading-snug text-white">You're live right now</p>
                   {liveNow?.startedAt && (
-                    <p className="mt-1 text-xs text-zinc-400">Started {timeAgo(new Date(liveNow.startedAt))}</p>
+                    <p className="mt-1 text-[13px] text-zinc-400">Started {timeAgo(new Date(liveNow.startedAt))}</p>
                   )}
                   <Link href="/studio/live" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
                     Enter Studio <ArrowRight size={14} />
@@ -487,13 +522,13 @@ export default function Activity() {
               )}
               {studioMode === "soon" && nextEvent && (
                 <>
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-400">
                     Up next
                   </span>
                   <p className="mt-2 text-base font-semibold leading-snug text-white">
                     {minsToNext !== null && minsToNext <= 1 ? "Starting now" : `In ${minsToNext} minutes`}
                   </p>
-                  <p className="mt-1 truncate text-xs text-zinc-400">{nextEvent.title}</p>
+                  <p className="mt-1 truncate text-[13px] text-zinc-400">{nextEvent.title}</p>
                   <div className="mt-3 space-y-1.5">
                     <ReadyRow ok={devices?.cam ?? null} label="Camera" detail={devices?.cam ? "detected" : "not found"} />
                     <ReadyRow ok={devices?.mic ?? null} label="Mic" detail={devices?.mic ? "detected" : "not found"} />
@@ -506,11 +541,11 @@ export default function Activity() {
               )}
               {studioMode === "published" && freshEpisode && (
                 <>
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-400">
                     Just shipped
                   </span>
                   <p className="mt-3 line-clamp-2 text-lg font-semibold leading-snug text-white">{freshEpisode.title}</p>
-                  <p className="mt-1 text-xs text-zinc-400">
+                  <p className="mt-1 text-[13px] text-zinc-400">
                     Published {freshEpisode.publishedAt ? timeAgo(new Date(freshEpisode.publishedAt)) : ""}
                     {freshEpisode.durationSeconds ? ` · ${fmtRuntime(freshEpisode.durationSeconds)}` : ""}
                   </p>
@@ -527,7 +562,7 @@ export default function Activity() {
               {studioMode === "ready" && (
                 <>
                   <p className="text-lg font-semibold leading-snug text-white">Ready to record?</p>
-                  <p className="mt-1 text-xs text-zinc-400">High-quality recordings in one click.</p>
+                  <p className="mt-1 text-[13px] text-zinc-400">High-quality recordings in one click.</p>
                   <div className="mt-3 space-y-1.5">
                     <ReadyRow ok={devices?.cam ?? null} label="Camera" detail={devices?.cam ? "detected" : "not found yet"} />
                     <ReadyRow ok={devices?.mic ?? null} label="Mic" detail={devices?.mic ? "detected" : "not found yet"} />
@@ -545,7 +580,7 @@ export default function Activity() {
               )}
             </div>
             {upcomingEvents.length > 0 && studioMode !== "soon" && (
-              <p className="mt-3 flex items-center gap-1.5 text-[11px] text-zinc-500">
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-zinc-500">
                 <CalendarClock size={12} />
                 Next on the calendar: <span className="truncate text-zinc-400">{upcomingEvents[0].title}</span>
               </p>
@@ -562,14 +597,14 @@ export default function Activity() {
               ] as const).map(([value, label]) => (
                 <div key={label} className="rounded-xl bg-zinc-950/70 px-3 py-1.5 ring-1 ring-white/[0.05]">
                   <p className="text-base font-bold tabular-nums text-white">{value}</p>
-                  <p className="text-[10px] font-medium text-zinc-500">{label}</p>
+                  <p className="text-[11px] font-medium text-zinc-500">{label}</p>
                 </div>
               ))}
             </div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Hosting &amp; links</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-500">Hosting &amp; links</p>
             <div className="space-y-1">
               {hosting.length === 0 && !data?.hasRssFeed ? (
-                <Link href="/shows" className="block rounded-xl border border-dashed border-zinc-700 px-3 py-3 text-center text-xs text-zinc-500 hover:border-zinc-500 hover:text-zinc-300">
+                <Link href="/shows" className="block rounded-xl border border-dashed border-zinc-700 px-3 py-3 text-center text-[13px] text-zinc-500 hover:border-zinc-500 hover:text-zinc-300">
                   Connect your podcast host to light this up →
                 </Link>
               ) : (
@@ -580,8 +615,8 @@ export default function Activity() {
                     return (
                       <div key={platform} className="flex items-center gap-2.5 rounded-lg bg-zinc-950/50 px-3 py-2">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: live ? meta.color : "#3f3f46" }} />
-                        <span className="flex-1 text-xs font-medium text-zinc-200">{meta.label}</span>
-                        <span className={`text-[11px] ${live ? "font-medium text-emerald-400" : "text-zinc-500"}`}>
+                        <span className="flex-1 text-[13px] font-medium text-zinc-200">{meta.label}</span>
+                        <span className={`text-xs ${live ? "font-medium text-emerald-400" : "text-zinc-500"}`}>
                           {live ? "Live" : status === "submitted" ? "Pending" : "Not submitted"}
                         </span>
                       </div>
@@ -589,8 +624,8 @@ export default function Activity() {
                   })}
                   <div className="flex items-center gap-2.5 rounded-lg bg-zinc-950/50 px-3 py-2">
                     <Rss size={12} className="shrink-0 text-orange-400" />
-                    <span className="flex-1 text-xs font-medium text-zinc-200">RSS feed</span>
-                    <span className={`text-[11px] ${data?.hasRssFeed ? "font-medium text-emerald-400" : "text-zinc-500"}`}>
+                    <span className="flex-1 text-[13px] font-medium text-zinc-200">RSS feed</span>
+                    <span className={`text-xs ${data?.hasRssFeed ? "font-medium text-emerald-400" : "text-zinc-500"}`}>
                       {data?.hasRssFeed ? "Connected" : "Not connected"}
                     </span>
                   </div>
@@ -600,9 +635,9 @@ export default function Activity() {
           </DashCard>
 
           {/* Studio activity — a real measured chart */}
-          <DashCard elevated title="Studio Activity" action={<span className="text-[11px] text-zinc-500">Last 14 days</span>}>
+          <DashCard elevated title="Studio Activity" action={<span className="text-xs text-zinc-500">Last 14 days</span>}>
             <ActivityChart points={chartPoints} />
-            <div className="mt-1 flex justify-between text-[10px] text-zinc-600">
+            <div className="mt-1 flex justify-between text-[11px] text-zinc-600">
               <span>{chartPoints[0]?.label}</span>
               <span>minutes on the air per day</span>
               <span>{chartPoints[chartPoints.length - 1]?.label}</span>
@@ -616,11 +651,11 @@ export default function Activity() {
               ] as const).map(([value, label]) => (
                 <div key={label} className="rounded-xl bg-zinc-950/70 px-3 py-1.5 ring-1 ring-white/[0.05]">
                   <p className="text-base font-bold tabular-nums text-white">{value}</p>
-                  <p className="text-[10px] font-medium text-zinc-500">{label}</p>
+                  <p className="text-[11px] font-medium text-zinc-500">{label}</p>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[10px] text-zinc-600">Only numbers we actually measure — no estimates.</p>
+            <p className="mt-2 text-[11px] text-zinc-600">Only numbers we actually measure — no estimates.</p>
           </DashCard>
         </div>
 
@@ -631,10 +666,10 @@ export default function Activity() {
             {connectedSocials.length === 0 ? (
               <div className="flex h-full min-h-[110px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
                 <Share2 className="h-6 w-6 text-zinc-600" />
-                <p className="text-xs leading-relaxed text-zinc-500">
+                <p className="text-[13px] leading-relaxed text-zinc-500">
                   Connect your channels and this card fills with real follower numbers.
                 </p>
-                <Link href="/dashboard/social-hub" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700">
+                <Link href="/dashboard/social-hub" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-[13px] font-semibold text-zinc-100 hover:bg-zinc-700">
                   Connect accounts
                 </Link>
               </div>
@@ -651,12 +686,12 @@ export default function Activity() {
                         {Icon ? <Icon size={13} color={meta.color} /> : <Share2 size={13} />}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-medium text-zinc-200">{meta?.label ?? account.platform}</span>
+                        <span className="block truncate text-[13px] font-medium text-zinc-200">{meta?.label ?? account.platform}</span>
                         {account.platformUsername && (
-                          <span className="block truncate text-[10px] text-zinc-500">@{account.platformUsername}</span>
+                          <span className="block truncate text-[11px] text-zinc-500">@{account.platformUsername}</span>
                         )}
                       </span>
-                      <span className="text-xs font-semibold tabular-nums text-zinc-300">
+                      <span className="text-[13px] font-semibold tabular-nums text-zinc-300">
                         {typeof followers === "number" && followers > 0 ? compact(followers) : "—"}
                       </span>
                     </div>
@@ -666,18 +701,77 @@ export default function Activity() {
             )}
           </DashCard>
 
-          {/* Weekly schedule */}
-          <DashCard title="Weekly Schedule" action={calendarStatus?.connected ? <span className="flex items-center gap-1 text-[10px] text-zinc-500"><SiGooglecalendar size={10} /> Synced</span> : undefined}>
-            {!calendarStatus?.connected ? (
+          {/* Weekly schedule — or the selected day's agenda when a calendar date is clicked */}
+          <DashCard
+            title={
+              selectedDay
+                ? selectedDay.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+                : "Weekly Schedule"
+            }
+            action={
+              selectedDay ? (
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  className="flex items-center gap-1 text-[11px] font-medium text-red-400 transition-colors hover:text-red-300"
+                >
+                  Show week
+                </button>
+              ) : calendarStatus?.connected ? (
+                <span className="flex items-center gap-1 text-[11px] text-zinc-500"><SiGooglecalendar size={10} /> Synced</span>
+              ) : undefined
+            }
+          >
+            {selectedDay && dayEvents ? (
+              dayEvents.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-[13px] text-zinc-500">
+                  Nothing on the calendar this day — it's yours.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {dayEvents.slice(0, 3).map((event) => {
+                    const start = event.start ? new Date(event.start) : null;
+                    return (
+                      <a
+                        key={event.id}
+                        href={event.htmlLink ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 rounded-lg bg-zinc-950/60 px-2.5 py-2 ring-1 ring-white/[0.04] transition-colors hover:ring-white/10"
+                      >
+                        {start && (
+                          <span className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-zinc-900 ring-1 ring-white/[0.06]">
+                            <span className="text-[9px] font-bold uppercase text-red-400">
+                              {start.toLocaleDateString(undefined, { weekday: "short" })}
+                            </span>
+                            <span className="text-[13px] font-bold tabular-nums text-white">{start.getDate()}</span>
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-medium text-zinc-200">{event.title}</span>
+                          {start && !event.allDay && (
+                            <span className="block text-[11px] text-zinc-500">
+                              {start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </span>
+                      </a>
+                    );
+                  })}
+                  {dayEvents.length > 3 && (
+                    <p className="px-1 text-[11px] text-zinc-500">+{dayEvents.length - 3} more this day</p>
+                  )}
+                </div>
+              )
+            ) : !calendarStatus?.connected ? (
               <div className="flex h-full min-h-[110px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
                 <SiGooglecalendar size={20} className="text-zinc-600" />
-                <p className="text-xs leading-relaxed text-zinc-500">Connect Google Calendar to see your recording week here.</p>
-                <Link href="/connectors" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700">
+                <p className="text-[13px] leading-relaxed text-zinc-500">Connect Google Calendar to see your recording week here.</p>
+                <Link href="/connectors" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-[13px] font-semibold text-zinc-100 hover:bg-zinc-700">
                   Connect calendar
                 </Link>
               </div>
             ) : upcomingEvents.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-xs text-zinc-500">
+              <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-[13px] text-zinc-500">
                 Nothing scheduled — a clear week is a recording week.
               </p>
             ) : (
@@ -694,16 +788,16 @@ export default function Activity() {
                     >
                       {start && (
                         <span className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-zinc-900 ring-1 ring-white/[0.06]">
-                          <span className="text-[8px] font-bold uppercase text-red-400">
+                          <span className="text-[9px] font-bold uppercase text-red-400">
                             {start.toLocaleDateString(undefined, { weekday: "short" })}
                           </span>
-                          <span className="text-xs font-bold tabular-nums text-white">{start.getDate()}</span>
+                          <span className="text-[13px] font-bold tabular-nums text-white">{start.getDate()}</span>
                         </span>
                       )}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-medium text-zinc-200">{event.title}</span>
+                        <span className="block truncate text-[13px] font-medium text-zinc-200">{event.title}</span>
                         {start && !event.allDay && (
-                          <span className="block text-[10px] text-zinc-500">
+                          <span className="block text-[11px] text-zinc-500">
                             {start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                           </span>
                         )}
@@ -721,6 +815,8 @@ export default function Activity() {
               eventDays={eventDays}
               month={calMonth}
               onMonth={(delta) => setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1))}
+              selected={selectedDay}
+              onSelect={setSelectedDay}
             />
           </DashCard>
 
@@ -729,8 +825,8 @@ export default function Activity() {
             {draftEpisodes.length === 0 ? (
               <div className="flex h-full min-h-[110px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center">
                 <Clapperboard className="h-6 w-6 text-zinc-600" />
-                <p className="text-xs leading-relaxed text-zinc-500">Nothing in the works yet — drafts land here.</p>
-                <Link href="/episodes" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700">
+                <p className="text-[13px] leading-relaxed text-zinc-500">Nothing in the works yet — drafts land here.</p>
+                <Link href="/episodes" className="rounded-lg bg-zinc-800 px-3 py-1.5 text-[13px] font-semibold text-zinc-100 hover:bg-zinc-700">
                   Start an episode
                 </Link>
               </div>
@@ -746,13 +842,13 @@ export default function Activity() {
                       </span>
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-medium text-zinc-200">{episode.title}</span>
-                      <span className="block text-[10px] text-zinc-500">
+                      <span className="block truncate text-[13px] font-medium text-zinc-200">{episode.title}</span>
+                      <span className="block text-[11px] text-zinc-500">
                         {episode.episodeNumber ? `EP ${episode.episodeNumber} · ` : ""}
                         {episode.createdAt ? timeAgo(new Date(episode.createdAt)) : ""}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-semibold text-amber-400">Draft</span>
+                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">Draft</span>
                   </Link>
                 ))}
               </div>
@@ -765,7 +861,7 @@ export default function Activity() {
           {/* Recent activity */}
           <DashCard title="Recent Activity">
             {activity.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-xs text-zinc-500">
+              <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-[13px] text-zinc-500">
                 Publish an episode or go live and the trail starts here.
               </p>
             ) : (
@@ -777,8 +873,8 @@ export default function Activity() {
                       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${item.tint}`}>
                         <Icon size={13} />
                       </span>
-                      <p className="min-w-0 flex-1 truncate text-xs text-zinc-300">{item.text}</p>
-                      <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">{timeAgo(item.at)}</span>
+                      <p className="min-w-0 flex-1 truncate text-[13px] text-zinc-300">{item.text}</p>
+                      <span className="shrink-0 text-[11px] tabular-nums text-zinc-600">{timeAgo(item.at)}</span>
                     </div>
                   );
                 })}
@@ -787,9 +883,9 @@ export default function Activity() {
           </DashCard>
 
           {/* Latest episodes — runtime bars are measured, not listens */}
-          <DashCard title="Latest Episodes" action={<span className="text-[11px] text-zinc-500">by runtime</span>}>
+          <DashCard title="Latest Episodes" action={<span className="text-xs text-zinc-500">by runtime</span>}>
             {publishedEpisodes.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-xs text-zinc-500">
+              <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-[13px] text-zinc-500">
                 Published episodes and their runtimes will rank here.
               </p>
             ) : (
@@ -797,8 +893,8 @@ export default function Activity() {
                 {publishedEpisodes.slice(0, 3).map((episode) => (
                   <div key={episode.id}>
                     <div className="mb-1 flex items-baseline justify-between gap-3">
-                      <p className="min-w-0 flex-1 truncate text-xs text-zinc-300">{episode.title}</p>
-                      <span className="shrink-0 text-xs font-semibold tabular-nums text-zinc-400">
+                      <p className="min-w-0 flex-1 truncate text-[13px] text-zinc-300">{episode.title}</p>
+                      <span className="shrink-0 text-[13px] font-semibold tabular-nums text-zinc-400">
                         {episode.durationSeconds ? fmtRuntime(episode.durationSeconds) : "—"}
                       </span>
                     </div>
@@ -833,7 +929,7 @@ export default function Activity() {
                   <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tint}`}>
                     <Icon size={15} />
                   </span>
-                  <span className="text-center text-[11px] font-medium leading-tight text-zinc-300">{label}</span>
+                  <span className="text-center text-xs font-medium leading-tight text-zinc-300">{label}</span>
                 </Link>
               ))}
             </div>
