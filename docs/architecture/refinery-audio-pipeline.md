@@ -29,10 +29,11 @@ ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:st
   up, hot mics come down.
 - `-vn -acodec libmp3lame -q:a 2` — audio-only out, VBR MP3 ≈190 kbps.
 
-Two invocation paths share this command verbatim: the Media Lab preset and the
-Editing Room's **Refine audio** button (which runs it against the show VOD). If
-you change the filter chain, change both (`client/src/pages/MediaLab.tsx`,
-`client/src/pages/LiveStudio.tsx`) — they are intentionally kept in step.
+Two invocation paths share this command verbatim: the Media Lab preset and
+**The Refinery** room (`/studio/refine`), which runs it against any recording
+with a live pipeline UI. If you change the filter chain, change both
+(`client/src/pages/MediaLab.tsx`, `client/src/pages/Refinery.tsx`) — they are
+intentionally kept in step.
 
 ## Job lifecycle
 

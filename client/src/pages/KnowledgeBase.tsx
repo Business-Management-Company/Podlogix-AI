@@ -160,8 +160,9 @@ const articles: Article[] = [
       "Podlogix is a home base for people who make podcasts and live shows.",
       "Here's the big idea: you do the show, and Podlogix does everything after. You record an episode, and the app helps turn that one recording into a whole week of content — short clips, captions, cleaned-up audio, and social media posts.",
       "The main rooms:",
-      "• The Studio — where you record or go live, with your camera and screen.",
-      "• The Media Library — where every recording, clip, and file lives.",
+      "• The Studio — where you record or go live, with your camera, screen, media, and guests.",
+      "• The Refinery — one button that polishes a whole recording.",
+      "• Media Storage — where every recording, clip, and file lives.",
       "• The Media Lab — where files get converted and cleaned up.",
       "• Social — where you write and schedule posts for all your accounts.",
       "• Guests & CRM — where you keep track of the people who come on your show.",
@@ -215,15 +216,16 @@ const articles: Article[] = [
     tags: ["studio", "record", "live", "camera", "layouts", "teleprompter"],
     content: [
       "The Live Studio takes over your whole screen. To leave, click Exit Studio in the top-left corner — everything goes back to normal.",
-      "First, pick a studio:",
-      "A studio is a room you come back to. Create one and name it after your show (like 'The Morning Desk'). You can make more than one, and you can delete one you don't need — your old recordings and clips are always safe.",
+      "The workspace:",
+      "You land in your workspace first — a list of your studios (each one is a room you come back to). Hit New Stream to build one, or Enter Studio on any row. The workspace also holds Past streams, Clips, Storage, and Channels.",
       "On the stage:",
-      "• Start Camera turns on your webcam. Share Screen shows your screen.",
-      "• Layouts (right side) control how the stage looks: fullscreen, small picture-in-picture corners, or split screen. What you see on the stage is exactly what gets recorded.",
-      "• The Teleprompter scrolls your script over the stage. You can see it — the recording can't.",
-      "• Go live starts the show and the clock.",
+      "• The camera, screen-share, and invite-guest buttons are the round icons at the bottom left — hover any icon to see its name.",
+      "• Layouts are the little pictures in the strip under the stage: fullscreen, picture-in-picture corners, split screen. What you see on the stage is exactly what gets recorded.",
+      "• Scenes (left side) are saved stage setups. Arrange the stage — a layout plus maybe a video or image — type a name like 'Countdown' or 'Welcome', and press +. During the show, one click swaps the whole stage.",
+      "• Media and Prompter live in the right panel. Media plays videos or shows images from your storage on the stage; the Prompter scrolls your script over the stage (you see it, the recording doesn't). Drag the panel's edge to resize everything proportionally.",
+      "• Channels (top bar) is where you pick the platforms this studio will stream to — the setup saves now, and multistreaming switches on when Stream + Record ships.",
       "The most important button:",
-      "When something great happens during your show, press the spacebar (or the 'Mark moment' button). That drops a bookmark at that exact second. After the show, each bookmark becomes a short clip. You don't have to remember when the good stuff happened — just tap space when it does.",
+      "When something great happens during your show, press the spacebar (or 'Mark moment'). That drops a bookmark at that exact second. After the show, each bookmark becomes a short clip. You don't have to remember when the good stuff happened — just tap space when it does.",
     ],
   },
   {
@@ -235,13 +237,13 @@ const articles: Article[] = [
     icon: <UserPlus className="h-5 w-5" />,
     tags: ["guest", "invite", "green room", "interview"],
     content: [
-      "You can bring a guest onto your live show with one link.",
+      "You can bring a guest onto your show with one link — before you're live or during the show.",
       "How it works:",
-      "1. While your show is live, click 'Invite a guest'. The link copies itself — paste it into a text or email.",
-      "2. Your guest opens the link. They don't need a Podlogix account.",
+      "1. Click the invite icon (the person with a +) in the studio's control bar. A window pops up with the link — it's already copied, and you can read it right there.",
+      "2. Send it any way you like. Your guest opens it — no account needed.",
       "3. They land in a green room: they see their own camera, check their hair, and type their name.",
       "4. When they click 'Join the show', they appear on your stage — and in your recording.",
-      "You control how they look on the stage with the same layout buttons: side-by-side interview, or a small corner window. When the show ends, the invite link stops working.",
+      "The link belongs to the studio, so it keeps working show after show — you can even put it in a calendar invite the day before. You control how guests look on the stage with the same layout strip: side-by-side interview, or a small corner window.",
     ],
   },
   {
@@ -253,17 +255,30 @@ const articles: Article[] = [
     icon: <Scissors className="h-5 w-5" />,
     tags: ["clips", "captions", "editing", "refine", "AI"],
     content: [
-      "When your show ends, the studio switches to the Editing Room (you can flip between Stage and Editing Room at the top-right).",
-      "The big red button:",
-      "Press 'Refine my show' and the whole post-production pipeline runs by itself, with a checkmark lighting up as each step finishes:",
-      "1. Transcription — the app listens to your whole recording and writes down every word.",
-      "2. Find the moments — AI reads that transcript and marks the clip-worthy parts for you.",
-      "3. Refine audio — dead air and long pauses get cut, and the volume is evened out to podcast standard.",
-      "The numbers you see after (minutes saved, fillers heard, words transcribed, clips ready) are measured from your actual files — minutes saved is literally how much shorter the refined audio is than the original.",
-      "Then, per clip:",
-      "• Cut clip — every marked moment becomes a 30-second clip: 20 seconds before the mark and 10 after. Pick 16:9 or 9:16 vertical.",
+      "When your show ends, the studio switches to the Editing Room (you can flip between Stage and Editing Room at the top-right). This room is all about clips.",
+      "What you can do here:",
+      "• Find clips with AI — the app listens to your whole recording and marks the strong moments for you. Great if you forgot to press space.",
+      "• Cut clip — every marked moment becomes a 30-second clip: 20 seconds before the mark and 10 after. Why before? Because when you think 'that was great!', the great part already happened. Pick 16:9 or 9:16 vertical.",
       "• Captions — makes subtitle files (.srt and .vtt) so your clips have text on social media.",
-      "Everything you make here lands in your Media Library automatically.",
+      "• Refine this show — the red button sends the whole recording to the Refinery, where the audio polish happens.",
+      "Everything you make here lands in Media Storage automatically.",
+    ],
+  },
+  {
+    id: "refinery",
+    title: "The Refinery",
+    description: "One button that polishes a whole recording — for real.",
+    category: "Studio",
+    icon: <Sparkles className="h-5 w-5" />,
+    tags: ["refinery", "refine", "polish", "audio", "pipeline"],
+    content: [
+      "The Refinery is where a raw recording becomes the polished version. Find it in the nav, right under Live Studio.",
+      "How to use it:",
+      "1. Pick a recording from the list on the left — anything in your storage works.",
+      "2. Press 'Refine my show'. A glowing ring runs around the player while the pipeline works.",
+      "3. Watch the checkmarks on the right: Transcription (every word written down), Remove gaps (dead air cut), Audio cleanup (volume evened to podcast standard).",
+      "4. When it finishes, a Before / After comparison appears — play both and hear the difference. The refined version is already saved to Media Storage.",
+      "The numbers below are measured from your actual files: minutes saved is literally how much shorter the refined audio is. Two steps say 'Coming' — Remove fillers and Enhance video — because they're not built yet. When you see a checkmark in the Refinery, something really happened to your file.",
     ],
   },
   {
@@ -277,7 +292,7 @@ const articles: Article[] = [
     content: [
       "When you end a show you recorded in the studio, three things happen on their own:",
       "1. The recording uploads to your storage.",
-      "2. It files itself into your Media Library, named after your show.",
+      "2. It files itself into Media Storage, named after your show.",
       "3. It converts itself to MP4 in the background.",
       "Why the conversion? Web browsers can only record in a format called WebM. It plays fine on the web, but iPhones and most social media sites prefer MP4. So Podlogix quietly makes the MP4 version for you. You never have to think about file formats — but now you know why it happens.",
     ],
@@ -292,7 +307,7 @@ const articles: Article[] = [
     icon: <GalleryVerticalEnd className="h-5 w-5" />,
     tags: ["library", "files", "badges", "import"],
     content: [
-      "The Media Library is one shelf that every part of Podlogix shares. The studio puts recordings and clips on it; the Media Lab puts converted files on it; the post composer takes files off it.",
+      "Media Storage is one shelf that every part of Podlogix shares. The studio puts recordings and clips on it; the Media Lab puts converted files on it; the post composer takes files off it.",
       "Reading the page:",
       "• The number cards at the top count your files, videos, audio, and refined items.",
       "• The chips filter the grid: All, Videos, Audio, From the studio, Refined.",
@@ -482,7 +497,7 @@ export default function KnowledgeBase() {
 
   return (
     <div className="min-h-full bg-background">
-      <main className="w-full max-w-4xl px-6 py-8">
+      <main className="w-full max-w-7xl px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -568,7 +583,7 @@ export default function KnowledgeBase() {
                           transition={{ duration: 0.2 }}
                         >
                           <CardContent className="pt-2 border-t mt-2">
-                            <div className={article.figure ? "gap-6 md:grid md:grid-cols-[minmax(0,1fr)_360px]" : ""}>
+                            <div className={article.figure ? "gap-6 md:grid md:grid-cols-[minmax(0,1fr)_440px]" : ""}>
                               <div>
                                 <div className="space-y-2 text-sm text-muted-foreground">
                                   {article.content.map((line, index) => (
