@@ -3321,6 +3321,34 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // Temporary preview-deployment probe. Vercel Deployment Protection is the
+  // authentication boundary; this route is removed after the live evaluation.
+  if (process.env.VERCEL_ENV === 'preview') {
+    app.get('/api/internal/podcast-index/probe-preview', async (req: any, res) => {
+      try {
+        if (!isPodcastIndexConfigured()) {
+          return res.status(503).json({ configured: false, message: 'Podcast Index is not configured' });
+        }
+        const input = z.object({
+          q: z.string().trim().min(2).max(120).default('podcasting'),
+          person: z.string().trim().min(2).max(120).default('Andrew Huberman'),
+          max: z.coerce.number().int().min(1).max(10).default(5),
+        }).parse(req.query);
+        res.json({ configured: true, ...(await probePodcastIndex(input.q, input.person, input.max)) });
+      } catch (error) {
+        if (error instanceof PodcastIndexError) {
+          return res.status(error.code === 'RATE_LIMITED' ? 429 : 502).json({
+            configured: isPodcastIndexConfigured(),
+            authMode: getPodcastIndexAuthMode(),
+            code: error.code,
+            message: error.message,
+          });
+        }
+        res.status(500).json({ message: 'Podcast Index preview probe failed' });
+      }
+    });
+  }
+
   // Get all users (admin only)
   app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
