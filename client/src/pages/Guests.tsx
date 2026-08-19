@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Compass, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
+  Briefcase, ChevronRight, Compass, Loader2, Mail, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
+import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { GUEST_STAGES, guestStageMeta, socialProfileSummary } from "@/lib/guest-workflow";
 import type { ContactNote, EmailContact, GuestPipelineEntry, GuestProspect } from "@shared/schema";
@@ -126,6 +128,7 @@ export default function Guests() {
   });
 
   const selected = (guests ?? []).find((g) => g.id === selectedId) ?? null;
+  const appearanceQuery = useGuestAppearances(selected?.prospect?.providerPersonId);
 
   const { data: notesData } = useQuery<{ notes: ContactNote[] }>({
     queryKey: ["/api/email/contacts", selected?.contactId, "notes"],
@@ -448,7 +451,7 @@ export default function Guests() {
 
       {/* ── Contact drawer ── */}
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">
           {selected && (
             <>
               <SheetHeader>
@@ -510,18 +513,6 @@ export default function Guests() {
                   />
                 ) : null}
 
-                {/* Guest-perspective coaching: analyze how they come across on camera */}
-                <Link
-                  href="/dashboard/video-analysis"
-                  className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-white"
-                >
-                  <Mic2 className="h-4 w-4 shrink-0 text-zinc-400" />
-                  <span className="flex-1">
-                    <span className="font-medium text-zinc-900">Analyze their speaking</span>
-                    <span className="block text-xs text-zinc-500">Run a clip through AI coaching — presence, pace, and fillers.</span>
-                  </span>
-                </Link>
-
                 {selected.prospect ? (
                   <section>
                     <SectionHeader title="Guest research" />
@@ -530,7 +521,7 @@ export default function Guests() {
                       {selected.prospect.bio ? <p className="mt-2 line-clamp-5 text-sm leading-5 text-zinc-600">{selected.prospect.bio}</p> : null}
                       <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
                         {selected.prospect.location ? <span>{selected.prospect.location}</span> : null}
-                        {selected.prospect.episodeAppearanceCount != null ? <span>{selected.prospect.episodeAppearanceCount.toLocaleString()} appearances</span> : null}
+                        {selected.prospect.episodeAppearanceCount != null ? <span>{selected.prospect.episodeAppearanceCount.toLocaleString()} credited episodes (all roles)</span> : null}
                       </div>
                       {Object.entries(selected.prospect.socialLinks ?? {}).length > 0 ? (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -543,6 +534,14 @@ export default function Guests() {
                       ) : null}
                     </div>
                   </section>
+                ) : null}
+
+                {selected.prospect?.providerPersonId ? (
+                  <GuestAppearanceHistory
+                    appearances={appearanceQuery.data}
+                    isLoading={appearanceQuery.isFetching}
+                    error={appearanceQuery.error}
+                  />
                 ) : null}
 
                 {/* Contact details */}

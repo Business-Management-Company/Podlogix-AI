@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, BookMarked, ChevronRight, Loader2, Mail, Mic2, Trash2, Users } from "lucide-react";
+import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
+import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { GUEST_STAGES, socialProfileSummary, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -24,6 +26,7 @@ interface SavedCreator {
 
 interface GuestProspect {
   id: string;
+  providerPersonId: string;
   name: string;
   subtitle?: string | null;
   imageUrl?: string | null;
@@ -79,6 +82,7 @@ export default function Directory() {
   });
   const prospects = prospectData?.prospects ?? [];
   const selectedProspect = prospects.find((prospect) => prospect.id === selectedProspectId) ?? null;
+  const appearanceQuery = useGuestAppearances(selectedProspect?.providerPersonId);
   const isLoading = creatorsLoading || prospectsLoading;
 
   const deleteMutation = useMutation({
@@ -195,7 +199,7 @@ export default function Directory() {
                         </span>
                         <span className="hidden shrink-0 text-right sm:block">
                           <span className="block text-sm font-medium text-zinc-950">{formatCount(prospect.episodeAppearanceCount)}</span>
-                          <span className="block text-[11px] text-zinc-500">appearances</span>
+                          <span className="block text-[11px] text-zinc-500">credited episodes</span>
                         </span>
                         <ChevronRight size={14} className="shrink-0 text-zinc-300" />
                       </button>
@@ -271,7 +275,7 @@ export default function Directory() {
       )}
 
       <Sheet open={Boolean(selectedProspect)} onOpenChange={(open) => !open && setSelectedProspectId(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">
           {selectedProspect ? (
             <>
               <SheetHeader>
@@ -309,7 +313,7 @@ export default function Directory() {
                     {selectedProspect.bio ? <p className="mt-2 text-sm leading-6 text-zinc-600">{selectedProspect.bio}</p> : null}
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
                       {selectedProspect.location ? <span>{selectedProspect.location}</span> : null}
-                      {selectedProspect.episodeAppearanceCount != null ? <span>{selectedProspect.episodeAppearanceCount.toLocaleString()} appearances</span> : null}
+                      {selectedProspect.episodeAppearanceCount != null ? <span>{selectedProspect.episodeAppearanceCount.toLocaleString()} credited episodes (all roles)</span> : null}
                     </div>
                     {Object.keys(selectedProspect.socialLinks ?? {}).length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -322,6 +326,11 @@ export default function Directory() {
                     ) : null}
                   </div>
                 </section>
+                <GuestAppearanceHistory
+                  appearances={appearanceQuery.data}
+                  isLoading={appearanceQuery.isFetching}
+                  error={appearanceQuery.error}
+                />
                 <section>
                   <SectionHeader title="Add to guest pipeline" />
                   {podcasts.length > 0 ? (
