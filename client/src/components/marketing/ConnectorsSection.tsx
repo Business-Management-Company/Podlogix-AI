@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Mic2, Mail, CheckCircle, Clock } from "lucide-react";
+import { Mic2, Mail, CheckCircle, Clock, Radio, Video } from "lucide-react";
 import {
   SiSpotify,
   SiApplepodcasts,
@@ -12,20 +12,25 @@ import {
   SiSubstack,
   SiPatreon,
   SiX,
+  SiZoom,
 } from "react-icons/si";
 import { SectionKicker } from "./SectionKicker";
 import { fadeUp, viewportOnce } from "./motion";
 
 // ── Connector data ────────────────────────────────────────────────────────────
 
-const FEATURED = {
-  name: "Buzzsprout",
-  category: "Podcast Hosting",
-  status: "available" as const,
-  description:
-    "Connect your Buzzsprout account to automatically sync episodes, generate AI show notes, and push content to every distribution platform — all from one dashboard.",
-  bullets: ["Episode auto-sync", "AI show notes", "Analytics aggregation"],
-};
+const HOSTING = [
+  { Icon: Mic2, name: "Buzzsprout", category: "Podcast Hosting", status: "available" as const },
+  { Icon: Mic2, name: "Libsyn",     category: "Podcast Hosting", status: "coming_soon" as const },
+  { Icon: Mic2, name: "Podbean",    category: "Podcast Hosting", status: "coming_soon" as const },
+  { Icon: Mic2, name: "Captivate",  category: "Podcast Hosting", status: "coming_soon" as const },
+];
+
+const RECORDING = [
+  { Icon: Video,      name: "Riverside.fm", category: "Recording",  status: "coming_soon" as const },
+  { Icon: Radio,      name: "Restream",     category: "Streaming",  status: "coming_soon" as const },
+  { Icon: SiZoom,     name: "Zoom",         category: "Meetings",   status: "coming_soon" as const },
+];
 
 const DISTRIBUTION = [
   { Icon: SiSpotify,       name: "Spotify",         category: "Distribution", status: "available" as const },
@@ -77,7 +82,7 @@ function ConnectorCard({
   Icon: React.ComponentType<{ className?: string }>;
   name: string;
   category: string;
-  status: "available";
+  status: "available" | "coming_soon";
   delay?: number;
 }) {
   return (
@@ -158,71 +163,41 @@ export function ConnectorsSection() {
           </p>
         </motion.div>
 
-        {/* ── Featured: Buzzsprout ── */}
+        {/* ── Podcast hosting ── */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           whileInView="show"
           viewport={viewportOnce}
-          className="relative mb-10 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] p-8 md:p-10"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(251,146,60,0.05) 0%, rgba(217,119,6,0.04) 40%, rgba(255,255,255,0.01) 100%)",
-          }}
+          className="mb-3"
         >
-          {/* Subtle glow */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-20"
-            style={{
-              background: "radial-gradient(circle, #D97706 0%, transparent 70%)",
-              filter: "blur(60px)",
-            }}
-          />
-
-          <div className="relative flex flex-col gap-8 md:flex-row md:items-center">
-            {/* Left: icon + name */}
-            <div className="flex shrink-0 items-center gap-5">
-              <div
-                className="flex h-16 w-16 items-center justify-center rounded-2xl border border-orange-500/20 shadow-lg shadow-orange-500/10"
-                style={{
-                  background: "linear-gradient(135deg, rgba(251,146,60,0.15) 0%, rgba(217,119,6,0.08) 100%)",
-                }}
-              >
-                {/* Buzzsprout has no public SVG icon in react-icons; using a styled Mic2 */}
-                <Mic2 className="h-7 w-7 text-orange-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xl font-bold">{FEATURED.name}</p>
-                  <StatusBadge status={FEATURED.status} />
-                </div>
-                <p className="mt-0.5 text-sm text-muted-foreground">{FEATURED.category}</p>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="hidden h-20 w-px bg-white/[0.06] md:block" aria-hidden />
-
-            {/* Right: description + bullets */}
-            <div className="flex-1">
-              <p className="text-sm leading-relaxed text-muted-foreground md:text-base">
-                {FEATURED.description}
-              </p>
-              <ul className="mt-4 flex flex-wrap gap-3">
-                {FEATURED.bullets.map((b) => (
-                  <li
-                    key={b}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-foreground/70"
-                  >
-                    <CheckCircle className="h-3 w-3 text-emerald-500" />
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
+            Podcast Hosting
+          </p>
         </motion.div>
+        <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {HOSTING.map((c, i) => (
+            <ConnectorCard key={c.name} {...c} delay={i * 0.06} />
+          ))}
+        </div>
+
+        {/* ── Recording & streaming ── */}
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="show"
+          viewport={viewportOnce}
+          className="mb-3"
+        >
+          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
+            Recording &amp; Streaming
+          </p>
+        </motion.div>
+        <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {RECORDING.map((c, i) => (
+            <ConnectorCard key={c.name} {...c} delay={i * 0.06} />
+          ))}
+        </div>
 
         {/* ── Distribution connectors ── */}
         <motion.div
