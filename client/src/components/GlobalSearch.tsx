@@ -20,7 +20,7 @@ const PAGES: Array<{ label: string; href: string; keywords: string }> = [
   { label: "Episodes", href: "/episodes", keywords: "podcast episodes drafts publish" },
   { label: "Listen", href: "/listener", keywords: "player listen playback" },
   { label: "Guests", href: "/guests", keywords: "guest pipeline crm booking" },
-  { label: "Contacts", href: "/dashboard/email", keywords: "email contacts newsletter crm" },
+  { label: "Master Contacts", href: "/dashboard/email", keywords: "email contacts people newsletter crm" },
   { label: "Discover", href: "/social/discover", keywords: "find creators influencers research" },
   { label: "Directory", href: "/social/directory", keywords: "saved creators directory" },
   { label: "Social Hub", href: "/dashboard/social-hub", keywords: "social accounts connect analytics" },
@@ -37,7 +37,7 @@ interface SearchResults {
   episodes: Array<{ id: string; title: string; podcastId: string; status: string }>;
   media: Array<{ id: string; caption: string | null; mediaType: string | null; platform: string }>;
   studios: Array<{ id: string; name: string }>;
-  guests: Array<{ id: string; firstName: string | null; lastName: string | null; email: string }>;
+  guests: Array<{ id: string; firstName: string | null; lastName: string | null; email: string | null }>;
 }
 
 export function GlobalSearch({ dark }: { dark: boolean }) {
@@ -106,7 +106,7 @@ export function GlobalSearch({ dark }: { dark: boolean }) {
   };
 
   const guestName = (g: SearchResults["guests"][number]) =>
-    [g.firstName, g.lastName].filter(Boolean).join(" ") || g.email;
+    [g.firstName, g.lastName].filter(Boolean).join(" ") || g.email || "Unnamed contact";
 
   const firstHref =
     pages[0]?.href ??
@@ -196,7 +196,7 @@ export function GlobalSearch({ dark }: { dark: boolean }) {
           )}
           {!!results?.guests.length && (
             <Group title="Guests & contacts">
-              {results.guests.map((g) => <Row key={g.id} icon={UserPlus} label={guestName(g)} sub={g.email} href="/guests" />)}
+              {results.guests.map((g) => <Row key={g.id} icon={UserPlus} label={guestName(g)} sub={g.email ?? "Master Contact"} href="/dashboard/email" />)}
             </Group>
           )}
           {hasAnything && (

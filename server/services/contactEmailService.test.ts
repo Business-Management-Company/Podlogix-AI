@@ -30,6 +30,7 @@ test("normalizes create and guest-contact inputs", () => {
   });
 
   assert.equal(guestContactInputSchema.parse({ email: "GUEST@EXAMPLE.COM" }).email, "guest@example.com");
+  assert.deepEqual(guestContactInputSchema.parse({}), {});
 });
 
 test("requires at least one field when updating a contact", () => {

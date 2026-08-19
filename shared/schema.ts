@@ -757,11 +757,14 @@ export const insertGuestProspectSchema = createInsertSchema(guestProspects).omit
 export type GuestProspect = typeof guestProspects.$inferSelect;
 export type InsertGuestProspect = z.infer<typeof insertGuestProspectSchema>;
 
-// Email Contacts (guests, subscribers, team, etc.)
+// Master Contacts (guests, subscribers, team, etc.). A researched guest can be
+// promoted here before an email is known; guestProspectId keeps that identity
+// linked to the reusable contact record.
 export const emailContacts = pgTable("email_contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
-  email: varchar("email").notNull(),
+  guestProspectId: varchar("guest_prospect_id"), // -> guest_prospects.id
+  email: varchar("email"),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   company: varchar("company"),
@@ -773,7 +776,9 @@ export const emailContacts = pgTable("email_contacts", {
   lastEmailedAt: timestamp("last_emailed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("email_contacts_user_guest_prospect").on(table.userId, table.guestProspectId),
+]);
 
 // Email Templates (reusable templates)
 export const emailTemplates = pgTable("email_templates", {

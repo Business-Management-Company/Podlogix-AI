@@ -44,7 +44,7 @@ export function registerSearchRoutes(app: Express) {
             or(
               ilike(sql`coalesce(${emailContacts.firstName}, '')`, like),
               ilike(sql`coalesce(${emailContacts.lastName}, '')`, like),
-              ilike(emailContacts.email, like),
+              ilike(sql`coalesce(${emailContacts.email}, '')`, like),
             ),
           ))
           .limit(5),
