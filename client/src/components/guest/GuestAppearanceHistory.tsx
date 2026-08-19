@@ -18,6 +18,8 @@ export interface GuestPodcastAppearance {
   podcastId: string;
   podcastTitle: string;
   podcastImageUrl: string | null;
+  webUrl?: string | null;
+  socialLinks?: Record<string, string | null | undefined>;
   episodeCount: number;
 }
 
@@ -25,9 +27,11 @@ export interface GuestAppearanceResult {
   creatorId: string;
   guestEpisodes: GuestEpisodeAppearance[];
   guestPodcasts: GuestPodcastAppearance[];
+  hostedPodcasts: GuestPodcastAppearance[];
   pagination: {
     guestEpisodesTotal: number;
     guestPodcastsTotal: number;
+    hostedPodcastsTotal: number;
   };
 }
 

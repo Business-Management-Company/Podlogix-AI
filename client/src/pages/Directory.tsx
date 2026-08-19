@@ -320,7 +320,7 @@ export default function Directory() {
                     className="w-full"
                   />
                 </div>
-                <GuestSocialProfiles socialLinks={selectedProspect.socialLinks} />
+                <GuestSocialProfiles socialLinks={selectedProspect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
                 <section>
                   <SectionHeader title="Guest research" />
                   <GuestResearchSummary

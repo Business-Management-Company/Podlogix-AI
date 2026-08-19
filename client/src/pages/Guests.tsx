@@ -595,7 +595,7 @@ export default function Guests() {
                 </section>
 
                 {selected.prospect ? (
-                  <GuestSocialProfiles socialLinks={selected.prospect.socialLinks} />
+                  <GuestSocialProfiles socialLinks={selected.prospect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
                 ) : null}
 
                 {selected.prospect ? (

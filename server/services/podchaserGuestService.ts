@@ -179,7 +179,9 @@ export interface PodchaserGuestPodcast {
   podcastId: string;
   podcastTitle: string;
   podcastImageUrl: string | null;
+  webUrl: string | null;
   rssUrl: string | null;
+  socialLinks: Record<keyof PodchaserSocialLinksRaw, string | null>;
   roleCode: string;
   roleTitle: string;
   episodeCount: number;
@@ -206,9 +208,11 @@ export interface PodchaserGuestProbeResult {
   selectedCreator: PodchaserCreatorCandidate | null;
   guestEpisodes: PodchaserGuestEpisode[];
   guestPodcasts: PodchaserGuestPodcast[];
+  hostedPodcasts: PodchaserGuestPodcast[];
   pagination: {
     guestEpisodesTotal: number;
     guestPodcastsTotal: number;
+    hostedPodcastsTotal: number;
   };
   quota: PodchaserQuota;
   requestsConsumed: number;
@@ -285,9 +289,11 @@ export interface PodchaserGuestAppearancesResult {
   creatorId: string;
   guestEpisodes: PodchaserGuestEpisode[];
   guestPodcasts: PodchaserGuestPodcast[];
+  hostedPodcasts: PodchaserGuestPodcast[];
   pagination: {
     guestEpisodesTotal: number;
     guestPodcastsTotal: number;
+    hostedPodcastsTotal: number;
   };
 }
 
@@ -456,7 +462,7 @@ export async function getPodchaserGuestAppearances(
   const cached = getCached(guestAppearanceCache, cacheKey);
   if (cached) return cached;
 
-  const [episodeResponse, podcastResponse] = await Promise.all([
+  const [episodeResponse, podcastResponse, hostedPodcastResponse] = await Promise.all([
     requestPodchaser<PodchaserPaginatedRaw<PodchaserEpisodeCreditRaw>>(
       `/creators/${encodeURIComponent(normalizedCreatorId)}/episodes`,
       { role: "guest", per_page: String(limit), sort: "air_date", sort_direction: "desc" },
@@ -465,14 +471,20 @@ export async function getPodchaserGuestAppearances(
       `/creators/${encodeURIComponent(normalizedCreatorId)}/podcasts`,
       { role: "guest", per_page: String(limit), sort: "date", sort_direction: "desc" },
     ),
+    requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditRaw>>(
+      `/creators/${encodeURIComponent(normalizedCreatorId)}/podcasts`,
+      { role: "host", per_page: "5", sort: "relevance", sort_direction: "desc" },
+    ),
   ]);
   const value = {
     creatorId: normalizedCreatorId,
     guestEpisodes: extractData(episodeResponse).map(normalizeEpisodeCredit),
     guestPodcasts: extractData(podcastResponse).map(normalizePodcastCredit),
+    hostedPodcasts: extractData(hostedPodcastResponse).map(normalizePodcastCredit),
     pagination: {
       guestEpisodesTotal: numberOrZero(episodeResponse.pagination?.total_results),
       guestPodcastsTotal: numberOrZero(podcastResponse.pagination?.total_results),
+      hostedPodcastsTotal: numberOrZero(hostedPodcastResponse.pagination?.total_results),
     },
   };
   setCached(guestAppearanceCache, cacheKey, value, APPEARANCE_CACHE_TTL_MS);
@@ -493,7 +505,8 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
       selectedCreator: null,
       guestEpisodes: [],
       guestPodcasts: [],
-      pagination: { guestEpisodesTotal: 0, guestPodcastsTotal: 0 },
+      hostedPodcasts: [],
+      pagination: { guestEpisodesTotal: 0, guestPodcastsTotal: 0, hostedPodcastsTotal: 0 },
       quota,
       requestsConsumed: Math.max(0, quota.used - usageBefore.used),
     };
@@ -509,6 +522,7 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
     selectedCreator,
     guestEpisodes: appearances.guestEpisodes,
     guestPodcasts: appearances.guestPodcasts,
+    hostedPodcasts: appearances.hostedPodcasts,
     pagination: appearances.pagination,
     quota,
     requestsConsumed: Math.max(0, quota.used - usageBefore.used),
@@ -638,16 +652,7 @@ function normalizePodcast(raw: PodchaserPodcastRaw): PodchaserPodcastCandidate {
       name: stringOrNull(raw.author?.name),
       email: stringOrNull(raw.author?.email),
     },
-    socialLinks: {
-      twitter: stringOrNull(raw.socialLinks?.twitter),
-      facebook: stringOrNull(raw.socialLinks?.facebook),
-      instagram: stringOrNull(raw.socialLinks?.instagram),
-      youtube: stringOrNull(raw.socialLinks?.youtube),
-      linkedin: stringOrNull(raw.socialLinks?.linkedin),
-      tiktok: stringOrNull(raw.socialLinks?.tiktok),
-      patreon: stringOrNull(raw.socialLinks?.patreon),
-      twitch: stringOrNull(raw.socialLinks?.twitch),
-    },
+    socialLinks: normalizePodcastSocialLinks(raw.socialLinks),
     socialFollowerCounts: {
       twitter: finiteNumberOrNull(raw.socialFollowerCounts?.twitter),
       facebook: finiteNumberOrNull(raw.socialFollowerCounts?.facebook),
@@ -699,7 +704,9 @@ function normalizePodcastCredit(raw: PodchaserPodcastCreditRaw): PodchaserGuestP
     podcastId: String(raw.podcast?.id ?? ""),
     podcastTitle: stringOrNull(raw.podcast?.title) ?? "Untitled podcast",
     podcastImageUrl: stringOrNull(raw.podcast?.imageUrl),
+    webUrl: stringOrNull(raw.podcast?.webUrl),
     rssUrl: stringOrNull(raw.podcast?.rssUrl),
+    socialLinks: normalizePodcastSocialLinks(raw.podcast?.socialLinks),
     roleCode: stringOrNull(raw.role?.code) ?? "guest",
     roleTitle: stringOrNull(raw.role?.title) ?? "Guest",
     episodeCount: numberOrZero(raw.episodeCount),
@@ -708,6 +715,21 @@ function normalizePodcastCredit(raw: PodchaserPodcastCreditRaw): PodchaserGuestP
       title: stringOrNull(raw.lastEpisode?.title) ?? "Untitled episode",
       airDate: podchaserDateToIso(raw.lastEpisode?.airDate),
     } : null,
+  };
+}
+
+function normalizePodcastSocialLinks(
+  socialLinks?: PodchaserSocialLinksRaw,
+): Record<keyof PodchaserSocialLinksRaw, string | null> {
+  return {
+    twitter: stringOrNull(socialLinks?.twitter),
+    facebook: stringOrNull(socialLinks?.facebook),
+    instagram: stringOrNull(socialLinks?.instagram),
+    youtube: stringOrNull(socialLinks?.youtube),
+    linkedin: stringOrNull(socialLinks?.linkedin),
+    tiktok: stringOrNull(socialLinks?.tiktok),
+    patreon: stringOrNull(socialLinks?.patreon),
+    twitch: stringOrNull(socialLinks?.twitch),
   };
 }
 

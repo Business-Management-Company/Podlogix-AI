@@ -36,8 +36,8 @@ test("returns structured guest credits and measures Starter quota use", async ()
         data: {
           tier: "starter",
           quota: 1000,
-          used: usageCalls === 1 ? 10 : 13,
-          remaining: usageCalls === 1 ? 990 : 987,
+          used: usageCalls === 1 ? 10 : 14,
+          remaining: usageCalls === 1 ? 990 : 986,
           cycle_start: "2026-08-19 00:00:00",
           cycle_end: "2026-09-18 00:00:00",
         },
@@ -68,6 +68,31 @@ test("returns structured guest credits and measures Starter quota use", async ()
       });
     }
     if (url.pathname.endsWith("/creators/452446/podcasts")) {
+      if (url.searchParams.get("role") === "host") {
+        return jsonResponse({
+          data: [{
+            id: "host-credit-1",
+            podcast: {
+              id: "huberman-lab",
+              title: "Huberman Lab",
+              webUrl: "https://hubermanlab.com",
+              imageUrl: "https://example.com/huberman-lab.jpg",
+              rssUrl: "https://feeds.example.com/huberman-lab",
+              socialLinks: {
+                twitter: "https://x.com/hubermanlab",
+                facebook: "https://facebook.com/hubermanlab",
+                instagram: "https://instagram.com/hubermanlab",
+                youtube: "https://youtube.com/@hubermanlab",
+                linkedin: "https://linkedin.com/in/andrew-huberman",
+                tiktok: "https://tiktok.com/@hubermanlab",
+              },
+            },
+            role: { code: "host", title: "Host" },
+            episodeCount: 410,
+          }],
+          pagination: { total_results: 1, page: 1, per_page: 5, total_pages: 1, has_more: false },
+        });
+      }
       return jsonResponse({
         data: [{
           id: "credit-2",
@@ -94,9 +119,13 @@ test("returns structured guest credits and measures Starter quota use", async ()
   assert.equal(result.guestEpisodes[0]?.airDate, "2026-08-01T12:00:00.000Z");
   assert.equal(result.guestPodcasts[0]?.episodeCount, 2);
   assert.equal(result.guestPodcasts[0]?.rssUrl, "https://feeds.example.com/test-show");
-  assert.deepEqual(result.pagination, { guestEpisodesTotal: 17, guestPodcastsTotal: 8 });
+  assert.equal(result.hostedPodcasts[0]?.podcastTitle, "Huberman Lab");
+  assert.equal(result.hostedPodcasts[0]?.webUrl, "https://hubermanlab.com");
+  assert.equal(result.hostedPodcasts[0]?.socialLinks.instagram, "https://instagram.com/hubermanlab");
+  assert.equal(result.hostedPodcasts[0]?.roleCode, "host");
+  assert.deepEqual(result.pagination, { guestEpisodesTotal: 17, guestPodcastsTotal: 8, hostedPodcastsTotal: 1 });
   assert.equal(result.quota.tier, "starter");
-  assert.equal(result.requestsConsumed, 3);
+  assert.equal(result.requestsConsumed, 4);
   assert.ok(observedHeaders.every((headers) => headers.get("x-api-key") === "test-podchaser-key"));
   assert.ok(observedUrls.some((url) => url.pathname.endsWith("/search/creators") && url.searchParams.get("sort") === "appearance_count"));
   assert.ok(observedUrls.some((url) => url.pathname.endsWith("/creators/452446/episodes") && url.searchParams.get("role") === "guest"));
@@ -115,7 +144,10 @@ test("stages creator search before appearance requests", async () => {
       return jsonResponse({ data: [], pagination: { total_results: 44 } });
     }
     if (url.pathname.endsWith("/creators/brene/podcasts")) {
-      return jsonResponse({ data: [], pagination: { total_results: 20 } });
+      return jsonResponse({
+        data: [],
+        pagination: { total_results: url.searchParams.get("role") === "host" ? 2 : 20 },
+      });
     }
     return jsonResponse({ error: { message: "Unexpected request" } }, 500);
   };
@@ -127,8 +159,8 @@ test("stages creator search before appearance requests", async () => {
 
   const appearances = await getPodchaserGuestAppearances("brene", 10);
 
-  assert.deepEqual(appearances.pagination, { guestEpisodesTotal: 44, guestPodcastsTotal: 20 });
-  assert.equal(requestedPaths.length, 3);
+  assert.deepEqual(appearances.pagination, { guestEpisodesTotal: 44, guestPodcastsTotal: 20, hostedPodcastsTotal: 2 });
+  assert.equal(requestedPaths.length, 4);
   assert.ok(requestedPaths.some((path) => path.endsWith("/creators/brene/episodes")));
   assert.ok(requestedPaths.some((path) => path.endsWith("/creators/brene/podcasts")));
 });

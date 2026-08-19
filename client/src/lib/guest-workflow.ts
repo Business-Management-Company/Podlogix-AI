@@ -20,8 +20,12 @@ export function socialProfileLabel(platform: string): string {
     instagram: "Instagram",
     tiktok: "TikTok",
     youtube: "YouTube",
+    facebook: "Facebook",
+    linkedin: "LinkedIn",
+    patreon: "Patreon",
     twitch: "Twitch",
     wikipedia: "Wikipedia",
+    website: "Official website",
   };
   return labels[platform.toLowerCase()] ?? platform;
 }
@@ -30,7 +34,9 @@ export function socialProfileSummary(platform: string, url: string): string {
   const label = socialProfileLabel(platform);
   if (platform.toLowerCase() === "wikipedia") return `${label} profile found`;
   try {
-    const handle = new URL(url).pathname.split("/").filter(Boolean).at(-1)?.replace(/^@/, "");
+    const parsedUrl = new URL(url);
+    if (platform.toLowerCase() === "website") return `${label} · ${parsedUrl.hostname.replace(/^www\./, "")}`;
+    const handle = parsedUrl.pathname.split("/").filter(Boolean).at(-1)?.replace(/^@/, "");
     return handle ? `${label} · @${handle}` : `${label} profile found`;
   } catch {
     return `${label} profile found`;
