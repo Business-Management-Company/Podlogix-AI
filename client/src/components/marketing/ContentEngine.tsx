@@ -203,8 +203,8 @@ export function ContentEngine() {
                 <p className="mt-2 font-mono text-xs tabular-nums text-muted-foreground/60">{event.at}</p>
               </div>
               <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground/60">
-                Use Podlogix Studio or bring your existing stream.
-                <span className="mt-0.5 block text-muted-foreground/40">{INTEGRATION_SOURCES.join(" · ")}</span>
+                <span className="block whitespace-nowrap">Podlogix Studio or your current setup.</span>
+                <span className="mt-0.5 block whitespace-nowrap text-muted-foreground/40">{INTEGRATION_SOURCES.join(" · ")}</span>
               </p>
             </div>
 
