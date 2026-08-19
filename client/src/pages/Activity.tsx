@@ -477,7 +477,7 @@ export default function Activity() {
             <DropdownMenuContent align="end" className="border-zinc-800 bg-zinc-950 text-zinc-200">
               <DropdownMenuItem asChild><Link href="/studio/live" className="flex items-center gap-2"><Radio size={14} /> Record or go live</Link></DropdownMenuItem>
               <DropdownMenuItem asChild><Link href="/episodes" className="flex items-center gap-2"><Mic size={14} /> New episode</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href="/dashboard/social-hub" className="flex items-center gap-2"><PenSquare size={14} /> Create a post</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/social/posts" className="flex items-center gap-2"><PenSquare size={14} /> Create a post</Link></DropdownMenuItem>
               <DropdownMenuItem asChild><Link href="/media-library" className="flex items-center gap-2"><GalleryVerticalEnd size={14} /> Add media</Link></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -842,7 +842,7 @@ export default function Activity() {
                 ["Record", Mic, "/studio/live", "bg-red-500/15 text-red-400"],
                 ["Go Live", Radio, "/studio/live", "bg-violet-500/15 text-violet-400"],
                 ["Refine", Gem, "/studio/refine", "bg-amber-500/15 text-amber-400"],
-                ["Post", PenSquare, "/dashboard/social-hub", "bg-sky-500/15 text-sky-400"],
+                ["Post", PenSquare, "/social/posts", "bg-sky-500/15 text-sky-400"],
                 ["Newsletter", Mail, "/dashboard/email", "bg-emerald-500/15 text-emerald-400"],
                 ["Invite Guest", UserPlus, "/guests", "bg-pink-500/15 text-pink-400"],
               ] as const).map(([label, Icon, href, tint]) => (

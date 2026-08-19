@@ -108,14 +108,61 @@ import {
 } from "./services/podcastIndexService";
 import {
   getPodchaserGuestAppearances,
+  getPodchaserPodcastCredits,
   isPodchaserConfigured,
   PodchaserError,
   probePodchaserGuest,
   searchPodchaserCreators,
+  searchPodchaserPodcasts,
 } from "./services/podchaserGuestService";
 
 function canonicalGuestMatch(value: string): string {
   return value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
+}
+
+function guestEnrichmentTarget(socialLinks: Record<string, string>): { platform: string; handle: string } | null {
+  const supported = ['instagram', 'youtube', 'tiktok', 'twitter', 'twitch'];
+  for (const platform of supported) {
+    const value = socialLinks[platform];
+    if (!value) continue;
+    try {
+      const url = new URL(value);
+      const raw = url.pathname.split('/').filter(Boolean).at(-1)?.replace(/^@/, '').trim();
+      if (raw) return { platform, handle: raw };
+    } catch {
+      const raw = value.replace(/^@/, '').trim();
+      if (raw) return { platform, handle: raw };
+    }
+  }
+  return null;
+}
+
+function extractGuestEnrichmentEmail(payload: any): string | null {
+  const result = payload?.result ?? payload?.data ?? payload ?? {};
+  const candidates = [
+    result.email,
+    result.contact_email,
+    result.business_email,
+    result?.contact?.email,
+    result?.emails?.[0]?.email,
+    result?.emails?.[0],
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const normalized = candidate.trim().toLowerCase();
+    if (z.string().email().safeParse(normalized).success) return normalized;
+  }
+  return null;
+}
+
+function contactNameParts(displayName: string): { firstName: string | null; lastName: string | null } {
+  const parts = displayName
+    .replace(/^(dr|doctor|mr|mrs|ms|prof|professor)\.?\s+/i, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return { firstName: null, lastName: null };
+  return { firstName: parts[0] ?? null, lastName: parts.slice(1).join(' ') || null };
 }
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
@@ -4071,7 +4118,16 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   const guestDiscoverySearchSchema = z.object({
     q: z.string().trim().min(2).max(120),
-    max: z.coerce.number().int().min(1).max(10).default(10),
+    max: z.coerce.number().int().min(1).max(25).default(10),
+    page: z.coerce.number().int().min(1).max(1000).default(1),
+    sort: z.enum(['relevance', 'alphabetical', 'recent_episode', 'appearance_count']).default('appearance_count'),
+  });
+
+  const podcastDiscoverySearchSchema = z.object({
+    q: z.string().trim().min(2).max(120),
+    max: z.coerce.number().int().min(1).max(25).default(10),
+    page: z.coerce.number().int().min(1).max(1000).default(1),
+    sort: z.enum(['relevance', 'alphabetical', 'date_of_first_episode', 'power_score']).default('relevance'),
   });
 
   const guestAppearanceSchema = z.object({
@@ -4097,11 +4153,38 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.get('/api/guest-discovery/search', isAuthenticated, async (req: any, res) => {
     try {
       const input = guestDiscoverySearchSchema.parse(req.query);
-      const result = await searchPodchaserCreators(input.q, input.max);
+      const result = await searchPodchaserCreators(input.q, input.max, input.page, input.sort);
       res.json({ configured: true, ...result });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0]?.message || 'Invalid guest search' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
+  app.get('/api/guest-discovery/podcasts', isAuthenticated, async (req: any, res) => {
+    try {
+      const input = podcastDiscoverySearchSchema.parse(req.query);
+      const result = await searchPodchaserPodcasts(input.q, input.max, input.page, input.sort);
+      res.json({ configured: true, ...result });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid podcast search' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
+  app.get('/api/guest-discovery/podcasts/:podcastId/credits', isAuthenticated, async (req: any, res) => {
+    try {
+      const podcastId = z.string().trim().min(1).max(80).parse(req.params.podcastId);
+      const input = guestAppearanceSchema.parse(req.query);
+      const result = await getPodchaserPodcastCredits(podcastId, input.max);
+      res.json({ configured: true, ...result });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid podcast request' });
       }
       return sendPodchaserRouteError(res, error);
     }
@@ -4211,6 +4294,83 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       }
       console.error('Error updating guest prospect:', error);
       res.status(500).json({ message: 'Failed to update guest prospect' });
+    }
+  });
+
+  app.post('/api/guest-prospects/:id/reveal-email', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const prospect = await storage.getGuestProspect(req.params.id, userId);
+      if (!prospect) return res.status(404).json({ message: 'Guest prospect not found' });
+
+      // Persisted contact data is the deduplication boundary: repeat reveals do
+      // not call IC or spend another credit.
+      if (prospect.email) {
+        return res.json({ prospect, email: prospect.email, charged: false, cached: true });
+      }
+
+      const apiKey = getInfluencersClubApiKey()?.trim();
+      if (!apiKey) return res.status(503).json({ message: 'Contact enrichment is not configured.' });
+
+      const target = guestEnrichmentTarget(prospect.socialLinks ?? {});
+      if (!target) {
+        return res.status(422).json({ message: 'No supported social profile is available for this guest yet.' });
+      }
+
+      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          handle: target.handle,
+          platform: target.platform,
+          email_required: 'preferred',
+          include_lookalikes: false,
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        console.error('Guest email reveal failed:', response.status, detail.slice(0, 300));
+        const status = response.status === 429 ? 429 : 502;
+        return res.status(status).json({ message: response.status === 429 ? 'Contact enrichment allowance has been reached.' : 'Contact enrichment could not be completed.' });
+      }
+
+      const data = await response.json();
+      const email = extractGuestEnrichmentEmail(data);
+      if (!email) return res.status(404).json({ message: 'No verified email was found for this guest.' });
+
+      const updated = await storage.updateGuestProspect(prospect.id, userId, { email });
+      if (!updated) return res.status(404).json({ message: 'Guest prospect not found' });
+
+      let contact = await storage.getEmailContactByEmail(userId, email);
+      if (!contact) {
+        const name = contactNameParts(prospect.name);
+        contact = await storage.createEmailContact({
+          userId,
+          email,
+          firstName: name.firstName,
+          lastName: name.lastName,
+          category: 'guest',
+          notes: 'Email revealed from a saved guest profile.',
+        });
+      }
+
+      const entries = await storage.getGuestPipelineEntriesByProspect(prospect.id);
+      await Promise.all(entries
+        .filter((entry) => !entry.contactId)
+        .map((entry) => storage.updateGuestPipelineEntry(entry.id, { contactId: contact!.id })));
+
+      res.json({ prospect: updated, email, charged: true, cached: false, contactId: contact.id });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        return res.status(504).json({ message: 'Contact enrichment timed out. No result was saved.' });
+      }
+      console.error('Error revealing guest email:', error);
+      res.status(500).json({ message: 'Failed to reveal guest email' });
     }
   });
 
@@ -5786,6 +5946,7 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       form.append('file', new Blob([buffer], { type: 'audio/wav' }), 'clip.wav');
       form.append('model', 'whisper-1');
       form.append('response_format', 'verbose_json');
+      form.append('timestamp_granularities[]', 'word');
       form.append('timestamp_granularities[]', 'segment');
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
@@ -5801,6 +5962,10 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
         text: (data as any).text ?? '',
         segments: Array.isArray((data as any).segments)
           ? (data as any).segments.map((s: any) => ({ start: s.start, end: s.end, text: String(s.text ?? '').trim() }))
+          : [],
+        // Word timing rides along free — the Refiner's browser lane cuts with it.
+        words: Array.isArray((data as any).words)
+          ? (data as any).words.map((w: any) => ({ word: w.word, start: w.start, end: w.end }))
           : [],
       });
     } catch (error) {

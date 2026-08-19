@@ -302,32 +302,40 @@ export default function Refinery() {
       let words: WordStamp[] = [];
       try {
         let text: string | null = null;
-        let serverError = "";
-        try {
+        let laneError = "";
+        // Cost lever: shows short enough for the in-browser WAV path (~24 min
+        // before Whisper's 25MB cap) transcribe free — no compress job billed.
+        // Longer shows use the server lane; each is the other's fallback.
+        const shortEnough = selDuration !== null && selDuration <= 24 * 60;
+        const browserLane = async () => {
+          const wav = await extractAudioAsWav(selected.url);
+          const tRes = await fetch("/api/social/transcribe", {
+            method: "POST",
+            headers: { "Content-Type": "audio/wav" },
+            body: wav,
+          });
+          const tData = await tRes.json().catch(() => ({}));
+          if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
+          if (Array.isArray(tData.words)) words = tData.words as WordStamp[];
+          return String(tData.text ?? "");
+        };
+        const serverLane = async () => {
           const srv = await apiRequest("POST", "/api/refiner/transcribe", { mediaUrl: selected.url });
           const sData = await srv.json().catch(() => ({}));
-          if (srv.ok) {
-            text = String(sData.text ?? "");
-            if (Array.isArray(sData.words)) words = sData.words as WordStamp[];
-          } else serverError = String(sData.message ?? "");
-        } catch {
-          /* fall through to the browser path */
-        }
-        if (text === null) {
+          if (!srv.ok) throw new Error(String(sData.message ?? "Transcription failed"));
+          if (Array.isArray(sData.words)) words = sData.words as WordStamp[];
+          return String(sData.text ?? "");
+        };
+        const lanes = shortEnough ? [browserLane, serverLane] : [serverLane, browserLane];
+        for (const lane of lanes) {
           try {
-            const wav = await extractAudioAsWav(selected.url);
-            const tRes = await fetch("/api/social/transcribe", {
-              method: "POST",
-              headers: { "Content-Type": "audio/wav" },
-              body: wav,
-            });
-            const tData = await tRes.json().catch(() => ({}));
-            if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
-            text = String(tData.text ?? "");
-          } catch (browserErr) {
-            throw new Error(serverError || (browserErr instanceof Error ? browserErr.message : "Transcription failed"));
+            text = await lane();
+            break;
+          } catch (err) {
+            laneError = err instanceof Error ? err.message : "Transcription failed";
           }
         }
+        if (text === null) throw new Error(laneError || "Transcription failed");
         setTranscript({ text });
         setPipeline((p) => ({ ...p, transcribe: "done" }));
       } catch (e) {
