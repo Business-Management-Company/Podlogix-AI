@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, BarChart3, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download,
-  FileText, FolderOpen, Home as HomeIcon, LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Plus,
-  Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Wand2, XCircle,
+  FileText, FolderOpen, Home as HomeIcon, LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Music,
+  Plus, Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Wand2, XCircle,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -113,7 +113,7 @@ export default function LiveStudio() {
   );
   const [newStudioName, setNewStudioName] = useState("");
   // ── Workspace lobby (Restream-style shell) ──
-  const [lobbyTab, setLobbyTab] = useState<"home" | "past" | "clips" | "channels">("home");
+  const [lobbyTab, setLobbyTab] = useState<"home" | "past" | "clips" | "storage" | "channels">("home");
   const [streamFilter, setStreamFilter] = useState<"All" | "Drafts" | "Scheduled" | "Past">("All");
   const [newStreamOpen, setNewStreamOpen] = useState(false);
   const [newStreamMode, setNewStreamMode] = useState<"pick" | "studio">("pick");
@@ -941,7 +941,7 @@ export default function LiveStudio() {
               ["home", "Home", HomeIcon, null],
               ["past", "Past streams", Clock, null],
               ["clips", "Clips", Scissors, null],
-              ["storage", "Storage", FolderOpen, "/media-library"],
+              ["storage", "Storage", FolderOpen, null],
               ["channels", "Channels", Share2, null],
               ["analytics", "Analytics", BarChart3, "/dashboard/social-analytics"],
             ] as Array<[string, string, React.ElementType, string | null]>).map(([id, label, Icon, href]) => (
@@ -1099,6 +1099,54 @@ export default function LiveStudio() {
                       <div key={m.id} className="overflow-hidden rounded-xl border border-zinc-800">
                         <video src={m.mediaUrl!} controls className="aspect-video w-full bg-black object-cover" preload="metadata" />
                         <p className="truncate bg-zinc-900 px-2.5 py-1.5 text-[11px] text-zinc-300">{m.caption || "Clip"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {lobbyTab === "storage" && (
+              <>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-100">Storage</p>
+                    <p className="text-xs text-zinc-500">Everything on your shelf — recordings, clips, refined audio, uploads.</p>
+                  </div>
+                  <Button size="sm" className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700" onClick={() => navigate("/media-library")}>
+                    Open Media Storage →
+                  </Button>
+                </div>
+                {(libraryData?.items ?? []).length === 0 ? (
+                  <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    Nothing stored yet — record a show or add media, and it lands here.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {(libraryData?.items ?? []).slice(0, 16).map((m) => (
+                      <div key={m.id} className="overflow-hidden rounded-xl border border-zinc-800">
+                        {m.mediaType === "video" && m.mediaUrl ? (
+                          <video src={m.mediaUrl} muted className="aspect-video w-full bg-black object-cover" preload="metadata" />
+                        ) : m.mediaType === "audio" && m.mediaUrl ? (
+                          <div className="flex aspect-video w-full items-center justify-center bg-zinc-900">
+                            <Music className="h-6 w-6 text-emerald-500" />
+                          </div>
+                        ) : m.mediaUrl ? (
+                          <img src={m.mediaUrl} alt="" className="aspect-video w-full bg-black object-cover" loading="lazy" />
+                        ) : (
+                          <div className="flex aspect-video w-full items-center justify-center bg-zinc-900">
+                            <FolderOpen className="h-6 w-6 text-zinc-600" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 bg-zinc-900 px-2.5 py-1.5">
+                          <p className="min-w-0 flex-1 truncate text-[11px] text-zinc-300">{m.caption || m.platform}</p>
+                          {m.platform === "media-lab" && (
+                            <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400">Refined</span>
+                          )}
+                          {m.platform === "live" && (
+                            <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400">Studio</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
