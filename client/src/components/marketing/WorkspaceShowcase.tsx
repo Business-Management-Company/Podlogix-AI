@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, Radio, Mic, Wand2, CheckCircle2, Circle, ArrowRight, Share2, Users2,
+  LayoutDashboard, Radio, Mic, Gem, CheckCircle2, Circle, ArrowRight, Share2, Users2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { SectionKicker } from "./SectionKicker";
@@ -46,7 +46,7 @@ const TOUR = [
     ],
   },
   {
-    id: "refinery", label: "Refiner", Icon: Wand2, url: "podlogix.io/studio/refine",
+    id: "refinery", label: "Refiner", Icon: Gem, url: "podlogix.io/studio/refine",
     captions: [
       { label: "Pipeline", value: "Real transformations" },
       { label: "Minutes saved", value: "Measured, not invented" },
@@ -64,7 +64,7 @@ function DashboardView() {
   return (
     <div className="flex h-full bg-[#f6f6f7] text-zinc-900">
       <div className="hidden w-11 shrink-0 flex-col items-center gap-3 bg-[#0D1B2A] py-3 sm:flex">
-        {[LayoutDashboard, Mic, Users2, Share2, Wand2].map((I, i) => (
+        {[LayoutDashboard, Mic, Users2, Share2, Gem].map((I, i) => (
           <span key={i} className={`flex h-6 w-6 items-center justify-center rounded-md ${i === 0 ? "bg-white/20" : ""}`}>
             <I className={`h-3.5 w-3.5 ${i === 0 ? "text-white" : "text-white/40"}`} />
           </span>

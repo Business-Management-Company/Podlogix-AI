@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import {
   AudioLines, Check, Clapperboard, Download, ExternalLink, Film, FolderOpen,
-  Image as ImageIcon, Link2, Loader2, Play, Plus, Radio, Search, Sparkles, Trash2, Upload, Wand2,
+  Image as ImageIcon, Link2, Loader2, Play, Plus, Radio, Search, Sparkles, Trash2, Upload, Gem,
 } from "lucide-react";
 import {
   SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
@@ -271,7 +271,7 @@ export default function MediaLibrary() {
               <div className="flex items-center justify-end gap-2">
                 <Button variant="outline" onClick={() => setPreview(null)}>Close</Button>
                 <Button onClick={() => navigate(`/studio/refine?src=${encodeURIComponent(preview.mediaUrl!)}`)}>
-                  <Wand2 className="mr-1.5 h-4 w-4" /> Open in Refiner
+                  <Gem className="mr-1.5 h-4 w-4" /> Open in Refiner
                 </Button>
               </div>
             </div>

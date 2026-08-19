@@ -53,7 +53,7 @@ import {
   MessageCircle,
   Radio,
   Server,
-  Wand2,
+  Gem,
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -98,7 +98,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   // Campaign and Cadence are tabs inside Posts — no separate panel entries.
   { title: "Bio Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Live Studio", url: "/studio/live", icon: Radio, group: "Studio" },
-  { title: "Refiner", url: "/studio/refine", icon: Wand2, group: "Studio" },
+  { title: "Refiner", url: "/studio/refine", icon: Gem, group: "Studio" },
   { title: "Media Storage", url: "/media-library", icon: GalleryVerticalEnd, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
   { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
@@ -130,7 +130,7 @@ const RAIL_ITEMS: RailItem[] = [
   // Refiner and Media Storage keep their Studio panel entries, but each gets
   // its own rail icon — most sessions go straight to one of them.
   { title: "Studio", icon: WandSparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" && leaf?.url !== "/media-library" && leaf?.url !== "/studio/refine" },
-  { title: "Refiner", icon: Wand2, url: "/studio/refine", isActive: (leaf) => leaf?.url === "/studio/refine" },
+  { title: "Refiner", icon: Gem, url: "/studio/refine", isActive: (leaf) => leaf?.url === "/studio/refine" },
   { title: "Media Storage", icon: GalleryVerticalEnd, url: "/media-library", isActive: (leaf) => leaf?.url === "/media-library" },
   { title: "Connectors", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
   { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
