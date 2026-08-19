@@ -82,6 +82,8 @@ export const ready = (async () => {
     registerSocialAnalyticsCache(app);
     const { registerSearchRoutes } = await import("./searchRoutes");
     registerSearchRoutes(app);
+    const { registerEngagementCache } = await import("./engagementCache");
+    registerEngagementCache(app);
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
