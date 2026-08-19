@@ -448,8 +448,8 @@ export default function Activity() {
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-[1600px] px-6 py-8">
-        <div className="rounded-3xl bg-zinc-950 p-6 ring-1 ring-zinc-800/60">
+      <div className="min-h-full w-full bg-gradient-to-b from-[#101014] to-[#0a0a0d]">
+        <div className="mx-auto w-full max-w-[1600px] px-6 py-6">
           <Skeleton className="mb-6 h-8 w-64 bg-zinc-800" />
           <div className="grid gap-5 lg:grid-cols-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 rounded-2xl bg-zinc-800" />)}
@@ -460,8 +460,8 @@ export default function Activity() {
   }
 
   return (
-    <div className="w-full max-w-[1600px] px-6 py-8">
-      <div className="rounded-3xl bg-gradient-to-b from-[#101014] to-[#0a0a0d] p-6 ring-1 ring-zinc-800/60">
+    <div className="min-h-full w-full bg-gradient-to-b from-[#101014] to-[#0a0a0d]">
+      <div className="mx-auto w-full max-w-[1600px] px-6 py-6">
         {/* ── Header ── */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
