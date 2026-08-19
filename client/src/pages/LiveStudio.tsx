@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, BarChart3, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download,
   FileText, FolderOpen, Home as HomeIcon, LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Music,
-  Pencil, Plus, Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Wand2, XCircle,
+  Pencil, Plus, Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Gem, XCircle,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -982,7 +982,7 @@ export default function LiveStudio() {
               ["home", "Home", HomeIcon, null],
               ["past", "Past streams", Clock, null],
               ["clips", "Clips", Scissors, null],
-              ["refiner", "Refiner", Wand2, "/studio/refine"],
+              ["refiner", "Refiner", Gem, "/studio/refine"],
               ["storage", "Storage", FolderOpen, null],
               ["channels", "Channels", Share2, null],
               ["analytics", "Analytics", BarChart3, null],
@@ -1899,7 +1899,7 @@ export default function LiveStudio() {
               </Button>
               <Link href={`/studio/refine?src=${encodeURIComponent(vodUrl.trim())}`}>
                 <Button className="bg-red-600 text-white hover:bg-red-700">
-                  <Wand2 className="mr-1.5 h-4 w-4" />
+                  <Gem className="mr-1.5 h-4 w-4" />
                   Refine this show
                 </Button>
               </Link>

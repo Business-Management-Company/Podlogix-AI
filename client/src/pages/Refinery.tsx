@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import {
-  CheckCircle2, Circle, Clapperboard, Loader2, Music, Sparkles, Wand2, XCircle,
+  CheckCircle2, Circle, Clapperboard, Loader2, Music, Sparkles, Gem, XCircle,
 } from "lucide-react";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 
@@ -36,6 +36,40 @@ const CLIP_PLATFORMS = [
   { id: "facebook", label: "Facebook" },
 ];
 
+interface WordStamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Turn word-level timestamps into keep-spans: speech separated by less than
+ * `minGap` seconds merges into one span, so only real dead air falls between
+ * spans. Each span gets a small pad so cuts don't clip syllables. If the show
+ * produces too many spans for one FFmpeg command, the gap threshold rises
+ * until it fits — fewer, longer spans, still only cutting genuine silence.
+ */
+function speechSpans(words: WordStamp[], minGap: number, pad = 0.15): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  for (const w of words) {
+    if (typeof w.start !== "number" || typeof w.end !== "number") continue;
+    const last = spans[spans.length - 1];
+    if (last && w.start - last[1] <= minGap) last[1] = Math.max(last[1], w.end);
+    else spans.push([w.start, w.end]);
+  }
+  return spans.map(([s, e]) => [Math.max(0, s - pad), e + pad]);
+}
+
+function fittedSpans(words: WordStamp[]): Array<[number, number]> {
+  let gap = 0.75;
+  let spans = speechSpans(words, gap);
+  while (spans.length > 120 && gap < 3) {
+    gap += 0.25;
+    spans = speechSpans(words, gap);
+  }
+  return spans;
+}
+
 // Duration probe with a hard timeout: a stalled metadata load must never
 // wedge the pipeline — minutes-saved just reads "—" instead.
 const mediaDuration = (url: string, kind: "audio" | "video") =>
@@ -65,6 +99,10 @@ export default function Refinery() {
   const [busy, setBusy] = useState(false);
   const [transcript, setTranscript] = useState<{ text: string } | null>(null);
   const [refinedUrl, setRefinedUrl] = useState<string | null>(null);
+  const [refinedIsVideo, setRefinedIsVideo] = useState(false);
+  // null = source is audio (no picture to cut); true/false = whether the
+  // video cut actually ran for this refine.
+  const [videoCut, setVideoCut] = useState<boolean | null>(null);
   const [minutesSaved, setMinutesSaved] = useState<number | null>(null);
   const [clipPlatforms, setClipPlatforms] = useState<string[]>(["youtube", "instagram", "tiktok"]);
   const [selDuration, setSelDuration] = useState<number | null>(null);
@@ -102,6 +140,12 @@ export default function Refinery() {
   useEffect(() => {
     setSelDuration(null);
     setSelBytes(null);
+    setTranscript(null);
+    setRefinedUrl(null);
+    setRefinedIsVideo(false);
+    setVideoCut(null);
+    setMinutesSaved(null);
+    setPipeline({ transcribe: "idle", refine: "idle" });
     clipCopy.reset();
     if (!selected) return;
     void mediaDuration(selected.url, selected.type).then((d) => setSelDuration(d || null));
@@ -143,20 +187,29 @@ export default function Refinery() {
   const run = async () => {
     if (!selected || busy) return;
     setBusy(true);
+    setTranscript(null);
+    setRefinedUrl(null);
+    setRefinedIsVideo(false);
+    setVideoCut(null);
+    setMinutesSaved(null);
     try {
       // Step 1 — Transcription (Whisper, the real one). The server lane
       // compresses first (FFmpeg → 48 kbps mono MP3), so long shows don't hit
       // Whisper's 25 MB wall; the in-browser WAV path stays as fallback for
-      // short clips when that lane is unavailable.
+      // short clips when that lane is unavailable. Word-level timestamps come
+      // back too — they drive the video cut below.
       setPipeline((p) => ({ ...p, transcribe: "running" }));
+      let words: WordStamp[] = [];
       try {
         let text: string | null = null;
         let serverError = "";
         try {
           const srv = await apiRequest("POST", "/api/refiner/transcribe", { mediaUrl: selected.url });
           const sData = await srv.json().catch(() => ({}));
-          if (srv.ok) text = String(sData.text ?? "");
-          else serverError = String(sData.message ?? "");
+          if (srv.ok) {
+            text = String(sData.text ?? "");
+            if (Array.isArray(sData.words)) words = sData.words as WordStamp[];
+          } else serverError = String(sData.message ?? "");
         } catch {
           /* fall through to the browser path */
         }
@@ -182,42 +235,71 @@ export default function Refinery() {
         throw e;
       }
 
-      // Step 2 — Remove gaps + master loudness (one real FFmpeg pass)
+      // Step 2 — Remove gaps + master loudness (one real FFmpeg pass).
+      // For video sources with word timestamps, the SAME cuts land on the
+      // picture: keep-spans from the transcript become a select filter, so
+      // the refined output stays a video instead of dropping to audio.
       setPipeline((p) => ({ ...p, refine: "running" }));
       try {
-        const cmd = "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
-        const submit = await apiRequest("POST", "/api/media-lab/ffmpeg/jobs", {
-          files: [selected.url],
-          full_command: cmd,
-          output_extension: "mp3",
-        });
-        const sub = await submit.json().catch(() => ({}));
-        if (!submit.ok || !sub.job_id) throw new Error(sub.message ?? "Couldn't start the refine");
-        for (let i = 0; i < 150; i++) {
-          await new Promise((r) => setTimeout(r, 4000));
-          const st = await apiRequest("GET", `/api/media-lab/ffmpeg/jobs/${sub.job_id}`);
-          const js = await st.json().catch(() => ({}));
-          const status = String(js.status ?? "").toUpperCase();
-          if (status === "FINISHED" || status === "COMPLETED") break;
-          if (status === "ERROR" || status === "FAILED") throw new Error("The refine failed in processing");
-          if (i === 149) throw new Error("Timed out waiting for the refine");
+        const submitAndCollect = async (cmd: string, ext: string, title: string): Promise<string> => {
+          const submit = await apiRequest("POST", "/api/media-lab/ffmpeg/jobs", {
+            files: [selected.url],
+            full_command: cmd,
+            output_extension: ext,
+          });
+          const sub = await submit.json().catch(() => ({}));
+          if (!submit.ok || !sub.job_id) throw new Error(sub.message ?? "Couldn't start the refine");
+          for (let i = 0; i < 150; i++) {
+            await new Promise((r) => setTimeout(r, 4000));
+            const st = await apiRequest("GET", `/api/media-lab/ffmpeg/jobs/${sub.job_id}`);
+            const js = await st.json().catch(() => ({}));
+            const status = String(js.status ?? "").toUpperCase();
+            if (status === "FINISHED" || status === "COMPLETED") break;
+            if (status === "ERROR" || status === "FAILED") throw new Error("The refine failed in processing");
+            if (i === 149) throw new Error("Timed out waiting for the refine");
+          }
+          const collect = await apiRequest("POST", "/api/media-lab/collect", {
+            jobId: sub.job_id,
+            extension: ext,
+            title,
+          });
+          const col = await collect.json().catch(() => ({}));
+          if (!collect.ok || !col.url) throw new Error(col.message ?? "Couldn't store the refined result");
+          return String(col.url);
+        };
+
+        const audioCmd =
+          "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
+        const spans = selected.type === "video" ? fittedSpans(words) : [];
+        setVideoCut(selected.type === "video" ? spans.length > 0 : null);
+
+        let url: string;
+        let isVideo = false;
+        if (spans.length > 0) {
+          // Cut the SAME spans from picture and sound. If the processing lane
+          // rejects the filter, fall back to the proven audio-only pass and
+          // say so — never a silent lie in the pipeline column.
+          const expr = spans.map(([s, e]) => `between(t\\,${s.toFixed(2)}\\,${e.toFixed(2)})`).join("+");
+          const videoCmd = `ffmpeg -y -i {input} -vf "select='${expr}',setpts=N/FRAME_RATE/TB" -af "aselect='${expr}',asetpts=N/SR/TB,loudnorm=I=-16:TP=-1.5:LRA=11" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k {output}`;
+          try {
+            url = await submitAndCollect(videoCmd, "mp4", `${selected.title} — refined video`);
+            isVideo = true;
+          } catch {
+            setVideoCut(false);
+            url = await submitAndCollect(audioCmd, "mp3", `${selected.title} — refined audio`);
+          }
+        } else {
+          url = await submitAndCollect(audioCmd, "mp3", `${selected.title} — refined audio`);
         }
-        const collect = await apiRequest("POST", "/api/media-lab/collect", {
-          jobId: sub.job_id,
-          extension: "mp3",
-          title: `${selected.title} — refined audio`,
-        });
-        const col = await collect.json().catch(() => ({}));
-        if (!collect.ok) throw new Error(col.message ?? "Couldn't store the refined audio");
-        if (col.url) {
-          setRefinedUrl(String(col.url));
-          const [orig, refined] = await Promise.all([
-            mediaDuration(selected.url, selected.type),
-            mediaDuration(String(col.url), "audio"),
-          ]);
-          // Both probes must land to claim a number; otherwise show "—".
-          setMinutesSaved(orig > 0 && refined > 0 ? Math.max(0, orig - refined) / 60 : null);
-        }
+
+        setRefinedUrl(url);
+        setRefinedIsVideo(isVideo);
+        const [orig, refined] = await Promise.all([
+          mediaDuration(selected.url, selected.type),
+          mediaDuration(url, isVideo ? "video" : "audio"),
+        ]);
+        // Both probes must land to claim a number; otherwise show "—".
+        setMinutesSaved(orig > 0 && refined > 0 ? Math.max(0, orig - refined) / 60 : null);
         queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
         setPipeline((p) => ({ ...p, refine: "done" }));
       } catch (e) {
@@ -225,7 +307,7 @@ export default function Refinery() {
         throw e;
       }
 
-      toast({ title: "Refined", description: "The polished version is in your Media Library." });
+      toast({ title: "Refined", description: "The polished version is in Media Storage." });
     } catch (e) {
       toast({
         title: "The pipeline stopped",
@@ -277,7 +359,7 @@ export default function Refinery() {
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
-            <Wand2 className="h-6 w-6 text-zinc-400" />
+            <Gem className="h-6 w-6 text-zinc-400" />
             Refiner
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
@@ -297,7 +379,7 @@ export default function Refinery() {
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 px-8 py-16 text-center">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-950">
-              <Wand2 className="h-6 w-6 text-amber-400" />
+              <Gem className="h-6 w-6 text-amber-400" />
             </span>
             <h2 className="mt-4 text-lg font-semibold text-zinc-900">Pick something to refine</h2>
             <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500">
@@ -413,8 +495,14 @@ export default function Refinery() {
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-600">
                       After — gaps cut, loudness mastered
                     </p>
-                    <audio src={refinedUrl} controls className="w-full" />
-                    <p className="mt-2 text-[11px] text-emerald-700">Saved to Media Storage with the Refined badge.</p>
+                    {refinedIsVideo ? (
+                      <video src={refinedUrl} controls className="w-full rounded-lg bg-black" />
+                    ) : (
+                      <audio src={refinedUrl} controls className="w-full" />
+                    )}
+                    <p className="mt-2 text-[11px] text-emerald-700">
+                      {refinedIsVideo ? "Still a video — the picture got the same cuts." : "Saved to Media Storage with the Refined badge."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -430,8 +518,14 @@ export default function Refinery() {
                 <StepRow state={pipeline.transcribe} label="Transcription" sub="Whisper writes down every word" />
                 <StepRow state={pipeline.refine} label="Remove gaps" sub="Dead air and long pauses, cut" />
                 <StepRow state={pipeline.refine} label="Audio cleanup" sub="Loudness mastered to −16 LUFS" />
+                {selected.type === "video" && (
+                  <StepRow
+                    state={videoCut === false ? "soon" : pipeline.refine}
+                    label="Enhance video"
+                    sub="The same cuts, applied to the picture"
+                  />
+                )}
                 <StepRow state="soon" label="Remove fillers" sub="Word-level um/uh excision" />
-                <StepRow state="soon" label="Enhance video" sub="Re-cut picture to the refined audio" />
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
                 Marked clips and captions live in your studio's Editing Room — Refiner polishes the whole show.

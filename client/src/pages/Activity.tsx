@@ -24,7 +24,7 @@ import {
   Sparkles,
   UserPlus,
   Video,
-  Wand2,
+  Gem,
 } from "lucide-react";
 import {
   SiGooglecalendar, SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
@@ -437,7 +437,7 @@ export default function Activity() {
     }
     for (const m of mediaItems.slice(0, 8)) {
       if (!m.postedAt) continue;
-      if (m.platform === "media-lab") items.push({ at: new Date(m.postedAt), icon: Wand2, text: `Refined audio saved — ${m.caption || "untitled"}`, tint: "text-amber-400 bg-amber-500/10" });
+      if (m.platform === "media-lab") items.push({ at: new Date(m.postedAt), icon: Gem, text: `Refined — ${m.caption || "untitled"}`, tint: "text-amber-400 bg-amber-500/10" });
       else if (m.platform === "live") items.push({ at: new Date(m.postedAt), icon: Scissors, text: `Clip cut — ${m.caption || "untitled"}`, tint: "text-emerald-400 bg-emerald-500/10" });
     }
     return items.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 5);
@@ -841,7 +841,7 @@ export default function Activity() {
               {([
                 ["Record", Mic, "/studio/live", "bg-red-500/15 text-red-400"],
                 ["Go Live", Radio, "/studio/live", "bg-violet-500/15 text-violet-400"],
-                ["Refine", Wand2, "/studio/refine", "bg-amber-500/15 text-amber-400"],
+                ["Refine", Gem, "/studio/refine", "bg-amber-500/15 text-amber-400"],
                 ["Post", PenSquare, "/dashboard/social-hub", "bg-sky-500/15 text-sky-400"],
                 ["Newsletter", Mail, "/dashboard/email", "bg-emerald-500/15 text-emerald-400"],
                 ["Invite Guest", UserPlus, "/guests", "bg-pink-500/15 text-pink-400"],

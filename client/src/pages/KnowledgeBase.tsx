@@ -283,7 +283,8 @@ const articles: Article[] = [
       "3. Watch the checkmarks on the right: Transcription (every word written down), Remove gaps (dead air cut), Audio cleanup (volume evened to podcast standard).",
       "4. When it finishes, a Before / After comparison appears — play both and hear the difference. The refined version is already saved to Media Storage.",
       "For short videos (under 5 minutes) there's also Clip copy, under the pipeline: pick your platforms and it writes a tuned title, caption, and hashtags for that clip. Longer shows get a note to cut a clip first.",
-      "The numbers below are measured from your actual files: minutes saved is literally how much shorter the refined audio is. Two steps say 'Coming' — Remove fillers and Enhance video — because they're not built yet. When you see a checkmark in Refiner, something really happened to your file.",
+      "Video recordings stay video: the transcript's word timings tell Refiner exactly where the dead air lives, and the same cuts land on the picture — so a refined video comes out the other side, not just an audio file.",
+      "The numbers below are measured from your actual files: minutes saved is literally how much shorter the refined version is. One step still says 'Coming' — Remove fillers — because it's not built yet. When you see a checkmark in Refiner, something really happened to your file.",
     ],
   },
   {
