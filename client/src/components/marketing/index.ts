@@ -2,6 +2,7 @@ export { Hero } from "./Hero";
 export { PlatformsStrip } from "./PlatformsStrip";
 export { WorkspacePillars } from "./WorkspacePillars";
 export { EditorialStatement } from "./EditorialStatement";
+export { ContentEngine } from "./ContentEngine";
 export { WorkspaceShowcase } from "./WorkspaceShowcase";
 export { ConnectorsSection } from "./ConnectorsSection";
 export { SocialProof } from "./SocialProof";

@@ -9,6 +9,7 @@ import {
   PlatformsStrip,
   WorkspacePillars,
   EditorialStatement,
+  ContentEngine,
   WorkspaceShowcase,
   ConnectorsSection,
   SocialProof,
@@ -38,6 +39,7 @@ export default function Home() {
         <WorkspaceShowcase />
         {/* Problem / chaos */}
         <EditorialStatement />
+        <ContentEngine />
         {/* Cost — everywhere the business already has to run */}
         <PlatformsStrip />
         {/* YOUR SHOW. NO CHAOS. — numbered feature list */}
