@@ -1,15 +1,5 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import {
   Search,
   Radio,
@@ -32,13 +22,14 @@ import {
   Mic,
   Plug,
   LayoutDashboard,
+  ChevronDown,
+  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
-
-/**
- * /help — the Help Center. Written plainly (aim: an eighth grader can follow
- * any article without help). One article per page of the app, searchable.
- * When a page changes, its article changes in the same PR.
- */
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { AiChatCore } from "@/components/AiChatCore";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Article {
   id: string;
@@ -51,9 +42,7 @@ interface Article {
   figure?: React.ReactNode;
 }
 
-/* ── Figures: drawn diagrams that sit beside the words. They're generated from
-   the same design (not screenshots), so they never go stale-blurry — and they
-   can label the parts a screenshot can't. ── */
+/* ── Figures ─────────────────────────────────────────────────────────────── */
 
 function StudioFigure() {
   return (
@@ -147,8 +136,10 @@ function RecordingJourneyFigure() {
   );
 }
 
+/* ── Article data ─────────────────────────────────────────────────────────── */
+
 const articles: Article[] = [
-  // ── Get started ──
+  // Get Started
   {
     id: "what-is-podlogix",
     title: "What is Podlogix?",
@@ -208,7 +199,7 @@ const articles: Article[] = [
     ],
   },
 
-  // ── Studio ──
+  // Studio
   {
     id: "live-studio",
     figure: <StudioFigure />,
@@ -305,7 +296,7 @@ const articles: Article[] = [
     ],
   },
 
-  // ── Media ──
+  // Media
   {
     id: "media-library",
     title: "Media Storage",
@@ -359,7 +350,7 @@ const articles: Article[] = [
     ],
   },
 
-  // ── Guests ──
+  // Guests
   {
     id: "guests-crm",
     title: "Guests & CRM",
@@ -392,7 +383,7 @@ const articles: Article[] = [
     ],
   },
 
-  // ── Social ──
+  // Social
   {
     id: "posts",
     title: "Writing a post",
@@ -457,7 +448,7 @@ const articles: Article[] = [
     ],
   },
 
-  // ── Podcast ──
+  // Podcast
   {
     id: "shows-episodes",
     title: "Shows & Episodes",
@@ -475,235 +466,304 @@ const articles: Article[] = [
   },
 ];
 
-const categories = [
-  { name: "All", icon: <BookOpen className="h-4 w-4" /> },
-  { name: "Get Started", icon: <Zap className="h-4 w-4" /> },
-  { name: "Studio", icon: <Radio className="h-4 w-4" /> },
-  { name: "Media", icon: <GalleryVerticalEnd className="h-4 w-4" /> },
-  { name: "Guests", icon: <Users className="h-4 w-4" /> },
-  { name: "Social", icon: <Share2 className="h-4 w-4" /> },
-  { name: "Podcast", icon: <Mic className="h-4 w-4" /> },
-];
+/* ── Category metadata ────────────────────────────────────────────────────── */
+
+const CATEGORIES = [
+  { name: "Get Started", icon: <Zap className="h-5 w-5" />, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/30" },
+  { name: "Studio",      icon: <Radio className="h-5 w-5" />, color: "text-red-500",   bg: "bg-red-50 dark:bg-red-950/30" },
+  { name: "Media",       icon: <GalleryVerticalEnd className="h-5 w-5" />, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/30" },
+  { name: "Guests",      icon: <Users className="h-5 w-5" />, color: "text-blue-500",  bg: "bg-blue-50 dark:bg-blue-950/30" },
+  { name: "Social",      icon: <Share2 className="h-5 w-5" />, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/30" },
+  { name: "Podcast",     icon: <Mic className="h-5 w-5" />, color: "text-pink-500",   bg: "bg-pink-50 dark:bg-pink-950/30" },
+] as const;
+
+/* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export default function KnowledgeBase() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [expandedArticle, setExpandedArticle] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const filteredArticles = articles.filter((article) => {
+  const firstName = (user as any)?.firstName || (user as any)?.username || null;
+
+  const filteredArticles = articles.filter((a) => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
-      searchQuery === "" ||
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesCategory =
-      selectedCategory === "All" || article.category === selectedCategory;
-
+      !q ||
+      a.title.toLowerCase().includes(q) ||
+      a.description.toLowerCase().includes(q) ||
+      a.tags.some((t) => t.toLowerCase().includes(q));
+    const matchesCategory = !selectedCategory || a.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  return (
-    <div className="min-h-full bg-background">
-      <main className="w-full max-w-7xl px-6 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-8"
-        >
-          <div className="space-y-3">
-            <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-kb-title">
-              Help Center
-            </h1>
-            <p className="text-muted-foreground max-w-2xl">
-              Plain answers about every page in Podlogix. Search, or browse by area.
-            </p>
-          </div>
+  const isFiltering = !!searchQuery || !!selectedCategory;
 
+  return (
+    <div className="min-h-full flex flex-col">
+      {/* ── Hero ── */}
+      <div className="bg-gradient-to-br from-primary via-primary/90 to-primary/75 px-6 py-12">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-primary-foreground/70 text-sm font-medium uppercase tracking-widest mb-2">
+            Help Center
+          </p>
+          <h1 className="text-3xl font-bold text-primary-foreground mb-6 leading-tight">
+            {firstName ? `Hello, ${firstName}.` : "Hello."}{" "}
+            <span className="font-normal opacity-90">How can we help?</span>
+          </h1>
           <div className="relative max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-white/50 h-[18px] w-[18px]" />
+            <input
+              type="text"
               placeholder="Search articles…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-11"
-              data-testid="input-search"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSelectedCategory(null);
+                setExpandedId(null);
+              }}
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-white/15 border border-white/20 text-primary-foreground placeholder:text-primary-foreground/50 focus:outline-none focus:ring-2 focus:ring-white/30 focus:bg-white/20 transition-all text-sm backdrop-blur-sm"
             />
           </div>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <Button
-                key={category.name}
-                variant={selectedCategory === category.name ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCategory(category.name)}
-                data-testid={`button-category-${category.name.toLowerCase().replace(/\s+/g, "-")}`}
-              >
-                {category.icon}
-                <span className="ml-2">{category.name}</span>
-              </Button>
-            ))}
-          </div>
+      {/* ── Body: two columns ── */}
+      <div className="flex-1 max-w-[1400px] w-full mx-auto px-6 py-8 flex gap-6 items-start">
 
-          <div className="space-y-4">
-            <AnimatePresence mode="popLayout">
-              {filteredArticles.map((article) => (
-                <motion.div
-                  key={article.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
+        {/* Left column */}
+        <div className="flex-1 min-w-0 space-y-10">
+
+          {/* Category grid — hidden when actively searching */}
+          {!isFiltering && (
+            <section>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                Browse by category
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {CATEGORIES.map((cat) => {
+                  const count = articles.filter((a) => a.category === cat.name).length;
+                  return (
+                    <button
+                      key={cat.name}
+                      onClick={() => {
+                        setSelectedCategory(cat.name);
+                        setExpandedId(null);
+                      }}
+                      className="group text-left flex items-start gap-3 p-4 rounded-xl border border-border bg-card hover:border-primary/30 hover:shadow-sm transition-all"
+                    >
+                      <div className={`p-2 rounded-lg shrink-0 ${cat.bg} ${cat.color} mt-0.5`}>
+                        {cat.icon}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
+                          {cat.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {count} {count === 1 ? "article" : "articles"}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Articles */}
+          <section>
+            {/* Section header */}
+            {selectedCategory ? (
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  onClick={() => { setSelectedCategory(null); setExpandedId(null); }}
+                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <Card
-                    className="hover-elevate cursor-pointer"
-                    onClick={() =>
-                      setExpandedArticle(expandedArticle === article.id ? null : article.id)
-                    }
-                    data-testid={`card-article-${article.id}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-md bg-primary/10 text-primary">
+                  <ArrowLeft className="h-4 w-4" />
+                  All categories
+                </button>
+                <span className="text-muted-foreground/50">·</span>
+                <h2 className="text-sm font-semibold text-foreground">{selectedCategory}</h2>
+              </div>
+            ) : searchQuery ? (
+              <p className="text-sm text-muted-foreground mb-4">
+                {filteredArticles.length} result{filteredArticles.length !== 1 ? "s" : ""} for &ldquo;{searchQuery}&rdquo;
+              </p>
+            ) : (
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                Popular articles
+              </h2>
+            )}
+
+            {/* Article list */}
+            <div className="space-y-2">
+              <AnimatePresence mode="popLayout">
+                {filteredArticles.map((article) => {
+                  const isOpen = expandedId === article.id;
+                  const catMeta = CATEGORIES.find((c) => c.name === article.category);
+                  return (
+                    <motion.div
+                      key={article.id}
+                      layout
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <div className="rounded-xl border border-border bg-card overflow-hidden">
+                        {/* Row header */}
+                        <button
+                          onClick={() => setExpandedId(isOpen ? null : article.id)}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/50 transition-colors text-left"
+                        >
+                          <div className={`p-1.5 rounded-lg shrink-0 ${catMeta?.bg ?? "bg-muted"} ${catMeta?.color ?? "text-foreground"}`}>
                             {article.icon}
                           </div>
-                          <div>
-                            <CardTitle className="text-lg" data-testid={`text-article-title-${article.id}`}>
-                              {article.title}
-                            </CardTitle>
-                            <CardDescription className="mt-1">
-                              {article.description}
-                            </CardDescription>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-foreground leading-snug">{article.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{article.description}</p>
                           </div>
-                        </div>
-                        <Badge variant="secondary">{article.category}</Badge>
-                      </div>
-                    </CardHeader>
-                    <AnimatePresence>
-                      {expandedArticle === article.id && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <CardContent className="pt-2 border-t mt-2">
-                            <div className={article.figure ? "gap-6 md:grid md:grid-cols-[minmax(0,1fr)_440px]" : ""}>
-                              <div>
-                                <div className="space-y-2 text-sm text-muted-foreground">
-                                  {article.content.map((line, index) => (
-                                    <p
-                                      key={index}
-                                      className={
-                                        line.endsWith(":") ? "font-semibold text-foreground mt-4" : ""
-                                      }
-                                    >
-                                      {line}
-                                    </p>
-                                  ))}
-                                </div>
-                                <div className="flex flex-wrap gap-1 mt-4">
-                                  {article.tags.map((tag) => (
-                                    <Badge key={tag} variant="outline" className="text-xs">
-                                      {tag}
-                                    </Badge>
-                                  ))}
+                          {!selectedCategory && (
+                            <Badge variant="outline" className="text-[10px] shrink-0 hidden sm:flex">{article.category}</Badge>
+                          )}
+                          {isOpen
+                            ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                            : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          }
+                        </button>
+
+                        {/* Expanded content */}
+                        <AnimatePresence>
+                          {isOpen && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 pb-5 pt-2 border-t">
+                                <div className={article.figure ? "gap-6 md:grid md:grid-cols-[minmax(0,1fr)_400px]" : ""}>
+                                  <div>
+                                    <div className="space-y-2 text-sm text-muted-foreground">
+                                      {article.content.map((line, i) => (
+                                        <p
+                                          key={i}
+                                          className={line.endsWith(":") ? "font-semibold text-foreground mt-3" : ""}
+                                        >
+                                          {line}
+                                        </p>
+                                      ))}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-4">
+                                      {article.tags.map((tag) => (
+                                        <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  {article.figure && (
+                                    <div className="mt-4 md:mt-0">
+                                      <div className="md:sticky md:top-4 overflow-x-auto rounded-lg border bg-white dark:bg-zinc-900 p-3">
+                                        {article.figure}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              {article.figure && (
-                                <div className="mt-4 md:mt-0">
-                                  {/* Rides along as you scroll the article */}
-                                  <div className="md:sticky md:top-4 overflow-x-auto rounded-lg border bg-white p-3">
-                                    {article.figure}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
-            {filteredArticles.length === 0 && (
-              <div className="text-center py-12">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium">No articles found</h3>
-                <p className="text-muted-foreground">
-                  Try adjusting your search or category filter.
-                </p>
+              {filteredArticles.length === 0 && (
+                <div className="text-center py-16">
+                  <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                  <p className="font-medium text-foreground">No articles found</p>
+                  <p className="text-sm text-muted-foreground mt-1">Try a different search term.</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Quick-answer FAQs */}
+          {!isFiltering && (
+            <section className="border-t pt-8">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                Quick questions
+              </h2>
+              <div className="space-y-2">
+                {[
+                  { q: "Do I lose my clips if I delete a studio?", a: "No. Deleting a studio only removes the room. Every recording and clip you made stays safe in your Media Library." },
+                  { q: "Does my guest need a Podlogix account?", a: "No. The invite link is all they need. They open it, type their name, and join from any modern browser." },
+                  { q: "Why is my clip 30 seconds long?", a: "Each clip runs from 20 seconds before your mark to 10 seconds after it. When you press the button, the great moment has usually just happened — so the clip reaches back to catch it." },
+                  { q: "Why does the AI need to 'listen' before finding clips?", a: "\"Find clips with AI\" first turns your recording's audio into text (that's the listening part), then reads that text to spot the strongest moments. Longer shows take a little longer to listen to." },
+                  { q: "Can I post the same thing to every platform at once?", a: "Yes — that's what the composer is for. Toggle on the platforms you want, and the preview shows how the post will look on each one before you send it." },
+                ].map(({ q, a }) => (
+                  <FaqRow key={q} question={q} answer={a} />
+                ))}
               </div>
-            )}
-          </div>
+            </section>
+          )}
 
-          {/* FAQ */}
-          <div className="mt-12">
-            <h2 className="text-xl font-semibold mb-4">Quick questions</h2>
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="faq-1">
-                <AccordionTrigger data-testid="accordion-faq-1">
-                  Do I lose my clips if I delete a studio?
-                </AccordionTrigger>
-                <AccordionContent>
-                  No. Deleting a studio only removes the room. Every recording and clip you
-                  made stays safe in your Media Library.
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="faq-2">
-                <AccordionTrigger data-testid="accordion-faq-2">
-                  Does my guest need a Podlogix account?
-                </AccordionTrigger>
-                <AccordionContent>
-                  No. The invite link is all they need. They open it, type their name, and
-                  join from any modern browser.
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="faq-3">
-                <AccordionTrigger data-testid="accordion-faq-3">
-                  Why is my clip 30 seconds long?
-                </AccordionTrigger>
-                <AccordionContent>
-                  Each clip runs from 20 seconds before your mark to 10 seconds after it.
-                  When you press the button, the great moment has usually just happened — so
-                  the clip reaches back to catch it.
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="faq-4">
-                <AccordionTrigger data-testid="accordion-faq-4">
-                  Why does the AI need to "listen" before finding clips?
-                </AccordionTrigger>
-                <AccordionContent>
-                  "Find clips with AI" first turns your recording's audio into text
-                  (that's the listening part), then reads that text to spot the strongest
-                  moments. Longer shows take a little longer to listen to.
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="faq-5">
-                <AccordionTrigger data-testid="accordion-faq-5">
-                  Can I post the same thing to every platform at once?
-                </AccordionTrigger>
-                <AccordionContent>
-                  Yes — that's what the composer is for. Toggle on the platforms you want,
-                  and the preview shows how the post will look on each one before you send it.
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-
+          {/* Contact footer */}
           <div className="text-center py-6 border-t">
             <HelpCircle className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              Still stuck? Email <a className="underline" href="mailto:andrew@podlogix.co">andrew@podlogix.co</a> and a human will help.
+              Still stuck? Email{" "}
+              <a className="underline hover:text-foreground transition-colors" href="mailto:andrew@podlogix.co">
+                andrew@podlogix.co
+              </a>{" "}
+              and a human will help.
             </p>
           </div>
-        </motion.div>
-      </main>
+        </div>
+
+        {/* Right column — embedded AI panel */}
+        <div className="w-[360px] shrink-0 hidden lg:block sticky top-6" style={{ height: "calc(100vh - 5.5rem)" }}>
+          <div className="h-full rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
+            <AiChatCore className="flex-1 min-h-0" />
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function FaqRow({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors text-left"
+      >
+        {question}
+        {open
+          ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        }
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden"
+          >
+            <p className="px-4 pb-4 pt-1 text-sm text-muted-foreground border-t">{answer}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
