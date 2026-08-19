@@ -65,11 +65,10 @@ function extractIcAnalytics(data: any, platform: string, fallbackHandle: string)
   };
 }
 
-let tableReady: Promise<void> | null = null;
+let tableReady: Promise<void> | undefined;
 function ensureTable(): Promise<void> {
-  if (!tableReady) {
-    tableReady = db
-      .execute(sql`
+  tableReady ??= db
+    .execute(sql`
         CREATE TABLE IF NOT EXISTS ic_enrichment_cache (
           user_id varchar NOT NULL,
           platform varchar NOT NULL,
