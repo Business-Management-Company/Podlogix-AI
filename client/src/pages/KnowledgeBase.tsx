@@ -286,7 +286,7 @@ const articles: Article[] = [
   // ── Media ──
   {
     id: "media-library",
-    title: "The Media Library",
+    title: "Media Storage",
     description: "One shelf for everything: recordings, clips, refined audio, and imports.",
     category: "Media",
     icon: <GalleryVerticalEnd className="h-5 w-5" />,
