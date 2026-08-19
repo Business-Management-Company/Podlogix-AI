@@ -84,6 +84,8 @@ export const ready = (async () => {
     registerSearchRoutes(app);
     const { registerEngagementCache } = await import("./engagementCache");
     registerEngagementCache(app);
+    const { registerAiChatRoutes } = await import("./aiChatRoutes");
+    registerAiChatRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;

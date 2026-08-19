@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,8 @@ import {
   Server,
   Gem,
   WandSparkles,
+  Send,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -376,7 +379,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <button className={`flex items-center h-10 rounded-xl hover:bg-white/[0.06] transition-all duration-150 ${railExpanded ? "gap-2.5 px-2 w-full" : "justify-center w-10"}`}>
                   <Avatar className="h-7 w-7 shrink-0">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
-                    <AvatarFallback className="text-[10px] bg-primary text-white font-semibold">
+                    <AvatarFallback className="text-xs bg-primary text-white font-semibold">
                       {user?.firstName?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
@@ -545,8 +548,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Link href="/help">
-                  <button className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
-                    <HelpCircle className="h-3.5 w-3.5" />
+                  <button className={`flex items-center justify-center w-9 h-9 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
+                    <HelpCircle className="h-[18px] w-[18px]" />
                   </button>
                 </Link>
               </TooltipTrigger>
@@ -555,8 +558,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <button className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
-                  <Bell className="h-3.5 w-3.5" />
+                <button className={`flex items-center justify-center w-9 h-9 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
+                  <Bell className="h-[18px] w-[18px]" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>Notifications</TooltipContent>
@@ -566,9 +569,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center rounded-full ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-6 w-6 cursor-pointer">
+                  <Avatar className="h-8 w-8 cursor-pointer">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
-                    <AvatarFallback className="text-[10px] bg-primary text-white font-semibold">
+                    <AvatarFallback className="text-xs bg-primary text-white font-semibold">
                       {user?.firstName?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
@@ -612,7 +615,143 @@ export function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
 
-      {/* ── AI Assistant Floating Button ────────────────────────────────────── */}
+      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} />
+
+    </div>
+  );
+}
+
+// ─── AI Assistant Panel ───────────────────────────────────────────────────────
+
+interface AiMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  loading?: boolean;
+}
+
+let _msgId = 0;
+function msgId() { return `ai-${++_msgId}-${Date.now()}`; }
+
+const CHIPS = [
+  "Write show notes for my last episode",
+  "Give me 5 episode ideas for my podcast",
+  "How do I grow my audience?",
+  "Draft a sponsor pitch email",
+  "What should I post on social this week?",
+  "Tips to improve my audio quality",
+];
+
+const GREETING: AiMessage = {
+  id: "greeting",
+  role: "assistant",
+  text: "Hey! I'm your Podlogix AI — ask me anything about your podcast: episode ideas, show notes, growth, sponsorships, or whatever's on your mind. 🎙️",
+};
+
+function AiPanel({ aiOpen, setAiOpen }: { aiOpen: boolean; setAiOpen: (v: boolean) => void }) {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<AiMessage[]>([GREETING]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Gather lightweight context to ground the system prompt
+  const { data: dashData } = useQuery<{ podcasts: Array<{ id: string; title: string }> }>({
+    queryKey: ["/api/dashboard"],
+    enabled: aiOpen,
+  });
+  const { data: episodesData } = useQuery<any[]>({
+    queryKey: ["/api/podcasts", dashData?.podcasts?.[0]?.id, "episodes"],
+    queryFn: async () => {
+      const res = await fetch(`/api/podcasts/${dashData!.podcasts[0].id}/episodes`);
+      return res.json();
+    },
+    enabled: !!dashData?.podcasts?.[0]?.id && aiOpen,
+  });
+  const { data: socialData } = useQuery<{ accounts: Array<{ isConnected: boolean; platform: string }> }>({
+    queryKey: ["/api/upload-post/accounts"],
+    enabled: aiOpen,
+    retry: false,
+  });
+
+  const context = {
+    podcastTitle: dashData?.podcasts?.[0]?.title,
+    episodeCount: Array.isArray(episodesData) ? episodesData.filter((e: any) => e.status === "published").length : undefined,
+    draftCount: Array.isArray(episodesData) ? episodesData.filter((e: any) => e.status !== "published").length : undefined,
+  };
+
+  useEffect(() => {
+    if (aiOpen) {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        inputRef.current?.focus();
+      }, 150);
+    }
+  }, [aiOpen, messages]);
+
+  const showChips = messages.length <= 1;
+
+  const sendMessage = async (input: string) => {
+    if (!input.trim() || loading) return;
+    const userMsg: AiMessage = { id: msgId(), role: "user", text: input.trim() };
+    const loadingId = msgId();
+    const loadingMsg: AiMessage = { id: loadingId, role: "assistant", text: "", loading: true };
+    setMessages((m) => [...m, userMsg, loadingMsg]);
+    setLoading(true);
+
+    try {
+      const history = [...messages, userMsg]
+        .filter((m) => !m.loading && m.id !== "greeting" && m.text)
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.text }));
+
+      // Always include greeting context as first assistant message for tone continuity
+      const contextualHistory = [
+        { role: "assistant" as const, content: GREETING.text },
+        ...history.slice(-(9)),
+      ];
+
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: contextualHistory, context }),
+      });
+      const data = await res.json();
+      const text = res.ok ? (data.text ?? "Sorry, I couldn't get a response.") : "I'm having trouble right now — please try again.";
+      setMessages((m) => m.map((msg) => msg.id === loadingId ? { ...msg, text, loading: false } : msg));
+    } catch {
+      setMessages((m) => m.map((msg) => msg.id === loadingId ? { ...msg, text: "Connection error — please try again.", loading: false } : msg));
+    }
+    setLoading(false);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = inputRef.current?.value?.trim();
+    if (!val) return;
+    if (inputRef.current) inputRef.current.value = "";
+    sendMessage(val);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const val = inputRef.current?.value?.trim();
+      if (!val) return;
+      if (inputRef.current) inputRef.current.value = "";
+      sendMessage(val);
+    }
+  };
+
+  const resetChat = () => {
+    setMessages([GREETING]);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <>
+      {/* Floating trigger */}
       {!aiOpen && (
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
@@ -624,82 +763,117 @@ export function AppLayout({ children }: AppLayoutProps) {
               <Sparkles className="h-5 w-5" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="left">AI Assistant</TooltipContent>
+          <TooltipContent side="left">Podlogix AI</TooltipContent>
         </Tooltip>
       )}
 
-      {/* ── AI Assistant Slide-out Panel ──────────────────────────────────── */}
-
-      {/* Backdrop — click to close */}
+      {/* Backdrop */}
       {aiOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
-          onClick={() => setAiOpen(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={() => setAiOpen(false)} />
       )}
 
-      {/* Full-height right slide-out */}
+      {/* Slide-out panel */}
       <div
-        className={`fixed inset-y-0 right-0 w-[380px] bg-background border-l shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${aiOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed inset-y-0 right-0 w-[400px] bg-background border-l shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${aiOpen ? "translate-x-0" : "translate-x-full"}`}
       >
-        {/* Panel header */}
-        <div className="flex items-center justify-between h-14 px-4 border-b shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between h-14 px-4 border-b shrink-0 bg-primary text-primary-foreground">
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-white/15">
+              <Sparkles className="h-4 w-4" />
             </div>
-            <span className="text-sm font-semibold">AI Assistant</span>
+            <span className="text-sm font-semibold">Podlogix AI</span>
           </div>
-          <button
-            onClick={() => setAiOpen(false)}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close AI Assistant"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Chat area */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-          {/* Welcome / empty state */}
-          <div className="flex flex-col items-center justify-center flex-1 text-center py-12 gap-4">
-            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10">
-              <Sparkles className="h-7 w-7 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">AI Assistant</p>
-              <p className="text-xs text-muted-foreground mt-1.5 max-w-[240px] leading-relaxed">
-                Ask me anything about your podcast — analytics, content ideas, distribution tips, and more.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 w-full max-w-[260px] mt-2">
-              {["Summarize my top episodes", "Write show notes for my last recording", "How do I grow my audience?"].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  className="text-xs text-left px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Input area */}
-        <div className="p-4 border-t shrink-0">
-          <div className="relative">
-            <Input
-              placeholder="Ask AI anything..."
-              className="pr-10 h-10 text-sm bg-muted/40 border-0 focus-visible:ring-1 rounded-xl"
-            />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors">
-              <ChevronRight className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-1">
+            <button
+              onClick={resetChat}
+              className="flex items-center gap-1 text-xs text-white/70 hover:text-white px-2 py-1 rounded hover:bg-white/10 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              New Chat
+            </button>
+            <button
+              onClick={() => setAiOpen(false)}
+              className="p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground/60 text-center mt-2">AI may make mistakes — verify important information.</p>
         </div>
-      </div>
 
-    </div>
+        {/* Suggestion chips — empty state only */}
+        {showChips && (
+          <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-1.5 shrink-0 border-b">
+            {CHIPS.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => sendMessage(chip)}
+                className="text-[11px] text-left px-2.5 py-2 rounded-xl border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground leading-snug"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`rounded-2xl px-4 py-2.5 text-sm ${
+                m.role === "user"
+                  ? "bg-primary text-primary-foreground rounded-br-sm ml-auto max-w-[82%]"
+                  : "bg-muted text-foreground rounded-bl-sm mr-auto max-w-[95%] shadow-sm border border-border"
+              }`}
+            >
+              {m.loading ? (
+                <div className="flex items-center gap-2 py-1">
+                  <div className="flex gap-1">
+                    {[0, 150, 300].map((d) => (
+                      <span
+                        key={d}
+                        className="w-2 h-2 rounded-full bg-primary animate-bounce"
+                        style={{ animationDelay: `${d}ms` }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-muted-foreground italic">Thinking…</span>
+                </div>
+              ) : m.role === "assistant" ? (
+                <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&>p:last-child]:mb-0">
+                  <ReactMarkdown>{m.text}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap break-words">{m.text}</p>
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <form onSubmit={handleSubmit} className="shrink-0 p-3 border-t">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              className="flex-1 min-h-[56px] max-h-[120px] rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+              placeholder="Ask me anything about your podcast…"
+              rows={2}
+              onKeyDown={handleKeyDown}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center justify-center h-10 w-10 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground/50 text-center mt-2">AI may make mistakes — verify important information.</p>
+        </form>
+      </div>
+    </>
   );
 }
