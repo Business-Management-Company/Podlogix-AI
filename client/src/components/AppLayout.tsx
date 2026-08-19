@@ -26,6 +26,7 @@ import {
   LogOut,
   Users,
   Plug,
+  Plus,
   Building2,
   Search,
   Bell,
@@ -502,12 +503,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* ── Main Content ──────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
-        {/* Global top bar — joins the Dashboard's dark surface on /today */}
-        <header className={`flex items-center h-14 px-4 shrink-0 gap-3 ${darkChrome ? "bg-[#101014]" : "border-b bg-background"}`}>
+        {/* Global top bar — ONE banner: search, + New, and the icon cluster.
+            On the dark dashboard it aligns to the content grid and sits a
+            touch lower; no page heading underneath. */}
+        <header className={`shrink-0 ${darkChrome ? "bg-[#101014] pb-2 pt-4" : "border-b bg-background py-2.5 px-4"}`}>
+          <div className={`flex items-center gap-3 ${darkChrome ? "mx-auto w-full max-w-[1600px] px-5" : "w-full"}`}>
           {!panelOpen && !darkChrome && (
             <button
               onClick={() => setPanelOpen(true)}
-              className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
               aria-label="Open panel"
             >
               <ChevronRight className="h-4 w-4" />
@@ -517,13 +521,32 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Search — site-wide, ⌘K from anywhere */}
           <GlobalSearch dark={darkChrome} />
 
+          {/* + New — create anything from any page */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={`flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                darkChrome
+                  ? "bg-red-600 text-white shadow-lg shadow-red-950/40 hover:bg-red-700"
+                  : "bg-primary text-white hover:opacity-90"
+              }`}
+            >
+              <Plus size={15} /> New
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className={darkChrome ? "border-zinc-800 bg-zinc-950 text-zinc-200" : ""}>
+              <DropdownMenuItem asChild><Link href="/studio/live" className="flex items-center gap-2 cursor-pointer"><Radio size={14} /> Record or go live</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/episodes" className="flex items-center gap-2 cursor-pointer"><Mic size={14} /> New episode</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/social/posts" className="flex items-center gap-2 cursor-pointer"><PenSquare size={14} /> Create a post</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/media-library" className="flex items-center gap-2 cursor-pointer"><GalleryVerticalEnd size={14} /> Add media</Link></DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* Right actions */}
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-0.5 ml-auto">
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Link href="/help">
-                  <button className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
-                    <HelpCircle className="h-4 w-4" />
+                  <button className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
+                    <HelpCircle className="h-3.5 w-3.5" />
                   </button>
                 </Link>
               </TooltipTrigger>
@@ -532,8 +555,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <button className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
-                  <Bell className="h-4 w-4" />
+                <button className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
+                  <Bell className="h-3.5 w-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>Notifications</TooltipContent>
@@ -543,7 +566,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center rounded-full ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-7 w-7 cursor-pointer">
+                  <Avatar className="h-6 w-6 cursor-pointer">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
                     <AvatarFallback className="text-[10px] bg-primary text-white font-semibold">
                       {user?.firstName?.[0] || "U"}
@@ -579,6 +602,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
           </div>
         </header>
 
