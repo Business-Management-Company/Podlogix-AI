@@ -29,7 +29,7 @@ import {
   type UploadPostAccount, type InsertUploadPostAccount, type UploadPostPost, type InsertUploadPostPost,
   type AdminCreator, type InsertAdminCreator
 } from "@shared/schema";
-import { eq, asc, desc, and } from "drizzle-orm";
+import { eq, asc, desc, and, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // Subscribers & Messages
@@ -158,6 +158,7 @@ export interface IStorage {
   getContactNotes(contactId: string, userId: string): Promise<ContactNote[]>;
   createContactNote(note: InsertContactNote): Promise<ContactNote>;
   getEmailContact(id: string): Promise<EmailContact | undefined>;
+  getEmailContactByEmail(userId: string, email: string): Promise<EmailContact | undefined>;
   createEmailContact(contact: InsertEmailContact): Promise<EmailContact>;
   updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
   deleteEmailContact(id: string, userId: string): Promise<void>;
@@ -806,6 +807,12 @@ export class DatabaseStorage implements IStorage {
 
   async getEmailContact(id: string): Promise<EmailContact | undefined> {
     const [contact] = await db.select().from(emailContacts).where(eq(emailContacts.id, id));
+    return contact;
+  }
+
+  async getEmailContactByEmail(userId: string, email: string): Promise<EmailContact | undefined> {
+    const [contact] = await db.select().from(emailContacts)
+      .where(and(eq(emailContacts.userId, userId), ilike(emailContacts.email, email)));
     return contact;
   }
 

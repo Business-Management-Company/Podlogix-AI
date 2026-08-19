@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, BookMarked, ChevronRight, Loader2, Mail, Mic2, Trash2, Users } from "lucide-react";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
+import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -52,6 +53,10 @@ function formatCount(n?: number | null): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function hasEnrichmentProfile(socialLinks?: Record<string, string> | null): boolean {
+  return ["instagram", "youtube", "tiktok", "twitter", "twitch"].some((platform) => Boolean(socialLinks?.[platform]));
 }
 
 export default function Directory() {
@@ -120,6 +125,22 @@ export default function Directory() {
     onError: (error: Error) => {
       toast({ title: "Couldn't add guest", description: error.message, variant: "destructive" });
     },
+  });
+
+  const revealEmailMutation = useMutation({
+    mutationFn: async (prospectId: string) => {
+      const response = await apiRequest("POST", `/api/guest-prospects/${encodeURIComponent(prospectId)}/reveal-email`);
+      return response.json() as Promise<{ email: string; charged: boolean }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/podcasts"] });
+      toast({
+        title: result.charged ? "Email revealed" : "Saved email loaded",
+        description: result.email,
+      });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
   });
 
   const openProspect = (id: string) => {
@@ -273,6 +294,13 @@ export default function Directory() {
               </SheetHeader>
 
               <div className="mt-6 space-y-6">
+                <RevealEmailButton
+                  email={selectedProspect.email}
+                  canReveal={hasEnrichmentProfile(selectedProspect.socialLinks)}
+                  isPending={revealEmailMutation.isPending}
+                  onConfirm={() => revealEmailMutation.mutate(selectedProspect.id)}
+                  className="w-full"
+                />
                 <section>
                   <SectionHeader title="Guest research" />
                   <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
