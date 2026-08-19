@@ -80,6 +80,8 @@ export const ready = (async () => {
     registerRefinerTranscribe(app);
     const { registerSocialAnalyticsCache } = await import("./socialAnalyticsCache");
     registerSocialAnalyticsCache(app);
+    const { registerSearchRoutes } = await import("./searchRoutes");
+    registerSearchRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
