@@ -284,7 +284,8 @@ const articles: Article[] = [
       "4. When it finishes, a Before / After comparison appears — play both and hear the difference. The refined version is already saved to Media Storage.",
       "For short videos (under 5 minutes) there's also Clip copy, under the pipeline: pick your platforms and it writes a tuned title, caption, and hashtags for that clip. Longer shows get a note to cut a clip first.",
       "Video recordings stay video: the transcript's word timings tell Refiner exactly where the dead air lives, and the same cuts land on the picture — so a refined video comes out the other side, not just an audio file.",
-      "The numbers below are measured from your actual files: minutes saved is literally how much shorter the refined version is. One step still says 'Coming' — Remove fillers — because it's not built yet. When you see a checkmark in Refiner, something really happened to your file.",
+      "The options bar under the player is real, not decoration: Remove fillers cuts pure hesitation sounds (um, uh) out of the recording using their exact word timings — never words like 'like' that might carry meaning. Color correction gives video a gentle contrast and color lift. And you can pick an intro and outro from your storage — Refiner stitches them onto the refined cut as a 'final cut' video.",
+      "The numbers below are measured from your actual files: minutes saved is literally how much shorter the refined version is, and fillers removed is a count of real cuts. One step still says 'Coming' — Speaker focus (auto-crop to whoever is talking) — because that needs real face detection. When you see a checkmark in Refiner, something really happened to your file.",
     ],
   },
   {
