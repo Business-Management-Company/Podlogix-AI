@@ -29,12 +29,22 @@ interface LibraryItem {
 
 const FILLER_RE = /\b(um+|uh+|erm|hmm+|you know|i mean)\b/gi;
 
+// Duration probe with a hard timeout: a stalled metadata load must never
+// wedge the pipeline — minutes-saved just reads "—" instead.
 const mediaDuration = (url: string, kind: "audio" | "video") =>
   new Promise<number>((resolve) => {
     const el = document.createElement(kind);
+    let settled = false;
+    const settle = (v: number) => {
+      if (settled) return;
+      settled = true;
+      el.removeAttribute("src");
+      resolve(v);
+    };
+    const timer = setTimeout(() => settle(0), 15_000);
     el.preload = "metadata";
-    el.onloadedmetadata = () => resolve(el.duration || 0);
-    el.onerror = () => resolve(0);
+    el.onloadedmetadata = () => { clearTimeout(timer); settle(el.duration || 0); };
+    el.onerror = () => { clearTimeout(timer); settle(0); };
     el.src = url;
   });
 
@@ -149,7 +159,8 @@ export default function Refinery() {
             mediaDuration(selected.url, selected.type),
             mediaDuration(String(col.url), "audio"),
           ]);
-          setMinutesSaved(orig > 0 && refined > 0 && orig > refined ? (orig - refined) / 60 : 0);
+          // Both probes must land to claim a number; otherwise show "—".
+          setMinutesSaved(orig > 0 && refined > 0 ? Math.max(0, orig - refined) / 60 : null);
         }
         queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
         setPipeline((p) => ({ ...p, refine: "done" }));
