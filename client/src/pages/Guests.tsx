@@ -509,23 +509,89 @@ export default function Guests() {
                   </div>
                 </div>
 
-                {selected.prospect ? (
-                  <MasterContactButton
-                    masterContactId={selected.contactId}
-                    isPending={promoteContactMutation.isPending}
-                    onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
-                    className="w-full"
-                  />
-                ) : null}
+                <section>
+                  <SectionHeader title="Contact information" />
+                  <div className="space-y-2.5">
+                    {selected.prospect ? (
+                      <MasterContactButton
+                        masterContactId={selected.contactId}
+                        isPending={promoteContactMutation.isPending}
+                        onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
+                        className="w-full"
+                      />
+                    ) : null}
 
-                {selected.prospect && !guestEmail(selected.contact, selected.prospect) ? (
-                  <RevealEmailButton
-                    canReveal={hasEnrichmentProfile(selected.prospect)}
-                    isPending={revealEmailMutation.isPending}
-                    onConfirm={() => revealEmailMutation.mutate(selected.prospect!.id)}
-                    className="w-full"
-                  />
-                ) : null}
+                    {selected.prospect && !guestEmail(selected.contact, selected.prospect) ? (
+                      <RevealEmailButton
+                        canReveal={hasEnrichmentProfile(selected.prospect)}
+                        isPending={revealEmailMutation.isPending}
+                        onConfirm={() => revealEmailMutation.mutate(selected.prospect!.id)}
+                        className="w-full"
+                      />
+                    ) : null}
+
+                    {selected.contact ? (
+                      <>
+                        <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
+                          Email address
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                            <Input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
+                              className="pl-9"
+                              value={draftValue("email")}
+                              onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                              data-testid="input-guest-contact-email"
+                            />
+                          </div>
+                        </label>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <Input
+                            placeholder="First name"
+                            value={draftValue("firstName")}
+                            onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
+                          />
+                          <Input
+                            placeholder="Last name"
+                            value={draftValue("lastName")}
+                            onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
+                          />
+                        </div>
+                        <div className="relative">
+                          <Briefcase className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                          <Input
+                            placeholder="Company"
+                            className="pl-9"
+                            value={draftValue("company")}
+                            onChange={(e) => setDraft({ ...draft, company: e.target.value })}
+                          />
+                        </div>
+                        <Input
+                          placeholder="Role / title"
+                          value={draftValue("title")}
+                          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                        />
+                        {Object.keys(draft).length > 0 && (
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            onClick={() => updateContactMutation.mutate()}
+                            disabled={updateContactMutation.isPending}
+                          >
+                            {updateContactMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                            Save details
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-zinc-500">
+                        Add this prospect to Master Contacts to save their contact details and notes.
+                      </p>
+                    )}
+                  </div>
+                </section>
 
                 {selected.prospect ? (
                   <section>
@@ -548,67 +614,6 @@ export default function Guests() {
                     isLoading={appearanceQuery.isFetching}
                     error={appearanceQuery.error}
                   />
-                ) : null}
-
-                {/* Contact details */}
-                {selected.contact ? (
-                  <section>
-                    <SectionHeader title="Contact details" />
-                    <div className="space-y-2.5">
-                    <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
-                      Email address
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                        <Input
-                          type="email"
-                          inputMode="email"
-                          autoComplete="email"
-                          className="pl-9"
-                          value={draftValue("email")}
-                          onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                          data-testid="input-guest-contact-email"
-                        />
-                      </div>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <Input
-                        placeholder="First name"
-                        value={draftValue("firstName")}
-                        onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Last name"
-                        value={draftValue("lastName")}
-                        onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
-                      />
-                    </div>
-                    <div className="relative">
-                      <Briefcase className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                      <Input
-                        placeholder="Company"
-                        className="pl-9"
-                        value={draftValue("company")}
-                        onChange={(e) => setDraft({ ...draft, company: e.target.value })}
-                      />
-                    </div>
-                    <Input
-                      placeholder="Role / title"
-                      value={draftValue("title")}
-                      onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    />
-                    {Object.keys(draft).length > 0 && (
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => updateContactMutation.mutate()}
-                        disabled={updateContactMutation.isPending}
-                      >
-                        {updateContactMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-                        Save details
-                      </Button>
-                    )}
-                    </div>
-                  </section>
                 ) : null}
 
                 {/* Notes */}

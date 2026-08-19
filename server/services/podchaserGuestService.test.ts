@@ -233,7 +233,16 @@ test("searches podcast shows and loads internal host and guest credits", async (
           ratingAverage: 4.8,
           ratingCount: 125,
           reviewCount: 18,
-          socialLinks: { youtube: "https://youtube.com/@hubermanlab", instagram: "https://instagram.com/hubermanlab" },
+          socialLinks: {
+            twitter: "https://x.com/hubermanlab",
+            facebook: "https://facebook.com/hubermanlab",
+            instagram: "https://instagram.com/hubermanlab",
+            youtube: "https://youtube.com/@hubermanlab",
+            linkedin: "https://linkedin.com/in/andrew-huberman",
+            tiktok: "https://tiktok.com/@hubermanlab",
+            patreon: "https://patreon.com/hubermanlab",
+            twitch: "https://twitch.tv/hubermanlab",
+          },
           socialFollowerCounts: { youtube: 7_000_000, instagram: 6_000_000 },
           latestEpisodeDate: "2026-08-10 08:00:00",
           categories: [{ title: "Science", slug: "science" }],
@@ -279,6 +288,11 @@ test("searches podcast shows and loads internal host and guest credits", async (
   assert.equal(search.podcastCandidates[0]?.daysBetweenEpisodes, 7);
   assert.equal(search.podcastCandidates[0]?.ratingAverage, 4.8);
   assert.equal(search.podcastCandidates[0]?.socialLinks.youtube, "https://youtube.com/@hubermanlab");
+  assert.equal(search.podcastCandidates[0]?.socialLinks.facebook, "https://facebook.com/hubermanlab");
+  assert.equal(search.podcastCandidates[0]?.socialLinks.linkedin, "https://linkedin.com/in/andrew-huberman");
+  assert.equal(search.podcastCandidates[0]?.socialLinks.tiktok, "https://tiktok.com/@hubermanlab");
+  assert.equal(search.podcastCandidates[0]?.socialLinks.patreon, "https://patreon.com/hubermanlab");
+  assert.equal(search.podcastCandidates[0]?.socialLinks.twitch, "https://twitch.tv/hubermanlab");
   assert.equal(search.podcastCandidates[0]?.socialFollowerCounts.instagram, 6_000_000);
   assert.deepEqual(search.restrictedFields, ["audienceEstimate"]);
   assert.equal(search.pagination.totalResults, 14);
