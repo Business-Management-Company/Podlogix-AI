@@ -3262,7 +3262,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         { id: "influencers-club", name: "Influencers.club (Social Analytics)", category: "Analytics", envVars: ["INFLUENCERS_CLUB_API_KEY"], note: "All 7 Social Analytics tabs", codeStatus: "ready" },
         { id: "upload-post", name: "Upload-Post (Social Hub posting)", category: "Social", envVars: ["UPLOAD_POST_API_KEY"], note: "Cross-platform posting", codeStatus: "ready" },
         { id: "spotify", name: "Spotify OAuth", category: "Listener", envVars: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"], note: "Listener show import", codeStatus: "ready" },
-        { id: "podcast-index", name: "Podcast Index", category: "Podcast Discovery", envVars: ["PODCAST_INDEX_API_KEY"], note: "Read-only podcast, episode, and guest-appearance discovery", codeStatus: "ready" },
+        { id: "podcast-index", name: "Podcast Index", category: "Podcast Discovery", envVars: ["PODCAST_INDEX_API_KEY", "PODCAST_INDEX_API_SECRET"], note: "Read-only podcast, episode, and guest-appearance discovery", codeStatus: "ready" },
         { id: "youtube", name: "YouTube Data API", category: "Social", envVars: ["YOUTUBE_API_KEY"], note: "Channel stats on creator profiles", codeStatus: "ready" },
         { id: "meta", name: "Instagram / Facebook (Meta)", category: "Social", envVars: ["META_APP_ID", "META_APP_SECRET"], note: "OAuth connections", codeStatus: "ready" },
         { id: "linkedin", name: "LinkedIn OAuth", category: "Social", envVars: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"], note: "Profile connection", codeStatus: "ready" },
@@ -3292,7 +3292,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       if (!isPodcastIndexConfigured()) {
         return res.status(503).json({
           configured: false,
-          message: 'PODCAST_INDEX_API_KEY is not configured',
+          message: 'PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET are required',
         });
       }
 
@@ -3320,34 +3320,6 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       res.status(500).json({ message: 'Podcast Index probe failed' });
     }
   });
-
-  // Temporary preview-deployment probe. Vercel Deployment Protection is the
-  // authentication boundary; this route is removed after the live evaluation.
-  if (process.env.VERCEL_ENV === 'preview') {
-    app.get('/api/internal/podcast-index/probe-preview', async (req: any, res) => {
-      try {
-        if (!isPodcastIndexConfigured()) {
-          return res.status(503).json({ configured: false, message: 'Podcast Index is not configured' });
-        }
-        const input = z.object({
-          q: z.string().trim().min(2).max(120).default('podcasting'),
-          person: z.string().trim().min(2).max(120).default('Andrew Huberman'),
-          max: z.coerce.number().int().min(1).max(10).default(5),
-        }).parse(req.query);
-        res.json({ configured: true, ...(await probePodcastIndex(input.q, input.person, input.max)) });
-      } catch (error) {
-        if (error instanceof PodcastIndexError) {
-          return res.status(error.code === 'RATE_LIMITED' ? 429 : 502).json({
-            configured: isPodcastIndexConfigured(),
-            authMode: getPodcastIndexAuthMode(),
-            code: error.code,
-            message: error.message,
-          });
-        }
-        res.status(500).json({ message: 'Podcast Index preview probe failed' });
-      }
-    });
-  }
 
   // Get all users (admin only)
   app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {

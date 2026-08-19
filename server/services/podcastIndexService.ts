@@ -3,7 +3,7 @@ import crypto from "crypto";
 const PODCAST_INDEX_API_BASE = "https://api.podcastindex.org/api/1.0";
 const PODCAST_INDEX_USER_AGENT = "Podlogix/1.0 (+https://podlogix.io)";
 
-type PodcastIndexAuthMode = "single-key" | "legacy-key-secret";
+type PodcastIndexAuthMode = "legacy-key-secret";
 
 interface PodcastIndexEnvelope {
   status?: boolean | string;
@@ -188,11 +188,14 @@ export class PodcastIndexError extends Error {
 }
 
 export function isPodcastIndexConfigured(): boolean {
-  return Boolean(process.env.PODCAST_INDEX_API_KEY?.trim());
+  return Boolean(
+    process.env.PODCAST_INDEX_API_KEY?.trim()
+      && process.env.PODCAST_INDEX_API_SECRET?.trim(),
+  );
 }
 
 export function getPodcastIndexAuthMode(): PodcastIndexAuthMode {
-  return process.env.PODCAST_INDEX_API_SECRET?.trim() ? "legacy-key-secret" : "single-key";
+  return "legacy-key-secret";
 }
 
 export async function probePodcastIndex(
@@ -249,8 +252,12 @@ async function requestPodcastIndex<T extends PodcastIndexEnvelope>(
   query: Record<string, string> = {},
 ): Promise<T> {
   const apiKey = process.env.PODCAST_INDEX_API_KEY?.trim();
-  if (!apiKey) {
-    throw new PodcastIndexError("NOT_CONFIGURED", "Podcast Index is not configured.");
+  const apiSecret = process.env.PODCAST_INDEX_API_SECRET?.trim();
+  if (!apiKey || !apiSecret) {
+    throw new PodcastIndexError(
+      "NOT_CONFIGURED",
+      "Podcast Index API v1 requires both an API key and an API secret.",
+    );
   }
 
   const url = new URL(`${PODCAST_INDEX_API_BASE}${path}`);
@@ -259,7 +266,7 @@ async function requestPodcastIndex<T extends PodcastIndexEnvelope>(
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: buildAuthHeaders(apiKey),
+      headers: buildAuthHeaders(apiKey, apiSecret),
       signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {
@@ -295,16 +302,7 @@ async function requestPodcastIndex<T extends PodcastIndexEnvelope>(
   return data;
 }
 
-function buildAuthHeaders(apiKey: string): Record<string, string> {
-  const apiSecret = process.env.PODCAST_INDEX_API_SECRET?.trim();
-  if (!apiSecret) {
-    return {
-      Accept: "application/json",
-      Authorization: apiKey,
-      "User-Agent": PODCAST_INDEX_USER_AGENT,
-    };
-  }
-
+function buildAuthHeaders(apiKey: string, apiSecret: string): Record<string, string> {
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const authorization = crypto.createHash("sha1").update(`${apiKey}${apiSecret}${timestamp}`).digest("hex");
   return {

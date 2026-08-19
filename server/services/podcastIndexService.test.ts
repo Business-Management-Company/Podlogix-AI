@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { PodcastIndexError, probePodcastIndex } from "./podcastIndexService";
+import { isPodcastIndexConfigured, PodcastIndexError, probePodcastIndex } from "./podcastIndexService";
 
 const originalFetch = globalThis.fetch;
 const originalApiKey = process.env.PODCAST_INDEX_API_KEY;
@@ -12,15 +12,15 @@ afterEach(() => {
   restoreEnv("PODCAST_INDEX_API_SECRET", originalApiSecret);
 });
 
-test("normalizes a read-only single-key capability probe", async () => {
+test("normalizes a read-only key-and-secret capability probe", async () => {
   process.env.PODCAST_INDEX_API_KEY = "test-read-only-key";
-  delete process.env.PODCAST_INDEX_API_SECRET;
-  const observedAuthorization: string[] = [];
+  process.env.PODCAST_INDEX_API_SECRET = "test-read-only-secret";
+  const observedHeaders: Headers[] = [];
 
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
     const headers = new Headers(init?.headers);
-    observedAuthorization.push(headers.get("Authorization") ?? "");
+    observedHeaders.push(headers);
 
     if (url.pathname.endsWith("/search/byterm")) {
       return jsonResponse({
@@ -69,7 +69,7 @@ test("normalizes a read-only single-key capability probe", async () => {
 
   const result = await probePodcastIndex("technology", "Alex Guest", 3);
 
-  assert.equal(result.authMode, "single-key");
+  assert.equal(result.authMode, "legacy-key-secret");
   assert.equal(result.podcasts[0]?.title, "Test Show");
   assert.equal(result.podcasts[0]?.ownerName, "Test Owner");
   assert.equal(result.sampleEpisodes[0]?.people[0]?.name, "Alex Guest");
@@ -77,31 +77,33 @@ test("normalizes a read-only single-key capability probe", async () => {
   assert.equal(result.coverage.episodesWithTranscripts, 1);
   assert.equal(result.coverage.episodesWithSocialLinks, 1);
   assert.deepEqual(result.categories, [{ id: 1, name: "Technology" }]);
-  assert.ok(observedAuthorization.length >= 5);
-  assert.ok(observedAuthorization.every((authorization) => authorization === "test-read-only-key"));
+  assert.ok(observedHeaders.length >= 5);
+  assert.ok(observedHeaders.every((headers) => headers.get("X-Auth-Key") === "test-read-only-key"));
+  assert.ok(observedHeaders.every((headers) => /^\d+$/.test(headers.get("X-Auth-Date") ?? "")));
+  assert.ok(observedHeaders.every((headers) => /^[a-f0-9]{40}$/.test(headers.get("Authorization") ?? "")));
 });
 
-test("supports the documented legacy key-and-secret signature without exposing the secret", async () => {
-  process.env.PODCAST_INDEX_API_KEY = "legacy-key";
-  process.env.PODCAST_INDEX_API_SECRET = "legacy-secret";
-  let observedHeaders: Headers | null = null;
+test("requires the API secret before making a provider request", async () => {
+  process.env.PODCAST_INDEX_API_KEY = "key-without-secret";
+  delete process.env.PODCAST_INDEX_API_SECRET;
+  let fetchCalled = false;
 
-  globalThis.fetch = async (_input, init) => {
-    observedHeaders = new Headers(init?.headers);
+  globalThis.fetch = async () => {
+    fetchCalled = true;
     return jsonResponse({ status: "true", feeds: [] });
   };
 
-  await probePodcastIndex("technology", "Alex Guest", 1);
-
-  assert.equal(observedHeaders?.get("X-Auth-Key"), "legacy-key");
-  assert.match(observedHeaders?.get("X-Auth-Date") ?? "", /^\d+$/);
-  assert.match(observedHeaders?.get("Authorization") ?? "", /^[a-f0-9]{40}$/);
-  assert.notEqual(observedHeaders?.get("Authorization"), "legacy-secret");
+  assert.equal(isPodcastIndexConfigured(), false);
+  await assert.rejects(
+    () => probePodcastIndex("technology", "Alex Guest", 1),
+    (error: unknown) => error instanceof PodcastIndexError && error.code === "NOT_CONFIGURED",
+  );
+  assert.equal(fetchCalled, false);
 });
 
 test("reports an authentication failure without including the configured key", async () => {
   process.env.PODCAST_INDEX_API_KEY = "do-not-leak-this-key";
-  delete process.env.PODCAST_INDEX_API_SECRET;
+  process.env.PODCAST_INDEX_API_SECRET = "do-not-leak-this-secret";
   globalThis.fetch = async () => jsonResponse({ message: "Forbidden" }, 403);
 
   await assert.rejects(
@@ -110,6 +112,7 @@ test("reports an authentication failure without including the configured key", a
       assert.ok(error instanceof PodcastIndexError);
       assert.equal(error.code, "AUTH_FAILED");
       assert.equal(error.message.includes("do-not-leak-this-key"), false);
+      assert.equal(error.message.includes("do-not-leak-this-secret"), false);
       return true;
     },
   );
