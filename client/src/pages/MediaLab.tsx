@@ -21,13 +21,6 @@ interface Consumption {
 
 // Response shape (per Upload-Post support): youtube -> {title, description};
 // instagram/tiktok/facebook -> {caption}. Hashtags come baked into the text.
-const SHORTS_PLATFORMS = [
-  { id: "youtube", label: "YouTube" },
-  { id: "instagram", label: "Instagram" },
-  { id: "tiktok", label: "TikTok" },
-  { id: "facebook", label: "Facebook" },
-];
-
 interface FfmpegJob {
   job_id: string;
   status: "PENDING" | "PROCESSING" | "FINISHED" | "ERROR";
@@ -90,7 +83,6 @@ export default function MediaLab() {
   const [selectedPreset, setSelectedPreset] = useState(PRESETS[0].id);
   const [customCommand, setCustomCommand] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [shortsPlatforms, setShortsPlatforms] = useState<string[]>(["youtube", "instagram", "tiktok"]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isAllowed = user?.email === "andrew@podlogix.co";
@@ -147,35 +139,6 @@ export default function MediaLab() {
     return { method: "PUT" as const, url: data.uploadURL };
   };
 
-  const analyzeShortsMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/media-lab/analyze-shorts", {
-        videoUrl,
-        platforms: shortsPlatforms,
-      });
-      return res.json();
-    },
-    onSuccess: (data: { remaining_analyses?: number }) =>
-      toast({
-        title: "Analysis complete",
-        description:
-          typeof data?.remaining_analyses === "number"
-            ? `${data.remaining_analyses} of 300 analyses left this month`
-            : undefined,
-      }),
-    onError: (err: Error) =>
-      toast({
-        title: "Analysis failed",
-        description: err.message.includes("429") ? "Monthly quota exhausted." : undefined,
-        variant: "destructive",
-      }),
-  });
-  const shortsResult = analyzeShortsMutation.data as Record<string, unknown> | undefined;
-
-  const toggleShortsPlatform = (id: string) =>
-    setShortsPlatforms((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
 
   if (authLoading) return null;
 
@@ -267,74 +230,6 @@ export default function MediaLab() {
             </Card>
           </section>
 
-          <section>
-            <SectionHeader title="AI Shorts Analyzer" />
-            <Card padding="lg" className="space-y-4">
-          <p className="text-xs leading-relaxed text-zinc-500">
-            Generates platform-tuned titles, captions, and hashtags for a short video (max 100MB / 5 min).
-            Uses the same uploaded video from step 1. 300 analyses/month on the current plan.
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {SHORTS_PLATFORMS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => toggleShortsPlatform(p.id)}
-                className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                  shortsPlatforms.includes(p.id)
-                    ? "border-zinc-950 bg-zinc-950 text-white"
-                    : "border-zinc-200 text-zinc-500 hover:border-zinc-300"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          <Button
-            className="w-full"
-            disabled={!videoUrl || shortsPlatforms.length === 0 || analyzeShortsMutation.isPending}
-            onClick={() => analyzeShortsMutation.mutate()}
-          >
-            {analyzeShortsMutation.isPending ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-1.5 h-4 w-4" />
-            )}
-            {analyzeShortsMutation.isPending ? "Analyzing…" : "Analyze Video"}
-          </Button>
-          {!videoUrl && (
-            <p className="text-[11px] text-zinc-400">Upload a video in step 1 first.</p>
-          )}
-
-          {shortsResult && (
-            <div className="space-y-3 border-t border-zinc-100 pt-4">
-              {SHORTS_PLATFORMS.filter((p) => shortsResult[p.id]).length > 0 ? (
-                SHORTS_PLATFORMS.filter((p) => shortsResult[p.id]).map((p) => {
-                  const r = shortsResult[p.id] as Record<string, unknown>;
-                  return (
-                    <div key={p.id} className="rounded-lg border border-zinc-200 p-3.5">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">{p.label}</p>
-                      {Object.entries(r)
-                        .filter(([, v]) => typeof v === "string" && v)
-                        .map(([k, v]) => (
-                          <div key={k} className="mb-2 last:mb-0">
-                            <p className="text-[11px] font-medium capitalize text-zinc-500">{k.replace(/_/g, " ")}</p>
-                            <p className="whitespace-pre-wrap text-sm text-zinc-900">{v as string}</p>
-                          </div>
-                        ))}
-                    </div>
-                  );
-                })
-              ) : (
-                <pre className="max-h-80 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-700">
-                  {JSON.stringify(shortsResult, null, 2)}
-                </pre>
-              )}
-            </div>
-          )}
-        </Card>
-          </section>
         </div>
 
         {/* ── Run + status rail ── */}

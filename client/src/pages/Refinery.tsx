@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,13 @@ interface LibraryItem {
 }
 
 const FILLER_RE = /\b(um+|uh+|erm|hmm+|you know|i mean)\b/gi;
+
+const CLIP_PLATFORMS = [
+  { id: "youtube", label: "YouTube" },
+  { id: "instagram", label: "Instagram" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "facebook", label: "Facebook" },
+];
 
 // Duration probe with a hard timeout: a stalled metadata load must never
 // wedge the pipeline — minutes-saved just reads "—" instead.
@@ -59,6 +66,44 @@ export default function Refinery() {
   const [transcript, setTranscript] = useState<{ text: string } | null>(null);
   const [refinedUrl, setRefinedUrl] = useState<string | null>(null);
   const [minutesSaved, setMinutesSaved] = useState<number | null>(null);
+  const [clipPlatforms, setClipPlatforms] = useState<string[]>(["youtube", "instagram", "tiktok"]);
+  const [selDuration, setSelDuration] = useState<number | null>(null);
+
+  // Clip copy (graduated from the Media Lab beta): platform-tuned title,
+  // caption, and hashtags for a short video. The analyzer takes clips up to
+  // 100MB / 5 minutes, so the panel gates itself on the probed duration.
+  const clipCopy = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/media-lab/analyze-shorts", {
+        videoUrl: selected!.url,
+        platforms: clipPlatforms,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as any).message || "Analysis failed");
+      return data as Record<string, unknown> & { remaining_analyses?: number };
+    },
+    onSuccess: (data) =>
+      toast({
+        title: "Copy ready",
+        description:
+          typeof data.remaining_analyses === "number"
+            ? `${data.remaining_analyses} of 300 analyses left this month`
+            : undefined,
+      }),
+    onError: (error: Error) =>
+      toast({
+        title: "Couldn't write the copy",
+        description: error.message.includes("429") ? "Monthly analysis quota is used up." : error.message,
+        variant: "destructive",
+      }),
+  });
+
+  useEffect(() => {
+    setSelDuration(null);
+    clipCopy.reset();
+    if (selected) void mediaDuration(selected.url, selected.type).then((d) => setSelDuration(d || null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.url]);
 
   const { data: libraryData, isLoading } = useQuery<{ items: LibraryItem[] }>({
     queryKey: ["/api/media-library"],
@@ -380,6 +425,80 @@ export default function Refinery() {
               <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
                 Marked clips and captions live in your studio's Editing Room — Refiner polishes the whole show.
               </p>
+
+              {/* Clip copy — graduated from the Media Lab beta */}
+              {selected.type === "video" && (() => {
+                const tooLong = selDuration !== null && selDuration > 300;
+                const result = clipCopy.data;
+                return (
+                  <div className="mt-4 border-t border-zinc-100 pt-4">
+                    <p className="text-sm font-semibold text-zinc-900">Clip copy</p>
+                    <p className="mb-2 text-[11px] leading-relaxed text-zinc-500">
+                      Platform-tuned title, caption, and hashtags — for clips under 5 minutes.
+                    </p>
+                    {tooLong ? (
+                      <p className="rounded-lg bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                        This recording runs {Math.round(selDuration! / 60)} minutes — refine it and cut a clip first, then bring the clip back here.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mb-3 flex flex-wrap gap-1.5">
+                          {CLIP_PLATFORMS.map((p) => (
+                            <button
+                              key={p.id}
+                              onClick={() =>
+                                setClipPlatforms((prev) =>
+                                  prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+                                )
+                              }
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                clipPlatforms.includes(p.id)
+                                  ? "border-zinc-950 bg-zinc-950 text-white"
+                                  : "border-zinc-200 text-zinc-500 hover:border-zinc-300"
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          disabled={clipPlatforms.length === 0 || clipCopy.isPending}
+                          onClick={() => clipCopy.mutate()}
+                        >
+                          {clipCopy.isPending ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          {clipCopy.isPending ? "Writing…" : "Write clip copy"}
+                        </Button>
+                      </>
+                    )}
+                    {result && (
+                      <div className="mt-3 space-y-2">
+                        {CLIP_PLATFORMS.filter((p) => result[p.id]).map((p) => {
+                          const r = result[p.id] as Record<string, unknown>;
+                          return (
+                            <div key={p.id} className="rounded-lg border border-zinc-200 p-2.5">
+                              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">{p.label}</p>
+                              {Object.entries(r)
+                                .filter(([, v]) => typeof v === "string" && v)
+                                .map(([k, v]) => (
+                                  <div key={k} className="mb-1.5 last:mb-0">
+                                    <p className="text-[10px] font-medium capitalize text-zinc-500">{k.replace(/_/g, " ")}</p>
+                                    <p className="whitespace-pre-wrap text-xs text-zinc-900">{v as string}</p>
+                                  </div>
+                                ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

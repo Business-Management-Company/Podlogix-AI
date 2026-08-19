@@ -278,10 +278,11 @@ const articles: Article[] = [
     content: [
       "Refiner turns raw conversations into clear, compelling content. Find it in the nav, right under Live Studio.",
       "How to use it:",
-      "1. Pick a recording from the list on the left — anything in your storage works.",
+      "1. Pick a recent recording on the Refiner page, or choose anything in Media Storage and press 'Open in Refiner'.",
       "2. Press 'Refine my show'. A glowing ring runs around the player while the pipeline works.",
       "3. Watch the checkmarks on the right: Transcription (every word written down), Remove gaps (dead air cut), Audio cleanup (volume evened to podcast standard).",
       "4. When it finishes, a Before / After comparison appears — play both and hear the difference. The refined version is already saved to Media Storage.",
+      "For short videos (under 5 minutes) there's also Clip copy, under the pipeline: pick your platforms and it writes a tuned title, caption, and hashtags for that clip. Longer shows get a note to cut a clip first.",
       "The numbers below are measured from your actual files: minutes saved is literally how much shorter the refined audio is. Two steps say 'Coming' — Remove fillers and Enhance video — because they're not built yet. When you see a checkmark in Refiner, something really happened to your file.",
     ],
   },
