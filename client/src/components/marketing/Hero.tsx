@@ -113,8 +113,8 @@ export function Hero() {
             style={{ color: "#ffffff" }}
           >
             {[
-              "Run your entire podcast business",
-              "from one workspace.",
+              "One place to create,",
+              "stream, and grow.",
             ].map((line) => (
               <span key={line} className="block overflow-hidden">
                 <motion.span variants={lineReveal} className="block" style={{ color: "#ffffff" }}>
@@ -130,10 +130,11 @@ export function Hero() {
             className="mt-7 max-w-lg text-xl leading-relaxed"
             style={{ color: "rgba(255,255,255,0.60)" }}
           >
-            Episodes, audience, sponsors, distribution, and your team —
-            connected in one place.{" "}
+            Record or livestream podcasts, broadcast events, conferences, and
+            shows — then turn every moment into content that grows your audience
+            and your business.{" "}
             <span className="font-semibold" style={{ color: "rgba(255,255,255,0.90)" }}>
-              Hosting is included. It's just not the point.
+              Your entire streaming business, in one workspace.
             </span>
           </motion.p>
 
