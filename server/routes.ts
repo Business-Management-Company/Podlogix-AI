@@ -97,6 +97,7 @@ import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from ".
 import { sendEmail, isEmailConfigured } from "./services/emailService";
 import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
 import { registerConnectorRoutes } from "./connectorRoutes";
+import { exchangeYouTubeCode, getOwnedChannel, getOwnedVideo, getYouTubeAuthUrl, listOwnedVideos } from "./services/youtubeContentSource";
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
   // Check if email is configured first
@@ -1868,6 +1869,135 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error disconnecting Spotify:', error);
       res.status(500).json({ message: 'Failed to disconnect Spotify' });
+    }
+  });
+
+  // ==================== YOUTUBE CONTENT SOURCE ====================
+
+  const youtubeRedirectUri = () => `${process.env.PUBLIC_BASE_URL || 'https://podlogix.io'}/api/content-sources/youtube/callback`;
+
+  app.get('/api/content-sources/youtube/auth', isAuthenticated, async (req: any, res) => {
+    try {
+      const state = crypto.randomBytes(24).toString('hex');
+      req.session.youtubeOAuthState = state;
+      res.json({ authUrl: getYouTubeAuthUrl(youtubeRedirectUri(), state) });
+    } catch (error: any) {
+      res.status(503).json({ message: error?.message || 'YouTube OAuth is not configured' });
+    }
+  });
+
+  app.get('/api/content-sources/youtube/callback', async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.redirect('/login?return_to=/connectors');
+      if (!req.query.code || !req.session.youtubeOAuthState || req.query.state !== req.session.youtubeOAuthState) {
+        return res.redirect('/connectors?youtube_source_error=auth_failed');
+      }
+      delete req.session.youtubeOAuthState;
+      const tokens = await exchangeYouTubeCode(String(req.query.code), youtubeRedirectUri());
+      const channel = await getOwnedChannel(tokens.access_token);
+      const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+      const googleUser: any = userResponse.ok ? await userResponse.json() : {};
+      const existing = await storage.getYouTubeConnection(userId);
+      const refreshToken = tokens.refresh_token || existing?.refreshToken;
+      if (!refreshToken) throw new Error('Google did not return a refresh token; reconnect and grant access');
+      await storage.upsertYouTubeConnection({
+        userId, googleUserId: googleUser.id || null, email: googleUser.email || null,
+        channelId: channel.id, channelTitle: channel.title, channelThumbnailUrl: channel.thumbnailUrl,
+        accessToken: tokens.access_token, refreshToken,
+        expiresAt: new Date(Date.now() + tokens.expires_in * 1000), scope: tokens.scope,
+      });
+      res.redirect('/youtube-import?connected=true');
+    } catch (error) {
+      console.error('YouTube content source callback failed:', error);
+      res.redirect('/connectors?youtube_source_error=auth_failed');
+    }
+  });
+
+  app.get('/api/content-sources/youtube/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const connection = await storage.getYouTubeConnection(req.session.userId!);
+      res.json({ connected: !!connection, channelTitle: connection?.channelTitle || null, channelThumbnailUrl: connection?.channelThumbnailUrl || null });
+    } catch (error) {
+      console.error('YouTube status failed:', error);
+      res.status(500).json({ message: 'Could not read the YouTube connection' });
+    }
+  });
+
+  app.delete('/api/content-sources/youtube', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteYouTubeConnection(req.session.userId!);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('YouTube disconnect failed:', error);
+      res.status(500).json({ message: 'Could not disconnect YouTube' });
+    }
+  });
+
+  app.get('/api/content-sources/youtube/videos', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await listOwnedVideos(req.session.userId!, req.query.pageToken ? String(req.query.pageToken) : undefined));
+    } catch (error: any) {
+      res.status(502).json({ message: error?.message || 'Could not load YouTube videos' });
+    }
+  });
+
+  app.post('/api/content-sources/youtube/import', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const input = z.object({
+        videoId: z.string().regex(/^[A-Za-z0-9_-]{11}$/), title: z.string().min(1).max(300),
+        description: z.string().max(100000).optional(), thumbnailUrl: z.string().url().nullable().optional(),
+        publishedAt: z.string().datetime().nullable().optional(), podcastId: z.string().min(1),
+        sourceMediaUrl: z.string().url().optional(), sourceMimeType: z.string().max(100).optional(), sourceSizeBytes: z.number().int().nonnegative().optional(),
+      }).parse(req.body);
+      const connection = await storage.getYouTubeConnection(userId);
+      if (!connection) return res.status(409).json({ message: 'Connect YouTube first' });
+      // Ownership is proven per video (uploader channel == connected channel),
+      // not by scanning the first page of the uploads playlist — older videos
+      // beyond page one verify the same as new ones.
+      const verified = await getOwnedVideo(userId, input.videoId);
+      if (!verified) return res.status(403).json({ message: 'That video was not found on your connected channel' });
+      // Only files that went through our upload flow may become the source —
+      // same Supabase-host rule the posting routes enforce.
+      if (input.sourceMediaUrl) {
+        const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+        if (!supabaseUrl || !input.sourceMediaUrl.startsWith(`${supabaseUrl}/storage/v1/object/public/`)) {
+          return res.status(400).json({ message: 'The source file must be uploaded through Podlogix' });
+        }
+      }
+      const podcast = await storage.getPodcast(input.podcastId);
+      if (!podcast || podcast.userId !== userId) return res.status(403).json({ message: 'Not your show' });
+      const permalink = `https://www.youtube.com/watch?v=${input.videoId}`;
+      const existingEpisode = (await storage.getEpisodesByPodcast(podcast.id)).find((episode) => episode.guid === `youtube:${input.videoId}`);
+      if (existingEpisode) return res.json({ episode: existingEpisode, media: null, alreadyImported: true, needsSourceUpload: !existingEpisode.audioUrl });
+      // One media row per video per user: importing into a second show (or
+      // re-importing) reuses the shelf item instead of duplicating it.
+      let media = (await storage.getMediaLibraryItemsByUser(userId)).find(
+        (item) => item.platform === 'youtube' && item.externalId === input.videoId,
+      ) ?? null;
+      if (media && input.sourceMediaUrl && !media.mediaUrl) {
+        await storage.updateMediaLibraryItemMedia(userId, 'youtube', input.videoId, input.sourceMediaUrl);
+        media = { ...media, mediaUrl: input.sourceMediaUrl };
+      }
+      if (!media) {
+        media = (await storage.createMediaLibraryItem({
+          userId, platform: 'youtube', externalId: input.videoId, caption: verified.title,
+          mediaType: input.sourceMimeType?.startsWith('audio/') ? 'audio' : 'video', mediaUrl: input.sourceMediaUrl || null,
+          thumbnailUrl: verified.thumbnailUrl, permalink, postedAt: verified.publishedAt ? new Date(verified.publishedAt) : null,
+        })) ?? null;
+      }
+      const episode = await storage.createEpisode({
+        podcastId: podcast.id, title: verified.title, description: verified.description,
+        showNotes: verified.description, audioUrl: input.sourceMediaUrl || null,
+        fileSizeBytes: input.sourceSizeBytes, mimeType: input.sourceMimeType || (input.sourceMediaUrl ? 'video/mp4' : null),
+        artworkUrl: verified.thumbnailUrl, guid: `youtube:${input.videoId}`, status: 'draft',
+      });
+      res.status(201).json({ episode, media, needsSourceUpload: !input.sourceMediaUrl });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: error.errors[0]?.message || 'Invalid import' });
+      console.error('YouTube import failed:', error);
+      res.status(500).json({ message: 'Could not import that video' });
     }
   });
 

@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { 
   subscribers, messages, identityAssets, profiles, profileLinks, profileSections, podcasts, episodes, rssFeeds, distributionChannels, channelSubmissions,
-  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections,
+  podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections, youtubeConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, contactNotes, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
   adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems, liveSessions, liveMarks,
@@ -11,7 +11,7 @@ import {
   type RssFeed, type InsertRssFeed, type Episode, type InsertEpisode, type DistributionChannel, type ChannelSubmission, type InsertChannelSubmission,
   type PodcastSubscription, type InsertPodcastSubscription, type SubscriptionEpisode, type InsertSubscriptionEpisode,
   type UserInterest, type InsertUserInterest, type EpisodeBriefing, type InsertEpisodeBriefing,
-  type Notification, type InsertNotification, type SpotifyConnection, type GoogleCalendarConnection,
+  type Notification, type InsertNotification, type SpotifyConnection, type GoogleCalendarConnection, type YouTubeConnection,
   type SavedInfluencer, type InsertSavedInfluencer, type HashtagMonitor, type InsertHashtagMonitor,
   type InfluencerSearch, type InsertInfluencerSearch,
   type ConnectedSocialAccount, type InsertConnectedSocialAccount,
@@ -114,6 +114,9 @@ export interface IStorage {
   getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined>;
   upsertGoogleCalendarConnection(connection: Omit<GoogleCalendarConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoogleCalendarConnection>;
   deleteGoogleCalendarConnection(userId: string): Promise<void>;
+  getYouTubeConnection(userId: string): Promise<YouTubeConnection | undefined>;
+  upsertYouTubeConnection(connection: Omit<YouTubeConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<YouTubeConnection>;
+  deleteYouTubeConnection(userId: string): Promise<void>;
   // All subscriptions (for background jobs)
   getAllActiveSubscriptions(): Promise<PodcastSubscription[]>;
   // Saved Influencers
@@ -574,6 +577,28 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGoogleCalendarConnection(userId: string): Promise<void> {
     await db.delete(googleCalendarConnections).where(eq(googleCalendarConnections.userId, userId));
+  }
+
+  async getYouTubeConnection(userId: string): Promise<YouTubeConnection | undefined> {
+    const [connection] = await db.select().from(youtubeConnections).where(eq(youtubeConnections.userId, userId));
+    return connection;
+  }
+
+  async upsertYouTubeConnection(connection: Omit<YouTubeConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<YouTubeConnection> {
+    const existing = await this.getYouTubeConnection(connection.userId);
+    if (existing) {
+      const [updated] = await db.update(youtubeConnections)
+        .set({ ...connection, updatedAt: new Date() })
+        .where(eq(youtubeConnections.userId, connection.userId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(youtubeConnections).values(connection).returning();
+    return created;
+  }
+
+  async deleteYouTubeConnection(userId: string): Promise<void> {
+    await db.delete(youtubeConnections).where(eq(youtubeConnections.userId, userId));
   }
 
   async getAllActiveSubscriptions(): Promise<PodcastSubscription[]> {
