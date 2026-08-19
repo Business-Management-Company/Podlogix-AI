@@ -70,6 +70,10 @@ interface PodchaserUsageRaw {
   cycle_end?: string;
 }
 
+interface PodchaserUsageEnvelope {
+  data?: PodchaserUsageRaw;
+}
+
 interface PodchaserErrorEnvelope {
   message?: string;
   error?: {
@@ -162,7 +166,7 @@ export function isPodchaserConfigured(): boolean {
 
 export async function probePodchaserGuest(personQuery: string, max = 10): Promise<PodchaserGuestProbeResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
-  const usageBefore = normalizeUsage(await requestPodchaser<PodchaserUsageRaw>("/usage"));
+  const usageBefore = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
   const creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
     "/search/creators",
     {
@@ -176,7 +180,7 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
   const selectedCreator = selectCreator(personQuery, creatorCandidates);
 
   if (!selectedCreator) {
-    const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw>("/usage"));
+    const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
     return {
       personQuery,
       identityConfidence: "not-found",
@@ -200,11 +204,11 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
       { role: "guest", per_page: String(limit), sort: "date", sort_direction: "desc" },
     ),
   ]);
-  const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw>("/usage"));
+  const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
 
   return {
     personQuery,
-    identityConfidence: canonicalName(selectedCreator.name) === canonicalName(personQuery) ? "exact" : "possible",
+    identityConfidence: classifyIdentityConfidence(personQuery, creatorCandidates, selectedCreator),
     creatorCandidates,
     selectedCreator,
     guestEpisodes: extractData(episodeResponse).map(normalizeEpisodeCredit),
@@ -280,6 +284,16 @@ function selectCreator(query: string, candidates: PodchaserCreatorCandidate[]): 
     ?? null;
 }
 
+function classifyIdentityConfidence(
+  query: string,
+  candidates: PodchaserCreatorCandidate[],
+  selectedCreator: PodchaserCreatorCandidate,
+): "exact" | "possible" {
+  const canonicalQuery = canonicalName(query);
+  const exactMatches = candidates.filter((candidate) => canonicalName(candidate.name) === canonicalQuery);
+  return exactMatches.length === 1 && exactMatches[0]?.id === selectedCreator.id ? "exact" : "possible";
+}
+
 function normalizeCreator(raw: PodchaserCreatorRaw): PodchaserCreatorCandidate {
   return {
     id: String(raw.pcid ?? ""),
@@ -329,7 +343,12 @@ function normalizePodcastCredit(raw: PodchaserPodcastCreditRaw): PodchaserGuestP
   };
 }
 
-function normalizeUsage(raw: PodchaserUsageRaw): PodchaserQuota {
+function normalizeUsage(response: PodchaserUsageRaw | PodchaserUsageEnvelope): PodchaserQuota {
+  // Podchaser's OpenAPI describes a flat object, while some deployments return
+  // the same object under `data`. Accept both without weakening the public shape.
+  const raw: PodchaserUsageRaw = "data" in response && response.data && typeof response.data === "object"
+    ? response.data
+    : response as PodchaserUsageRaw;
   return {
     tier: stringOrNull(raw.tier) ?? "unknown",
     quota: typeof raw.quota === "number" ? raw.quota : null,
@@ -341,7 +360,15 @@ function normalizeUsage(raw: PodchaserUsageRaw): PodchaserQuota {
 }
 
 function canonicalName(value: string): string {
-  return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
+  const ignoredHonorifics = new Set(["dr", "doctor", "mr", "mrs", "ms", "prof", "professor", "phd", "md"]);
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token && !ignoredHonorifics.has(token))
+    .join("");
 }
 
 function stringOrNull(value: unknown): string | null {

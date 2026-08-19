@@ -3388,11 +3388,6 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   };
 
   app.get('/api/admin/guest-intelligence/probe', isAuthenticated, isAdmin, runGuestIntelligenceProbe);
-  // Temporary live-evaluation entry point. Vercel Deployment Protection is
-  // the authentication boundary; this route is removed after the benchmark.
-  if (process.env.VERCEL_ENV === 'preview') {
-    app.get('/api/internal/guest-intelligence/probe-preview', runGuestIntelligenceProbe);
-  }
 
   // Get all users (admin only)
   app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {
