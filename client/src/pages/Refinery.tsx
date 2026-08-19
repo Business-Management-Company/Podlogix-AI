@@ -61,15 +61,15 @@ function speechSpans(
   words: WordStamp[],
   minGap: number,
   cutFillers: boolean,
-  pad = 0.12,
-): { spans: Array<[number, number]>; fillersCut: number } {
+  pad = 0.18,
+): { spans: Array<[number, number]>; fillers: Array<[number, number]> } {
   const spans: Array<[number, number]> = [];
-  let fillersCut = 0;
+  const fillers: Array<[number, number]> = [];
   let barrier = false;
   for (const w of words) {
     if (typeof w.start !== "number" || typeof w.end !== "number") continue;
     if (cutFillers && CUTTABLE_FILLER.test(w.word.trim().replace(/[.,!?;:]+$/g, ""))) {
-      fillersCut++;
+      fillers.push([w.start, w.end]);
       barrier = true;
       continue;
     }
@@ -78,41 +78,83 @@ function speechSpans(
     else spans.push([w.start, w.end]);
     barrier = false;
   }
-  return { spans: spans.map(([s, e]) => [Math.max(0, s - pad), e + pad]), fillersCut };
+  return { spans: spans.map(([s, e]) => [Math.max(0, s - pad), e + pad]), fillers };
 }
 
+/**
+ * The processing lane rejects over-long commands, so the span list gets a
+ * hard cap: first the silence threshold widens, then — because filler
+ * barriers can outnumber any threshold in an um-heavy interview — the
+ * smallest remaining gaps merge until the list fits. Fillers swallowed by
+ * those merges stay in the show; the removed-count reports only real cuts.
+ */
 function fittedSpans(words: WordStamp[], cutFillers: boolean): { spans: Array<[number, number]>; fillersCut: number } {
   let gap = 0.75;
   let result = speechSpans(words, gap, cutFillers);
-  while (result.spans.length > 120 && gap < 3) {
+  while (result.spans.length > 100 && gap < 3) {
     gap += 0.25;
     result = speechSpans(words, gap, cutFillers);
   }
-  return result;
+  const spans = result.spans.map(([s, e]) => [s, e] as [number, number]);
+  while (spans.length > 100) {
+    let bi = 1;
+    let bg = Infinity;
+    for (let i = 1; i < spans.length; i++) {
+      const g = spans[i][0] - spans[i - 1][1];
+      if (g < bg) { bg = g; bi = i; }
+    }
+    spans[bi - 1][1] = spans[bi][1];
+    spans.splice(bi, 1);
+  }
+  const fillersCut = result.fillers.filter(
+    ([fs, fe]) => !spans.some(([s, e]) => fs >= s - 0.01 && fe <= e + 0.01),
+  ).length;
+  return { spans, fillersCut };
 }
 
 /** select/aselect expression for a span list. */
 function spanExpr(spans: Array<[number, number]>): string {
-  return spans.map(([s, e]) => `between(t\\,${s.toFixed(2)}\\,${e.toFixed(2)})`).join("+");
+  return spans.map(([s, e]) => `between(t\\,${s.toFixed(1)}\\,${e.toFixed(1)})`).join("+");
 }
 
 /**
- * Concat command for intro + main + outro (any subset, in order). Every
- * input gets normalized to 1280x720/30fps with stereo 44.1k audio first —
- * concat demands matching streams. Same quoted-filter style as the
- * processing lane's own documentation examples.
+ * Stitching happens in proven-safe shapes only: each intro/outro first gets
+ * its own single-input normalize job (match the main cut's size, 30fps,
+ * stereo 44.1k), then ONE concat job with a single -filter_complex and no
+ * intermediate labels — the processing lane rejects semicolons and fails on
+ * repeated -filter_complex flags, and both of these shapes verified clean
+ * against its API.
  */
-function stitchCommand(count: number): string {
-  const inputs = Array.from({ length: count }, (_, i) => `-i {input${i}}`).join(" ");
-  const chains: string[] = [];
-  const labels: string[] = [];
-  for (let i = 0; i < count; i++) {
-    chains.push(`[${i}:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,setsar=1[v${i}]`);
-    chains.push(`[${i}:a]aresample=44100,aformat=channel_layouts=stereo[a${i}]`);
-    labels.push(`[v${i}][a${i}]`);
-  }
-  return `ffmpeg -y ${inputs} -filter_complex "${chains.join(";")};${labels.join("")}concat=n=${count}:v=1:a=1[outv][outa]" -map "[outv]" -map "[outa]" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k {output}`;
+function normalizeCommand(w: number, h: number): string {
+  return `ffmpeg -y -i {input} -vf "scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,fps=30,setsar=1" -af "aresample=44100,aformat=channel_layouts=stereo" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k {output}`;
 }
+
+function concatCommand(count: number): string {
+  const inputs = Array.from({ length: count }, (_, i) => `-i {input${i}}`).join(" ");
+  const pads = Array.from({ length: count }, (_, i) => `[${i}:v][${i}:a]`).join("");
+  return `ffmpeg -y ${inputs} -filter_complex "${pads}concat=n=${count}:v=1:a=1" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k {output}`;
+}
+
+/** Width/height probe with the same hard timeout as the duration probe. */
+const mediaDims = (url: string) =>
+  new Promise<{ w: number; h: number } | null>((resolve) => {
+    const el = document.createElement("video");
+    let settled = false;
+    const settle = (v: { w: number; h: number } | null) => {
+      if (settled) return;
+      settled = true;
+      el.removeAttribute("src");
+      resolve(v);
+    };
+    const timer = setTimeout(() => settle(null), 15_000);
+    el.preload = "metadata";
+    el.onloadedmetadata = () => {
+      clearTimeout(timer);
+      settle(el.videoWidth > 0 ? { w: el.videoWidth - (el.videoWidth % 2), h: el.videoHeight - (el.videoHeight % 2) } : null);
+    };
+    el.onerror = () => { clearTimeout(timer); settle(null); };
+    el.src = url;
+  });
 
 // Duration probe with a hard timeout: a stalled metadata load must never
 // wedge the pipeline — minutes-saved just reads "—" instead.
@@ -140,6 +182,7 @@ export default function Refinery() {
   const [pipeline, setPipeline] = useState<{ transcribe: StepState; refine: StepState; stitch: StepState }>({
     transcribe: "idle", refine: "idle", stitch: "idle",
   });
+  const [contentType, setContentType] = useState<"interview" | "produced">("interview");
   const [cutFillers, setCutFillers] = useState(true);
   const [colorCorrect, setColorCorrect] = useState(true);
   const [introId, setIntroId] = useState("");
@@ -327,7 +370,19 @@ export default function Refinery() {
 
         const legacyAudioCmd =
           "ffmpeg -y -i {input} -vn -af silenceremove=stop_periods=-1:stop_duration=0.75:stop_threshold=-38dB,loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
-        const cut = fittedSpans(words, cutFillers);
+        // Produced content (ads, music-driven pieces): pauses are pacing, not
+        // dead air — no cuts at all, only mastering and optional color.
+        const isProduced = contentType === "produced";
+        if (!isProduced && words.length > 0 && selDuration) {
+          const speech = words.reduce((s, w) => s + Math.max(0, (w.end ?? 0) - (w.start ?? 0)), 0);
+          if (speech / selDuration < 0.45) {
+            toast({
+              title: "This looks like produced content",
+              description: "Less than half the runtime is speech. If it's a commercial or music-driven piece, set Content type to Produced so its pacing gaps are kept.",
+            });
+          }
+        }
+        const cut = isProduced ? { spans: [] as Array<[number, number]>, fillersCut: 0 } : fittedSpans(words, contentType === "interview" && cutFillers);
         const haveSpans = cut.spans.length > 0;
         setWordCut(haveSpans);
         setVideoCut(selected.type === "video" ? haveSpans : null);
@@ -363,6 +418,18 @@ export default function Refinery() {
             setFillersCut(null);
             url = await submitAndCollect([selected.url], legacyAudioCmd, "mp3", `${selected.title} — refined audio`);
           }
+        } else if (isProduced && selected.type === "video") {
+          // Keep every cut where the editor put it. Color on: gentle eq
+          // re-encode; color off: stream-copy the picture untouched.
+          const cmd = colorCorrect
+            ? `ffmpeg -y -i {input} -vf eq=brightness=0.02:contrast=1.05:saturation=1.1 -c:v libx264 -preset veryfast -crf 23 -af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k {output}`
+            : `ffmpeg -y -i {input} -c:v copy -af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k {output}`;
+          url = await submitAndCollect([selected.url], cmd, "mp4", `${selected.title} — refined video`);
+          isVideo = true;
+          setVideoCut(true);
+        } else if (isProduced) {
+          const cmd = "ffmpeg -y -i {input} -vn -af loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -q:a 2 {output}";
+          url = await submitAndCollect([selected.url], cmd, "mp3", `${selected.title} — refined audio`);
         } else {
           setFillersCut(null);
           url = await submitAndCollect([selected.url], legacyAudioCmd, "mp3", `${selected.title} — refined audio`);
@@ -386,8 +453,12 @@ export default function Refinery() {
         if (isVideo && (intro || outro)) {
           setPipeline((p) => ({ ...p, stitch: "running" }));
           try {
-            const files = [intro, url, outro].filter(Boolean) as string[];
-            const stitched = await submitAndCollect(files, stitchCommand(files.length), "mp4", `${selected.title} — final cut`);
+            const dims = (await mediaDims(url)) ?? { w: 1280, h: 720 };
+            const parts: string[] = [];
+            if (intro) parts.push(await submitAndCollect([intro], normalizeCommand(dims.w, dims.h), "mp4", `${selected.title} — intro (normalized)`));
+            parts.push(url);
+            if (outro) parts.push(await submitAndCollect([outro], normalizeCommand(dims.w, dims.h), "mp4", `${selected.title} — outro (normalized)`));
+            const stitched = await submitAndCollect(parts, concatCommand(parts.length), "mp4", `${selected.title} — final cut`);
             setRefinedUrl(stitched);
             queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
             setPipeline((p) => ({ ...p, stitch: "done" }));
@@ -581,8 +652,21 @@ export default function Refinery() {
 
               {/* Options — every toggle is a real transformation, on or off */}
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-zinc-200 bg-zinc-50/60 px-3 py-2.5">
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-700">
-                  <input type="checkbox" checked={cutFillers} onChange={(e) => setCutFillers(e.target.checked)} className="h-3.5 w-3.5 accent-red-600" disabled={busy} />
+                <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+                  Content
+                  <select
+                    value={contentType}
+                    onChange={(e) => setContentType(e.target.value as "interview" | "produced")}
+                    disabled={busy}
+                    className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700"
+                    title="Interviews get their dead air and fillers cut. Produced pieces (ads, music-driven video) keep every pause — that pacing is intentional."
+                  >
+                    <option value="interview">Interview / podcast</option>
+                    <option value="produced">Produced (ad, music)</option>
+                  </select>
+                </span>
+                <label className={`flex items-center gap-1.5 text-xs font-medium ${contentType === "produced" ? "cursor-not-allowed text-zinc-400" : "cursor-pointer text-zinc-700"}`}>
+                  <input type="checkbox" checked={contentType === "interview" && cutFillers} onChange={(e) => setCutFillers(e.target.checked)} className="h-3.5 w-3.5 accent-red-600" disabled={busy || contentType === "produced"} />
                   Remove fillers (um, uh)
                 </label>
                 {selected.type === "video" && (
@@ -647,10 +731,14 @@ export default function Refinery() {
               </p>
               <div className="divide-y divide-zinc-100">
                 <StepRow state={pipeline.transcribe} label="Transcription" sub="Whisper writes down every word" />
-                <StepRow state={pipeline.refine} label="Remove gaps" sub="Dead air and long pauses, cut" />
+                <StepRow
+                  state={contentType === "produced" ? "off" : pipeline.refine}
+                  label="Remove gaps"
+                  sub={contentType === "produced" ? "Kept — pacing is intentional in produced pieces" : "Dead air and long pauses, cut"}
+                />
                 <StepRow state={pipeline.refine} label="Audio cleanup" sub="Loudness mastered to −16 LUFS" />
                 <StepRow
-                  state={!cutFillers ? "off" : wordCut === false ? "soon" : pipeline.refine}
+                  state={contentType === "produced" || !cutFillers ? "off" : wordCut === false ? "soon" : pipeline.refine}
                   label="Remove fillers"
                   sub="Word-level um/uh excision"
                 />
@@ -658,7 +746,7 @@ export default function Refinery() {
                   <StepRow
                     state={videoCut === false ? "soon" : pipeline.refine}
                     label="Enhance video"
-                    sub="The same cuts, applied to the picture"
+                    sub={contentType === "produced" ? "Picture preserved, audio mastered" : "The same cuts, applied to the picture"}
                   />
                 )}
                 {selected.type === "video" && (
