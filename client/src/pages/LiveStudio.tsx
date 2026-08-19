@@ -755,7 +755,7 @@ export default function LiveStudio() {
     try {
       const t = await stepTranscribe();
       await stepDetect(t);
-      toast({ title: "Moments marked", description: "Cut the keepers below \u2014 the Refinery handles the audio polish." });
+      toast({ title: "Moments marked", description: "Cut the keepers below \u2014 Refiner handles the audio polish." });
     } catch (e) {
       toast({
         title: "The pipeline stopped",

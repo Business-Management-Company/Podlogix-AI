@@ -46,7 +46,7 @@ const TOUR = [
     ],
   },
   {
-    id: "refinery", label: "The Refinery", Icon: Wand2, url: "podlogix.io/studio/refine",
+    id: "refinery", label: "Refiner", Icon: Wand2, url: "podlogix.io/studio/refine",
     captions: [
       { label: "Pipeline", value: "Real transformations" },
       { label: "Minutes saved", value: "Measured, not invented" },
@@ -196,7 +196,7 @@ function RefineryView() {
   return (
     <div className="flex h-full gap-2.5 overflow-hidden bg-[#f6f6f7] p-4 text-zinc-900">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold">The Refinery</p>
+        <p className="text-sm font-bold">Refiner</p>
         <div className="mt-2 flex aspect-video items-center justify-center rounded-lg bg-zinc-950">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10">
             <span className="ml-0.5 border-y-[5px] border-l-[8px] border-y-transparent border-l-white" />
@@ -266,7 +266,7 @@ export function WorkspaceShowcase() {
             <span className="block">Every room, one roof.</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Click through the rooms — dashboard, studio, podcast, refinery. Demo data; the real thing is one signup away.
+            Click through the rooms — dashboard, studio, podcast, Refiner. Demo data; the real thing is one signup away.
           </p>
         </motion.div>
 
