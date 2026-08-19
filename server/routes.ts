@@ -5488,6 +5488,27 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     }
   });
 
+  app.patch('/api/studios/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const patch: { name?: string; thumbnailUrl?: string | null } = {};
+      if (req.body?.name !== undefined) {
+        const name = String(req.body.name).trim().slice(0, 80);
+        if (!name) return res.status(400).json({ message: 'Give the studio a name' });
+        patch.name = name;
+      }
+      if (req.body?.thumbnailUrl !== undefined) {
+        patch.thumbnailUrl = typeof req.body.thumbnailUrl === 'string' && req.body.thumbnailUrl ? req.body.thumbnailUrl : null;
+      }
+      if (Object.keys(patch).length === 0) return res.status(400).json({ message: 'Nothing to update' });
+      const studio = await storage.updateStudio(req.params.id, req.session.userId!, patch);
+      if (!studio) return res.status(404).json({ message: 'Studio not found' });
+      res.json({ studio });
+    } catch (error) {
+      console.error('Error updating studio:', error);
+      res.status(500).json({ message: 'Failed to update the studio' });
+    }
+  });
+
   app.get('/api/studios/:id/scenes', isAuthenticated, async (req: any, res) => {
     try {
       res.json({ scenes: await storage.getStudioScenes(req.params.id, req.session.userId!) });
