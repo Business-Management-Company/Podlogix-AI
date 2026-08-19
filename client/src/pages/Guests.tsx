@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
+  Briefcase, ChevronRight, Compass, ExternalLink, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,13 +21,21 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ContactNote, EmailContact, GuestPipelineEntry } from "@shared/schema";
+import type { ContactNote, EmailContact, GuestPipelineEntry, GuestProspect } from "@shared/schema";
 
 interface DashboardData {
   podcasts: Array<{ id: string; title: string }>;
 }
 
-type GuestEntry = GuestPipelineEntry & { contact: EmailContact | undefined };
+interface BuzzsproutStatus {
+  connected: boolean;
+  connection?: { id: string; podcastTitle?: string | null };
+}
+
+type GuestEntry = GuestPipelineEntry & {
+  contact: EmailContact | undefined;
+  prospect: GuestProspect | undefined;
+};
 
 const STAGES = [
   { id: "prospect", label: "Prospect", chip: "bg-zinc-100 text-zinc-600" },
@@ -44,20 +52,25 @@ const AVATAR_TONES = [
   "bg-amber-600", "bg-cyan-600", "bg-indigo-600",
 ];
 
-function guestName(contact: EmailContact | undefined) {
+function guestName(contact: EmailContact | undefined, prospect?: GuestProspect) {
+  if (prospect?.name) return prospect.name;
   if (!contact) return "Unknown guest";
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
   return name || contact.email;
 }
 
-function initials(contact: EmailContact | undefined) {
-  const name = guestName(contact);
+function guestEmail(contact: EmailContact | undefined, prospect?: GuestProspect): string | null {
+  return contact?.email || prospect?.email || null;
+}
+
+function initials(contact: EmailContact | undefined, prospect?: GuestProspect) {
+  const name = guestName(contact, prospect);
   const parts = name.split(/\s+/).filter(Boolean);
   return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
 }
 
-function avatarTone(contact: EmailContact | undefined) {
-  const key = contact?.email ?? "?";
+function avatarTone(contact: EmailContact | undefined, prospect?: GuestProspect) {
+  const key = contact?.email ?? prospect?.providerPersonId ?? "?";
   let hash = 0;
   for (const ch of key) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
   return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
@@ -89,16 +102,31 @@ export default function Guests() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<EmailContact>>({});
   const [noteDraft, setNoteDraft] = useState("");
+  const [selectedPodcastId, setSelectedPodcastId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("showId") ?? "";
+  });
 
   const { data: dashboard, isLoading: dashboardLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
   });
-  const podcast = dashboard?.podcasts?.[0];
+  const { data: buzzsprout, isLoading: buzzsproutLoading } = useQuery<BuzzsproutStatus>({
+    queryKey: ["/api/connectors/buzzsprout/status"],
+    retry: false,
+  });
+  const nativePodcasts = dashboard?.podcasts ?? [];
+  const buzzsproutPodcast = buzzsprout?.connected && buzzsprout.connection?.id
+    && !nativePodcasts.some((item) => item.title.trim().toLowerCase() === buzzsprout.connection?.podcastTitle?.trim().toLowerCase())
+    ? [{ id: `buzzsprout:${buzzsprout.connection.id}`, title: buzzsprout.connection.podcastTitle || "Buzzsprout show" }]
+    : [];
+  const podcasts = [...nativePodcasts, ...buzzsproutPodcast];
+  const podcast = podcasts.find((item) => item.id === selectedPodcastId) ?? podcasts[0];
 
   const { data: guests, isLoading: guestsLoading } = useQuery<GuestEntry[]>({
     queryKey: ["/api/podcasts", podcast?.id, "guests"],
     queryFn: async () => {
-      const res = await fetch(`/api/podcasts/${podcast!.id}/guests`);
+      const res = await fetch(`/api/podcasts/${encodeURIComponent(podcast!.id)}/guests`);
+      if (!res.ok) throw new Error("guest pipeline unavailable");
       return res.json();
     },
     enabled: !!podcast,
@@ -122,7 +150,7 @@ export default function Guests() {
 
   const addGuestMutation = useMutation({
     mutationFn: async (guest: typeof newGuest) => {
-      const res = await apiRequest("POST", `/api/podcasts/${podcast!.id}/guests`, guest);
+      const res = await apiRequest("POST", `/api/podcasts/${encodeURIComponent(podcast!.id)}/guests`, guest);
       return res.json();
     },
     onSuccess: () => {
@@ -179,15 +207,20 @@ export default function Guests() {
   });
 
   const inviteGuest = (entry: GuestEntry) => {
+    const email = guestEmail(entry.contact, entry.prospect);
+    if (!email) {
+      toast({ title: "Contact details needed", description: "Find or add an email address before inviting this guest." });
+      return;
+    }
     updateStageMutation.mutate({ id: entry.id, stage: "invited" });
-    const name = entry.contact?.firstName || guestName(entry.contact);
+    const name = entry.contact?.firstName || entry.prospect?.informalName || guestName(entry.contact, entry.prospect);
     const subject = encodeURIComponent(`Invitation to join ${podcast?.title ?? "our podcast"}`);
     const body = encodeURIComponent(
       `Hi ${name},\n\nI'd love to have you on ${podcast?.title ?? "the show"} as a guest. ` +
       `I think our audience would get a lot from your perspective.\n\n` +
       `Would you be open to it? Happy to work around your schedule.\n\nBest,\n`
     );
-    window.open(`mailto:${entry.contact?.email}?subject=${subject}&body=${body}`);
+    window.open(`mailto:${email}?subject=${subject}&body=${body}`);
     toast({ title: "Marked as invited", description: "Your invitation email is ready to send." });
   };
 
@@ -198,7 +231,8 @@ export default function Guests() {
       .filter((g) => {
         if (!q) return true;
         const hay = [
-          guestName(g.contact), g.contact?.email, g.contact?.company, g.contact?.title,
+          guestName(g.contact, g.prospect), guestEmail(g.contact, g.prospect), g.contact?.company,
+          g.contact?.title, g.prospect?.subtitle, g.prospect?.location,
         ].filter(Boolean).join(" ").toLowerCase();
         return hay.includes(q);
       })
@@ -211,7 +245,7 @@ export default function Guests() {
     return counts;
   }, [guests]);
 
-  const isLoading = dashboardLoading || (!!podcast && guestsLoading);
+  const isLoading = dashboardLoading || buzzsproutLoading || (!!podcast && guestsLoading);
   const totalGuests = guests?.length ?? 0;
 
   const openDrawer = (entry: GuestEntry) => {
@@ -232,14 +266,23 @@ export default function Guests() {
             Your guest CRM — every contact, their stage, and the story so far.
           </p>
         </div>
-        <Dialog open={showAdd} onOpenChange={setShowAdd}>
-          <DialogTrigger asChild>
-            <Button size="sm" disabled={!podcast}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Add guest
+        <div className="flex gap-2">
+          {podcast ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/social/discover?showId=${encodeURIComponent(podcast.id)}`}>
+                <Compass className="mr-1.5 h-3.5 w-3.5" />
+                Find a guest
+              </Link>
             </Button>
-          </DialogTrigger>
-          <DialogContent>
+          ) : null}
+          <Dialog open={showAdd} onOpenChange={setShowAdd}>
+            <DialogTrigger asChild>
+              <Button size="sm" disabled={!podcast}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add manually
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Add a guest</DialogTitle>
             </DialogHeader>
@@ -277,9 +320,21 @@ export default function Guests() {
                 Add guest
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {podcasts.length > 1 ? (
+        <div className="mb-5 max-w-sm">
+          <Select value={podcast?.id ?? ""} onValueChange={setSelectedPodcastId}>
+            <SelectTrigger><SelectValue placeholder="Choose a show" /></SelectTrigger>
+            <SelectContent>
+              {podcasts.map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       {isLoading ? (
         <div className="space-y-4">
@@ -297,7 +352,8 @@ export default function Guests() {
         <EmptyState
           icon={Users}
           title="No guests yet"
-          description="Add a prospective guest to start tracking them through your booking pipeline."
+          description="Discover a potential guest or add someone you already know."
+          action={{ label: "Find a guest", href: `/social/discover?showId=${encodeURIComponent(podcast.id)}` }}
         />
       ) : (
         <>
@@ -352,15 +408,19 @@ export default function Guests() {
                     onClick={() => openDrawer(entry)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-50"
                   >
-                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarTone(entry.contact)}`}>
-                      {initials(entry.contact)}
-                    </span>
+                    {entry.prospect?.imageUrl ? (
+                      <img src={entry.prospect.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                    ) : (
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarTone(entry.contact, entry.prospect)}`}>
+                        {initials(entry.contact, entry.prospect)}
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-zinc-950">
-                        {guestName(entry.contact)}
+                        {guestName(entry.contact, entry.prospect)}
                       </span>
                       <span className="block truncate text-xs text-zinc-500">
-                        {[entry.contact?.email, [entry.contact?.title, entry.contact?.company].filter(Boolean).join(" · ")]
+                        {[guestEmail(entry.contact, entry.prospect), entry.prospect?.subtitle, [entry.contact?.title, entry.contact?.company].filter(Boolean).join(" · ")]
                           .filter(Boolean)
                           .join("  ·  ")}
                       </span>
@@ -384,18 +444,23 @@ export default function Guests() {
             <>
               <SheetHeader>
                 <div className="flex items-center gap-3">
-                  <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white ${avatarTone(selected.contact)}`}>
-                    {initials(selected.contact)}
-                  </span>
+                  {selected.prospect?.imageUrl ? (
+                    <img src={selected.prospect.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                  ) : (
+                    <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white ${avatarTone(selected.contact, selected.prospect)}`}>
+                      {initials(selected.contact, selected.prospect)}
+                    </span>
+                  )}
                   <div className="min-w-0">
-                    <SheetTitle className="truncate text-left">{guestName(selected.contact)}</SheetTitle>
-                    <a
-                      href={`mailto:${selected.contact?.email}`}
-                      className="flex items-center gap-1 truncate text-sm text-zinc-500 hover:text-zinc-800"
-                    >
-                      <Mail size={12} className="shrink-0" />
-                      {selected.contact?.email}
-                    </a>
+                    <SheetTitle className="truncate text-left">{guestName(selected.contact, selected.prospect)}</SheetTitle>
+                    {guestEmail(selected.contact, selected.prospect) ? (
+                      <a href={`mailto:${guestEmail(selected.contact, selected.prospect)}`} className="flex items-center gap-1 truncate text-sm text-zinc-500 hover:text-zinc-800">
+                        <Mail size={12} className="shrink-0" />
+                        {guestEmail(selected.contact, selected.prospect)}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-zinc-400">Contact details not added</p>
+                    )}
                   </div>
                 </div>
               </SheetHeader>
@@ -416,12 +481,18 @@ export default function Guests() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {selected.stage === "prospect" && (
+                  {selected.stage === "prospect" && guestEmail(selected.contact, selected.prospect) ? (
                     <Button size="sm" onClick={() => inviteGuest(selected)}>
                       <Send className="mr-1.5 h-3.5 w-3.5" />
                       Invite
                     </Button>
-                  )}
+                  ) : selected.stage === "prospect" && selected.prospect ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/social/discover?person=${encodeURIComponent(selected.prospect.name)}&showId=${encodeURIComponent(podcast?.id ?? "")}`}>
+                        Find contact
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
 
                 {/* Guest-perspective coaching: analyze how they come across on camera */}
@@ -436,10 +507,39 @@ export default function Guests() {
                   </span>
                 </Link>
 
-                {/* Details */}
-                <section>
-                  <SectionHeader title="Details" />
-                  <div className="space-y-2.5">
+                {selected.prospect ? (
+                  <section>
+                    <SectionHeader title="Guest research" />
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
+                      {selected.prospect.subtitle ? <p className="text-sm font-medium text-zinc-900">{selected.prospect.subtitle}</p> : null}
+                      {selected.prospect.bio ? <p className="mt-2 line-clamp-5 text-sm leading-5 text-zinc-600">{selected.prospect.bio}</p> : null}
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
+                        {selected.prospect.location ? <span>{selected.prospect.location}</span> : null}
+                        {selected.prospect.episodeAppearanceCount != null ? <span>{selected.prospect.episodeAppearanceCount.toLocaleString()} appearances</span> : null}
+                        {selected.prospect.profileUrl ? (
+                          <a href={selected.prospect.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-zinc-900">
+                            Podchaser <ExternalLink size={11} />
+                          </a>
+                        ) : null}
+                      </div>
+                      {Object.entries(selected.prospect.socialLinks ?? {}).length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {Object.entries(selected.prospect.socialLinks ?? {}).map(([platform, url]) => (
+                            <a key={platform} href={url} target="_blank" rel="noreferrer" className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs capitalize text-zinc-600 hover:text-zinc-950">
+                              {platform}
+                            </a>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
+                {/* Contact details */}
+                {selected.contact ? (
+                  <section>
+                    <SectionHeader title="Contact details" />
+                    <div className="space-y-2.5">
                     <div className="grid grid-cols-2 gap-2.5">
                       <Input
                         placeholder="First name"
@@ -477,34 +577,35 @@ export default function Guests() {
                         Save details
                       </Button>
                     )}
-                  </div>
-                </section>
+                    </div>
+                  </section>
+                ) : null}
 
                 {/* Notes */}
                 <section>
                   <SectionHeader title={`Notes (${notes.length})`} />
                   <div className="space-y-2.5">
-                    <div className="flex gap-2">
-                      <Textarea
-                        placeholder="Add a note — calls, topics, follow-ups…"
-                        value={noteDraft}
-                        onChange={(e) => setNoteDraft(e.target.value)}
-                        rows={2}
-                        className="flex-1 resize-none text-sm"
-                      />
-                      <Button
-                        size="sm"
-                        className="self-end"
-                        onClick={() => addNoteMutation.mutate()}
-                        disabled={!noteDraft.trim() || addNoteMutation.isPending}
-                      >
-                        {addNoteMutation.isPending ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <StickyNote className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </div>
+                    {selected.contactId ? (
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder="Add a note — calls, topics, follow-ups…"
+                          value={noteDraft}
+                          onChange={(e) => setNoteDraft(e.target.value)}
+                          rows={2}
+                          className="flex-1 resize-none text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          className="self-end"
+                          onClick={() => addNoteMutation.mutate()}
+                          disabled={!noteDraft.trim() || addNoteMutation.isPending}
+                        >
+                          {addNoteMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StickyNote className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-500">Contact notes become available after an email contact is attached.</p>
+                    )}
                     {selected.notes && (
                       <div className="rounded-lg border border-dashed border-zinc-200 px-3 py-2">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Pipeline note</p>

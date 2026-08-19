@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { BadgeCheck, BookMarked, Loader2, Trash2, Users } from "lucide-react";
+import { BadgeCheck, BookMarked, ExternalLink, Loader2, Mic2, Trash2, Users } from "lucide-react";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,6 +14,17 @@ interface SavedCreator {
   followers?: number | null;
   engagementRate?: number | null;
   isVerified?: boolean | null;
+}
+
+interface GuestProspect {
+  id: string;
+  name: string;
+  subtitle?: string | null;
+  imageUrl?: string | null;
+  profileUrl?: string | null;
+  location?: string | null;
+  episodeAppearanceCount?: number | null;
+  socialLinks?: Record<string, string> | null;
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -34,10 +45,16 @@ function formatCount(n?: number | null): string {
 export default function Directory() {
   const { toast } = useToast();
 
-  const { data, isLoading } = useQuery<{ creators: SavedCreator[] }>({
+  const { data, isLoading: creatorsLoading } = useQuery<{ creators: SavedCreator[] }>({
     queryKey: ["/api/discover/saved"],
   });
   const creators = data?.creators ?? [];
+
+  const { data: prospectData, isLoading: prospectsLoading } = useQuery<{ prospects: GuestProspect[] }>({
+    queryKey: ["/api/guest-prospects"],
+  });
+  const prospects = prospectData?.prospects ?? [];
+  const isLoading = creatorsLoading || prospectsLoading;
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -52,6 +69,19 @@ export default function Directory() {
     },
   });
 
+  const deleteProspectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/guest-prospects/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
+      toast({ title: "Removed from Shortlist" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Couldn't remove guest", description: error.message, variant: "destructive" });
+    },
+  });
+
   const lists = new Map<string, SavedCreator[]>();
   for (const creator of creators) {
     const key = creator.listName || "Saved creators";
@@ -62,24 +92,66 @@ export default function Directory() {
   return (
     <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Directory</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Shortlist</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Creators you've saved from Discover, organized into lists.
+          Potential guests you've saved while researching, before they enter a show pipeline.
         </p>
       </div>
 
-      {isLoading ? null : lists.size === 0 ? (
+      {isLoading ? null : lists.size === 0 && prospects.length === 0 ? (
         <EmptyState
           icon={BookMarked}
-          title="No saved creators yet"
-          description="When you research a guest on Discover, save them here to build out your directory."
+          title="No shortlisted guests yet"
+          description="When you research a guest on Discover, save them here for later."
           action={{ label: "Go to Discover", href: "/social/discover" }}
         />
       ) : (
         <div className="space-y-6">
+          {prospects.length > 0 ? (
+            <section>
+              <SectionHeader title={`Guest prospects · ${prospects.length}`} />
+              <Card padding="none">
+                <div className="divide-y divide-zinc-100">
+                  {prospects.map((prospect) => (
+                    <CardRow key={prospect.id}>
+                      {prospect.imageUrl ? (
+                        <img src={prospect.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50">
+                          <Mic2 size={16} className="text-zinc-400" strokeWidth={1.75} />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-zinc-950">{prospect.name}</p>
+                        <p className="truncate text-xs text-zinc-500">{prospect.subtitle || prospect.location || "Podchaser guest prospect"}</p>
+                      </div>
+                      <div className="hidden shrink-0 text-right sm:block">
+                        <p className="text-sm font-medium text-zinc-950">{formatCount(prospect.episodeAppearanceCount)}</p>
+                        <p className="text-[11px] text-zinc-500">appearances</p>
+                      </div>
+                      {prospect.profileUrl ? (
+                        <a href={prospect.profileUrl} target="_blank" rel="noreferrer" className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-800" aria-label={`Open ${prospect.name} on Podchaser`}>
+                          <ExternalLink size={15} />
+                        </a>
+                      ) : null}
+                      <button
+                        onClick={() => deleteProspectMutation.mutate(prospect.id)}
+                        disabled={deleteProspectMutation.isPending}
+                        className="shrink-0 rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Remove ${prospect.name}`}
+                      >
+                        {deleteProspectMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                      </button>
+                    </CardRow>
+                  ))}
+                </div>
+              </Card>
+            </section>
+          ) : null}
+
           {Array.from(lists.entries()).map(([listName, list]) => (
             <section key={listName}>
-              <SectionHeader title={`${listName} · ${list.length}`} />
+              <SectionHeader title={`Social profiles — ${listName} · ${list.length}`} />
               <Card padding="none">
                 <div className="divide-y divide-zinc-100">
                   {list.map((creator) => (

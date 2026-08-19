@@ -11,6 +11,10 @@ interface PodchaserCreatorRaw {
   url?: string;
   imageUrl?: string;
   episodeAppearanceCount?: number;
+  socialLinks?: {
+    twitter?: string;
+    wikipedia?: string;
+  };
   modifiedDate?: string;
 }
 
@@ -93,6 +97,10 @@ export interface PodchaserCreatorCandidate {
   profileUrl: string | null;
   imageUrl: string | null;
   episodeAppearanceCount: number | null;
+  socialLinks: {
+    twitter: string | null;
+    wikipedia: string | null;
+  };
   modifiedAt: string | null;
 }
 
@@ -148,6 +156,21 @@ export interface PodchaserGuestProbeResult {
   requestsConsumed: number;
 }
 
+export interface PodchaserCreatorSearchResult {
+  personQuery: string;
+  creatorCandidates: PodchaserCreatorCandidate[];
+}
+
+export interface PodchaserGuestAppearancesResult {
+  creatorId: string;
+  guestEpisodes: PodchaserGuestEpisode[];
+  guestPodcasts: PodchaserGuestPodcast[];
+  pagination: {
+    guestEpisodesTotal: number;
+    guestPodcastsTotal: number;
+  };
+}
+
 export class PodchaserError extends Error {
   readonly httpStatus: number | null;
   readonly code: "NOT_CONFIGURED" | "AUTH_FAILED" | "TIER_RESTRICTED" | "RATE_LIMITED" | "PROVIDER_ERROR";
@@ -164,19 +187,72 @@ export function isPodchaserConfigured(): boolean {
   return Boolean(process.env.PODCHASER_API_KEY?.trim());
 }
 
-export async function probePodchaserGuest(personQuery: string, max = 10): Promise<PodchaserGuestProbeResult> {
+const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
+const APPEARANCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 250;
+const creatorSearchCache = new Map<string, { expiresAt: number; value: PodchaserCreatorSearchResult }>();
+const guestAppearanceCache = new Map<string, { expiresAt: number; value: PodchaserGuestAppearancesResult }>();
+
+export async function searchPodchaserCreators(personQuery: string, max = 10): Promise<PodchaserCreatorSearchResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
-  const usageBefore = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
+  const normalizedQuery = personQuery.trim();
+  const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}`;
+  const cached = getCached(creatorSearchCache, cacheKey);
+  if (cached) return cached;
+
   const creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
     "/search/creators",
     {
-      q: personQuery,
+      q: normalizedQuery,
       per_page: String(limit),
       sort: "appearance_count",
       sort_direction: "desc",
     },
   );
-  const creatorCandidates = extractData(creatorResponse).map(normalizeCreator);
+  const value = {
+    personQuery: normalizedQuery,
+    creatorCandidates: extractData(creatorResponse).map(normalizeCreator),
+  };
+  setCached(creatorSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
+  return value;
+}
+
+export async function getPodchaserGuestAppearances(
+  creatorId: string,
+  max = 10,
+): Promise<PodchaserGuestAppearancesResult> {
+  const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
+  const normalizedCreatorId = creatorId.trim();
+  const cacheKey = `${normalizedCreatorId}::${limit}`;
+  const cached = getCached(guestAppearanceCache, cacheKey);
+  if (cached) return cached;
+
+  const [episodeResponse, podcastResponse] = await Promise.all([
+    requestPodchaser<PodchaserPaginatedRaw<PodchaserEpisodeCreditRaw>>(
+      `/creators/${encodeURIComponent(normalizedCreatorId)}/episodes`,
+      { role: "guest", per_page: String(limit), sort: "air_date", sort_direction: "desc" },
+    ),
+    requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditRaw>>(
+      `/creators/${encodeURIComponent(normalizedCreatorId)}/podcasts`,
+      { role: "guest", per_page: String(limit), sort: "date", sort_direction: "desc" },
+    ),
+  ]);
+  const value = {
+    creatorId: normalizedCreatorId,
+    guestEpisodes: extractData(episodeResponse).map(normalizeEpisodeCredit),
+    guestPodcasts: extractData(podcastResponse).map(normalizePodcastCredit),
+    pagination: {
+      guestEpisodesTotal: numberOrZero(episodeResponse.pagination?.total_results),
+      guestPodcastsTotal: numberOrZero(podcastResponse.pagination?.total_results),
+    },
+  };
+  setCached(guestAppearanceCache, cacheKey, value, APPEARANCE_CACHE_TTL_MS);
+  return value;
+}
+
+export async function probePodchaserGuest(personQuery: string, max = 10): Promise<PodchaserGuestProbeResult> {
+  const usageBefore = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
+  const { creatorCandidates } = await searchPodchaserCreators(personQuery, max);
   const selectedCreator = selectCreator(personQuery, creatorCandidates);
 
   if (!selectedCreator) {
@@ -194,16 +270,7 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
     };
   }
 
-  const [episodeResponse, podcastResponse] = await Promise.all([
-    requestPodchaser<PodchaserPaginatedRaw<PodchaserEpisodeCreditRaw>>(
-      `/creators/${encodeURIComponent(selectedCreator.id)}/episodes`,
-      { role: "guest", per_page: String(limit), sort: "air_date", sort_direction: "desc" },
-    ),
-    requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditRaw>>(
-      `/creators/${encodeURIComponent(selectedCreator.id)}/podcasts`,
-      { role: "guest", per_page: String(limit), sort: "date", sort_direction: "desc" },
-    ),
-  ]);
+  const appearances = await getPodchaserGuestAppearances(selectedCreator.id, max);
   const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
 
   return {
@@ -211,12 +278,9 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
     identityConfidence: classifyIdentityConfidence(personQuery, creatorCandidates, selectedCreator),
     creatorCandidates,
     selectedCreator,
-    guestEpisodes: extractData(episodeResponse).map(normalizeEpisodeCredit),
-    guestPodcasts: extractData(podcastResponse).map(normalizePodcastCredit),
-    pagination: {
-      guestEpisodesTotal: numberOrZero(episodeResponse.pagination?.total_results),
-      guestPodcastsTotal: numberOrZero(podcastResponse.pagination?.total_results),
-    },
+    guestEpisodes: appearances.guestEpisodes,
+    guestPodcasts: appearances.guestPodcasts,
+    pagination: appearances.pagination,
     quota,
     requestsConsumed: Math.max(0, quota.used - usageBefore.used),
   };
@@ -306,6 +370,10 @@ function normalizeCreator(raw: PodchaserCreatorRaw): PodchaserCreatorCandidate {
     profileUrl: stringOrNull(raw.url),
     imageUrl: stringOrNull(raw.imageUrl),
     episodeAppearanceCount: typeof raw.episodeAppearanceCount === "number" ? raw.episodeAppearanceCount : null,
+    socialLinks: {
+      twitter: stringOrNull(raw.socialLinks?.twitter),
+      wikipedia: stringOrNull(raw.socialLinks?.wikipedia),
+    },
     modifiedAt: podchaserDateToIso(raw.modifiedDate),
   };
 }
@@ -384,4 +452,27 @@ function podchaserDateToIso(value: unknown): string | null {
   const normalized = value.includes("T") ? value : `${value.trim().replace(" ", "T")}Z`;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? value.trim() : date.toISOString();
+}
+
+function getCached<T>(cache: Map<string, { expiresAt: number; value: T }>, key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCached<T>(
+  cache: Map<string, { expiresAt: number; value: T }>,
+  key: string,
+  value: T,
+  ttlMs: number,
+): void {
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
+  cache.set(key, { expiresAt: Date.now() + ttlMs, value });
 }

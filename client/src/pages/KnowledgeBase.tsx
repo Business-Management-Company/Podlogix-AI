@@ -379,15 +379,16 @@ const articles: Article[] = [
   },
   {
     id: "discover-directory",
-    title: "Discover & Directory",
+    title: "Discover & Shortlist",
     description: "Find creators worth inviting, and save the good ones.",
     category: "Guests",
     icon: <Search className="h-5 w-5" />,
     tags: ["discover", "directory", "creators", "research"],
     content: [
       "Discover searches for creators across social platforms — by topic, name, or handle. Each result shows their followers, engagement, and contact info when available.",
-      "When you find someone interesting, save them. Saved creators go to your Directory, organized into lists you name yourself (like 'Veteran founders' or 'Fitness pods').",
-      "The flow: Discover someone → save to Directory → when you're ready, add them to Guests & CRM and start the conversation.",
+      "Search for a person, confirm the correct identity, and review the podcasts and episodes where they appeared. Social enrichment through IC is optional and only runs when you request it.",
+      "When you find someone interesting, save them to your Shortlist or add them directly to a show's guest pipeline. An email address is not required until you are ready to reach out.",
+      "The flow: Discover someone → confirm their podcast history → save to Shortlist or add as a Prospect → enrich contact details only when needed.",
     ],
   },
 
