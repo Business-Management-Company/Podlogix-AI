@@ -13,6 +13,51 @@ import { Loader2, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import logoImg from "@assets/Seeksy_logo_1771103113779.png";
 
+
+/** Rotating auth backdrops — one world per visit, one voice per world. */
+const AUTH_SCENES = [
+  {
+    img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?auto=format&fit=crop&w=1600&q=70",
+    alt: "On-air microphone in a broadcast studio",
+    quote: "Do what you can't.",
+    who: "Casey Neistat",
+    role: "Filmmaker & YouTuber",
+    fallback: "linear-gradient(160deg,#3e1a1a,#0b0b0d)",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1600&q=70",
+    alt: "Live event stage under concert lighting",
+    quote: "People do not buy goods and services. They buy relations, stories and magic.",
+    who: "Seth Godin",
+    role: "Author & marketer",
+    fallback: "linear-gradient(160deg,#2a1a3e,#0b0b0d)",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1600&q=70",
+    alt: "Conference audience facing the main stage",
+    quote: "Nobody counts the number of ads you run; they just remember the impression you make.",
+    who: "Bill Bernbach",
+    role: "Advertising pioneer",
+    fallback: "linear-gradient(160deg,#0f2740,#0b0b0d)",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1600&q=70",
+    alt: "Crowd celebrating at a live event",
+    quote: "Content is fire; social media is gasoline.",
+    who: "Jay Baer",
+    role: "Marketing author",
+    fallback: "linear-gradient(160deg,#1a3e2e,#0b0b0d)",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=1600&q=70",
+    alt: "Podcast microphone ready to record",
+    quote: "Do what you do so well that they will want to see it again.",
+    who: "Walt Disney",
+    role: "Storyteller",
+    fallback: "linear-gradient(160deg,#402a0f,#0b0b0d)",
+  },
+];
+
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
@@ -93,6 +138,11 @@ export default function AuthPage() {
   });
 
   const isLoading = loginMutation.isPending || signupMutation.isPending;
+
+  // A different scene every visit: livestreams, conferences, events, podcasts —
+  // each with a voice from the media and creator world. Images are Unsplash
+  // (free license); if one fails to load, the gradient beneath carries the panel.
+  const [scene] = useState(() => AUTH_SCENES[Math.floor(Math.random() * AUTH_SCENES.length)]);
 
   return (
     <div className="min-h-screen flex">
@@ -334,40 +384,30 @@ export default function AuthPage() {
         </motion.div>
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-primary/5 items-center justify-center p-12">
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-          className="max-w-lg text-center space-y-6"
+      {/* Scene panel — a different world every visit */}
+      <div className="relative hidden flex-1 overflow-hidden lg:block" style={{ background: scene.fallback }}>
+        <img
+          src={scene.img}
+          alt={scene.alt}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/30" />
+        <motion.figure
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25, duration: 0.7 }}
+          className="absolute inset-x-0 bottom-0 p-12"
         >
-          <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-            <img src={logoImg} alt="Podlogix" className="w-12 h-12 rounded-xl" />
-          </div>
-          <h2 className="text-3xl font-bold">AI-Powered Podcast Platform</h2>
-          <p className="text-muted-foreground text-lg">
-            Smart transcription, automated show notes, viral clip generation,
-            content repurposing, and voice identity protection.
-          </p>
-          <div className="grid grid-cols-2 gap-4 text-sm text-left">
-            <div className="p-3 rounded-lg bg-background/50">
-              <p className="font-medium">Voice Protection</p>
-              <p className="text-muted-foreground">Blockchain-certified voice identity</p>
-            </div>
-            <div className="p-3 rounded-lg bg-background/50">
-              <p className="font-medium">AI Briefings</p>
-              <p className="text-muted-foreground">Personalized podcast summaries</p>
-            </div>
-            <div className="p-3 rounded-lg bg-background/50">
-              <p className="font-medium">Social Hub</p>
-              <p className="text-muted-foreground">Multi-platform posting</p>
-            </div>
-            <div className="p-3 rounded-lg bg-background/50">
-              <p className="font-medium">Analytics</p>
-              <p className="text-muted-foreground">Creator and brand insights</p>
-            </div>
-          </div>
-        </motion.div>
+          <span className="font-display text-5xl leading-none text-primary">“</span>
+          <blockquote className="mt-1 max-w-md font-display text-2xl font-semibold italic leading-snug text-white xl:text-3xl">
+            {scene.quote}
+          </blockquote>
+          <figcaption className="mt-4">
+            <p className="text-sm font-bold text-primary">{scene.who}</p>
+            <p className="text-xs text-white/60">{scene.role}</p>
+          </figcaption>
+        </motion.figure>
       </div>
     </div>
   );
