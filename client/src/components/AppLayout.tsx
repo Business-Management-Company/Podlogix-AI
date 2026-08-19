@@ -127,7 +127,10 @@ const RAIL_ITEMS: RailItem[] = [
   { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
   { title: "Guests & CRM", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Guests & CRM" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
-  { title: "Studio", icon: WandSparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" },
+  // Media Storage keeps its Studio panel entry, but the rail icon that lights
+  // for it is its own — so the shelf is one click from anywhere.
+  { title: "Studio", icon: WandSparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" && leaf?.url !== "/media-library" },
+  { title: "Media Storage", icon: GalleryVerticalEnd, url: "/media-library", isActive: (leaf) => leaf?.url === "/media-library" },
   { title: "Connectors", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
   { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
   { title: "Help Center", icon: HelpCircle, url: "/help", isActive: () => false },
