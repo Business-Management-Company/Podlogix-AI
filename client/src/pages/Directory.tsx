@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, BookMarked, ChevronRight, Loader2, Mail, Mic2, Trash2, Users } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
+import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
-import { GUEST_STAGES, socialProfileSummary, type GuestStage } from "@/lib/guest-workflow";
+import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface SavedCreator {
@@ -104,7 +105,7 @@ export default function Directory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
-      toast({ title: "Removed from Shortlist" });
+      toast({ title: "Removed from Guest Prospects" });
     },
     onError: (error: Error) => {
       toast({ title: "Couldn't remove guest", description: error.message, variant: "destructive" });
@@ -117,7 +118,7 @@ export default function Directory() {
       const response = await apiRequest("POST", `/api/podcasts/${encodeURIComponent(selectedPodcastId)}/guests`, {
         guestProspectId: selectedProspect.id,
         stage: pipelineStage,
-        notes: "Added from Shortlist",
+        notes: "Added from Guest Prospects",
       });
       return response.json();
     },
@@ -163,7 +164,7 @@ export default function Directory() {
   return (
     <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Shortlist</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Guest Prospects</h1>
         <p className="mt-1 text-sm text-zinc-500">
           Saved guest profiles you can review and add to any show's pipeline.
         </p>
@@ -172,8 +173,8 @@ export default function Directory() {
       {isLoading ? null : lists.size === 0 && prospects.length === 0 ? (
         <EmptyState
           icon={BookMarked}
-          title="No shortlisted guests yet"
-          description="When you research a guest on Discover, save them here for later."
+          title="No guest prospects yet"
+          description="When you find a promising guest in Discover, save them here for review."
           action={{ label: "Go to Discover", href: "/social/discover" }}
         />
       ) : (
@@ -308,23 +309,13 @@ export default function Directory() {
                 />
                 <section>
                   <SectionHeader title="Guest research" />
-                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                    {selectedProspect.subtitle ? <p className="text-sm font-medium text-zinc-900">{selectedProspect.subtitle}</p> : null}
-                    {selectedProspect.bio ? <p className="mt-2 text-sm leading-6 text-zinc-600">{selectedProspect.bio}</p> : null}
-                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
-                      {selectedProspect.location ? <span>{selectedProspect.location}</span> : null}
-                      {selectedProspect.episodeAppearanceCount != null ? <span>{selectedProspect.episodeAppearanceCount.toLocaleString()} credited episodes (all roles)</span> : null}
-                    </div>
-                    {Object.keys(selectedProspect.socialLinks ?? {}).length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {Object.entries(selectedProspect.socialLinks ?? {}).map(([platform, url]) => (
-                          <span key={platform} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">
-                            {socialProfileSummary(platform, url)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
+                  <GuestResearchSummary
+                    subtitle={selectedProspect.subtitle}
+                    bio={selectedProspect.bio}
+                    location={selectedProspect.location}
+                    creditedEpisodes={selectedProspect.episodeAppearanceCount}
+                    socialLinks={selectedProspect.socialLinks}
+                  />
                 </section>
                 <GuestAppearanceHistory
                   appearances={appearanceQuery.data}

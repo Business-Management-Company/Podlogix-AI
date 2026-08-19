@@ -51,6 +51,14 @@ function formatDate(value: string | null): string {
 }
 
 export function GuestAppearanceHistory({ appearances, isLoading, error }: GuestAppearanceHistoryProps) {
+  const repeatPodcastCount = appearances?.guestPodcasts.filter((podcast) => podcast.episodeCount > 1).length ?? 0;
+  const latestGuestEpisode = appearances?.guestEpisodes
+    .filter((episode) => Boolean(episode.airDate))
+    .reduce<GuestEpisodeAppearance | null>((latest, episode) => {
+      if (!latest?.airDate) return episode;
+      return new Date(episode.airDate!).getTime() > new Date(latest.airDate).getTime() ? episode : latest;
+    }, null);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3">
@@ -79,6 +87,30 @@ export function GuestAppearanceHistory({ appearances, isLoading, error }: GuestA
         </p>
       ) : appearances ? (
         <>
+          <section>
+            <SectionHeader title="Why this guest may be a fit" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-sm font-medium text-zinc-950">Demonstrated guest experience</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                  {appearances.pagination.guestEpisodesTotal > 0
+                    ? `${formatCount(appearances.pagination.guestEpisodesTotal)} verified guest episodes across ${formatCount(appearances.pagination.guestPodcastsTotal)} podcasts.`
+                    : "No verified guest-only credits are available yet."}
+                </p>
+              </div>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-sm font-medium text-zinc-950">Booking evidence</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                  {repeatPodcastCount > 0
+                    ? `Invited back by ${repeatPodcastCount} podcast${repeatPodcastCount === 1 ? "" : "s"}; repeat bookings are a strong quality signal.`
+                    : latestGuestEpisode
+                      ? `Latest verified guest appearance: ${formatDate(latestGuestEpisode.airDate)}.`
+                      : "Repeat-booking evidence is not available yet."}
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section>
             <SectionHeader title="Podcast history" />
             {appearances.guestPodcasts.length > 0 ? (

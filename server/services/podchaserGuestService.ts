@@ -11,6 +11,7 @@ interface PodchaserCreatorRaw {
   url?: string;
   imageUrl?: string;
   episodeAppearanceCount?: number;
+  followerCount?: number;
   socialLinks?: {
     twitter?: string;
     wikipedia?: string;
@@ -41,15 +42,45 @@ interface PodchaserPodcastRaw {
   language?: string;
   numberOfEpisodes?: number;
   avgEpisodeLength?: number;
+  daysBetweenEpisodes?: number;
   episodeFrequency?: number;
+  followerCount?: number;
+  ratingCount?: number;
+  ratingAverage?: number;
+  reviewCount?: number;
   startDate?: string;
   latestEpisodeDate?: string;
   categories?: Array<{ title?: string; slug?: string }>;
   hasGuests?: boolean;
+  isExplicit?: boolean;
   explicit?: boolean;
   status?: string;
   author?: { name?: string; email?: string };
+  socialLinks?: PodchaserSocialLinksRaw;
+  socialFollowerCounts?: PodchaserSocialFollowerCountsRaw;
   modifiedDate?: string;
+}
+
+interface PodchaserSocialLinksRaw {
+  twitter?: string;
+  facebook?: string;
+  instagram?: string;
+  youtube?: string;
+  linkedin?: string;
+  tiktok?: string;
+  patreon?: string;
+  twitch?: string;
+}
+
+interface PodchaserSocialFollowerCountsRaw {
+  twitter?: number;
+  facebook?: number;
+  instagram?: number;
+  youtube?: number;
+  linkedin?: number;
+  tiktok?: number;
+  patreon?: number;
+  twitch?: number;
 }
 
 interface PodchaserPodcastCreditListRaw {
@@ -121,6 +152,7 @@ export interface PodchaserCreatorCandidate {
   profileUrl: string | null;
   imageUrl: string | null;
   episodeAppearanceCount: number | null;
+  followerCount: number | null;
   socialLinks: {
     twitter: string | null;
     wikipedia: string | null;
@@ -185,6 +217,7 @@ export interface PodchaserCreatorSearchResult {
   creatorCandidates: PodchaserCreatorCandidate[];
   pagination: PodchaserSearchPagination;
   suggestedQuery: string | null;
+  restrictedFields: string[];
 }
 
 export interface PodchaserSearchPagination {
@@ -204,13 +237,24 @@ export interface PodchaserPodcastCandidate {
   description: string | null;
   imageUrl: string | null;
   language: string | null;
+  webUrl: string | null;
+  rssUrl: string | null;
   numberOfEpisodes: number | null;
+  avgEpisodeLength: number | null;
+  daysBetweenEpisodes: number | null;
+  followerCount: number | null;
+  ratingCount: number | null;
+  ratingAverage: number | null;
+  reviewCount: number | null;
   startDate: string | null;
   latestEpisodeDate: string | null;
   categories: Array<{ title: string; slug: string }>;
   hasGuests: boolean | null;
+  explicit: boolean | null;
   status: string | null;
   author: { name: string | null; email: string | null };
+  socialLinks: Record<keyof PodchaserSocialLinksRaw, string | null>;
+  socialFollowerCounts: Record<keyof PodchaserSocialFollowerCountsRaw, number | null>;
 }
 
 export interface PodchaserPodcastSearchResult {
@@ -218,6 +262,7 @@ export interface PodchaserPodcastSearchResult {
   podcastCandidates: PodchaserPodcastCandidate[];
   pagination: PodchaserSearchPagination;
   suggestedQuery: string | null;
+  restrictedFields: string[];
 }
 
 export interface PodchaserPodcastCredit {
@@ -318,6 +363,7 @@ export async function searchPodchaserCreators(
     creatorCandidates: candidates,
     pagination: normalizePagination(creatorResponse, requestedPage, limit, candidates.length),
     suggestedQuery,
+    restrictedFields: extractRestrictedFields(creatorResponse),
   };
   setCached(creatorSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
   return value;
@@ -366,6 +412,7 @@ export async function searchPodchaserPodcasts(
     podcastCandidates: candidates,
     pagination: normalizePagination(response, requestedPage, limit, candidates.length),
     suggestedQuery,
+    restrictedFields: extractRestrictedFields(response),
   };
   setCached(podcastSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
   return value;
@@ -550,6 +597,7 @@ function normalizeCreator(raw: PodchaserCreatorRaw): PodchaserCreatorCandidate {
     profileUrl: stringOrNull(raw.url),
     imageUrl: stringOrNull(raw.imageUrl),
     episodeAppearanceCount: typeof raw.episodeAppearanceCount === "number" ? raw.episodeAppearanceCount : null,
+    followerCount: typeof raw.followerCount === "number" ? raw.followerCount : null,
     socialLinks: {
       twitter: stringOrNull(raw.socialLinks?.twitter),
       wikipedia: stringOrNull(raw.socialLinks?.wikipedia),
@@ -559,13 +607,22 @@ function normalizeCreator(raw: PodchaserCreatorRaw): PodchaserCreatorCandidate {
 }
 
 function normalizePodcast(raw: PodchaserPodcastRaw): PodchaserPodcastCandidate {
+  const explicit = raw.isExplicit ?? raw.explicit;
   return {
     id: String(raw.id ?? ""),
     title: stringOrNull(raw.title) ?? "Untitled podcast",
     description: stringOrNull(raw.description),
     imageUrl: stringOrNull(raw.imageUrl),
     language: stringOrNull(raw.language),
+    webUrl: stringOrNull(raw.webUrl),
+    rssUrl: stringOrNull(raw.rssUrl),
     numberOfEpisodes: typeof raw.numberOfEpisodes === "number" ? raw.numberOfEpisodes : null,
+    avgEpisodeLength: typeof raw.avgEpisodeLength === "number" ? raw.avgEpisodeLength : null,
+    daysBetweenEpisodes: finiteNumberOrNull(raw.daysBetweenEpisodes ?? raw.episodeFrequency),
+    followerCount: typeof raw.followerCount === "number" ? raw.followerCount : null,
+    ratingCount: typeof raw.ratingCount === "number" ? raw.ratingCount : null,
+    ratingAverage: typeof raw.ratingAverage === "number" ? raw.ratingAverage : null,
+    reviewCount: typeof raw.reviewCount === "number" ? raw.reviewCount : null,
     startDate: podchaserDateToIso(raw.startDate),
     latestEpisodeDate: podchaserDateToIso(raw.latestEpisodeDate),
     categories: (raw.categories ?? []).map((category) => ({
@@ -573,10 +630,31 @@ function normalizePodcast(raw: PodchaserPodcastRaw): PodchaserPodcastCandidate {
       slug: stringOrNull(category.slug) ?? "other",
     })),
     hasGuests: typeof raw.hasGuests === "boolean" ? raw.hasGuests : null,
+    explicit: typeof explicit === "boolean" ? explicit : null,
     status: stringOrNull(raw.status),
     author: {
       name: stringOrNull(raw.author?.name),
       email: stringOrNull(raw.author?.email),
+    },
+    socialLinks: {
+      twitter: stringOrNull(raw.socialLinks?.twitter),
+      facebook: stringOrNull(raw.socialLinks?.facebook),
+      instagram: stringOrNull(raw.socialLinks?.instagram),
+      youtube: stringOrNull(raw.socialLinks?.youtube),
+      linkedin: stringOrNull(raw.socialLinks?.linkedin),
+      tiktok: stringOrNull(raw.socialLinks?.tiktok),
+      patreon: stringOrNull(raw.socialLinks?.patreon),
+      twitch: stringOrNull(raw.socialLinks?.twitch),
+    },
+    socialFollowerCounts: {
+      twitter: finiteNumberOrNull(raw.socialFollowerCounts?.twitter),
+      facebook: finiteNumberOrNull(raw.socialFollowerCounts?.facebook),
+      instagram: finiteNumberOrNull(raw.socialFollowerCounts?.instagram),
+      youtube: finiteNumberOrNull(raw.socialFollowerCounts?.youtube),
+      linkedin: finiteNumberOrNull(raw.socialFollowerCounts?.linkedin),
+      tiktok: finiteNumberOrNull(raw.socialFollowerCounts?.tiktok),
+      patreon: finiteNumberOrNull(raw.socialFollowerCounts?.patreon),
+      twitch: finiteNumberOrNull(raw.socialFollowerCounts?.twitch),
     },
   };
 }
@@ -742,6 +820,14 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function finiteNumberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function extractRestrictedFields<T>(response: T[] | PodchaserPaginatedRaw<T>): string[] {
+  return Array.isArray(response) ? [] : response.restricted_fields ?? [];
 }
 
 function podchaserDateToIso(value: unknown): string | null {

@@ -91,12 +91,10 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Shows", url: "/shows", icon: Mic, group: "Podcast" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Podcast" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
-  { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests & CRM" },
-  { title: "People & Contacts", url: "/dashboard/email", icon: Contact, group: "Guests & CRM" },
-  // Discover/Shortlist live under Guests & CRM: they exist to find and keep
-  // guests, feeding the CRM/email side — not to manage posting.
-  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests & CRM" },
-  { title: "Shortlist", url: "/social/directory", icon: BookMarked, group: "Guests & CRM" },
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
+  { title: "Guest Prospects", url: "/social/directory", icon: BookMarked, group: "Guests" },
+  { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
+  { title: "Contacts", url: "/dashboard/email", icon: Contact, group: "Contacts & Outreach" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },

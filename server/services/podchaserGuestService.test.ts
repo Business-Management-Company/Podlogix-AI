@@ -223,7 +223,16 @@ test("searches podcast shows and loads internal host and guest credits", async (
           title: "Huberman Lab",
           description: "A science podcast",
           imageUrl: "https://example.com/huberman.jpg",
+          webUrl: "https://hubermanlab.com",
+          rssUrl: "https://feeds.example.com/huberman",
           numberOfEpisodes: 411,
+          avgEpisodeLength: 7200,
+          daysBetweenEpisodes: 7,
+          ratingAverage: 4.8,
+          ratingCount: 125,
+          reviewCount: 18,
+          socialLinks: { youtube: "https://youtube.com/@hubermanlab", instagram: "https://instagram.com/hubermanlab" },
+          socialFollowerCounts: { youtube: 7_000_000, instagram: 6_000_000 },
           latestEpisodeDate: "2026-08-10 08:00:00",
           categories: [{ title: "Science", slug: "science" }],
           hasGuests: true,
@@ -231,6 +240,7 @@ test("searches podcast shows and loads internal host and guest credits", async (
           author: { name: "Scicomm Media", email: "show@example.com" },
         }],
         pagination: { page: 1, per_page: 10, total_results: 14, total_pages: 2, has_more: true },
+        restricted_fields: ["audienceEstimate"],
       });
     }
     if (url.pathname.endsWith("/podcasts/show-1/credits")) {
@@ -250,6 +260,7 @@ test("searches podcast shows and loads internal host and guest credits", async (
         name: "Dr. Andrew Huberman",
         socialLinks: { twitter: "https://x.com/hubermanlab" },
         episodeAppearanceCount: 554,
+        followerCount: 329,
       });
     }
     return jsonResponse({ error: { message: "Unexpected request" } }, 500);
@@ -261,11 +272,19 @@ test("searches podcast shows and loads internal host and guest credits", async (
 
   assert.equal(search.podcastCandidates[0]?.title, "Huberman Lab");
   assert.equal(search.podcastCandidates[0]?.author.email, "show@example.com");
+  assert.equal(search.podcastCandidates[0]?.webUrl, "https://hubermanlab.com");
+  assert.equal(search.podcastCandidates[0]?.avgEpisodeLength, 7200);
+  assert.equal(search.podcastCandidates[0]?.daysBetweenEpisodes, 7);
+  assert.equal(search.podcastCandidates[0]?.ratingAverage, 4.8);
+  assert.equal(search.podcastCandidates[0]?.socialLinks.youtube, "https://youtube.com/@hubermanlab");
+  assert.equal(search.podcastCandidates[0]?.socialFollowerCounts.instagram, 6_000_000);
+  assert.deepEqual(search.restrictedFields, ["audienceEstimate"]);
   assert.equal(search.pagination.totalResults, 14);
   assert.equal(credits.credits[0]?.creator.name, "Dr. Andrew Huberman");
   assert.equal(credits.credits[0]?.roleCode, "host");
   assert.equal(credits.pagination.totalResults, 142);
   assert.equal(creator.socialLinks.twitter, "https://x.com/hubermanlab");
+  assert.equal(creator.followerCount, 329);
   assert.ok(requestedPaths.some((path) => path.endsWith("/search/podcasts")));
   assert.ok(requestedPaths.some((path) => path.endsWith("/podcasts/show-1/credits")));
   assert.ok(requestedPaths.some((path) => path.endsWith("/creators/huberman")));
