@@ -5539,6 +5539,15 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     }
   });
 
+  app.get('/api/live/sessions', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json({ sessions: await storage.getLiveSessions(req.session.userId!) });
+    } catch (error) {
+      console.error('Error listing sessions:', error);
+      res.status(500).json({ message: 'Failed to load past streams' });
+    }
+  });
+
   app.get('/api/live/current', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;

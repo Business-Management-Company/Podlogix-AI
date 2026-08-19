@@ -10,9 +10,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download, FileText,
-  LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Plus, Radio, Scissors, Share2, Sparkles, Square,
-  Trash2, Type, UserPlus, Wand2, XCircle,
+  ArrowLeft, BarChart3, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download,
+  FileText, FolderOpen, Home as HomeIcon, LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Plus,
+  Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Wand2, XCircle,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -112,6 +112,14 @@ export default function LiveStudio() {
     () => localStorage.getItem("podlogix.studio") || null,
   );
   const [newStudioName, setNewStudioName] = useState("");
+  // ── Workspace lobby (Restream-style shell) ──
+  const [lobbyTab, setLobbyTab] = useState<"home" | "past" | "clips" | "channels">("home");
+  const [streamFilter, setStreamFilter] = useState<"All" | "Drafts" | "Scheduled" | "Past">("All");
+  const [newStreamOpen, setNewStreamOpen] = useState(false);
+  const [newStreamMode, setNewStreamMode] = useState<"pick" | "studio">("pick");
+  const [wsChannels, setWsChannels] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("podlogix.channels.workspace") || "{}"); } catch { return {}; }
+  });
   const [view, setView] = useState<"stage" | "edit">("stage");
   // Right panel width — drag its left edge to resize (persisted per browser).
   const [railWidth, setRailWidth] = useState<number>(() => {
@@ -190,6 +198,13 @@ export default function LiveStudio() {
   const { data: studiosData } = useQuery<{ studios: Studio[] }>({ queryKey: ["/api/studios"] });
   const studios = studiosData?.studios ?? [];
   const activeStudio = studios.find((s) => s.id === activeStudioId) ?? null;
+
+  const { data: sessionsData } = useQuery<{ sessions: LiveSession[] }>({
+    queryKey: ["/api/live/sessions"],
+    enabled: !activeStudioId,
+    retry: false,
+  });
+  const pastSessions = sessionsData?.sessions ?? [];
 
   const { data: scenesData } = useQuery<{ scenes: StudioScene[] }>({
     queryKey: ["/api/studios", activeStudioId, "scenes"],
@@ -912,125 +927,281 @@ export default function LiveStudio() {
         </DialogContent>
       </Dialog>
 
-      {/* ═══ Studio lobby — pick a room or build one ═══ */}
+      {/* ═══ Workspace lobby — the Restream-style shell ═══ */}
       {!activeStudio && (
-        <div className="rounded-2xl bg-zinc-950 p-6 ring-1 ring-zinc-800/60">
-          <div className="mx-auto max-w-3xl space-y-6 py-10">
-            <div className="text-center">
-              <Radio className="mx-auto h-8 w-8 text-red-500" />
-              <h1 className="mt-2 text-xl font-semibold text-zinc-100">Your studios</h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                A studio is a room you come back to — name it after the show it hosts.
-              </p>
+        <div className="flex flex-col gap-4 lg:flex-row">
+          {/* Workspace rail */}
+          <div className="w-full shrink-0 rounded-2xl bg-zinc-950 p-3 ring-1 ring-zinc-800/60 lg:w-56">
+            <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-600">Workspaces</p>
+            <div className="mb-3 flex items-center gap-2.5 rounded-lg bg-zinc-900 px-2.5 py-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-red-600 text-[10px] font-bold text-white">D</span>
+              <span className="text-sm font-medium text-zinc-200">Default</span>
             </div>
-            <div className="flex gap-2">
-              <Input
-                value={newStudioName}
-                onChange={(e) => setNewStudioName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && newStudioName.trim()) createStudioMutation.mutate(); }}
-                placeholder="New studio name — e.g. The Morning Desk"
-                className="flex-1 border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-600"
-              />
-              <Button
-                onClick={() => createStudioMutation.mutate()}
-                disabled={!newStudioName.trim() || createStudioMutation.isPending}
-                className="bg-red-600 text-white hover:bg-red-700"
+            {([
+              ["home", "Home", HomeIcon, null],
+              ["past", "Past streams", Clock, null],
+              ["clips", "Clips", Scissors, null],
+              ["storage", "Storage", FolderOpen, "/media-library"],
+              ["channels", "Channels", Share2, null],
+              ["analytics", "Analytics", BarChart3, "/dashboard/social-analytics"],
+            ] as Array<[string, string, React.ElementType, string | null]>).map(([id, label, Icon, href]) => (
+              <button
+                key={id}
+                onClick={() => (href ? navigate(href) : setLobbyTab(id as typeof lobbyTab))}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                  lobbyTab === id && !href ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                }`}
               >
-                {createStudioMutation.isPending ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="mr-1.5 h-4 w-4" />
-                )}
-                Create studio
-              </Button>
-            </div>
-            {studios.length === 0 ? (
-              <p className="text-center text-sm text-zinc-600">No studios yet — create your first one above.</p>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {studios.map((s, i) => (
-                  <div
-                    key={s.id}
-                    className="group overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 transition-colors hover:border-zinc-600"
-                  >
-                    <div
-                      className="relative flex h-28 items-center justify-center"
-                      style={{
-                        background: [
-                          "linear-gradient(135deg, #2a1a3e 0%, #0f2740 100%)",
-                          "linear-gradient(135deg, #3e1a1a 0%, #402a0f 100%)",
-                          "linear-gradient(135deg, #1a3e2e 0%, #0f2440 100%)",
-                        ][i % 3],
-                      }}
-                    >
-                      <span className="flex h-12 w-16 items-center justify-center rounded-lg bg-black/30 ring-1 ring-white/20">
-                        <Radio className="h-5 w-5 text-white/70" />
-                      </span>
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Main pane */}
+          <div className="min-h-[70vh] flex-1 rounded-2xl bg-zinc-950 p-5 ring-1 ring-zinc-800/60">
+            {lobbyTab === "home" && (
+              <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex gap-1 rounded-lg bg-zinc-900 p-1">
+                    {(["All", "Drafts", "Scheduled", "Past"] as const).map((t) => (
                       <button
-                        onClick={() => {
-                          if (window.confirm(`Delete \u201c${s.name}\u201d? Past recordings and clips stay in your library.`)) {
-                            deleteStudioMutation.mutate(s.id);
-                          }
-                        }}
-                        className="absolute right-2 top-2 hidden rounded-full bg-black/50 p-1.5 text-zinc-300 hover:text-red-400 group-hover:block"
-                        aria-label={`Delete ${s.name}`}
+                        key={t}
+                        onClick={() => setStreamFilter(t)}
+                        className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                          streamFilter === t ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
+                        }`}
                       >
-                        <Trash2 size={13} />
+                        {t}
                       </button>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-zinc-100">{s.name}</p>
-                        <p className="text-[11px] text-zinc-500">
-                          Studio{s.createdAt ? ` \u00b7 since ${new Date(s.createdAt).toLocaleDateString()}` : ""}
-                        </p>
-                      </div>
-                      <Button size="sm" className="shrink-0 bg-red-600 text-white hover:bg-red-700" onClick={() => setActiveStudioId(s.id)}>
-                        Enter Studio →
-                      </Button>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                  <Button onClick={() => { setNewStreamMode("pick"); setNewStreamOpen(true); }} className="bg-red-600 text-white hover:bg-red-700">
+                    <Plus className="mr-1.5 h-4 w-4" /> New Stream
+                  </Button>
+                </div>
+
+                {streamFilter === "Scheduled" ? (
+                  <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    Scheduled events are on the roadmap — for now, go live whenever you're ready.
+                  </p>
+                ) : streamFilter === "Past" ? (
+                  <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    Your finished shows live under <button className="font-medium text-zinc-300 underline" onClick={() => setLobbyTab("past")}>Past streams</button>.
+                  </p>
+                ) : studios.length === 0 ? (
+                  <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    No streams yet — hit <span className="font-semibold text-zinc-300">New Stream</span> to build your first studio.
+                  </p>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-zinc-800">
+                    <div className="grid grid-cols-[minmax(0,1fr)_90px_110px_120px] gap-3 border-b border-zinc-800 bg-zinc-900/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 max-sm:grid-cols-[minmax(0,1fr)_120px]">
+                      <span>Stream title</span>
+                      <span className="max-sm:hidden">Status</span>
+                      <span className="max-sm:hidden">Channels</span>
+                      <span />
+                    </div>
+                    {studios.map((s, i) => (
+                      <div
+                        key={s.id}
+                        className="group grid grid-cols-[minmax(0,1fr)_90px_110px_120px] items-center gap-3 border-b border-zinc-800/60 px-4 py-3 last:border-0 hover:bg-zinc-900/40 max-sm:grid-cols-[minmax(0,1fr)_120px]"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="flex h-10 w-16 shrink-0 items-center justify-center rounded-lg ring-1 ring-white/10"
+                            style={{
+                              background: [
+                                "linear-gradient(135deg, #2a1a3e 0%, #0f2740 100%)",
+                                "linear-gradient(135deg, #3e1a1a 0%, #402a0f 100%)",
+                                "linear-gradient(135deg, #1a3e2e 0%, #0f2440 100%)",
+                              ][i % 3],
+                            }}
+                          >
+                            <Radio className="h-4 w-4 text-white/60" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-zinc-100">{s.name}</span>
+                            <span className="block text-[11px] text-zinc-500">Studio</span>
+                          </span>
+                        </div>
+                        <span className="max-sm:hidden">
+                          <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300">Ready</span>
+                        </span>
+                        <span className="text-xs text-zinc-500 max-sm:hidden">
+                          {Object.values(wsChannels).filter(Boolean).length > 0
+                            ? `${Object.values(wsChannels).filter(Boolean).length} picked`
+                            : "\u2014"}
+                        </span>
+                        <span className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete \u201c${s.name}\u201d? Past recordings and clips stay in your library.`)) {
+                                deleteStudioMutation.mutate(s.id);
+                              }
+                            }}
+                            className="hidden rounded-lg p-1.5 text-zinc-600 hover:bg-red-500/10 hover:text-red-400 group-hover:block"
+                            aria-label={`Delete ${s.name}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                          <Button size="sm" className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700" onClick={() => setActiveStudioId(s.id)}>
+                            Enter Studio →
+                          </Button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {lobbyTab === "past" && (
+              <>
+                <p className="mb-4 text-sm font-semibold text-zinc-100">Past streams</p>
+                {pastSessions.length === 0 ? (
+                  <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    No shows yet — your finished streams and their recordings land here.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-zinc-800/60 overflow-hidden rounded-xl border border-zinc-800">
+                    {pastSessions.slice(0, 20).map((sess) => (
+                      <div key={sess.id} className="flex items-center gap-3 px-4 py-3">
+                        <Clock className="h-4 w-4 shrink-0 text-zinc-600" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-zinc-100">{sess.title}</span>
+                          <span className="block text-[11px] text-zinc-500">
+                            {sess.startedAt ? new Date(sess.startedAt).toLocaleString() : ""}
+                            {sess.endedAt ? "" : " \u00b7 live"}
+                          </span>
+                        </span>
+                        {sess.vodUrl && (
+                          <a href={sess.vodUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-medium text-zinc-300 underline">
+                            Recording
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {lobbyTab === "clips" && (
+              <>
+                <p className="mb-4 text-sm font-semibold text-zinc-100">Clips &amp; recordings</p>
+                {stageableMedia.filter((m) => m.platform === "live").length === 0 ? (
+                  <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    Cut a clip in any studio's Editing Room and it shows up here — and in your Media Library.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {stageableMedia.filter((m) => m.platform === "live").slice(0, 12).map((m) => (
+                      <div key={m.id} className="overflow-hidden rounded-xl border border-zinc-800">
+                        <video src={m.mediaUrl!} controls className="aspect-video w-full bg-black object-cover" preload="metadata" />
+                        <p className="truncate bg-zinc-900 px-2.5 py-1.5 text-[11px] text-zinc-300">{m.caption || "Clip"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {lobbyTab === "channels" && (
+              <>
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-zinc-100">Channels</p>
+                  <p className="text-xs text-zinc-500">
+                    Pick where your workspace streams. Setup saves now — multistreaming switches on when Stream + Record ships.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {["YouTube", "Facebook", "LinkedIn", "X (Twitter)", "Twitch", "Instagram", "TikTok", "Kick", "Custom RTMP"].map((name) => {
+                    const on = !!wsChannels[name];
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          const next = { ...wsChannels, [name]: !on };
+                          setWsChannels(next);
+                          localStorage.setItem("podlogix.channels.workspace", JSON.stringify(next));
+                        }}
+                        className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-6 transition-colors ${
+                          on ? "border-emerald-500/50 bg-emerald-500/5" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
+                        }`}
+                      >
+                        <span className="text-sm font-semibold text-zinc-100">{name}</span>
+                        <span className={`text-[11px] font-medium ${on ? "text-emerald-400" : "text-zinc-500"}`}>
+                          {on ? "Selected" : "Tap to select"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
       )}
 
-      {/* Guided setup — Restream-style; disappears once the studio is dressed */}
-      {activeStudio && view === "stage" && !(scenes.length > 0 && Object.values(channelPicks).some(Boolean)) && (
-        <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl bg-zinc-900/70 px-4 py-2.5">
-          {([
-            ["Create your studio", true, null],
-            ["Set your stage", scenes.length > 0 || cameraOn || mediaOn, () => setRailTab("media")],
-            ["Add channels", Object.values(channelPicks).some(Boolean), () => setChannelsOpen(true)],
-          ] as Array<[string, boolean, (() => void) | null]>).map(([label, doneStep, go], i) => (
-            <span key={label} className="flex items-center gap-2">
-              {i > 0 && <span className="text-zinc-700">→</span>}
-              <button
-                onClick={go ?? undefined}
-                disabled={!go}
-                className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  doneStep
-                    ? "text-emerald-400"
-                    : go
-                      ? "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
-                      : "text-zinc-400"
-                }`}
+      {/* New Stream chooser */}
+      <Dialog open={newStreamOpen} onOpenChange={(v) => { setNewStreamOpen(v); if (!v) setNewStreamMode("pick"); }}>
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Create a new stream</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              {newStreamMode === "studio" ? "Name your studio \u2014 it's a room you'll come back to." : "How do you want to go live?"}
+            </DialogDescription>
+          </DialogHeader>
+          {newStreamMode === "studio" ? (
+            <div className="flex gap-2">
+              <Input
+                autoFocus
+                value={newStudioName}
+                onChange={(e) => setNewStudioName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && newStudioName.trim()) { createStudioMutation.mutate(); setNewStreamOpen(false); } }}
+                placeholder="e.g. The Morning Desk"
+                className="flex-1 border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-600"
+              />
+              <Button
+                onClick={() => { if (newStudioName.trim()) { createStudioMutation.mutate(); setNewStreamOpen(false); } }}
+                disabled={!newStudioName.trim() || createStudioMutation.isPending}
+                className="bg-red-600 text-white hover:bg-red-700"
               >
-                {doneStep ? (
-                  <CheckCircle2 className="h-4 w-4" />
-                ) : (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-700 text-[11px] font-bold text-white">
-                    {i + 1}
+                Create
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {([
+                ["Podlogix Studio", "Go live or record \u2014 from your browser.", Radio, true],
+                ["Encoder | RTMP", "Stream from OBS, Zoom, vMix.", MonitorUp, false],
+                ["Pre-recorded livestream", "Turn a video into a broadcast.", Clapperboard, false],
+                ["Live webinar", "A private event with registered attendees.", UserPlus, false],
+              ] as Array<[string, string, React.ElementType, boolean]>).map(([label, sub, Icon, ready]) => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    if (ready) setNewStreamMode("studio");
+                    else toast({ title: `${label} is on the roadmap`, description: "The browser studio records and streams first \u2014 this joins it soon." });
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors ${
+                    ready ? "border-zinc-700 bg-zinc-900 hover:border-zinc-500" : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
+                  }`}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
+                    <Icon className="h-4 w-4 text-zinc-300" />
                   </span>
-                )}
-                {label}
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-zinc-100">{label}</span>
+                    <span className="block text-xs text-zinc-500">{sub}</span>
+                  </span>
+                  {!ready && <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">Coming</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ═══ The studio room — full frame, no chrome ═══ */}
       {activeStudio && view === "stage" && (

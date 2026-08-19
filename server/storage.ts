@@ -169,6 +169,7 @@ export interface IStorage {
   getMediaLibraryItemsByUser(userId: string): Promise<MediaLibraryItem[]>;
   createLiveSession(session: InsertLiveSession): Promise<LiveSession>;
   getLatestLiveSession(userId: string): Promise<LiveSession | undefined>;
+  getLiveSessions(userId: string): Promise<LiveSession[]>;
   getLiveSession(id: string): Promise<LiveSession | undefined>;
   updateLiveSession(id: string, updates: Partial<LiveSession>): Promise<LiveSession | undefined>;
   getLiveSessionByInviteCode(code: string): Promise<LiveSession | undefined>;
@@ -827,6 +828,12 @@ export class DatabaseStorage implements IStorage {
   async createLiveSession(session: InsertLiveSession): Promise<LiveSession> {
     const [created] = await db.insert(liveSessions).values(session).returning();
     return created;
+  }
+
+  async getLiveSessions(userId: string): Promise<LiveSession[]> {
+    return await db.select().from(liveSessions)
+      .where(eq(liveSessions.userId, userId))
+      .orderBy(desc(liveSessions.startedAt));
   }
 
   async getLatestLiveSession(userId: string): Promise<LiveSession | undefined> {
