@@ -103,7 +103,17 @@ import {
   isPodcastIndexConfigured,
   PodcastIndexError,
   probePodcastIndex,
+  searchPodcastIndexPersonAppearances,
 } from "./services/podcastIndexService";
+import {
+  isPodchaserConfigured,
+  PodchaserError,
+  probePodchaserGuest,
+} from "./services/podchaserGuestService";
+
+function canonicalGuestMatch(value: string): string {
+  return value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
+}
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
   // Check if email is configured first
@@ -3263,6 +3273,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         { id: "upload-post", name: "Upload-Post (Social Hub posting)", category: "Social", envVars: ["UPLOAD_POST_API_KEY"], note: "Cross-platform posting", codeStatus: "ready" },
         { id: "spotify", name: "Spotify OAuth", category: "Listener", envVars: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"], note: "Listener show import", codeStatus: "ready" },
         { id: "podcast-index", name: "Podcast Index", category: "Podcast Discovery", envVars: ["PODCAST_INDEX_API_KEY", "PODCAST_INDEX_API_SECRET"], note: "Read-only podcast, episode, and guest-appearance discovery", codeStatus: "ready" },
+        { id: "podchaser", name: "Podchaser", category: "Guest Intelligence", envVars: ["PODCHASER_API_KEY"], note: "Structured creator and guest appearance credits", codeStatus: "ready" },
         { id: "youtube", name: "YouTube Data API", category: "Social", envVars: ["YOUTUBE_API_KEY"], note: "Channel stats on creator profiles", codeStatus: "ready" },
         { id: "meta", name: "Instagram / Facebook (Meta)", category: "Social", envVars: ["META_APP_ID", "META_APP_SECRET"], note: "OAuth connections", codeStatus: "ready" },
         { id: "linkedin", name: "LinkedIn OAuth", category: "Social", envVars: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"], note: "Profile connection", codeStatus: "ready" },
@@ -3320,6 +3331,63 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       res.status(500).json({ message: 'Podcast Index probe failed' });
     }
   });
+
+  const guestProbeQuerySchema = z.object({
+    person: z.string().trim().min(2).max(120).default('Andrew Huberman'),
+    max: z.coerce.number().int().min(1).max(25).default(10),
+  });
+  const runGuestIntelligenceProbe = async (req: any, res: any) => {
+    try {
+      if (!isPodchaserConfigured() || !isPodcastIndexConfigured()) {
+        return res.status(503).json({
+          configured: false,
+          podchaserConfigured: isPodchaserConfigured(),
+          podcastIndexConfigured: isPodcastIndexConfigured(),
+          message: 'Podchaser and Podcast Index credentials are required for comparison',
+        });
+      }
+
+      const input = guestProbeQuerySchema.parse(req.query);
+      const [podchaser, podcastIndexAppearances] = await Promise.all([
+        probePodchaserGuest(input.person, input.max),
+        searchPodcastIndexPersonAppearances(input.person, input.max),
+      ]);
+      const podchaserEpisodeTitles = new Set(podchaser.guestEpisodes.map((episode) => canonicalGuestMatch(episode.episodeTitle)));
+      const overlappingEpisodeTitles = podcastIndexAppearances.filter((episode) => podchaserEpisodeTitles.has(canonicalGuestMatch(episode.title))).length;
+
+      res.json({
+        configured: true,
+        personQuery: input.person,
+        podchaser,
+        podcastIndex: {
+          matchType: 'unverified person-text search',
+          appearances: podcastIndexAppearances,
+        },
+        comparison: {
+          podchaserStructuredGuestEpisodes: podchaser.guestEpisodes.length,
+          podchaserStructuredGuestPodcasts: podchaser.guestPodcasts.length,
+          podcastIndexUnverifiedMatches: podcastIndexAppearances.length,
+          overlappingEpisodeTitles,
+        },
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid guest probe query' });
+      }
+      if (error instanceof PodchaserError) {
+        const status = error.code === 'RATE_LIMITED' ? 429 : 502;
+        return res.status(status).json({ configured: isPodchaserConfigured(), provider: 'podchaser', code: error.code, message: error.message });
+      }
+      if (error instanceof PodcastIndexError) {
+        const status = error.code === 'RATE_LIMITED' ? 429 : 502;
+        return res.status(status).json({ configured: isPodcastIndexConfigured(), provider: 'podcast-index', code: error.code, message: error.message });
+      }
+      console.error('Guest intelligence probe failed:', error);
+      res.status(500).json({ message: 'Guest intelligence probe failed' });
+    }
+  };
+
+  app.get('/api/admin/guest-intelligence/probe', isAuthenticated, isAdmin, runGuestIntelligenceProbe);
 
   // Get all users (admin only)
   app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {

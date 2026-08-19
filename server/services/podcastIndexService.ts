@@ -198,6 +198,18 @@ export function getPodcastIndexAuthMode(): PodcastIndexAuthMode {
   return "legacy-key-secret";
 }
 
+export async function searchPodcastIndexPersonAppearances(
+  personQuery: string,
+  max = 10,
+): Promise<PodcastIndexEpisodeSummary[]> {
+  const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
+  const response = await requestPodcastIndex<PodcastEpisodesResponse>("/search/byperson", {
+    q: personQuery,
+    max: String(limit),
+  });
+  return (response.items ?? []).map(normalizeEpisode);
+}
+
 export async function probePodcastIndex(
   query: string,
   personQuery: string,
@@ -211,17 +223,16 @@ export async function probePodcastIndex(
   const podcasts = (search.feeds ?? []).map(normalizePodcast);
   const firstFeedId = podcasts[0]?.id;
 
-  const [episodesResult, peopleResult, trendingResult, categoriesResult] = await Promise.all([
+  const [episodesResult, personAppearances, trendingResult, categoriesResult] = await Promise.all([
     firstFeedId
       ? requestPodcastIndex<PodcastEpisodesResponse>("/episodes/byfeedid", { id: firstFeedId, max: String(limit) })
       : Promise.resolve<PodcastEpisodesResponse>({ items: [] }),
-    requestPodcastIndex<PodcastEpisodesResponse>("/search/byperson", { q: personQuery, max: String(limit) }),
+    searchPodcastIndexPersonAppearances(personQuery, limit),
     requestPodcastIndex<PodcastTrendingResponse>("/podcasts/trending", { max: String(limit) }),
     requestPodcastIndex<PodcastCategoriesResponse>("/categories/list"),
   ]);
 
   const sampleEpisodes = (episodesResult.items ?? []).map(normalizeEpisode);
-  const personAppearances = (peopleResult.items ?? []).map(normalizeEpisode);
   const inspectedEpisodes = [...sampleEpisodes, ...personAppearances];
 
   return {
