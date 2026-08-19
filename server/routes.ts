@@ -6268,7 +6268,9 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
   // confirmed (Aug 2026) that POST /api/uploadposts/analyze-shorts works over the API with our key.
   // Quota (300 analyses/mo on Professional) is counted per account email, not per key.
 
-  app.post('/api/media-lab/analyze-shorts', isAuthenticated, isBetaTester, async (req: any, res) => {
+  // Graduated from the Media Lab beta into the Refiner's Clip copy panel —
+  // generally available, same host/size guards.
+  app.post('/api/media-lab/analyze-shorts', isAuthenticated, async (req: any, res) => {
     try {
       const { videoUrl, platforms } = req.body ?? {};
       if (!videoUrl || !Array.isArray(platforms) || platforms.length === 0) {
