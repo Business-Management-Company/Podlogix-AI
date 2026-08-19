@@ -173,10 +173,14 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const [panelOpen, setPanelOpen] = useState(true);
 
-  // The Live Studio wants the whole frame — collapse the panel on entry.
+  // The Live Studio and the Dashboard want the whole frame — collapse the panel on entry.
   useEffect(() => {
-    if (location.startsWith("/studio/live") || location.startsWith("/studio/guest")) setPanelOpen(false);
+    if (location.startsWith("/studio/live") || location.startsWith("/studio/guest") || location === "/today") setPanelOpen(false);
   }, [location]);
+
+  // The Dashboard is a dark command center: the top bar joins its surface
+  // instead of sitting above it as light chrome.
+  const darkChrome = location === "/today";
   const [railExpanded, setRailExpanded] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -496,9 +500,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* ── Main Content ──────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
-        {/* Global top bar */}
-        <header className="flex items-center h-14 px-4 border-b bg-background shrink-0 gap-3">
-          {!panelOpen && (
+        {/* Global top bar — joins the Dashboard's dark surface on /today */}
+        <header className={`flex items-center h-14 px-4 shrink-0 gap-3 ${darkChrome ? "bg-[#101014]" : "border-b bg-background"}`}>
+          {!panelOpen && !darkChrome && (
             <button
               onClick={() => setPanelOpen(true)}
               className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
@@ -511,10 +515,14 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Search */}
           <div className="flex-1 max-w-lg">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none ${darkChrome ? "text-zinc-500" : "text-zinc-400"}`} />
               <Input
                 placeholder="Search anything..."
-                className="pl-8 h-9 text-sm bg-white border border-zinc-200 shadow-sm focus-visible:ring-1 focus-visible:border-zinc-300 rounded-lg"
+                className={
+                  darkChrome
+                    ? "pl-8 h-9 text-sm rounded-lg border border-zinc-800 bg-zinc-900/80 text-zinc-200 placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-zinc-700 focus-visible:border-zinc-700"
+                    : "pl-8 h-9 text-sm bg-white border border-zinc-200 shadow-sm focus-visible:ring-1 focus-visible:border-zinc-300 rounded-lg"
+                }
               />
             </div>
           </div>
@@ -524,7 +532,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Link href="/help">
-                  <button className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                  <button className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
                     <HelpCircle className="h-4 w-4" />
                   </button>
                 </Link>
@@ -534,7 +542,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <button className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                <button className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${darkChrome ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
                   <Bell className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
@@ -585,7 +593,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">
+        <main className={`flex-1 overflow-auto ${darkChrome ? "bg-[#0a0a0d]" : ""}`}>
           {children}
         </main>
       </div>
