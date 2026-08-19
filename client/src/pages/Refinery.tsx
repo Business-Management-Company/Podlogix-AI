@@ -78,18 +78,38 @@ export default function Refinery() {
     if (!selected || busy) return;
     setBusy(true);
     try {
-      // Step 1 — Transcription (Whisper, the real one)
+      // Step 1 — Transcription (Whisper, the real one). The server lane
+      // compresses first (FFmpeg → 48 kbps mono MP3), so long shows don't hit
+      // Whisper's 25 MB wall; the in-browser WAV path stays as fallback for
+      // short clips when that lane is unavailable.
       setPipeline((p) => ({ ...p, transcribe: "running" }));
       try {
-        const wav = await extractAudioAsWav(selected.url);
-        const tRes = await fetch("/api/social/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "audio/wav" },
-          body: wav,
-        });
-        const tData = await tRes.json().catch(() => ({}));
-        if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
-        setTranscript({ text: String(tData.text ?? "") });
+        let text: string | null = null;
+        let serverError = "";
+        try {
+          const srv = await apiRequest("POST", "/api/refiner/transcribe", { mediaUrl: selected.url });
+          const sData = await srv.json().catch(() => ({}));
+          if (srv.ok) text = String(sData.text ?? "");
+          else serverError = String(sData.message ?? "");
+        } catch {
+          /* fall through to the browser path */
+        }
+        if (text === null) {
+          try {
+            const wav = await extractAudioAsWav(selected.url);
+            const tRes = await fetch("/api/social/transcribe", {
+              method: "POST",
+              headers: { "Content-Type": "audio/wav" },
+              body: wav,
+            });
+            const tData = await tRes.json().catch(() => ({}));
+            if (!tRes.ok) throw new Error(tData.message || "Transcription failed");
+            text = String(tData.text ?? "");
+          } catch (browserErr) {
+            throw new Error(serverError || (browserErr instanceof Error ? browserErr.message : "Transcription failed"));
+          }
+        }
+        setTranscript({ text });
         setPipeline((p) => ({ ...p, transcribe: "done" }));
       } catch (e) {
         setPipeline((p) => ({ ...p, transcribe: "failed" }));
@@ -205,23 +225,62 @@ export default function Refinery() {
       </div>
 
       {!selected ? (
-        /* No project here on purpose — media gets picked in Media Storage. */
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 px-8 py-16 text-center">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-950">
-            <Wand2 className="h-6 w-6 text-amber-400" />
-          </span>
-          <h2 className="mt-4 text-lg font-semibold text-zinc-900">Pick something to refine</h2>
-          <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500">
-            Choose a recording in Media Storage — play any video or audio and press{" "}
-            <span className="font-medium text-zinc-700">Open in Refiner</span>. It lands here with the pipeline ready to run.
-          </p>
-          <div className="mt-5 flex justify-center gap-2">
-            <Link href="/media-library">
-              <Button>Open Media Storage</Button>
-            </Link>
-            <Link href="/studio/live">
-              <Button variant="outline">Record in the Studio</Button>
-            </Link>
+        /* The full library lives in Media Storage; the rail here is just the
+           freshest recordings so a straight-to-Refiner visit starts in one click. */
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 px-8 py-16 text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-950">
+              <Wand2 className="h-6 w-6 text-amber-400" />
+            </span>
+            <h2 className="mt-4 text-lg font-semibold text-zinc-900">Pick something to refine</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500">
+              Grab a recent recording on the right, or choose anything in Media Storage — play it and press{" "}
+              <span className="font-medium text-zinc-700">Open in Refiner</span>.
+            </p>
+            <div className="mt-5 flex justify-center gap-2">
+              <Link href="/media-library">
+                <Button>Open Media Storage</Button>
+              </Link>
+              <Link href="/studio/live">
+                <Button variant="outline">Record in the Studio</Button>
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="mb-3 text-sm font-semibold text-zinc-900">Recent recordings</p>
+            {sources.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-zinc-500">
+                Record a show or add media, and your latest recordings land here.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sources.slice(0, 6).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() =>
+                      setSelected({
+                        url: item.mediaUrl!,
+                        title: item.caption || item.platform,
+                        type: item.mediaType === "audio" ? "audio" : "video",
+                      })
+                    }
+                    className="flex w-full items-center gap-2.5 rounded-xl border border-zinc-200 p-2 text-left transition-colors hover:border-zinc-400"
+                  >
+                    {item.mediaType === "audio" ? (
+                      <span className="flex h-11 w-16 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
+                        <Music className="h-4 w-4 text-emerald-600" />
+                      </span>
+                    ) : (
+                      <video src={item.mediaUrl!} muted preload="metadata" className="h-11 w-16 shrink-0 rounded-lg bg-black object-cover" />
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-medium text-zinc-900">{item.caption || item.platform}</span>
+                      <span className="block text-[10px] uppercase text-zinc-400">{item.mediaType}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
