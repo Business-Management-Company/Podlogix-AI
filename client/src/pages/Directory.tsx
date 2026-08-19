@@ -4,6 +4,7 @@ import { BadgeCheck, BookMarked, ChevronRight, Loader2, Mail, Mic2, Trash2, User
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
+import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Button } from "@/components/ui/button";
@@ -319,6 +320,7 @@ export default function Directory() {
                     className="w-full"
                   />
                 </div>
+                <GuestSocialProfiles socialLinks={selectedProspect.socialLinks} />
                 <section>
                   <SectionHeader title="Guest research" />
                   <GuestResearchSummary
@@ -326,7 +328,6 @@ export default function Directory() {
                     bio={selectedProspect.bio}
                     location={selectedProspect.location}
                     creditedEpisodes={selectedProspect.episodeAppearanceCount}
-                    socialLinks={selectedProspect.socialLinks}
                   />
                 </section>
                 <GuestAppearanceHistory
