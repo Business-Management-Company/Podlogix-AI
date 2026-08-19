@@ -76,7 +76,7 @@ export default function ShowOverview() {
   // Best-effort — analytics may not be configured for this workspace; that's fine,
   // the followers stat just won't render.
   const { data: promotion } = useQuery<{ accounts: AccountAnalytics[] }>({
-    queryKey: ["/api/social-analytics/my-accounts"],
+    queryKey: ["/api/social-analytics/my-accounts-cached"],
     retry: false,
   });
 

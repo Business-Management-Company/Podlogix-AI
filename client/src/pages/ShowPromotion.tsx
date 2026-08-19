@@ -86,7 +86,7 @@ function AccountCard({ account }: { account: AccountAnalytics }) {
 
 export default function ShowPromotion() {
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ accounts: AccountAnalytics[] }>({
-    queryKey: ["/api/social-analytics/my-accounts"],
+    queryKey: ["/api/social-analytics/my-accounts-cached"],
   });
 
   const notConfigured = error instanceof Error && error.message.includes("not configured");

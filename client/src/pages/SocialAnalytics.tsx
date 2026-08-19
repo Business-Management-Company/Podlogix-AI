@@ -180,7 +180,7 @@ export default function SocialAnalytics() {
   const [creatorPosts, setCreatorPosts] = useState<Post[]>([]);
 
   const { data: myAccountsData, isLoading: myAccountsLoading, error: myAccountsError, refetch: refetchMyAccounts } = useQuery<{ accounts: Analytics[] }>({
-    queryKey: ["/api/social-analytics/my-accounts"],
+    queryKey: ["/api/social-analytics/my-accounts-cached"],
   });
 
   const { data: creditsData, refetch: refetchCredits } = useQuery<{ credits: Credits }>({

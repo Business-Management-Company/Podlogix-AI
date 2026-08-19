@@ -75,9 +75,11 @@ export const ready = (async () => {
     await registerRoutes(httpServer, app);
 
     // Registered after registerRoutes so the session middleware it installs
-    // covers this route too.
+    // covers these routes too.
     const { registerRefinerTranscribe } = await import("./refinerTranscribe");
     registerRefinerTranscribe(app);
+    const { registerSocialAnalyticsCache } = await import("./socialAnalyticsCache");
+    registerSocialAnalyticsCache(app);
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
