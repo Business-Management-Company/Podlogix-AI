@@ -97,6 +97,7 @@ import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from ".
 import { sendEmail, isEmailConfigured } from "./services/emailService";
 import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
 import { registerConnectorRoutes } from "./connectorRoutes";
+import { getConnection as getBuzzsproutConnection } from "./services/buzzsproutSyncService";
 import { exchangeYouTubeCode, getOwnedChannel, getOwnedVideo, getYouTubeAuthUrl, listOwnedVideos } from "./services/youtubeContentSource";
 import {
   getPodcastIndexAuthMode,
@@ -106,9 +107,11 @@ import {
   searchPodcastIndexPersonAppearances,
 } from "./services/podcastIndexService";
 import {
+  getPodchaserGuestAppearances,
   isPodchaserConfigured,
   PodchaserError,
   probePodchaserGuest,
+  searchPodchaserCreators,
 } from "./services/podchaserGuestService";
 
 function canonicalGuestMatch(value: string): string {
@@ -4052,26 +4055,199 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
-  // ==================== GUEST PIPELINE ROUTES ====================
-  // Tracks an email_contacts row (category "guest") through a show's booking
-  // pipeline. Contacts stay the single source of truth for name/email/notes;
-  // this table only stores stage/episode linkage per podcast.
+  // ==================== GUEST DISCOVERY & PIPELINE ROUTES ====================
+
+  const userOwnsGuestShow = async (userId: string, showId: string): Promise<boolean> => {
+    const podcast = await storage.getPodcast(showId);
+    if (podcast) return podcast.userId === userId;
+
+    const buzzsproutConnectionId = showId.startsWith('buzzsprout:')
+      ? showId.slice('buzzsprout:'.length)
+      : null;
+    if (!buzzsproutConnectionId) return false;
+    const connection = await getBuzzsproutConnection(userId);
+    return connection?.id === buzzsproutConnectionId;
+  };
+
+  const guestDiscoverySearchSchema = z.object({
+    q: z.string().trim().min(2).max(120),
+    max: z.coerce.number().int().min(1).max(10).default(10),
+  });
+
+  const guestAppearanceSchema = z.object({
+    max: z.coerce.number().int().min(1).max(25).default(10),
+  });
+
+  const sendPodchaserRouteError = (res: any, error: unknown) => {
+    if (error instanceof PodchaserError) {
+      const status = error.code === 'NOT_CONFIGURED'
+        ? 503
+        : error.code === 'RATE_LIMITED'
+          ? 429
+          : 502;
+      return res.status(status).json({ provider: 'podchaser', code: error.code, message: error.message });
+    }
+    console.error('Guest discovery failed:', error);
+    return res.status(500).json({ message: 'Guest discovery failed' });
+  };
+
+  // Search is intentionally separate from appearances: an unconfirmed search
+  // spends one provider request, and the two history requests run only after the
+  // user chooses the correct person.
+  app.get('/api/guest-discovery/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const input = guestDiscoverySearchSchema.parse(req.query);
+      const result = await searchPodchaserCreators(input.q, input.max);
+      res.json({ configured: true, ...result });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid guest search' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
+  app.get('/api/guest-discovery/creators/:creatorId/appearances', isAuthenticated, async (req: any, res) => {
+    try {
+      const creatorId = z.string().trim().min(1).max(80).parse(req.params.creatorId);
+      const input = guestAppearanceSchema.parse(req.query);
+      const result = await getPodchaserGuestAppearances(creatorId, input.max);
+      res.json({ configured: true, ...result });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid creator request' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
+  const guestProspectUrlSchema = z.string().url().refine(
+    (value) => value.startsWith('https://') || value.startsWith('http://'),
+    'Only http and https links are allowed',
+  );
+
+  const guestProspectPayloadSchema = z.object({
+    providerPersonId: z.string().trim().min(1).max(120),
+    name: z.string().trim().min(1).max(240),
+    informalName: z.string().trim().max(120).nullish(),
+    pronouns: z.string().trim().max(40).nullish(),
+    subtitle: z.string().trim().max(1000).nullish(),
+    location: z.string().trim().max(240).nullish(),
+    bio: z.string().trim().max(10_000).nullish(),
+    profileUrl: guestProspectUrlSchema.nullish(),
+    imageUrl: guestProspectUrlSchema.nullish(),
+    email: z.string().email().nullish(),
+    socialLinks: z.record(guestProspectUrlSchema).optional(),
+    episodeAppearanceCount: z.number().int().min(0).nullish(),
+  });
+
+  app.get('/api/guest-prospects', isAuthenticated, async (req: any, res) => {
+    try {
+      const prospects = await storage.getGuestProspectsByUser(req.session.userId!);
+      res.json({ prospects });
+    } catch (error) {
+      console.error('Error fetching guest prospects:', error);
+      res.status(500).json({ message: 'Failed to fetch guest prospects' });
+    }
+  });
+
+  app.post('/api/guest-prospects', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const input = guestProspectPayloadSchema.parse(req.body);
+      const existing = await storage.getGuestProspectByProvider(
+        userId,
+        'podchaser',
+        input.providerPersonId,
+      );
+      const prospect = await storage.upsertGuestProspect({
+        userId,
+        provider: 'podchaser',
+        providerPersonId: input.providerPersonId,
+        name: input.name,
+        informalName: input.informalName ?? null,
+        pronouns: input.pronouns ?? null,
+        subtitle: input.subtitle ?? null,
+        location: input.location ?? null,
+        bio: input.bio ?? null,
+        profileUrl: input.profileUrl ?? null,
+        imageUrl: input.imageUrl ?? null,
+        // Re-research refreshes Podchaser data without erasing contact details
+        // that may already have been added through optional IC enrichment.
+        email: existing?.email ?? input.email ?? null,
+        socialLinks: { ...(existing?.socialLinks ?? {}), ...(input.socialLinks ?? {}) },
+        episodeAppearanceCount: input.episodeAppearanceCount ?? null,
+        lastResearchedAt: new Date(),
+      });
+      res.status(201).json(prospect);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid guest prospect' });
+      }
+      console.error('Error saving guest prospect:', error);
+      res.status(500).json({ message: 'Failed to save guest prospect' });
+    }
+  });
+
+  const guestProspectEnrichmentSchema = z.object({
+    email: z.string().email().nullish(),
+    socialLinks: z.record(guestProspectUrlSchema).optional(),
+  });
+
+  app.patch('/api/guest-prospects/:id/enrichment', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const existing = await storage.getGuestProspect(req.params.id, userId);
+      if (!existing) return res.status(404).json({ message: 'Guest prospect not found' });
+      const input = guestProspectEnrichmentSchema.parse(req.body);
+      const updated = await storage.updateGuestProspect(req.params.id, userId, {
+        ...(input.email !== undefined ? { email: input.email ?? null } : {}),
+        socialLinks: { ...(existing.socialLinks ?? {}), ...(input.socialLinks ?? {}) },
+      });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid enrichment data' });
+      }
+      console.error('Error updating guest prospect:', error);
+      res.status(500).json({ message: 'Failed to update guest prospect' });
+    }
+  });
+
+  app.delete('/api/guest-prospects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const prospect = await storage.getGuestProspect(req.params.id, userId);
+      if (!prospect) return res.status(404).json({ message: 'Guest prospect not found' });
+      const pipelineEntries = await storage.getGuestPipelineEntriesByProspect(prospect.id);
+      if (pipelineEntries.length > 0) {
+        return res.status(409).json({ message: 'Remove this person from the guest pipeline before deleting the prospect.' });
+      }
+      await storage.deleteGuestProspect(prospect.id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting guest prospect:', error);
+      res.status(500).json({ message: 'Failed to delete guest prospect' });
+    }
+  });
+
+  // Pipeline entries can begin with a researched prospect and gain an email
+  // contact later. This keeps the existing show-specific CRM stages intact.
 
   app.get('/api/podcasts/:podcastId/guests', isAuthenticated, async (req: any, res) => {
     try {
-      const podcast = await storage.getPodcast(req.params.podcastId);
-      if (!podcast) {
-        return res.status(404).json({ message: 'Podcast not found' });
-      }
-      if (podcast.userId !== req.session.userId) {
-        return res.status(403).json({ message: 'Not your podcast' });
-      }
+      const userId = req.session.userId!;
+      const ownsShow = await userOwnsGuestShow(userId, req.params.podcastId);
+      if (!ownsShow) return res.status(404).json({ message: 'Show not found' });
 
       const entries = await storage.getGuestPipelineEntriesByPodcast(req.params.podcastId);
       const guests = await Promise.all(
         entries.map(async (entry) => ({
           ...entry,
-          contact: await storage.getEmailContact(entry.contactId),
+          contact: entry.contactId ? await storage.getEmailContact(entry.contactId) : undefined,
+          prospect: entry.guestProspectId
+            ? await storage.getGuestProspect(entry.guestProspectId, userId)
+            : undefined,
         }))
       );
       res.json(guests);
@@ -4084,39 +4260,61 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.post('/api/podcasts/:podcastId/guests', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const podcast = await storage.getPodcast(req.params.podcastId);
-      if (!podcast) {
-        return res.status(404).json({ message: 'Podcast not found' });
-      }
-      if (podcast.userId !== userId) {
-        return res.status(403).json({ message: 'Not your podcast' });
+      const ownsShow = await userOwnsGuestShow(userId, req.params.podcastId);
+      if (!ownsShow) return res.status(404).json({ message: 'Show not found' });
+
+      const addGuestInput = z.object({
+        guestProspectId: z.string().trim().min(1).optional(),
+        contactId: z.string().trim().min(1).optional(),
+        email: z.string().email().optional(),
+        firstName: z.string().trim().max(120).optional(),
+        lastName: z.string().trim().max(120).optional(),
+        notes: z.string().trim().max(10_000).optional(),
+        stage: z.string().trim().max(40).optional(),
+      }).refine((value) => Boolean(value.guestProspectId || value.contactId || value.email), {
+        message: 'A prospect, contact, or email is required',
+      }).parse(req.body);
+
+      if (addGuestInput.guestProspectId) {
+        const prospect = await storage.getGuestProspect(addGuestInput.guestProspectId, userId);
+        if (!prospect) return res.status(404).json({ message: 'Guest prospect not found' });
+        const existing = await storage.getGuestPipelineEntryByProspect(req.params.podcastId, prospect.id);
+        if (existing) return res.json({ ...existing, contact: undefined, prospect });
+        const entry = await storage.createGuestPipelineEntry({
+          podcastId: req.params.podcastId,
+          contactId: null,
+          guestProspectId: prospect.id,
+          stage: addGuestInput.stage || 'prospect',
+          notes: addGuestInput.notes,
+        });
+        return res.status(201).json({ ...entry, contact: undefined, prospect });
       }
 
-      const { contactId, email, firstName, lastName, notes, stage } = req.body;
-
-      const contact = contactId
-        ? await storage.getEmailContact(contactId)
+      const contact = addGuestInput.contactId
+        ? await storage.getEmailContact(addGuestInput.contactId)
         : await storage.createEmailContact({
             userId,
-            email,
-            firstName,
-            lastName,
+            email: addGuestInput.email!,
+            firstName: addGuestInput.firstName,
+            lastName: addGuestInput.lastName,
             category: 'guest',
           });
 
-      if (!contact) {
-        return res.status(404).json({ message: 'Contact not found' });
-      }
+      if (!contact || contact.userId !== userId) return res.status(404).json({ message: 'Contact not found' });
 
       const entry = await storage.createGuestPipelineEntry({
         podcastId: req.params.podcastId,
         contactId: contact.id,
-        stage: stage || 'prospect',
-        notes,
+        guestProspectId: null,
+        stage: addGuestInput.stage || 'prospect',
+        notes: addGuestInput.notes,
       });
 
       res.status(201).json({ ...entry, contact });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid guest' });
+      }
       console.error('Error creating guest pipeline entry:', error);
       res.status(500).json({ message: 'Failed to add guest' });
     }
@@ -4124,13 +4322,23 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.patch('/api/guest-pipeline/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const { stage, episodeId, notes } = req.body;
-      const entry = await storage.updateGuestPipelineEntry(req.params.id, { stage, episodeId, notes });
-      if (!entry) {
+      const existing = await storage.getGuestPipelineEntry(req.params.id);
+      if (!existing) return res.status(404).json({ message: 'Guest pipeline entry not found' });
+      const ownsShow = await userOwnsGuestShow(req.session.userId!, existing.podcastId);
+      if (!ownsShow) {
         return res.status(404).json({ message: 'Guest pipeline entry not found' });
       }
+      const updates = z.object({
+        stage: z.enum(['prospect', 'invited', 'booked', 'recorded', 'published', 'follow_up', 'alumni']).optional(),
+        episodeId: z.string().trim().max(120).nullish(),
+        notes: z.string().trim().max(10_000).nullish(),
+      }).parse(req.body);
+      const entry = await storage.updateGuestPipelineEntry(req.params.id, updates);
       res.json(entry);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid guest update' });
+      }
       console.error('Error updating guest pipeline entry:', error);
       res.status(500).json({ message: 'Failed to update guest' });
     }
@@ -4138,6 +4346,12 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.delete('/api/guest-pipeline/:id', isAuthenticated, async (req: any, res) => {
     try {
+      const existing = await storage.getGuestPipelineEntry(req.params.id);
+      if (!existing) return res.status(404).json({ message: 'Guest pipeline entry not found' });
+      const ownsShow = await userOwnsGuestShow(req.session.userId!, existing.podcastId);
+      if (!ownsShow) {
+        return res.status(404).json({ message: 'Guest pipeline entry not found' });
+      }
       await storage.deleteGuestPipelineEntry(req.params.id);
       res.json({ success: true });
     } catch (error) {

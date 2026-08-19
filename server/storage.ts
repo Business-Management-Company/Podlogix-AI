@@ -4,7 +4,7 @@ import {
   podcastSubscriptions, subscriptionEpisodes, userInterests, episodeBriefings, notifications, spotifyConnections, googleCalendarConnections, youtubeConnections,
   savedInfluencers, hashtagMonitors, influencerSearches, connectedSocialAccounts, socialMonitoringAlerts, creatorSocialProfiles,
   emailContacts, contactNotes, emailTemplates, emailCampaigns, emailCampaignRecipients, videoAnalyses, uploadPostAccounts, uploadPostPosts,
-  adminCreatorList, guestPipelineEntries, savedCreators, mediaLibraryItems, liveSessions, liveMarks,
+  adminCreatorList, guestProspects, guestPipelineEntries, savedCreators, mediaLibraryItems, liveSessions, liveMarks,
   studios, studioScenes,
   type Subscriber, type InsertSubscriber, type Message, type InsertMessage, type IdentityAsset, type InsertIdentityAsset,
   type Profile, type InsertProfile, type ProfileLink, type InsertProfileLink, type ProfileSection, type InsertProfileSection, type Podcast, type InsertPodcast,
@@ -19,6 +19,7 @@ import {
   type CreatorSocialProfile, type InsertCreatorSocialProfile,
   type EmailContact, type InsertEmailContact, type ContactNote, type InsertContactNote, type EmailTemplate, type InsertEmailTemplate,
   type EmailCampaign, type InsertEmailCampaign, type EmailCampaignRecipient, type InsertEmailCampaignRecipient,
+  type GuestProspect, type InsertGuestProspect,
   type GuestPipelineEntry, type InsertGuestPipelineEntry,
   type SavedCreator, type InsertSavedCreator,
   type MediaLibraryItem, type InsertMediaLibraryItem,
@@ -160,8 +161,22 @@ export interface IStorage {
   createEmailContact(contact: InsertEmailContact): Promise<EmailContact>;
   updateEmailContact(id: string, userId: string, updates: Partial<EmailContact>): Promise<EmailContact | undefined>;
   deleteEmailContact(id: string, userId: string): Promise<void>;
+  // Guest Prospects
+  getGuestProspectsByUser(userId: string): Promise<GuestProspect[]>;
+  getGuestProspect(id: string, userId: string): Promise<GuestProspect | undefined>;
+  getGuestProspectByProvider(
+    userId: string,
+    provider: string,
+    providerPersonId: string,
+  ): Promise<GuestProspect | undefined>;
+  upsertGuestProspect(prospect: InsertGuestProspect): Promise<GuestProspect>;
+  updateGuestProspect(id: string, userId: string, updates: Partial<GuestProspect>): Promise<GuestProspect | undefined>;
+  deleteGuestProspect(id: string, userId: string): Promise<void>;
   // Guest Pipeline
   getGuestPipelineEntriesByPodcast(podcastId: string): Promise<GuestPipelineEntry[]>;
+  getGuestPipelineEntriesByProspect(guestProspectId: string): Promise<GuestPipelineEntry[]>;
+  getGuestPipelineEntry(id: string): Promise<GuestPipelineEntry | undefined>;
+  getGuestPipelineEntryByProspect(podcastId: string, guestProspectId: string): Promise<GuestPipelineEntry | undefined>;
   createGuestPipelineEntry(entry: InsertGuestPipelineEntry): Promise<GuestPipelineEntry>;
   updateGuestPipelineEntry(id: string, updates: Partial<GuestPipelineEntry>): Promise<GuestPipelineEntry | undefined>;
   deleteGuestPipelineEntry(id: string): Promise<void>;
@@ -811,11 +826,89 @@ export class DatabaseStorage implements IStorage {
     await db.delete(emailContacts).where(and(eq(emailContacts.id, id), eq(emailContacts.userId, userId)));
   }
 
+  // Guest Prospects
+  async getGuestProspectsByUser(userId: string): Promise<GuestProspect[]> {
+    return await db.select().from(guestProspects)
+      .where(eq(guestProspects.userId, userId))
+      .orderBy(desc(guestProspects.updatedAt));
+  }
+
+  async getGuestProspect(id: string, userId: string): Promise<GuestProspect | undefined> {
+    const [prospect] = await db.select().from(guestProspects)
+      .where(and(eq(guestProspects.id, id), eq(guestProspects.userId, userId)));
+    return prospect;
+  }
+
+  async getGuestProspectByProvider(
+    userId: string,
+    provider: string,
+    providerPersonId: string,
+  ): Promise<GuestProspect | undefined> {
+    const [prospect] = await db.select().from(guestProspects)
+      .where(and(
+        eq(guestProspects.userId, userId),
+        eq(guestProspects.provider, provider),
+        eq(guestProspects.providerPersonId, providerPersonId),
+      ));
+    return prospect;
+  }
+
+  async upsertGuestProspect(prospect: InsertGuestProspect): Promise<GuestProspect> {
+    const [saved] = await db.insert(guestProspects)
+      .values(prospect)
+      .onConflictDoUpdate({
+        target: [guestProspects.userId, guestProspects.provider, guestProspects.providerPersonId],
+        set: { ...prospect, updatedAt: new Date(), lastResearchedAt: new Date() },
+      })
+      .returning();
+    return saved;
+  }
+
+  async updateGuestProspect(
+    id: string,
+    userId: string,
+    updates: Partial<GuestProspect>,
+  ): Promise<GuestProspect | undefined> {
+    const [updated] = await db.update(guestProspects)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(guestProspects.id, id), eq(guestProspects.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteGuestProspect(id: string, userId: string): Promise<void> {
+    await db.delete(guestProspects)
+      .where(and(eq(guestProspects.id, id), eq(guestProspects.userId, userId)));
+  }
+
   // Guest Pipeline
   async getGuestPipelineEntriesByPodcast(podcastId: string): Promise<GuestPipelineEntry[]> {
     return await db.select().from(guestPipelineEntries)
       .where(eq(guestPipelineEntries.podcastId, podcastId))
       .orderBy(desc(guestPipelineEntries.createdAt));
+  }
+
+  async getGuestPipelineEntriesByProspect(guestProspectId: string): Promise<GuestPipelineEntry[]> {
+    return await db.select().from(guestPipelineEntries)
+      .where(eq(guestPipelineEntries.guestProspectId, guestProspectId));
+  }
+
+  async getGuestPipelineEntry(id: string): Promise<GuestPipelineEntry | undefined> {
+    const [entry] = await db.select().from(guestPipelineEntries)
+      .where(eq(guestPipelineEntries.id, id));
+    return entry;
+  }
+
+  async getGuestPipelineEntryByProspect(
+    podcastId: string,
+    guestProspectId: string,
+  ): Promise<GuestPipelineEntry | undefined> {
+    const [entry] = await db.select().from(guestPipelineEntries)
+      .where(and(
+        eq(guestPipelineEntries.podcastId, podcastId),
+        eq(guestPipelineEntries.guestProspectId, guestProspectId),
+      ));
+    return entry;
   }
 
   async createGuestPipelineEntry(entry: InsertGuestPipelineEntry): Promise<GuestPipelineEntry> {

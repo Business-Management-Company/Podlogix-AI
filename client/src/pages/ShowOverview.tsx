@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Mic, Radio, CheckCircle2, ArrowRight, Share2 } from "lucide-react";
+import { Mic, Radio, CheckCircle2, ArrowRight, Share2, UserPlus } from "lucide-react";
 import { Card, CardRow, SectionHeader, TopStat, EmptyState } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Episode, DistributionChannel, ChannelSubmission, Podcast } from "@shared/schema";
@@ -29,7 +29,7 @@ export default function ShowOverview() {
 
   const { data: hostStatus } = useQuery<{
     connected: boolean;
-    connection?: { podcastTitle?: string | null; podcastArtworkUrl?: string | null };
+    connection?: { id: string; podcastTitle?: string | null; podcastArtworkUrl?: string | null };
   }>({
     queryKey: ["/api/connectors/buzzsprout/status"],
     enabled: isHostSynced,
@@ -59,6 +59,9 @@ export default function ShowOverview() {
     : Array.isArray(nativeEpisodes) ? nativeEpisodes : [];
   const showTitle = isHostSynced ? hostStatus?.connection?.podcastTitle : podcast?.title;
   const showArtwork = isHostSynced ? hostStatus?.connection?.podcastArtworkUrl : podcast?.artworkUrl;
+  const guestShowId = isHostSynced
+    ? hostStatus?.connection?.id ? `buzzsprout:${hostStatus.connection.id}` : ""
+    : id ?? "";
 
   const { data: channels } = useQuery<DistributionChannel[]>({
     queryKey: ["/api/distribution/channels"],
@@ -71,6 +74,17 @@ export default function ShowOverview() {
       return res.json();
     },
     enabled: !!id,
+  });
+
+  const { data: guestPipeline } = useQuery<Array<{ id: string }>>({
+    queryKey: ["/api/podcasts", guestShowId, "guests"],
+    queryFn: async () => {
+      const res = await fetch(`/api/podcasts/${encodeURIComponent(guestShowId)}/guests`);
+      if (!res.ok) throw new Error("guest pipeline unavailable");
+      return res.json();
+    },
+    enabled: Boolean(guestShowId),
+    retry: false,
   });
 
   // Best-effort — analytics may not be configured for this workspace; that's fine,
@@ -126,6 +140,26 @@ export default function ShowOverview() {
           <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href={`/shows/${id}/promotion`} />
         </Card>
       </section>
+
+      {guestShowId ? (
+        <section className="mt-6">
+          <SectionHeader title="Guests" action={{ label: "Open pipeline", href: `/guests?showId=${encodeURIComponent(guestShowId)}` }} />
+          <Card padding="lg" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50">
+                <UserPlus size={17} className="text-orange-600" strokeWidth={1.75} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-950">{guestPipeline?.length ?? 0} guest{guestPipeline?.length === 1 ? "" : "s"} in this show's pipeline</p>
+                <p className="text-xs text-zinc-500">Research candidates before spending IC credits on social enrichment.</p>
+              </div>
+            </div>
+            <Link href={`/social/discover?showId=${encodeURIComponent(guestShowId)}`} className="text-sm font-medium text-orange-600 hover:text-orange-700">
+              Find guests →
+            </Link>
+          </Card>
+        </section>
+      ) : null}
 
       <section className="mt-6">
         <SectionHeader title="Recent episodes" action={{ label: "All episodes", href: `/shows/${id}/episodes` }} />

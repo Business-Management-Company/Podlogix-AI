@@ -722,6 +722,41 @@ export const insertCreatorSocialProfileSchema = createInsertSchema(creatorSocial
 export type CreatorSocialProfile = typeof creatorSocialProfiles.$inferSelect;
 export type InsertCreatorSocialProfile = z.infer<typeof insertCreatorSocialProfileSchema>;
 
+// Guest Prospects — a durable person record created during research before an
+// email address or booking exists. Provider identity prevents duplicate saves;
+// the show-specific booking state remains in guest_pipeline_entries.
+export const guestProspects = pgTable("guest_prospects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  provider: varchar("provider").notNull().default("podchaser"),
+  providerPersonId: varchar("provider_person_id").notNull(),
+  name: varchar("name").notNull(),
+  informalName: varchar("informal_name"),
+  pronouns: varchar("pronouns"),
+  subtitle: text("subtitle"),
+  location: varchar("location"),
+  bio: text("bio"),
+  profileUrl: text("profile_url"),
+  imageUrl: text("image_url"),
+  email: varchar("email"),
+  socialLinks: jsonb("social_links").$type<Record<string, string>>().default({}),
+  episodeAppearanceCount: integer("episode_appearance_count"),
+  lastResearchedAt: timestamp("last_researched_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("guest_prospects_user_provider_person").on(table.userId, table.provider, table.providerPersonId),
+]);
+
+export const insertGuestProspectSchema = createInsertSchema(guestProspects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type GuestProspect = typeof guestProspects.$inferSelect;
+export type InsertGuestProspect = z.infer<typeof insertGuestProspectSchema>;
+
 // Email Contacts (guests, subscribers, team, etc.)
 export const emailContacts = pgTable("email_contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -824,19 +859,22 @@ export type InsertEmailCampaign = z.infer<typeof insertEmailCampaignSchema>;
 export type EmailCampaignRecipient = typeof emailCampaignRecipients.$inferSelect;
 export type InsertEmailCampaignRecipient = z.infer<typeof insertEmailCampaignRecipientSchema>;
 
-// Guest Pipeline (tracks an email_contacts row with category "guest" through a
-// show's booking pipeline — no separate guest identity table, contacts stay
-// the single source of truth for name/email/notes).
+// Guest Pipeline tracks either a researched prospect or an email contact through
+// a show's booking workflow. Contact details can be attached later without
+// forcing discovery results to invent an email address.
 export const guestPipelineEntries = pgTable("guest_pipeline_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   podcastId: varchar("podcast_id").notNull(),
-  contactId: varchar("contact_id").notNull(), // -> email_contacts.id
+  contactId: varchar("contact_id"), // -> email_contacts.id, optional until contact enrichment
+  guestProspectId: varchar("guest_prospect_id"), // -> guest_prospects.id
   stage: varchar("stage").notNull().default("prospect"), // prospect, invited, booked, recorded, published, follow_up, alumni
   episodeId: varchar("episode_id"), // -> episodes.id, set once recorded/published
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("guest_pipeline_podcast_prospect").on(table.podcastId, table.guestProspectId),
+]);
 
 export const insertGuestPipelineEntrySchema = createInsertSchema(guestPipelineEntries).omit({
   id: true,

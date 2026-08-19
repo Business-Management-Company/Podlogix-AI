@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { isPodchaserConfigured, PodchaserError, probePodchaserGuest } from "./podchaserGuestService";
+import {
+  getPodchaserGuestAppearances,
+  isPodchaserConfigured,
+  PodchaserError,
+  probePodchaserGuest,
+  searchPodchaserCreators,
+} from "./podchaserGuestService";
 
 const originalFetch = globalThis.fetch;
 const originalApiKey = process.env.PODCHASER_API_KEY;
@@ -37,7 +43,13 @@ test("returns structured guest credits and measures Starter quota use", async ()
     if (url.pathname.endsWith("/search/creators")) {
       return jsonResponse([
         { pcid: "999", name: "Andrew Huber", episodeAppearanceCount: 50 },
-        { pcid: "452446", name: "Dr. Andrew Huberman", bio: "Neuroscientist", episodeAppearanceCount: 410 },
+        {
+          pcid: "452446",
+          name: "Dr. Andrew Huberman",
+          bio: "Neuroscientist",
+          episodeAppearanceCount: 410,
+          socialLinks: { twitter: "https://x.com/hubermanlab" },
+        },
       ]);
     }
     if (url.pathname.endsWith("/creators/452446/episodes")) {
@@ -72,6 +84,7 @@ test("returns structured guest credits and measures Starter quota use", async ()
   assert.equal(result.identityConfidence, "exact");
   assert.equal(result.selectedCreator?.id, "452446");
   assert.equal(result.selectedCreator?.episodeAppearanceCount, 410);
+  assert.equal(result.selectedCreator?.socialLinks.twitter, "https://x.com/hubermanlab");
   assert.equal(result.guestEpisodes[0]?.podcastTitle, "Test Show");
   assert.equal(result.guestEpisodes[0]?.roleCode, "guest");
   assert.equal(result.guestEpisodes[0]?.airDate, "2026-08-01T12:00:00.000Z");
@@ -82,6 +95,37 @@ test("returns structured guest credits and measures Starter quota use", async ()
   assert.ok(observedHeaders.every((headers) => headers.get("x-api-key") === "test-podchaser-key"));
   assert.ok(observedUrls.some((url) => url.pathname.endsWith("/search/creators") && url.searchParams.get("sort") === "appearance_count"));
   assert.ok(observedUrls.some((url) => url.pathname.endsWith("/creators/452446/episodes") && url.searchParams.get("role") === "guest"));
+});
+
+test("stages creator search before appearance requests", async () => {
+  process.env.PODCHASER_API_KEY = "test-podchaser-key";
+  const requestedPaths: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requestedPaths.push(url.pathname);
+    if (url.pathname.endsWith("/search/creators")) {
+      return jsonResponse([{ pcid: "brene", name: "Brené Brown", episodeAppearanceCount: 90 }]);
+    }
+    if (url.pathname.endsWith("/creators/brene/episodes")) {
+      return jsonResponse({ data: [], pagination: { total_results: 44 } });
+    }
+    if (url.pathname.endsWith("/creators/brene/podcasts")) {
+      return jsonResponse({ data: [], pagination: { total_results: 20 } });
+    }
+    return jsonResponse({ error: { message: "Unexpected request" } }, 500);
+  };
+
+  const search = await searchPodchaserCreators("Brené Brown", 10);
+
+  assert.equal(search.creatorCandidates[0]?.id, "brene");
+  assert.deepEqual(requestedPaths, ["/api/rest/v1/search/creators"]);
+
+  const appearances = await getPodchaserGuestAppearances("brene", 10);
+
+  assert.deepEqual(appearances.pagination, { guestEpisodesTotal: 44, guestPodcastsTotal: 20 });
+  assert.equal(requestedPaths.length, 3);
+  assert.ok(requestedPaths.some((path) => path.endsWith("/creators/brene/episodes")));
+  assert.ok(requestedPaths.some((path) => path.endsWith("/creators/brene/podcasts")));
 });
 
 test("requires a configured key before making a request", async () => {
