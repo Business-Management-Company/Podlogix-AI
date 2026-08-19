@@ -4,12 +4,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BookmarkPlus,
   CheckCircle2,
-  ExternalLink,
   Loader2,
   MapPin,
   Mic2,
   Search,
-  Sparkles,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -18,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { GUEST_STAGES, socialProfileSummary, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface CreatorCandidate {
@@ -66,16 +65,6 @@ interface GuestProspect {
   socialLinks: Record<string, string> | null;
 }
 
-interface IcCreator {
-  handle?: string;
-  platform?: string;
-  name?: string;
-  profilePicture?: string | null;
-  followers?: number;
-  email?: string | null;
-  location?: string | null;
-}
-
 interface PodcastOption {
   id: string;
   title: string;
@@ -85,14 +74,6 @@ interface BuzzsproutStatus {
   connected: boolean;
   connection?: { id: string; podcastTitle?: string | null };
 }
-
-const PLATFORM_LABELS: Record<string, string> = {
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  youtube: "YouTube",
-  twitter: "X (Twitter)",
-  twitch: "Twitch",
-};
 
 function queryParam(name: string): string {
   if (typeof window === "undefined") return "";
@@ -116,18 +97,6 @@ function formatCount(value: number | null | undefined): string {
 function formatDate(value: string | null): string {
   if (!value) return "Date unavailable";
   return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-function socialProfileUrl(platform: string, handle: string): string {
-  const normalized = handle.replace(/^@/, "");
-  const bases: Record<string, string> = {
-    instagram: "https://instagram.com/",
-    tiktok: "https://tiktok.com/@",
-    youtube: "https://youtube.com/@",
-    twitter: "https://x.com/",
-    twitch: "https://twitch.tv/",
-  };
-  return `${bases[platform] ?? "https://"}${normalized}`;
 }
 
 function candidatePayload(candidate: CreatorCandidate) {
@@ -172,7 +141,7 @@ function CandidateRow({ candidate, selected, onSelect }: { candidate: CreatorCan
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-zinc-950">{candidate.name}</span>
         <span className="mt-0.5 block truncate text-xs text-zinc-500">
-          {candidate.subtitle || candidate.location || "Podchaser creator profile"}
+          {candidate.subtitle || candidate.location || "Guest profile"}
         </span>
       </span>
       <span className="shrink-0 text-right">
@@ -189,8 +158,7 @@ export default function SocialDiscover() {
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [selectedCreator, setSelectedCreator] = useState<CreatorCandidate | null>(null);
   const [selectedPodcastId, setSelectedPodcastId] = useState(() => queryParam("showId"));
-  const [showIcPanel, setShowIcPanel] = useState(false);
-  const [icPlatform, setIcPlatform] = useState("instagram");
+  const [pipelineStage, setPipelineStage] = useState<GuestStage>("prospect");
   const [addedToPodcastId, setAddedToPodcastId] = useState<string | null>(null);
 
   const { data: dashboard } = useQuery<{ podcasts: PodcastOption[] }>({ queryKey: ["/api/dashboard"] });
@@ -251,8 +219,8 @@ export default function SocialDiscover() {
       }
       const response = await apiRequest("POST", `/api/podcasts/${encodeURIComponent(targetPodcastId)}/guests`, {
         guestProspectId: prospect.id,
-        stage: "prospect",
-        notes: `Researched through Podchaser · ${appearanceQuery.data?.pagination.guestEpisodesTotal ?? 0} guest episodes found`,
+        stage: pipelineStage,
+        notes: `${appearanceQuery.data?.pagination.guestEpisodesTotal ?? 0} guest episodes found during research`,
       });
       return response.json();
     },
@@ -260,51 +228,9 @@ export default function SocialDiscover() {
       setAddedToPodcastId(targetPodcastId);
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/podcasts", targetPodcastId, "guests"] });
-      toast({ title: "Added as a prospect" });
+      toast({ title: "Added to guest pipeline" });
     },
     onError: (error: Error) => toast({ title: "Couldn't add prospect", description: error.message, variant: "destructive" }),
-  });
-
-  const { data: creditsData } = useQuery<{ credits?: { available?: number } }>({
-    queryKey: ["/api/social-analytics/credits"],
-    enabled: showIcPanel,
-    retry: false,
-  });
-
-  const icSearchMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedCreator) throw new Error("Choose a guest first");
-      const response = await apiRequest("POST", "/api/social-analytics/discover", {
-        platform: icPlatform,
-        aiPrompt: [selectedCreator.name, selectedCreator.location, selectedCreator.subtitle].filter(Boolean).join(", "),
-        limit: 5,
-        offset: 0,
-      });
-      return response.json() as Promise<{ creators: IcCreator[] }>;
-    },
-    onError: (error: Error) => toast({ title: "IC search failed", description: error.message, variant: "destructive" }),
-  });
-
-  const saveIcProfileMutation = useMutation({
-    mutationFn: async (creator: IcCreator) => {
-      if (!selectedCreator || !creator.handle) throw new Error("That result has no social handle");
-      let prospect = savedProspect;
-      if (!prospect) {
-        const saveResponse = await apiRequest("POST", "/api/guest-prospects", candidatePayload(selectedCreator));
-        prospect = await saveResponse.json() as GuestProspect;
-      }
-      const platform = creator.platform || icPlatform;
-      const response = await apiRequest("PATCH", `/api/guest-prospects/${prospect.id}/enrichment`, {
-        email: creator.email || undefined,
-        socialLinks: { [platform]: socialProfileUrl(platform, creator.handle) },
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
-      toast({ title: "Social profile saved" });
-    },
-    onError: (error: Error) => toast({ title: "Couldn't save profile", description: error.message, variant: "destructive" }),
   });
 
   const submitSearch = () => {
@@ -312,16 +238,11 @@ export default function SocialDiscover() {
     if (query.length < 2) return;
     setSelectedCreator(null);
     setSubmittedQuery(query);
-    setShowIcPanel(false);
-    icSearchMutation.reset();
   };
 
   const chooseCreator = (candidate: CreatorCandidate) => {
     setSelectedCreator(candidate);
-    setShowIcPanel(false);
-    setIcPlatform(candidate.socialLinks.twitter ? "twitter" : "instagram");
     setAddedToPodcastId(null);
-    icSearchMutation.reset();
   };
 
   const candidates = searchQuery.data?.creatorCandidates ?? [];
@@ -332,12 +253,12 @@ export default function SocialDiscover() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Discover guests</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Find the right person through their podcast history. Social enrichment is optional and only runs when you request it.
+          Find the right person through their podcast history and save them to your workflow.
         </p>
       </div>
 
       <section>
-        <SectionHeader title="Search Podchaser" />
+        <SectionHeader title="Search guest profiles" />
         <Card padding="lg">
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
@@ -353,7 +274,7 @@ export default function SocialDiscover() {
               Find guests
             </Button>
           </div>
-          <p className="mt-2 text-xs text-zinc-400">Search runs only when submitted, preserving the shared Podchaser allowance.</p>
+          <p className="mt-2 text-xs text-zinc-400">Search runs only when submitted, preserving the shared provider allowance.</p>
         </Card>
       </section>
 
@@ -388,11 +309,15 @@ export default function SocialDiscover() {
                   {selectedCreator.subtitle ? <p className="mt-1 text-sm text-zinc-600">{selectedCreator.subtitle}</p> : null}
                   {selectedCreator.location ? <p className="mt-2 flex items-center gap-1 text-xs text-zinc-500"><MapPin size={12} />{selectedCreator.location}</p> : null}
                   {selectedCreator.bio ? <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">{selectedCreator.bio}</p> : null}
-                  <div className="mt-3 flex flex-wrap gap-3 text-xs">
-                    {selectedCreator.profileUrl ? <a href={selectedCreator.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-zinc-600 hover:text-zinc-950">Podchaser <ExternalLink size={11} /></a> : null}
-                    {selectedCreator.socialLinks.twitter ? <a href={selectedCreator.socialLinks.twitter} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-zinc-600 hover:text-zinc-950">X profile <ExternalLink size={11} /></a> : null}
-                    {selectedCreator.socialLinks.wikipedia ? <a href={selectedCreator.socialLinks.wikipedia} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-zinc-600 hover:text-zinc-950">Wikipedia <ExternalLink size={11} /></a> : null}
-                  </div>
+                  {Object.entries(selectedCreator.socialLinks).some(([, value]) => Boolean(value)) ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {Object.entries(selectedCreator.socialLinks).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([platform, url]) => (
+                        <span key={platform} className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-600">
+                          {socialProfileSummary(platform, url)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -422,9 +347,13 @@ export default function SocialDiscover() {
                     <SelectTrigger className="w-full lg:w-64"><SelectValue placeholder="Choose a show" /></SelectTrigger>
                     <SelectContent>{podcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent>
                   </Select>
+                  <Select value={pipelineStage} onValueChange={(value) => setPipelineStage(value as GuestStage)}>
+                    <SelectTrigger className="w-full lg:w-44"><SelectValue placeholder="Choose a stage" /></SelectTrigger>
+                    <SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent>
+                  </Select>
                   <Button onClick={() => addToPipelineMutation.mutate()} disabled={!targetPodcastId || addToPipelineMutation.isPending || addedToPodcastId === targetPodcastId} className="lg:flex-1">
                     {addedToPodcastId === targetPodcastId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}
-                    {addedToPodcastId === targetPodcastId ? "Added as Prospect" : "Add as Prospect"}
+                    {addedToPodcastId === targetPodcastId ? "Added to Pipeline" : "Add to Guest Pipeline"}
                   </Button>
                   </>
                 ) : (
@@ -470,49 +399,6 @@ export default function SocialDiscover() {
             </div>
           ) : null}
 
-          <section>
-            <SectionHeader title="Optional social enrichment" />
-            <Card padding="lg">
-              {!showIcPanel ? (
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-950">Need another social profile or contact email?</p>
-                    <p className="mt-1 text-xs text-zinc-500">IC is never called automatically. Search only after confirming this is the right person.</p>
-                  </div>
-                  <Button variant="outline" onClick={() => setShowIcPanel(true)}><Sparkles className="mr-1.5 h-4 w-4" />Find with IC</Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Select value={icPlatform} onValueChange={setIcPlatform}>
-                      <SelectTrigger className="w-full sm:w-44"><SelectValue /></SelectTrigger>
-                      <SelectContent>{Object.entries(PLATFORM_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
-                    </Select>
-                    <Button onClick={() => icSearchMutation.mutate()} disabled={icSearchMutation.isPending}>
-                      {icSearchMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
-                      Search IC — uses credits
-                    </Button>
-                    {creditsData?.credits?.available !== undefined ? <span className="self-center text-xs text-zinc-500">{creditsData.credits.available.toFixed(2)} IC credits left</span> : null}
-                  </div>
-                  {icSearchMutation.data?.creators?.length === 0 ? <p className="text-sm text-zinc-500">No matching social profiles found.</p> : null}
-                  {icSearchMutation.data?.creators?.length ? (
-                    <div className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
-                      {icSearchMutation.data.creators.map((creator, index) => (
-                        <div key={`${creator.handle}-${index}`} className="flex items-center gap-3 px-3 py-3">
-                          {creator.profilePicture ? <img src={creator.profilePicture} alt="" className="h-9 w-9 rounded-full object-cover" /> : <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100"><Users size={14} className="text-zinc-400" /></div>}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-zinc-950">{creator.name || creator.handle}</p>
-                            <p className="truncate text-xs text-zinc-500">@{creator.handle} · {formatCount(creator.followers)} followers{creator.location ? ` · ${creator.location}` : ""}</p>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => saveIcProfileMutation.mutate(creator)} disabled={!creator.handle || saveIcProfileMutation.isPending}>Use profile</Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </Card>
-          </section>
         </div>
       ) : null}
     </div>

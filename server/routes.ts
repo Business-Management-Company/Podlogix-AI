@@ -4270,7 +4270,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         firstName: z.string().trim().max(120).optional(),
         lastName: z.string().trim().max(120).optional(),
         notes: z.string().trim().max(10_000).optional(),
-        stage: z.string().trim().max(40).optional(),
+        stage: z.enum(['prospect', 'invited', 'booked', 'recorded', 'published', 'follow_up', 'alumni']).optional(),
       }).refine((value) => Boolean(value.guestProspectId || value.contactId || value.email), {
         message: 'A prospect, contact, or email is required',
       }).parse(req.body);
@@ -4279,7 +4279,12 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         const prospect = await storage.getGuestProspect(addGuestInput.guestProspectId, userId);
         if (!prospect) return res.status(404).json({ message: 'Guest prospect not found' });
         const existing = await storage.getGuestPipelineEntryByProspect(req.params.podcastId, prospect.id);
-        if (existing) return res.json({ ...existing, contact: undefined, prospect });
+        if (existing) {
+          const entry = addGuestInput.stage && addGuestInput.stage !== existing.stage
+            ? await storage.updateGuestPipelineEntry(existing.id, { stage: addGuestInput.stage })
+            : existing;
+          return res.json({ ...entry, contact: undefined, prospect });
+        }
         const entry = await storage.createGuestPipelineEntry({
           podcastId: req.params.podcastId,
           contactId: null,

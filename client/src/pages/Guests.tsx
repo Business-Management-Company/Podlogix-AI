@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Compass, ExternalLink, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
+  Briefcase, ChevronRight, Compass, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { GUEST_STAGES, guestStageMeta, socialProfileSummary } from "@/lib/guest-workflow";
 import type { ContactNote, EmailContact, GuestPipelineEntry, GuestProspect } from "@shared/schema";
 
 interface DashboardData {
@@ -36,16 +37,6 @@ type GuestEntry = GuestPipelineEntry & {
   contact: EmailContact | undefined;
   prospect: GuestProspect | undefined;
 };
-
-const STAGES = [
-  { id: "prospect", label: "Prospect", chip: "bg-zinc-100 text-zinc-600" },
-  { id: "invited", label: "Invited", chip: "bg-amber-100 text-amber-800" },
-  { id: "booked", label: "Booked", chip: "bg-blue-100 text-blue-800" },
-  { id: "recorded", label: "Recorded", chip: "bg-purple-100 text-purple-800" },
-  { id: "published", label: "Published", chip: "bg-emerald-100 text-emerald-800" },
-  { id: "follow_up", label: "Follow up", chip: "bg-orange-100 text-orange-800" },
-  { id: "alumni", label: "Alumni", chip: "bg-slate-100 text-slate-600" },
-] as const;
 
 const AVATAR_TONES = [
   "bg-blue-600", "bg-emerald-600", "bg-purple-600", "bg-rose-600",
@@ -74,10 +65,6 @@ function avatarTone(contact: EmailContact | undefined, prospect?: GuestProspect)
   let hash = 0;
   for (const ch of key) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
   return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
-}
-
-function stageMeta(stage: string) {
-  return STAGES.find((s) => s.id === stage) ?? STAGES[0];
 }
 
 function relativeDate(iso: string | Date | null): string {
@@ -261,9 +248,9 @@ export default function Guests() {
     <div className="w-full max-w-[1100px] px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Guests</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Guest pipeline</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Your guest CRM — every contact, their stage, and the story so far.
+            Track each show's guests from prospect through published and follow-up.
           </p>
         </div>
         <div className="flex gap-2">
@@ -377,7 +364,7 @@ export default function Guests() {
               >
                 All · {totalGuests}
               </button>
-              {STAGES.map((stage) => {
+              {GUEST_STAGES.map((stage) => {
                 const count = stageCounts.get(stage.id) ?? 0;
                 if (count === 0) return null;
                 return (
@@ -401,7 +388,7 @@ export default function Guests() {
               <p className="px-4 py-8 text-center text-sm text-zinc-400">No guests match.</p>
             ) : (
               filtered.map((entry) => {
-                const meta = stageMeta(entry.stage);
+                const meta = guestStageMeta(entry.stage);
                 return (
                   <button
                     key={entry.id}
@@ -467,32 +454,29 @@ export default function Guests() {
 
               <div className="mt-5 space-y-6">
                 {/* Stage + invite */}
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={selected.stage}
-                    onValueChange={(value) => updateStageMutation.mutate({ id: selected.id, stage: value })}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STAGES.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selected.stage === "prospect" && guestEmail(selected.contact, selected.prospect) ? (
-                    <Button size="sm" onClick={() => inviteGuest(selected)}>
-                      <Send className="mr-1.5 h-3.5 w-3.5" />
-                      Invite
-                    </Button>
-                  ) : selected.stage === "prospect" && selected.prospect ? (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link href={`/social/discover?person=${encodeURIComponent(selected.prospect.name)}&showId=${encodeURIComponent(podcast?.id ?? "")}`}>
-                        Find contact
-                      </Link>
-                    </Button>
-                  ) : null}
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-zinc-500">Pipeline stage</p>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={selected.stage}
+                      onValueChange={(value) => updateStageMutation.mutate({ id: selected.id, stage: value })}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GUEST_STAGES.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selected.stage === "prospect" && guestEmail(selected.contact, selected.prospect) ? (
+                      <Button size="sm" onClick={() => inviteGuest(selected)}>
+                        <Send className="mr-1.5 h-3.5 w-3.5" />
+                        Invite
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
 
                 {/* Guest-perspective coaching: analyze how they come across on camera */}
@@ -516,18 +500,13 @@ export default function Guests() {
                       <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
                         {selected.prospect.location ? <span>{selected.prospect.location}</span> : null}
                         {selected.prospect.episodeAppearanceCount != null ? <span>{selected.prospect.episodeAppearanceCount.toLocaleString()} appearances</span> : null}
-                        {selected.prospect.profileUrl ? (
-                          <a href={selected.prospect.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-zinc-900">
-                            Podchaser <ExternalLink size={11} />
-                          </a>
-                        ) : null}
                       </div>
                       {Object.entries(selected.prospect.socialLinks ?? {}).length > 0 ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {Object.entries(selected.prospect.socialLinks ?? {}).map(([platform, url]) => (
-                            <a key={platform} href={url} target="_blank" rel="noreferrer" className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs capitalize text-zinc-600 hover:text-zinc-950">
-                              {platform}
-                            </a>
+                            <span key={platform} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">
+                              {socialProfileSummary(platform, url)}
+                            </span>
                           ))}
                         </div>
                       ) : null}
