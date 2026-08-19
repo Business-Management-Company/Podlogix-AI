@@ -93,7 +93,7 @@ export function Hero() {
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="max-w-2xl"
+          className="max-w-3xl"
         >
           {/* Beta pill */}
           <motion.div
@@ -109,7 +109,7 @@ export function Hero() {
 
           {/* Headline — 2 lines, forced white */}
           <h1
-            className="font-display text-6xl font-bold leading-[1.02] tracking-tight sm:text-7xl lg:text-[5rem] lg:leading-[0.97]"
+            className="font-display text-5xl font-bold leading-[1.05] tracking-tight sm:text-6xl lg:text-[4.5rem] lg:leading-[1.0]"
             style={{ color: "#ffffff" }}
           >
             {[
@@ -118,7 +118,7 @@ export function Hero() {
             ].map((line) => (
               <span key={line} className="block overflow-hidden">
                 {/* Each headline line is locked — no mid-line rewrap, no dangling words */}
-                <motion.span variants={lineReveal} className="block sm:whitespace-nowrap" style={{ color: "#ffffff" }}>
+                <motion.span variants={lineReveal} className="block md:whitespace-nowrap" style={{ color: "#ffffff" }}>
                   {line}
                 </motion.span>
               </span>
