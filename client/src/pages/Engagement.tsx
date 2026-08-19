@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Loader2, MessageCircle, Send } from "lucide-react";
+import { Inbox, Loader2, MessageCircle,
+  RefreshCw, Send } from "lucide-react";
 import { SiInstagram, SiFacebook, SiYoutube, SiLinkedin } from "react-icons/si";
 
 interface UploadPostAccount {
@@ -49,6 +50,37 @@ const COMMENT_PLATFORMS = [
   { key: "linkedin", label: "LinkedIn", icon: SiLinkedin },
 ];
 
+/** Relative time for inbox rows — exact stamps stay on hover via title. */
+function timeAgo(iso?: string): string {
+  if (!iso) return "";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
+ * The DM/comment APIs don't include profile pictures, so every handle gets a
+ * deterministic colored-initial avatar — honest, stable per user, never a
+ * stock photo pretending to be someone.
+ */
+function InitialAvatar({ name, className = "h-8 w-8 text-xs" }: { name: string; className?: string }) {
+  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${className}`}
+      style={{ backgroundColor: `hsl(${hue} 55% 45%)` }}
+      aria-hidden
+    >
+      {(name[0] ?? "?").toUpperCase()}
+    </span>
+  );
+}
+
 type EngagementTab = "messages" | "comments";
 
 export default function Engagement() {
@@ -71,12 +103,27 @@ export default function Engagement() {
     data: dmData,
     isLoading: dmsLoading,
     refetch: refetchDms,
-  } = useQuery<{ conversations: DmConversation[] }>({
-    queryKey: ["/api/upload-post/dms/conversations"],
+  } = useQuery<{ conversations: DmConversation[]; fetchedAt?: string; cached?: boolean }>({
+    queryKey: ["/api/engagement/dms"],
     enabled: !!instagramAccount && tab === "messages",
+    // The server keeps a 15-minute cache; matching it here means a page visit
+    // costs zero upstream calls when the copy is fresh.
+    staleTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
     retry: false,
   });
   const conversations = dmData?.conversations ?? [];
+  const [refreshing, setRefreshing] = useState(false);
+  const hardRefreshDms = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/engagement/dms?refresh=1", { credentials: "include" });
+      const fresh = await res.json().catch(() => null);
+      if (res.ok && fresh) queryClient.setQueryData(["/api/engagement/dms"], fresh);
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const selectedConversation =
     conversations.find((c) => c.id === selectedConversationId) ?? conversations[0] ?? null;
 
@@ -109,7 +156,7 @@ export default function Engagement() {
     },
     onSuccess: () => {
       setReply("");
-      refetchDms();
+      void hardRefreshDms();
       toast({ title: "Reply sent" });
     },
     onError: (err: Error) =>
@@ -208,6 +255,16 @@ export default function Engagement() {
               </span>
               <span className="font-medium text-zinc-950">Instagram inbox</span>
               <span className="text-zinc-400">@{instagramAccount.platformUsername.replace(/^@/, "")} · the only platform with DM access today</span>
+              <span className="ml-auto flex items-center gap-2 text-xs text-zinc-400">
+                {dmData?.fetchedAt && <span title={new Date(dmData.fetchedAt).toLocaleString()}>Updated {timeAgo(dmData.fetchedAt)} ago</span>}
+                <button
+                  onClick={() => void hardRefreshDms()}
+                  disabled={refreshing}
+                  className="flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+                >
+                  <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} /> Refresh
+                </button>
+              </span>
             </div>
           )}
           {!instagramAccount ? (
@@ -242,10 +299,20 @@ export default function Engagement() {
                         active ? "bg-zinc-50" : "hover:bg-zinc-50"
                       }`}
                     >
-                      <p className="truncate text-sm font-medium text-zinc-950">
-                        @{other?.username ?? "unknown"}
-                      </p>
-                      <p className="truncate text-xs text-zinc-500">{last?.message ?? ""}</p>
+                      <span className="flex items-center gap-2.5">
+                        <InitialAvatar name={other?.username ?? "?"} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <p className="truncate text-sm font-medium text-zinc-950">@{other?.username ?? "unknown"}</p>
+                            {last?.created_time && (
+                              <span className="shrink-0 text-[10px] tabular-nums text-zinc-400" title={new Date(last.created_time).toLocaleString()}>
+                                {timeAgo(last.created_time)}
+                              </span>
+                            )}
+                          </span>
+                          <p className="truncate text-xs text-zinc-500">{last?.message ?? ""}</p>
+                        </span>
+                      </span>
                     </button>
                   );
                 })}
@@ -256,7 +323,8 @@ export default function Engagement() {
                   {sortedMessages.map((msg) => {
                     const mine = (msg.from?.username ?? "").toLowerCase() === myIgUsername;
                     return (
-                      <div key={msg.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                      <div key={msg.id} className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+                        {!mine && <InitialAvatar name={msg.from?.username ?? "?"} className="h-6 w-6 text-[10px]" />}
                         <div
                           className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
                             mine ? "bg-zinc-950 text-white" : "bg-zinc-100 text-zinc-900"
@@ -368,12 +436,13 @@ export default function Engagement() {
                   {comments.map((comment) => (
                     <div key={comment.id} className="px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
+                        <InitialAvatar name={comment.user?.username ?? "?"} className="h-7 w-7 text-[11px]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-zinc-950">
                             @{comment.user?.username ?? "unknown"}
                             {comment.timestamp && (
-                              <span className="ml-2 text-[11px] font-normal text-zinc-400">
-                                {new Date(comment.timestamp).toLocaleString()}
+                              <span className="ml-2 text-[11px] font-normal text-zinc-400" title={new Date(comment.timestamp).toLocaleString()}>
+                                {timeAgo(comment.timestamp)} ago
                               </span>
                             )}
                           </p>
