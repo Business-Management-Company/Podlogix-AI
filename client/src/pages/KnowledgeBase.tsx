@@ -187,7 +187,7 @@ const articles: Article[] = [
       "• Weekly Schedule and Calendar — your Google Calendar events, as a list and as a month view with dots on busy days.",
       "• Upcoming Releases — episode drafts you're still working on.",
       "The bottom row keeps Recent Activity (episodes, streams, and clips as they happen), your Latest Episodes, and Quick Actions to jump anywhere in one click.",
-      "New Content in the top-right corner starts anything: record, new episode, a post, or new media.",
+      "The + New button in the top bar starts anything — record, new episode, a post, or new media — and it's there on every page, right next to search.",
     ],
   },
   {

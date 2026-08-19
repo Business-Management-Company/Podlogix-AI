@@ -449,7 +449,7 @@ export default function Activity() {
   if (isLoading) {
     return (
       <div className="min-h-full w-full bg-gradient-to-b from-[#101014] to-[#0a0a0d]">
-        <div className="mx-auto w-full max-w-[1600px] px-5 py-4">
+        <div className="mx-auto w-full max-w-[1600px] px-5 pb-4 pt-3">
           <Skeleton className="mb-6 h-8 w-64 bg-zinc-800" />
           <div className="grid gap-3 lg:grid-cols-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 rounded-2xl bg-zinc-800" />)}
@@ -461,28 +461,7 @@ export default function Activity() {
 
   return (
     <div className="min-h-full w-full bg-gradient-to-b from-[#101014] to-[#0a0a0d]">
-      <div className="mx-auto w-full max-w-[1600px] px-5 py-4">
-        {/* ── Header ── */}
-        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
-            <p className="mt-0.5 text-sm text-zinc-500">
-              Welcome back, {firstName}! Here's what's happening with your show.
-            </p>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-red-950/40 transition-colors hover:bg-red-700">
-              <Plus size={15} /> New Content <ChevronDown size={14} className="opacity-70" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="border-zinc-800 bg-zinc-950 text-zinc-200">
-              <DropdownMenuItem asChild><Link href="/studio/live" className="flex items-center gap-2"><Radio size={14} /> Record or go live</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href="/episodes" className="flex items-center gap-2"><Mic size={14} /> New episode</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href="/social/posts" className="flex items-center gap-2"><PenSquare size={14} /> Create a post</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href="/media-library" className="flex items-center gap-2"><GalleryVerticalEnd size={14} /> Add media</Link></DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
+      <div className="mx-auto w-full max-w-[1600px] px-5 pb-4 pt-3">
         {/* ═══ Level 2 — primary operational cards ═══ */}
         <div className="mb-3 grid gap-3 lg:grid-cols-3">
           {/* Studio — alive, adaptive */}
