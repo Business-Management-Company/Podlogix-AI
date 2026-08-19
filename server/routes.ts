@@ -107,6 +107,7 @@ import {
   searchPodcastIndexPersonAppearances,
 } from "./services/podcastIndexService";
 import {
+  getPodchaserCreator,
   getPodchaserGuestAppearances,
   getPodchaserPodcastCredits,
   isPodchaserConfigured,
@@ -4185,6 +4186,19 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0]?.message || 'Invalid podcast request' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
+  app.get('/api/guest-discovery/creators/:creatorId', isAuthenticated, async (req: any, res) => {
+    try {
+      const creatorId = z.string().trim().min(1).max(80).parse(req.params.creatorId);
+      const creator = await getPodchaserCreator(creatorId);
+      res.json({ configured: true, creator });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid creator request' });
       }
       return sendPodchaserRouteError(res, error);
     }

@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
   getPodchaserGuestAppearances,
+  getPodchaserCreator,
+  getPodchaserPodcastCredits,
   isPodchaserConfigured,
   PodchaserError,
   probePodchaserGuest,
   searchPodchaserCreators,
+  searchPodchaserPodcasts,
 } from "./podchaserGuestService";
 
 const originalFetch = globalThis.fetch;
@@ -180,6 +183,92 @@ test("does not expose the configured key in authentication errors", async () => 
       return true;
     },
   );
+});
+
+test("offers a ranked spelling suggestion after one controlled fallback search", async () => {
+  process.env.PODCHASER_API_KEY = "test-podchaser-key";
+  const queries: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    queries.push(url.searchParams.get("q") ?? "");
+    if (url.searchParams.get("q") === "Andrew Humberman") {
+      return jsonResponse({ data: [], pagination: { page: 1, per_page: 10, total_results: 0, total_pages: 1, has_more: false } });
+    }
+    return jsonResponse({
+      data: [
+        { pcid: "other", name: "Andrew Smith", episodeAppearanceCount: 12 },
+        { pcid: "huberman", name: "Dr. Andrew Huberman", episodeAppearanceCount: 554 },
+      ],
+      pagination: { page: 1, per_page: 10, total_results: 2, total_pages: 1, has_more: false },
+    });
+  };
+
+  const result = await searchPodchaserCreators("Andrew Humberman", 10, 1, "relevance");
+
+  assert.deepEqual(queries, ["Andrew Humberman", "Andrew"]);
+  assert.equal(result.suggestedQuery, "Dr. Andrew Huberman");
+  assert.equal(result.creatorCandidates[0]?.id, "huberman");
+});
+
+test("searches podcast shows and loads internal host and guest credits", async () => {
+  process.env.PODCHASER_API_KEY = "test-podchaser-key";
+  const requestedPaths: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requestedPaths.push(url.pathname);
+    if (url.pathname.endsWith("/search/podcasts")) {
+      return jsonResponse({
+        data: [{
+          id: "show-1",
+          title: "Huberman Lab",
+          description: "A science podcast",
+          imageUrl: "https://example.com/huberman.jpg",
+          numberOfEpisodes: 411,
+          latestEpisodeDate: "2026-08-10 08:00:00",
+          categories: [{ title: "Science", slug: "science" }],
+          hasGuests: true,
+          status: "active",
+          author: { name: "Scicomm Media", email: "show@example.com" },
+        }],
+        pagination: { page: 1, per_page: 10, total_results: 14, total_pages: 2, has_more: true },
+      });
+    }
+    if (url.pathname.endsWith("/podcasts/show-1/credits")) {
+      return jsonResponse({
+        data: [{
+          creator: { pcid: "huberman", name: "Dr. Andrew Huberman", imageUrl: "https://example.com/andrew.jpg" },
+          role: { code: "host", title: "Host" },
+          episodeCount: 410,
+          lastEpisode: { id: "episode-1", title: "Latest episode", airDate: "2026-08-10 08:00:00" },
+        }],
+        pagination: { page: 1, per_page: 25, total_results: 142, total_pages: 6, has_more: true },
+      });
+    }
+    if (url.pathname.endsWith("/creators/huberman")) {
+      return jsonResponse({
+        pcid: "huberman",
+        name: "Dr. Andrew Huberman",
+        socialLinks: { twitter: "https://x.com/hubermanlab" },
+        episodeAppearanceCount: 554,
+      });
+    }
+    return jsonResponse({ error: { message: "Unexpected request" } }, 500);
+  };
+
+  const search = await searchPodchaserPodcasts("Huberman Lab", 10, 1, "relevance");
+  const credits = await getPodchaserPodcastCredits("show-1", 25);
+  const creator = await getPodchaserCreator("huberman");
+
+  assert.equal(search.podcastCandidates[0]?.title, "Huberman Lab");
+  assert.equal(search.podcastCandidates[0]?.author.email, "show@example.com");
+  assert.equal(search.pagination.totalResults, 14);
+  assert.equal(credits.credits[0]?.creator.name, "Dr. Andrew Huberman");
+  assert.equal(credits.credits[0]?.roleCode, "host");
+  assert.equal(credits.pagination.totalResults, 142);
+  assert.equal(creator.socialLinks.twitter, "https://x.com/hubermanlab");
+  assert.ok(requestedPaths.some((path) => path.endsWith("/search/podcasts")));
+  assert.ok(requestedPaths.some((path) => path.endsWith("/podcasts/show-1/credits")));
+  assert.ok(requestedPaths.some((path) => path.endsWith("/creators/huberman")));
 });
 
 function jsonResponse(body: unknown, status = 200): Response {

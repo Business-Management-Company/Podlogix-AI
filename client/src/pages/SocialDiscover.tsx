@@ -2,22 +2,26 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BookmarkPlus,
-  CheckCircle2,
-  Loader2,
-  MapPin,
-  Mic2,
-  Search,
-  UserPlus,
-  Users,
+  BookmarkPlus, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid,
+  List, Loader2, Mail, MapPin, Mic2, Search, UserPlus, Users,
 } from "lucide-react";
+import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { GUEST_STAGES, socialProfileSummary, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+
+type SearchMode = "people" | "podcasts";
+type ViewMode = "table" | "cards";
+type CreatorSort = "relevance" | "appearance_count" | "alphabetical" | "recent_episode";
+type PodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
 
 interface CreatorCandidate {
   id: string;
@@ -30,7 +34,42 @@ interface CreatorCandidate {
   profileUrl: string | null;
   imageUrl: string | null;
   episodeAppearanceCount: number | null;
-  socialLinks: { twitter: string | null; wikipedia: string | null };
+  socialLinks: { twitter: string | null; wikipedia: string | null } & Record<string, string | null>;
+}
+
+interface PodcastCandidate {
+  id: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  language: string | null;
+  numberOfEpisodes: number | null;
+  startDate: string | null;
+  latestEpisodeDate: string | null;
+  categories: Array<{ title: string; slug: string }>;
+  hasGuests: boolean | null;
+  status: string | null;
+  author: { name: string | null; email: string | null };
+}
+
+interface SearchPagination {
+  page: number;
+  perPage: number;
+  totalResults: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+interface CreatorSearchResult {
+  creatorCandidates: CreatorCandidate[];
+  pagination: SearchPagination;
+  suggestedQuery: string | null;
+}
+
+interface PodcastSearchResult {
+  podcastCandidates: PodcastCandidate[];
+  pagination: SearchPagination;
+  suggestedQuery: string | null;
 }
 
 interface GuestEpisode {
@@ -57,6 +96,20 @@ interface AppearanceResult {
   pagination: { guestEpisodesTotal: number; guestPodcastsTotal: number };
 }
 
+interface PodcastCredit {
+  creator: CreatorCandidate;
+  roleCode: string;
+  roleTitle: string;
+  episodeCount: number;
+  latestEpisode: { id: string; title: string; airDate: string | null } | null;
+}
+
+interface PodcastCreditsResult {
+  podcastId: string;
+  credits: PodcastCredit[];
+  pagination: SearchPagination;
+}
+
 interface GuestProspect {
   id: string;
   providerPersonId: string;
@@ -65,15 +118,8 @@ interface GuestProspect {
   socialLinks: Record<string, string> | null;
 }
 
-interface PodcastOption {
-  id: string;
-  title: string;
-}
-
-interface BuzzsproutStatus {
-  connected: boolean;
-  connection?: { id: string; podcastTitle?: string | null };
-}
+interface PodcastOption { id: string; title: string }
+interface BuzzsproutStatus { connected: boolean; connection?: { id: string; podcastTitle?: string | null } }
 
 function queryParam(name: string): string {
   if (typeof window === "undefined") return "";
@@ -95,7 +141,7 @@ function formatCount(value: number | null | undefined): string {
 }
 
 function formatDate(value: string | null): string {
-  if (!value) return "Date unavailable";
+  if (!value) return "Unavailable";
   return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
@@ -118,106 +164,113 @@ function candidatePayload(candidate: CreatorCandidate) {
   };
 }
 
-function PersonAvatar({ candidate, size = "lg" }: { candidate: CreatorCandidate; size?: "md" | "lg" }) {
+function hasEnrichmentProfile(socialLinks?: Record<string, string | null> | null): boolean {
+  return ["instagram", "youtube", "tiktok", "twitter", "twitch"].some((platform) => Boolean(socialLinks?.[platform]));
+}
+
+function PersonAvatar({ candidate, size = "md" }: { candidate: CreatorCandidate; size?: "md" | "lg" }) {
   const classes = size === "lg" ? "h-16 w-16" : "h-11 w-11";
   if (candidate.imageUrl) {
     return <img src={candidate.imageUrl} alt="" className={`${classes} shrink-0 rounded-full border border-zinc-200 object-cover`} />;
   }
-  return (
-    <div className={`flex ${classes} shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50`}>
-      <Users size={size === "lg" ? 22 : 17} className="text-zinc-400" strokeWidth={1.75} />
-    </div>
-  );
+  return <span className={`flex ${classes} shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50`}><Users size={size === "lg" ? 22 : 17} className="text-zinc-400" /></span>;
 }
 
-function CandidateRow({ candidate, selected, onSelect }: { candidate: CreatorCandidate; selected: boolean; onSelect: () => void }) {
+function PodcastArtwork({ podcast, size = "md" }: { podcast: PodcastCandidate; size?: "md" | "lg" }) {
+  const classes = size === "lg" ? "h-20 w-20" : "h-11 w-11";
+  if (podcast.imageUrl) {
+    return <img src={podcast.imageUrl} alt="" className={`${classes} shrink-0 rounded-lg border border-zinc-200 object-cover`} />;
+  }
+  return <span className={`flex ${classes} shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50`}><Mic2 size={size === "lg" ? 24 : 17} className="text-zinc-400" /></span>;
+}
+
+function PaginationControls({ pagination, onPage }: { pagination: SearchPagination; onPage: (page: number) => void }) {
+  if (pagination.totalPages <= 1) return null;
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${selected ? "bg-orange-50" : "hover:bg-zinc-50"}`}
-    >
-      <PersonAvatar candidate={candidate} size="md" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-zinc-950">{candidate.name}</span>
-        <span className="mt-0.5 block truncate text-xs text-zinc-500">
-          {candidate.subtitle || candidate.location || "Guest profile"}
-        </span>
-      </span>
-      <span className="shrink-0 text-right">
-        <span className="block text-sm font-medium text-zinc-900">{formatCount(candidate.episodeAppearanceCount)}</span>
-        <span className="block text-[11px] text-zinc-500">appearances</span>
-      </span>
-    </button>
+    <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+      <span>Page {pagination.page} of {pagination.totalPages}</span>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => onPage(pagination.page - 1)} disabled={pagination.page <= 1}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button>
+        <Button variant="outline" size="sm" onClick={() => onPage(pagination.page + 1)} disabled={!pagination.hasMore}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button>
+      </div>
+    </div>
   );
 }
 
 export default function SocialDiscover() {
   const { toast } = useToast();
+  const [mode, setMode] = useState<SearchMode>("people");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [searchInput, setSearchInput] = useState(() => queryParam("person"));
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [creatorSort, setCreatorSort] = useState<CreatorSort>("appearance_count");
+  const [podcastSort, setPodcastSort] = useState<PodcastSort>("relevance");
   const [selectedCreator, setSelectedCreator] = useState<CreatorCandidate | null>(null);
-  const [selectedPodcastId, setSelectedPodcastId] = useState(() => queryParam("showId"));
+  const [selectedPodcast, setSelectedPodcast] = useState<PodcastCandidate | null>(null);
+  const [selectedTargetShowId, setSelectedTargetShowId] = useState(() => queryParam("showId"));
   const [pipelineStage, setPipelineStage] = useState<GuestStage>("prospect");
   const [addedToPodcastId, setAddedToPodcastId] = useState<string | null>(null);
 
   const { data: dashboard } = useQuery<{ podcasts: PodcastOption[] }>({ queryKey: ["/api/dashboard"] });
-  const { data: buzzsprout } = useQuery<BuzzsproutStatus>({
-    queryKey: ["/api/connectors/buzzsprout/status"],
-    retry: false,
-  });
+  const { data: buzzsprout } = useQuery<BuzzsproutStatus>({ queryKey: ["/api/connectors/buzzsprout/status"], retry: false });
   const nativePodcasts = dashboard?.podcasts ?? [];
   const buzzsproutPodcast = buzzsprout?.connected && buzzsprout.connection?.id
     && !nativePodcasts.some((podcast) => podcast.title.trim().toLowerCase() === buzzsprout.connection?.podcastTitle?.trim().toLowerCase())
     ? [{ id: `buzzsprout:${buzzsprout.connection.id}`, title: buzzsprout.connection.podcastTitle || "Buzzsprout show" }]
     : [];
-  const podcasts = [...nativePodcasts, ...buzzsproutPodcast];
-  const targetPodcastId = podcasts.some((podcast) => podcast.id === selectedPodcastId)
-    ? selectedPodcastId
-    : "";
+  const ownedPodcasts = [...nativePodcasts, ...buzzsproutPodcast];
+  const targetShowId = ownedPodcasts.some((podcast) => podcast.id === selectedTargetShowId) ? selectedTargetShowId : "";
 
-  const searchQuery = useQuery<{ creatorCandidates: CreatorCandidate[] }>({
-    queryKey: ["/api/guest-discovery/search", submittedQuery],
-    queryFn: () => fetchJson(`/api/guest-discovery/search?q=${encodeURIComponent(submittedQuery)}&max=10`),
-    enabled: submittedQuery.length >= 2,
+  const peopleSearchQuery = useQuery<CreatorSearchResult>({
+    queryKey: ["/api/guest-discovery/search", submittedQuery, page, creatorSort],
+    queryFn: () => fetchJson(`/api/guest-discovery/search?q=${encodeURIComponent(submittedQuery)}&max=10&page=${page}&sort=${creatorSort}`),
+    enabled: mode === "people" && submittedQuery.length >= 2,
     staleTime: 30 * 60 * 1000,
     retry: false,
   });
-
+  const podcastSearchQuery = useQuery<PodcastSearchResult>({
+    queryKey: ["/api/guest-discovery/podcasts", submittedQuery, page, podcastSort],
+    queryFn: () => fetchJson(`/api/guest-discovery/podcasts?q=${encodeURIComponent(submittedQuery)}&max=10&page=${page}&sort=${podcastSort}`),
+    enabled: mode === "podcasts" && submittedQuery.length >= 2,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  });
   const appearanceQuery = useQuery<AppearanceResult>({
     queryKey: ["/api/guest-discovery/creators", selectedCreator?.id, "appearances"],
     queryFn: () => fetchJson(`/api/guest-discovery/creators/${encodeURIComponent(selectedCreator!.id)}/appearances?max=10`),
-    enabled: Boolean(selectedCreator?.id),
+    enabled: Boolean(selectedCreator?.id), staleTime: 6 * 60 * 60 * 1000, retry: false,
+  });
+  const creatorDetailQuery = useQuery<{ creator: CreatorCandidate }>({
+    queryKey: ["/api/guest-discovery/creators", selectedCreator?.id],
+    queryFn: () => fetchJson(`/api/guest-discovery/creators/${encodeURIComponent(selectedCreator!.id)}`),
+    enabled: Boolean(selectedCreator?.id) && !hasEnrichmentProfile(selectedCreator?.socialLinks),
     staleTime: 6 * 60 * 60 * 1000,
     retry: false,
   });
-
+  const podcastCreditsQuery = useQuery<PodcastCreditsResult>({
+    queryKey: ["/api/guest-discovery/podcasts", selectedPodcast?.id, "credits"],
+    queryFn: () => fetchJson(`/api/guest-discovery/podcasts/${encodeURIComponent(selectedPodcast!.id)}/credits?max=25`),
+    enabled: Boolean(selectedPodcast?.id), staleTime: 6 * 60 * 60 * 1000, retry: false,
+  });
   const { data: prospectData } = useQuery<{ prospects: GuestProspect[] }>({ queryKey: ["/api/guest-prospects"] });
-  const savedProspect = selectedCreator
-    ? prospectData?.prospects.find((prospect) => prospect.providerPersonId === selectedCreator.id) ?? null
-    : null;
+  const activeCreator = creatorDetailQuery.data?.creator ?? selectedCreator;
+  const savedProspect = activeCreator ? prospectData?.prospects.find((prospect) => prospect.providerPersonId === activeCreator.id) ?? null : null;
 
   const saveProspectMutation = useMutation({
     mutationFn: async (candidate: CreatorCandidate) => {
       const response = await apiRequest("POST", "/api/guest-prospects", candidatePayload(candidate));
       return response.json() as Promise<GuestProspect>;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
-      toast({ title: "Saved to Shortlist" });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }); toast({ title: "Saved to Shortlist" }); },
     onError: (error: Error) => toast({ title: "Couldn't save guest", description: error.message, variant: "destructive" }),
   });
-
   const addToPipelineMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedCreator || !targetPodcastId) throw new Error("Choose a guest and show first");
+      if (!activeCreator || !targetShowId) throw new Error("Choose a guest and show first");
       let prospect = savedProspect;
-      if (!prospect) {
-        const saveResponse = await apiRequest("POST", "/api/guest-prospects", candidatePayload(selectedCreator));
-        prospect = await saveResponse.json() as GuestProspect;
-      }
-      const response = await apiRequest("POST", `/api/podcasts/${encodeURIComponent(targetPodcastId)}/guests`, {
+      if (!prospect) prospect = await saveProspectMutation.mutateAsync(activeCreator);
+      const response = await apiRequest("POST", `/api/podcasts/${encodeURIComponent(targetShowId)}/guests`, {
         guestProspectId: prospect.id,
         stage: pipelineStage,
         notes: `${appearanceQuery.data?.pagination.guestEpisodesTotal ?? 0} guest episodes found during research`,
@@ -225,182 +278,239 @@ export default function SocialDiscover() {
       return response.json();
     },
     onSuccess: () => {
-      setAddedToPodcastId(targetPodcastId);
+      setAddedToPodcastId(targetShowId);
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/podcasts", targetPodcastId, "guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/podcasts", targetShowId, "guests"] });
       toast({ title: "Added to guest pipeline" });
     },
     onError: (error: Error) => toast({ title: "Couldn't add prospect", description: error.message, variant: "destructive" }),
+  });
+  const revealEmailMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeCreator) throw new Error("Choose a guest first");
+      let prospect = savedProspect;
+      if (!prospect) prospect = await saveProspectMutation.mutateAsync(activeCreator);
+      const response = await apiRequest("POST", `/api/guest-prospects/${encodeURIComponent(prospect.id)}/reveal-email`);
+      return response.json() as Promise<{ email: string; charged: boolean }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/podcasts"] });
+      toast({ title: result.charged ? "Email revealed" : "Saved email loaded", description: result.email });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
   });
 
   const submitSearch = () => {
     const query = searchInput.trim();
     if (query.length < 2) return;
-    setSelectedCreator(null);
-    setSubmittedQuery(query);
+    setPage(1); setSelectedCreator(null); setSelectedPodcast(null); setSubmittedQuery(query);
   };
-
+  const changeMode = (value: string) => {
+    setMode(value as SearchMode); setSubmittedQuery(""); setPage(1); setSelectedCreator(null); setSelectedPodcast(null);
+  };
   const chooseCreator = (candidate: CreatorCandidate) => {
-    setSelectedCreator(candidate);
-    setAddedToPodcastId(null);
+    setSelectedPodcast(null); setSelectedCreator(candidate); setAddedToPodcastId(null);
   };
 
-  const candidates = searchQuery.data?.creatorCandidates ?? [];
-  const appearances = appearanceQuery.data;
+  const activeSearch = mode === "people" ? peopleSearchQuery : podcastSearchQuery;
+  const people = peopleSearchQuery.data?.creatorCandidates ?? [];
+  const podcastResults = podcastSearchQuery.data?.podcastCandidates ?? [];
+  const pagination = mode === "people" ? peopleSearchQuery.data?.pagination : podcastSearchQuery.data?.pagination;
+  const suggestedQuery = mode === "people" ? peopleSearchQuery.data?.suggestedQuery : podcastSearchQuery.data?.suggestedQuery;
+  const totalResults = pagination?.totalResults ?? (mode === "people" ? people.length : podcastResults.length);
 
   return (
-    <div className="w-full max-w-6xl px-6 py-8">
+    <div className="w-full max-w-7xl px-6 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Discover guests</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Find the right person through their podcast history and save them to your workflow.
-        </p>
+        <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
       </div>
 
-      <section>
-        <SectionHeader title="Search guest profiles" />
+      <Tabs value={mode} onValueChange={changeMode}>
+        <TabsList aria-label="Search catalog">
+          <TabsTrigger value="people"><Users className="mr-1.5 h-4 w-4" />People</TabsTrigger>
+          <TabsTrigger value="podcasts"><Mic2 className="mr-1.5 h-4 w-4" />Podcast shows</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <section className="mt-4">
         <Card padding="lg">
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
-              aria-label="Guest name"
-              placeholder="Search by guest name, e.g. Andrew Huberman"
+              aria-label={mode === "people" ? "Guest name" : "Podcast show name"}
+              placeholder={mode === "people" ? "Search a person, e.g. Andrew Huberman" : "Search a podcast show, e.g. Huberman Lab"}
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && submitSearch()}
               className="flex-1"
             />
-            <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || searchQuery.isFetching}>
-              {searchQuery.isFetching ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
-              Find guests
+            <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || activeSearch.isFetching}>
+              {activeSearch.isFetching ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
+              Search {mode === "people" ? "people" : "podcasts"}
             </Button>
           </div>
-          <p className="mt-2 text-xs text-zinc-400">Search runs only when submitted, preserving the shared provider allowance.</p>
+          <p className="mt-2 text-xs text-zinc-400">Search runs only when submitted so typing never consumes the shared provider allowance.</p>
         </Card>
       </section>
 
-      {searchQuery.isError ? (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{searchQuery.error.message}</p>
-      ) : submittedQuery && !searchQuery.isFetching && candidates.length === 0 ? (
-        <div className="mt-4"><EmptyState icon={Search} title="No matching guests" description="Try the person's full name or a different spelling." /></div>
-      ) : candidates.length > 0 ? (
+      {activeSearch.isError ? (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{activeSearch.error.message}</p>
+      ) : suggestedQuery ? (
+        <button type="button" onClick={() => { setSearchInput(suggestedQuery); setSubmittedQuery(suggestedQuery); setPage(1); }} className="mt-4 w-full rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 hover:bg-amber-100">
+          Did you mean <span className="font-semibold">{suggestedQuery}</span>?
+        </button>
+      ) : null}
+
+      {submittedQuery && !activeSearch.isFetching && totalResults === 0 ? (
+        <div className="mt-4"><EmptyState icon={Search} title={`No matching ${mode}`} description="Try a shorter name, remove titles such as Dr., or search by one distinctive word." /></div>
+      ) : totalResults > 0 ? (
         <section className="mt-6">
-          <SectionHeader title={`Choose the right person · ${candidates.length} matches`} />
-          <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">
-            {candidates.map((candidate) => (
-              <CandidateRow key={candidate.id} candidate={candidate} selected={candidate.id === selectedCreator?.id} onSelect={() => chooseCreator(candidate)} />
-            ))}
-          </Card>
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <SectionHeader title={`${mode === "people" ? "People" : "Podcast shows"} · ${formatCount(totalResults)} results`} />
+            <div className="flex items-center gap-2">
+              {mode === "people" ? (
+                <Select value={creatorSort} onValueChange={(value) => { setCreatorSort(value as CreatorSort); setPage(1); }}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="appearance_count">Most appearances</SelectItem><SelectItem value="relevance">Best match</SelectItem><SelectItem value="recent_episode">Recently active</SelectItem><SelectItem value="alphabetical">Name A–Z</SelectItem></SelectContent>
+                </Select>
+              ) : (
+                <Select value={podcastSort} onValueChange={(value) => { setPodcastSort(value as PodcastSort); setPage(1); }}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="relevance">Best match</SelectItem><SelectItem value="power_score">Podchaser rating</SelectItem><SelectItem value="date_of_first_episode">Newest shows</SelectItem><SelectItem value="alphabetical">Title A–Z</SelectItem></SelectContent>
+                </Select>
+              )}
+              <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
+                <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
+                <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+
+          {mode === "people" ? (
+            viewMode === "table" ? <PeopleTable people={people} onChoose={chooseCreator} /> : <PeopleCards people={people} onChoose={chooseCreator} />
+          ) : viewMode === "table" ? (
+            <PodcastTable podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} />
+          ) : (
+            <PodcastCards podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} />
+          )}
+          {pagination ? <PaginationControls pagination={pagination} onPage={setPage} /> : null}
         </section>
       ) : !submittedQuery ? (
-        <div className="mt-4">
-          <EmptyState icon={Mic2} title="Start with a guest's name" description="We'll show possible identities first, then load podcast and episode appearances after you choose one." />
-        </div>
+        <div className="mt-4"><EmptyState icon={mode === "people" ? Users : Mic2} title={`Search ${mode === "people" ? "for a guest" : "podcast shows"}`} description={mode === "people" ? "We'll show possible identities first, then load appearances after you choose one." : "Choose a show to review its description, hosts, recurring guests, and public contact information."} /></div>
       ) : null}
 
-      {selectedCreator ? (
-        <div className="mt-7 space-y-6">
-          <section>
-            <SectionHeader title="Guest research" />
-            <Card padding="lg">
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <PersonAvatar candidate={selectedCreator} />
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-xl font-semibold text-zinc-950">{selectedCreator.name}</h2>
-                  {selectedCreator.subtitle ? <p className="mt-1 text-sm text-zinc-600">{selectedCreator.subtitle}</p> : null}
-                  {selectedCreator.location ? <p className="mt-2 flex items-center gap-1 text-xs text-zinc-500"><MapPin size={12} />{selectedCreator.location}</p> : null}
-                  {selectedCreator.bio ? <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">{selectedCreator.bio}</p> : null}
-                  {Object.entries(selectedCreator.socialLinks).some(([, value]) => Boolean(value)) ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {Object.entries(selectedCreator.socialLinks).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([platform, url]) => (
-                        <span key={platform} className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-600">
-                          {socialProfileSummary(platform, url)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-4">
-                  <p className="text-2xl font-semibold text-zinc-950">{appearanceQuery.isFetching ? "—" : formatCount(appearances?.pagination.guestEpisodesTotal)}</p>
-                  <p className="text-xs text-zinc-500">Structured guest episodes</p>
-                </div>
-                <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-4">
-                  <p className="text-2xl font-semibold text-zinc-950">{appearanceQuery.isFetching ? "—" : formatCount(appearances?.pagination.guestPodcastsTotal)}</p>
-                  <p className="text-xs text-zinc-500">Podcasts appeared on</p>
-                </div>
-              </div>
-            </Card>
-          </section>
-
-          <section>
-            <SectionHeader title="Next step" />
-            <Card padding="lg">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                <Button variant="outline" onClick={() => saveProspectMutation.mutate(selectedCreator)} disabled={Boolean(savedProspect) || saveProspectMutation.isPending} className="lg:flex-1">
-                  {savedProspect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}
-                  {savedProspect ? "Saved to Shortlist" : "Save to Shortlist"}
-                </Button>
-                {podcasts.length > 0 ? (
-                  <>
-                  <Select value={targetPodcastId} onValueChange={setSelectedPodcastId}>
-                    <SelectTrigger className="w-full lg:w-64"><SelectValue placeholder="Choose a show" /></SelectTrigger>
-                    <SelectContent>{podcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Select value={pipelineStage} onValueChange={(value) => setPipelineStage(value as GuestStage)}>
-                    <SelectTrigger className="w-full lg:w-44"><SelectValue placeholder="Choose a stage" /></SelectTrigger>
-                    <SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Button onClick={() => addToPipelineMutation.mutate()} disabled={!targetPodcastId || addToPipelineMutation.isPending || addedToPodcastId === targetPodcastId} className="lg:flex-1">
-                    {addedToPodcastId === targetPodcastId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}
-                    {addedToPodcastId === targetPodcastId ? "Added to Pipeline" : "Add to Guest Pipeline"}
-                  </Button>
-                  </>
-                ) : (
-                  <p className="text-sm text-zinc-500">Connect a show to add this guest to a pipeline. <Link href="/dashboard/rss" className="underline">Connect a show →</Link></p>
-                )}
-              </div>
-            </Card>
-          </section>
-
-          {appearanceQuery.isError ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{appearanceQuery.error.message}</p>
-          ) : appearanceQuery.isFetching ? (
-            <Card padding="lg"><p className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading guest appearances…</p></Card>
-          ) : appearances ? (
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section>
-                <SectionHeader title="Podcast history" />
-                <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">
-                  {appearances.guestPodcasts.map((podcast) => (
-                    <CardRow key={`${podcast.podcastId}-${podcast.podcastTitle}`}>
-                      {podcast.podcastImageUrl ? <img src={podcast.podcastImageUrl} alt="" className="h-10 w-10 rounded-lg border border-zinc-200 object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100"><Mic2 size={15} className="text-zinc-400" /></div>}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-zinc-950">{podcast.podcastTitle}</p>
-                        <p className="text-xs text-zinc-500">{podcast.episodeCount} credited appearance{podcast.episodeCount === 1 ? "" : "s"}</p>
-                      </div>
-                    </CardRow>
-                  ))}
-                </Card>
-              </section>
-              <section>
-                <SectionHeader title="Recent guest episodes" />
-                <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">
-                  {appearances.guestEpisodes.map((episode) => (
-                    <CardRow key={`${episode.creditId}-${episode.episodeId}`}>
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-sm font-medium text-zinc-950">{episode.episodeTitle}</p>
-                        <p className="mt-0.5 truncate text-xs text-zinc-500">{episode.podcastTitle} · {formatDate(episode.airDate)}</p>
-                      </div>
-                    </CardRow>
-                  ))}
-                </Card>
-              </section>
-            </div>
-          ) : null}
-
-        </div>
-      ) : null}
+      <PersonDrawer
+        candidate={activeCreator}
+        prospect={savedProspect}
+        appearances={appearanceQuery.data}
+        appearancesLoading={appearanceQuery.isFetching}
+        appearancesError={appearanceQuery.error}
+        ownedPodcasts={ownedPodcasts}
+        targetShowId={targetShowId}
+        pipelineStage={pipelineStage}
+        addedToPodcastId={addedToPodcastId}
+        savePending={saveProspectMutation.isPending}
+        revealPending={revealEmailMutation.isPending}
+        pipelinePending={addToPipelineMutation.isPending}
+        onClose={() => setSelectedCreator(null)}
+        onSave={() => activeCreator && saveProspectMutation.mutate(activeCreator)}
+        onReveal={() => revealEmailMutation.mutate()}
+        onTargetShow={setSelectedTargetShowId}
+        onStage={setPipelineStage}
+        onAddPipeline={() => addToPipelineMutation.mutate()}
+      />
+      <PodcastDrawer
+        podcast={selectedPodcast}
+        credits={podcastCreditsQuery.data}
+        creditsLoading={podcastCreditsQuery.isFetching}
+        creditsError={podcastCreditsQuery.error}
+        onClose={() => setSelectedPodcast(null)}
+        onChoosePerson={chooseCreator}
+      />
     </div>
   );
+}
+
+function PeopleTable({ people, onChoose }: { people: CreatorCandidate[]; onChoose: (candidate: CreatorCandidate) => void }) {
+  return (
+    <Card padding="none" className="overflow-hidden"><Table><TableHeader><TableRow><TableHead>Guest</TableHead><TableHead className="hidden md:table-cell">Description</TableHead><TableHead className="hidden lg:table-cell">Location</TableHead><TableHead className="text-right">Appearances</TableHead></TableRow></TableHeader><TableBody>
+      {people.map((candidate) => <TableRow key={candidate.id} tabIndex={0} role="button" aria-label={`Open ${candidate.name}`} className="cursor-pointer" onClick={() => onChoose(candidate)} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onChoose(candidate)}>
+        <TableCell><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} /><div className="min-w-0"><p className="font-semibold text-zinc-950">{candidate.name}</p><p className="max-w-xs truncate text-xs text-zinc-500 md:hidden">{candidate.subtitle || "Guest profile"}</p></div></div></TableCell>
+        <TableCell className="hidden max-w-lg md:table-cell"><p className="line-clamp-2 text-zinc-600">{candidate.subtitle || candidate.bio || "Guest profile"}</p></TableCell>
+        <TableCell className="hidden text-zinc-500 lg:table-cell">{candidate.location || "—"}</TableCell>
+        <TableCell className="text-right"><span className="font-semibold text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
+      </TableRow>)}
+    </TableBody></Table></Card>
+  );
+}
+
+function PeopleCards({ people, onChoose }: { people: CreatorCandidate[]; onChoose: (candidate: CreatorCandidate) => void }) {
+  return <div className="grid gap-3 md:grid-cols-2">{people.map((candidate) => <button key={candidate.id} type="button" onClick={() => onChoose(candidate)} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-zinc-400"><PersonAvatar candidate={candidate} /><span className="min-w-0 flex-1"><span className="block font-semibold text-zinc-950">{candidate.name}</span><span className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.bio || "Guest profile"}</span></span><span className="shrink-0 text-right text-sm font-semibold text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}<span className="block text-[10px] font-normal text-zinc-400">appearances</span></span></button>)}</div>;
+}
+
+function PodcastTable({ podcasts, onChoose }: { podcasts: PodcastCandidate[]; onChoose: (podcast: PodcastCandidate) => void }) {
+  return (
+    <Card padding="none" className="overflow-hidden"><Table><TableHeader><TableRow><TableHead>Podcast</TableHead><TableHead className="hidden md:table-cell">Description</TableHead><TableHead className="hidden lg:table-cell">Categories</TableHead><TableHead className="text-right">Episodes</TableHead></TableRow></TableHeader><TableBody>
+      {podcasts.map((podcast) => <TableRow key={podcast.id} tabIndex={0} role="button" aria-label={`Open ${podcast.title}`} className="cursor-pointer" onClick={() => onChoose(podcast)} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onChoose(podcast)}>
+        <TableCell><div className="flex items-center gap-3"><PodcastArtwork podcast={podcast} /><div className="min-w-0"><p className="font-semibold text-zinc-950">{podcast.title}</p><p className="truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</p></div></div></TableCell>
+        <TableCell className="hidden max-w-lg md:table-cell"><p className="line-clamp-2 text-zinc-600">{podcast.description || "No description available"}</p></TableCell>
+        <TableCell className="hidden lg:table-cell"><div className="flex max-w-xs flex-wrap gap-1">{podcast.categories.slice(0, 3).map((category) => <span key={category.slug} className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">{category.title}</span>)}</div></TableCell>
+        <TableCell className="text-right"><span className="font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
+      </TableRow>)}
+    </TableBody></Table></Card>
+  );
+}
+
+function PodcastCards({ podcasts, onChoose }: { podcasts: PodcastCandidate[]; onChoose: (podcast: PodcastCandidate) => void }) {
+  return <div className="grid gap-3 md:grid-cols-2">{podcasts.map((podcast) => <button key={podcast.id} type="button" onClick={() => onChoose(podcast)} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-zinc-400"><PodcastArtwork podcast={podcast} /><span className="min-w-0 flex-1"><span className="block font-semibold text-zinc-950">{podcast.title}</span><span className="mt-1 line-clamp-2 text-sm text-zinc-500">{podcast.description || podcast.author.name || "Podcast show"}</span></span><span className="shrink-0 text-right text-sm font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}<span className="block text-[10px] font-normal text-zinc-400">episodes</span></span></button>)}</div>;
+}
+
+interface PersonDrawerProps {
+  candidate: CreatorCandidate | null;
+  prospect: GuestProspect | null;
+  appearances?: AppearanceResult;
+  appearancesLoading: boolean;
+  appearancesError: Error | null;
+  ownedPodcasts: PodcastOption[];
+  targetShowId: string;
+  pipelineStage: GuestStage;
+  addedToPodcastId: string | null;
+  savePending: boolean;
+  revealPending: boolean;
+  pipelinePending: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  onReveal: () => void;
+  onTargetShow: (id: string) => void;
+  onStage: (stage: GuestStage) => void;
+  onAddPipeline: () => void;
+}
+
+function PersonDrawer(props: PersonDrawerProps) {
+  const { candidate, prospect, appearances, appearancesLoading, appearancesError } = props;
+  return <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}><SheetContent className="w-full overflow-y-auto sm:max-w-xl">{candidate ? <><SheetHeader><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader><div className="mt-6 space-y-6">
+    <div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved to Shortlist" : "Save to Shortlist"}</Button><RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks)} isPending={props.revealPending} onConfirm={props.onReveal} /></div>
+    <section><SectionHeader title="Guest research" /><div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">{candidate.location ? <p className="flex items-center gap-1 text-xs text-zinc-500"><MapPin size={12} />{candidate.location}</p> : null}{candidate.bio ? <p className="mt-3 text-sm leading-6 text-zinc-600">{candidate.bio}</p> : null}{Object.entries(candidate.socialLinks).some(([, value]) => Boolean(value)) ? <div className="mt-3 flex flex-wrap gap-2">{Object.entries(candidate.socialLinks).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([platform, url]) => <span key={platform} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">{socialProfileSummary(platform, url)}</span>)}</div> : null}</div></section>
+    <div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-zinc-200 p-4"><p className="text-2xl font-semibold text-zinc-950">{appearancesLoading ? "—" : formatCount(appearances?.pagination.guestEpisodesTotal)}</p><p className="text-xs text-zinc-500">Guest episodes</p></div><div className="rounded-xl border border-zinc-200 p-4"><p className="text-2xl font-semibold text-zinc-950">{appearancesLoading ? "—" : formatCount(appearances?.pagination.guestPodcastsTotal)}</p><p className="text-xs text-zinc-500">Podcasts appeared on</p></div></div>
+    <section><SectionHeader title="Add to guest pipeline" />{props.ownedPodcasts.length > 0 ? <div className="space-y-2.5 rounded-xl border border-zinc-200 p-4"><Select value={props.targetShowId} onValueChange={props.onTargetShow}><SelectTrigger><SelectValue placeholder="Choose your show" /></SelectTrigger><SelectContent>{props.ownedPodcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent></Select><Select value={props.pipelineStage} onValueChange={(value) => props.onStage(value as GuestStage)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent></Select><Button className="w-full" onClick={props.onAddPipeline} disabled={!props.targetShowId || props.pipelinePending || props.addedToPodcastId === props.targetShowId}>{props.addedToPodcastId === props.targetShowId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}{props.addedToPodcastId === props.targetShowId ? "Added to Pipeline" : "Add to Guest Pipeline"}</Button></div> : <p className="rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">Connect a show to add this guest to a pipeline. <Link href="/dashboard/rss" className="underline">Connect a show →</Link></p>}</section>
+    {appearancesError ? <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{appearancesError.message}</p> : appearancesLoading ? <p className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading guest appearances…</p> : appearances ? <><section><SectionHeader title="Podcast history" /><Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">{appearances.guestPodcasts.map((podcast) => <CardRow key={`${podcast.podcastId}-${podcast.podcastTitle}`}>{podcast.podcastImageUrl ? <img src={podcast.podcastImageUrl} alt="" className="h-10 w-10 rounded-lg border border-zinc-200 object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100"><Mic2 size={15} className="text-zinc-400" /></span>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-zinc-950">{podcast.podcastTitle}</p><p className="text-xs text-zinc-500">{podcast.episodeCount} credited appearance{podcast.episodeCount === 1 ? "" : "s"}</p></div></CardRow>)}</Card></section><section><SectionHeader title="Recent guest episodes" /><Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">{appearances.guestEpisodes.map((episode) => <CardRow key={`${episode.creditId}-${episode.episodeId}`}><div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-medium text-zinc-950">{episode.episodeTitle}</p><p className="mt-0.5 truncate text-xs text-zinc-500">{episode.podcastTitle} · {formatDate(episode.airDate)}</p></div></CardRow>)}</Card></section></> : null}
+  </div></> : null}</SheetContent></Sheet>;
+}
+
+interface PodcastDrawerProps {
+  podcast: PodcastCandidate | null;
+  credits?: PodcastCreditsResult;
+  creditsLoading: boolean;
+  creditsError: Error | null;
+  onClose: () => void;
+  onChoosePerson: (candidate: CreatorCandidate) => void;
+}
+
+function PodcastDrawer({ podcast, credits, creditsLoading, creditsError, onClose, onChoosePerson }: PodcastDrawerProps) {
+  return <Sheet open={Boolean(podcast)} onOpenChange={(open) => !open && onClose()}><SheetContent className="w-full overflow-y-auto sm:max-w-xl">{podcast ? <><SheetHeader><div className="flex items-center gap-4"><PodcastArtwork podcast={podcast} size="lg" /><div className="min-w-0"><SheetTitle className="line-clamp-2 text-left">{podcast.title}</SheetTitle><p className="mt-1 text-sm text-zinc-500">{podcast.author.name || "Podcast show"}</p></div></div></SheetHeader><div className="mt-6 space-y-6">
+    <section><SectionHeader title="Show details" /><div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4"><p className="text-sm leading-6 text-zinc-600">{podcast.description || "No description available."}</p><div className="mt-3 flex flex-wrap gap-2">{podcast.categories.map((category) => <span key={category.slug} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">{category.title}</span>)}</div></div></section>
+    <div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-zinc-200 p-4"><p className="text-2xl font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}</p><p className="text-xs text-zinc-500">Episodes</p></div><div className="rounded-xl border border-zinc-200 p-4"><p className="flex items-center gap-1 text-sm font-semibold text-zinc-950"><CalendarDays className="h-4 w-4" />{formatDate(podcast.latestEpisodeDate)}</p><p className="mt-1 text-xs text-zinc-500">Latest episode</p></div></div>
+    {podcast.author.email ? <a href={`mailto:${podcast.author.email}`} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700 hover:border-zinc-400"><Mail className="h-4 w-4 text-zinc-400" /><span><span className="font-medium text-zinc-950">Public show email</span><span className="block text-xs text-zinc-500">{podcast.author.email}</span></span></a> : null}
+    <section><SectionHeader title={`Hosts and guests${credits ? ` · ${formatCount(credits.pagination.totalResults)}` : ""}`} />{creditsError ? <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{creditsError.message}</p> : creditsLoading ? <p className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading credited people…</p> : <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">{credits?.credits.map((credit) => <button key={`${credit.creator.id}-${credit.roleCode}`} type="button" onClick={() => onChoosePerson(credit.creator)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50"><PersonAvatar candidate={credit.creator} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{credit.creator.name}</span><span className="block text-xs text-zinc-500">{credit.roleTitle} · {credit.episodeCount} episode{credit.episodeCount === 1 ? "" : "s"}</span></span><ChevronRight className="h-4 w-4 text-zinc-300" /></button>)}</Card>}</section>
+  </div></> : null}</SheetContent></Sheet>;
 }
