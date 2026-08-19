@@ -67,7 +67,7 @@ function extractIcAnalytics(data: any, platform: string, fallbackHandle: string)
 
 let tableReady: Promise<void> | undefined;
 function ensureTable(): Promise<void> {
-  tableReady ??= db
+  const ready = (tableReady ??= db
     .execute(sql`
         CREATE TABLE IF NOT EXISTS ic_enrichment_cache (
           user_id varchar NOT NULL,
@@ -78,9 +78,8 @@ function ensureTable(): Promise<void> {
           PRIMARY KEY (user_id, platform, handle)
         )
       `)
-      .then(() => undefined);
-  }
-  return tableReady;
+    .then(() => undefined));
+  return ready;
 }
 
 export function registerSocialAnalyticsCache(app: Express) {
