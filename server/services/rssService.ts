@@ -21,6 +21,9 @@ export interface RssEpisode {
   title: string;
   description: string;
   audioUrl: string | null;
+  mediaUrl: string | null;
+  mimeType: string | null;
+  mediaKind: 'audio' | 'video' | null;
   duration: number | null;
   publishedAt: Date | null;
   guid: string;
@@ -29,17 +32,35 @@ export interface RssEpisode {
 
 export async function parseFeed(feedUrl: string): Promise<RssPodcast & { episodes: RssEpisode[] }> {
   try {
-    const feed = await parser.parseURL(feedUrl);
+    const url = new URL(feedUrl);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new Error('RSS feed URL must use http or https');
+    }
+    const response = await fetch(url, {
+      headers: { Accept: 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.5' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error(`RSS feed returned HTTP ${response.status}`);
+    const xml = await response.text();
+    if (xml.length > 12_000_000) throw new Error('RSS feed is too large');
+    const feed = await parser.parseString(xml);
     
-    const episodes: RssEpisode[] = (feed.items || []).map((item: any) => ({
-      title: item.title || 'Untitled Episode',
-      description: item.contentSnippet || item.content || '',
-      audioUrl: item.enclosure?.url || null,
-      duration: parseDuration(item.duration),
-      publishedAt: item.pubDate ? new Date(item.pubDate) : null,
-      guid: item.guid || item.link || item.title || '',
-      imageUrl: item.itunes?.image || null,
-    }));
+    const episodes: RssEpisode[] = (feed.items || []).map((item: any) => {
+      const mediaUrl = stringOrNull(item.enclosure?.url);
+      const mimeType = stringOrNull(item.enclosure?.type);
+      return {
+        title: item.title || 'Untitled Episode',
+        description: item.contentSnippet || item.content || '',
+        audioUrl: mediaUrl,
+        mediaUrl,
+        mimeType,
+        mediaKind: getMediaKind(mediaUrl, mimeType),
+        duration: parseDuration(item.duration),
+        publishedAt: item.pubDate ? new Date(item.pubDate) : null,
+        guid: item.guid || item.link || item.title || '',
+        imageUrl: item.itunes?.image || null,
+      };
+    });
 
     return {
       title: feed.title || 'Unknown Podcast',
@@ -74,11 +95,25 @@ function parseDuration(duration: string | undefined): number | null {
 
 export async function validateFeed(feedUrl: string): Promise<boolean> {
   try {
-    await parser.parseURL(feedUrl);
+    await parseFeed(feedUrl);
     return true;
   } catch {
     return false;
   }
+}
+
+export function getMediaKind(mediaUrl: string | null, mimeType: string | null): 'audio' | 'video' | null {
+  const normalizedType = mimeType?.toLowerCase() ?? '';
+  if (normalizedType.startsWith('video/')) return 'video';
+  if (normalizedType.startsWith('audio/')) return 'audio';
+  if (!mediaUrl) return null;
+  const pathname = new URL(mediaUrl, 'https://podlogix.invalid').pathname.toLowerCase();
+  if (/\.(mp4|m4v|mov|webm|ogv)$/.test(pathname)) return 'video';
+  return 'audio';
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
 export async function searchRssFeedByName(podcastName: string): Promise<string | null> {
