@@ -113,7 +113,8 @@ export default function LiveStudio() {
   );
   const [newStudioName, setNewStudioName] = useState("");
   // ── Workspace lobby (Restream-style shell) ──
-  const [lobbyTab, setLobbyTab] = useState<"home" | "past" | "clips" | "storage" | "channels">("home");
+  const [lobbyTab, setLobbyTab] = useState<"home" | "past" | "clips" | "storage" | "channels" | "analytics">("home");
+  const [statsRange, setStatsRange] = useState<7 | 14 | 30 | 90>(30);
   const [streamFilter, setStreamFilter] = useState<"All" | "Drafts" | "Scheduled" | "Past">("All");
   const [newStreamOpen, setNewStreamOpen] = useState(false);
   const [newStreamMode, setNewStreamMode] = useState<"pick" | "studio">("pick");
@@ -223,7 +224,7 @@ export default function LiveStudio() {
   const mediaOn = !!stageMedia;
   const anySource = cameraOn || screenOn || guestOn || mediaOn;
 
-  const { data: libraryData } = useQuery<{ items: Array<{ id: string; caption: string | null; mediaType: string | null; mediaUrl: string | null; platform: string }> }>({
+  const { data: libraryData } = useQuery<{ items: Array<{ id: string; caption: string | null; mediaType: string | null; mediaUrl: string | null; platform: string; postedAt?: string | null }> }>({
     queryKey: ["/api/media-library"],
     retry: false,
   });
@@ -943,7 +944,7 @@ export default function LiveStudio() {
               ["clips", "Clips", Scissors, null],
               ["storage", "Storage", FolderOpen, null],
               ["channels", "Channels", Share2, null],
-              ["analytics", "Analytics", BarChart3, "/dashboard/social-analytics"],
+              ["analytics", "Analytics", BarChart3, null],
             ] as Array<[string, string, React.ElementType, string | null]>).map(([id, label, Icon, href]) => (
               <button
                 key={id}
@@ -995,61 +996,87 @@ export default function LiveStudio() {
                   </p>
                 ) : (
                   <div className="overflow-hidden rounded-xl border border-zinc-800">
-                    <div className="grid grid-cols-[minmax(0,1fr)_90px_110px_120px] gap-3 border-b border-zinc-800 bg-zinc-900/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 max-sm:grid-cols-[minmax(0,1fr)_120px]">
+                    <div className="grid grid-cols-[minmax(0,1fr)_90px_130px_110px_150px] gap-3 border-b border-zinc-800 bg-zinc-900/60 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 max-sm:grid-cols-[minmax(0,1fr)_130px]">
                       <span>Stream title</span>
                       <span className="max-sm:hidden">Status</span>
                       <span className="max-sm:hidden">Channels</span>
+                      <span className="max-sm:hidden">Last edited</span>
                       <span />
                     </div>
-                    {studios.map((s, i) => (
-                      <div
-                        key={s.id}
-                        className="group grid grid-cols-[minmax(0,1fr)_90px_110px_120px] items-center gap-3 border-b border-zinc-800/60 px-4 py-3 last:border-0 hover:bg-zinc-900/40 max-sm:grid-cols-[minmax(0,1fr)_120px]"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span
-                            className="flex h-10 w-16 shrink-0 items-center justify-center rounded-lg ring-1 ring-white/10"
-                            style={{
-                              background: [
-                                "linear-gradient(135deg, #2a1a3e 0%, #0f2740 100%)",
-                                "linear-gradient(135deg, #3e1a1a 0%, #402a0f 100%)",
-                                "linear-gradient(135deg, #1a3e2e 0%, #0f2440 100%)",
-                              ][i % 3],
-                            }}
-                          >
-                            <Radio className="h-4 w-4 text-white/60" />
+                    {studios.map((s, i) => {
+                      const streamed = pastSessions.some((sess) => sess.studioId === s.id && sess.endedAt);
+                      const picked = Object.entries(wsChannels).filter(([, v]) => v).map(([k]) => k);
+                      return (
+                        <div
+                          key={s.id}
+                          className="group grid grid-cols-[minmax(0,1fr)_90px_130px_110px_150px] items-center gap-3 border-b border-zinc-800/60 px-4 py-3 last:border-0 hover:bg-zinc-900/40 max-sm:grid-cols-[minmax(0,1fr)_130px]"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span
+                              className="flex h-11 w-[72px] shrink-0 items-center justify-center rounded-lg ring-1 ring-white/10"
+                              style={{
+                                background: [
+                                  "linear-gradient(135deg, #2a1a3e 0%, #0f2740 100%)",
+                                  "linear-gradient(135deg, #3e1a1a 0%, #402a0f 100%)",
+                                  "linear-gradient(135deg, #1a3e2e 0%, #0f2440 100%)",
+                                ][i % 3],
+                              }}
+                            >
+                              <Radio className="h-4 w-4 text-white/60" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold text-zinc-100">{s.name}</span>
+                              <span className="block text-[11px] text-zinc-500">Studio</span>
+                            </span>
+                          </div>
+                          <span className="max-sm:hidden">
+                            {streamed ? (
+                              <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400">Streamed</span>
+                            ) : (
+                              <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-400">Draft</span>
+                            )}
                           </span>
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-semibold text-zinc-100">{s.name}</span>
-                            <span className="block text-[11px] text-zinc-500">Studio</span>
+                          <span className="flex items-center gap-1 max-sm:hidden">
+                            {picked.length === 0 ? (
+                              <span className="text-xs text-zinc-600">—</span>
+                            ) : (
+                              <>
+                                {picked.slice(0, 3).map((name) => (
+                                  <span
+                                    key={name}
+                                    title={name}
+                                    className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-300 ring-1 ring-zinc-700"
+                                  >
+                                    {name[0]}
+                                  </span>
+                                ))}
+                                {picked.length > 3 && <span className="text-[10px] text-zinc-500">+{picked.length - 3}</span>}
+                              </>
+                            )}
+                          </span>
+                          <span className="text-xs tabular-nums text-zinc-500 max-sm:hidden">
+                            {s.createdAt ? new Date(s.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—"}
+                          </span>
+                          <span className="flex items-center justify-end gap-1.5">
+                            <Button size="sm" className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700" onClick={() => setActiveStudioId(s.id)}>
+                              Enter Studio →
+                            </Button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Delete \u201c${s.name}\u201d? Past recordings and clips stay in your library.`)) {
+                                  deleteStudioMutation.mutate(s.id);
+                                }
+                              }}
+                              className="rounded-lg p-1.5 text-zinc-600 opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+                              aria-label={`Delete ${s.name}`}
+                              title="Delete studio"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </span>
                         </div>
-                        <span className="max-sm:hidden">
-                          <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300">Ready</span>
-                        </span>
-                        <span className="text-xs text-zinc-500 max-sm:hidden">
-                          {Object.values(wsChannels).filter(Boolean).length > 0
-                            ? `${Object.values(wsChannels).filter(Boolean).length} picked`
-                            : "\u2014"}
-                        </span>
-                        <span className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`Delete \u201c${s.name}\u201d? Past recordings and clips stay in your library.`)) {
-                                deleteStudioMutation.mutate(s.id);
-                              }
-                            }}
-                            className="hidden rounded-lg p-1.5 text-zinc-600 hover:bg-red-500/10 hover:text-red-400 group-hover:block"
-                            aria-label={`Delete ${s.name}`}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                          <Button size="sm" className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700" onClick={() => setActiveStudioId(s.id)}>
-                            Enter Studio →
-                          </Button>
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>
@@ -1153,6 +1180,81 @@ export default function LiveStudio() {
                 )}
               </>
             )}
+
+            {lobbyTab === "analytics" && (() => {
+              const cutoff = Date.now() - statsRange * 24 * 60 * 60 * 1000;
+              const inRange = pastSessions.filter((s) => s.startedAt && new Date(s.startedAt).getTime() >= cutoff);
+              const minutesLive = inRange.reduce((sum, s) => {
+                if (!s.startedAt || !s.endedAt) return sum;
+                return sum + Math.max(0, (new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000);
+              }, 0);
+              const clipsInRange = (libraryData?.items ?? []).filter(
+                (m) => m.platform === "live" && m.postedAt && new Date(m.postedAt).getTime() >= cutoff,
+              ).length;
+              const fmtDur = (s: typeof inRange[number]) => {
+                if (!s.startedAt || !s.endedAt) return "live";
+                const m = Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000);
+                return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+              };
+              return (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-100">Analytics</p>
+                      <p className="text-xs text-zinc-500">Your studio's numbers — measured from real shows, nothing invented.</p>
+                    </div>
+                    <div className="flex gap-1 rounded-lg bg-zinc-900 p-1">
+                      {([7, 14, 30, 90] as const).map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setStatsRange(d)}
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            statsRange === d ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          {d}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {([
+                      [String(inRange.length), "Streams", `last ${statsRange} days`],
+                      [minutesLive < 60 ? `${Math.round(minutesLive)}m` : `${(minutesLive / 60).toFixed(1)}h`, "Time on air", "ended shows only"],
+                      [String(clipsInRange), "Clips cut", `last ${statsRange} days`],
+                      [String((libraryData?.items ?? []).length), "Files in storage", "all time"],
+                    ] as const).map(([value, label, sub]) => (
+                      <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-4">
+                        <p className="text-2xl font-bold tabular-nums text-zinc-100">{value}</p>
+                        <p className="mt-0.5 text-xs font-medium text-zinc-400">{label}</p>
+                        <p className="text-[10px] text-zinc-600">{sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Stream breakdown</p>
+                  {inRange.length === 0 ? (
+                    <p className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                      No streams in this period — go live and the numbers start counting.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-zinc-800/60 overflow-hidden rounded-xl border border-zinc-800">
+                      {inRange.slice(0, 12).map((s) => (
+                        <div key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{s.title}</span>
+                          <span className="shrink-0 text-xs tabular-nums text-zinc-500">
+                            {s.startedAt ? new Date(s.startedAt).toLocaleDateString() : ""}
+                          </span>
+                          <span className="w-14 shrink-0 text-right text-xs font-medium tabular-nums text-zinc-400">{fmtDur(s)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-3 text-[11px] text-zinc-600">
+                    Viewer counts and chat arrive with Stream + Record — we only show numbers we actually measure.
+                  </p>
+                </>
+              );
+            })()}
 
             {lobbyTab === "channels" && (
               <>
