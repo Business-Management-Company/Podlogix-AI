@@ -530,6 +530,7 @@ export default function Guests() {
 
                 {selected.prospect?.providerPersonId ? (
                   <GuestAppearanceHistory
+                    guestName={selected.prospect.name}
                     appearances={appearanceQuery.data}
                     isLoading={appearanceQuery.isFetching}
                     error={appearanceQuery.error}

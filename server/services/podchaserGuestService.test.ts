@@ -60,7 +60,7 @@ test("returns structured guest credits and measures Starter quota use", async ()
         data: [{
           id: "credit-1",
           episode: { id: "episode-1", title: "Andrew Huberman on Sleep", airDate: "2026-08-01 12:00:00" },
-          podcast: { id: "podcast-1", title: "Test Show", imageUrl: "https://example.com/show.jpg" },
+          podcast: { id: "podcast-1", title: "Test Show", imageUrl: "https://example.com/show.jpg", rssUrl: "https://feeds.example.com/test-show" },
           role: { code: "guest", title: "Guest" },
           characters: [],
         }],
@@ -71,7 +71,7 @@ test("returns structured guest credits and measures Starter quota use", async ()
       return jsonResponse({
         data: [{
           id: "credit-2",
-          podcast: { id: "podcast-1", title: "Test Show", imageUrl: "https://example.com/show.jpg" },
+          podcast: { id: "podcast-1", title: "Test Show", imageUrl: "https://example.com/show.jpg", rssUrl: "https://feeds.example.com/test-show" },
           role: { code: "guest", title: "Guest" },
           episodeCount: 2,
           lastEpisode: { id: "episode-1", title: "Andrew Huberman on Sleep", airDate: "2026-08-01 12:00:00" },
@@ -89,9 +89,11 @@ test("returns structured guest credits and measures Starter quota use", async ()
   assert.equal(result.selectedCreator?.episodeAppearanceCount, 410);
   assert.equal(result.selectedCreator?.socialLinks.twitter, "https://x.com/hubermanlab");
   assert.equal(result.guestEpisodes[0]?.podcastTitle, "Test Show");
+  assert.equal(result.guestEpisodes[0]?.podcastRssUrl, "https://feeds.example.com/test-show");
   assert.equal(result.guestEpisodes[0]?.roleCode, "guest");
   assert.equal(result.guestEpisodes[0]?.airDate, "2026-08-01T12:00:00.000Z");
   assert.equal(result.guestPodcasts[0]?.episodeCount, 2);
+  assert.equal(result.guestPodcasts[0]?.rssUrl, "https://feeds.example.com/test-show");
   assert.deepEqual(result.pagination, { guestEpisodesTotal: 17, guestPodcastsTotal: 8 });
   assert.equal(result.quota.tier, "starter");
   assert.equal(result.requestsConsumed, 3);

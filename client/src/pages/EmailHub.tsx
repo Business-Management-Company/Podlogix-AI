@@ -691,6 +691,7 @@ export default function EmailHub() {
                       />
                     </section>
                     <GuestAppearanceHistory
+                      guestName={linkedProspect.name}
                       appearances={linkedAppearanceQuery.data}
                       isLoading={linkedAppearanceQuery.isFetching}
                       error={linkedAppearanceQuery.error}

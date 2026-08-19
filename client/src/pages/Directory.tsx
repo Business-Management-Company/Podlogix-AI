@@ -318,6 +318,7 @@ export default function Directory() {
                   />
                 </section>
                 <GuestAppearanceHistory
+                  guestName={selectedProspect.name}
                   appearances={appearanceQuery.data}
                   isLoading={appearanceQuery.isFetching}
                   error={appearanceQuery.error}

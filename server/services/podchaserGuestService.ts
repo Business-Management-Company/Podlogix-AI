@@ -168,6 +168,7 @@ export interface PodchaserGuestEpisode {
   podcastId: string;
   podcastTitle: string;
   podcastImageUrl: string | null;
+  podcastRssUrl: string | null;
   roleCode: string;
   roleTitle: string;
   characters: string[];
@@ -178,6 +179,7 @@ export interface PodchaserGuestPodcast {
   podcastId: string;
   podcastTitle: string;
   podcastImageUrl: string | null;
+  rssUrl: string | null;
   roleCode: string;
   roleTitle: string;
   episodeCount: number;
@@ -683,6 +685,7 @@ function normalizeEpisodeCredit(raw: PodchaserEpisodeCreditRaw): PodchaserGuestE
     podcastId: String(raw.podcast?.id ?? ""),
     podcastTitle: stringOrNull(raw.podcast?.title) ?? "Untitled podcast",
     podcastImageUrl: stringOrNull(raw.podcast?.imageUrl),
+    podcastRssUrl: stringOrNull(raw.podcast?.rssUrl),
     roleCode: stringOrNull(raw.role?.code) ?? "guest",
     roleTitle: stringOrNull(raw.role?.title) ?? "Guest",
     characters: (raw.characters ?? []).map((character) => stringOrNull(character.name)).filter((name): name is string => Boolean(name)),
@@ -696,6 +699,7 @@ function normalizePodcastCredit(raw: PodchaserPodcastCreditRaw): PodchaserGuestP
     podcastId: String(raw.podcast?.id ?? ""),
     podcastTitle: stringOrNull(raw.podcast?.title) ?? "Untitled podcast",
     podcastImageUrl: stringOrNull(raw.podcast?.imageUrl),
+    rssUrl: stringOrNull(raw.podcast?.rssUrl),
     roleCode: stringOrNull(raw.role?.code) ?? "guest",
     roleTitle: stringOrNull(raw.role?.title) ?? "Guest",
     episodeCount: numberOrZero(raw.episodeCount),
