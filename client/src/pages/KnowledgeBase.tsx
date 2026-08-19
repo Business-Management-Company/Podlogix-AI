@@ -218,6 +218,7 @@ const articles: Article[] = [
       "The Live Studio takes over your whole screen. To leave, click Exit Studio in the top-left corner — everything goes back to normal.",
       "The workspace:",
       "You land in your workspace first — a list of your studios (each one is a room you come back to). Hit New Stream to build one, or Enter Studio on any row. The workspace also holds Past streams, Clips, Storage, and Channels.",
+      "Hover any studio row and click the pencil to edit it — rename the studio or upload a thumbnail image so your list is easy to scan. The trash can next to it deletes the studio (your recordings and clips stay safe).",
       "On the stage:",
       "• The camera, screen-share, and invite-guest buttons are the round icons at the bottom left — hover any icon to see its name.",
       "• Layouts are the little pictures in the strip under the stage: fullscreen, picture-in-picture corners, split screen. What you see on the stage is exactly what gets recorded.",
