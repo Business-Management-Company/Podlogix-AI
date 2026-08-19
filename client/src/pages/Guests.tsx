@@ -5,6 +5,7 @@ import {
   Briefcase, ChevronRight, Compass, Loader2, Mail, Mic2, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
+import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,11 @@ function avatarTone(contact: EmailContact | undefined, prospect?: GuestProspect)
   let hash = 0;
   for (const ch of key) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
   return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
+}
+
+function hasEnrichmentProfile(prospect?: GuestProspect): boolean {
+  return ["instagram", "youtube", "tiktok", "twitter", "twitch"]
+    .some((platform) => Boolean(prospect?.socialLinks?.[platform]));
 }
 
 function relativeDate(iso: string | Date | null): string {
@@ -191,6 +197,19 @@ export default function Guests() {
       toast({ title: "Note added" });
     },
     onError: () => toast({ title: "Couldn't add note", variant: "destructive" }),
+  });
+
+  const revealEmailMutation = useMutation({
+    mutationFn: async (prospectId: string) => {
+      const res = await apiRequest("POST", `/api/guest-prospects/${encodeURIComponent(prospectId)}/reveal-email`);
+      return res.json() as Promise<{ email: string; charged: boolean }>;
+    },
+    onSuccess: (result) => {
+      invalidateGuests();
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
+      toast({ title: result.charged ? "Email revealed" : "Saved email loaded", description: result.email });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
   });
 
   const inviteGuest = (entry: GuestEntry) => {
@@ -478,6 +497,15 @@ export default function Guests() {
                     ) : null}
                   </div>
                 </div>
+
+                {selected.prospect && !guestEmail(selected.contact, selected.prospect) ? (
+                  <RevealEmailButton
+                    canReveal={hasEnrichmentProfile(selected.prospect)}
+                    isPending={revealEmailMutation.isPending}
+                    onConfirm={() => revealEmailMutation.mutate(selected.prospect!.id)}
+                    className="w-full"
+                  />
+                ) : null}
 
                 {/* Guest-perspective coaching: analyze how they come across on camera */}
                 <Link

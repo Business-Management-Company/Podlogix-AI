@@ -31,8 +31,32 @@ interface PodchaserEpisodeRaw {
 
 interface PodchaserPodcastRaw {
   id?: string | number;
+  applePodcastsId?: string;
+  spotifyId?: string;
+  rssUrl?: string;
   title?: string;
+  description?: string;
+  webUrl?: string;
   imageUrl?: string;
+  language?: string;
+  numberOfEpisodes?: number;
+  avgEpisodeLength?: number;
+  episodeFrequency?: number;
+  startDate?: string;
+  latestEpisodeDate?: string;
+  categories?: Array<{ title?: string; slug?: string }>;
+  hasGuests?: boolean;
+  explicit?: boolean;
+  status?: string;
+  author?: { name?: string; email?: string };
+  modifiedDate?: string;
+}
+
+interface PodchaserPodcastCreditListRaw {
+  creator?: PodchaserCreatorRaw;
+  role?: PodchaserRoleRaw;
+  episodeCount?: number;
+  lastEpisode?: PodchaserEpisodeRaw & { role?: string };
 }
 
 interface PodchaserEpisodeCreditRaw {
@@ -159,6 +183,55 @@ export interface PodchaserGuestProbeResult {
 export interface PodchaserCreatorSearchResult {
   personQuery: string;
   creatorCandidates: PodchaserCreatorCandidate[];
+  pagination: PodchaserSearchPagination;
+  suggestedQuery: string | null;
+}
+
+export interface PodchaserSearchPagination {
+  page: number;
+  perPage: number;
+  totalResults: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export type PodchaserCreatorSort = "relevance" | "alphabetical" | "recent_episode" | "appearance_count";
+export type PodchaserPodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
+
+export interface PodchaserPodcastCandidate {
+  id: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  language: string | null;
+  numberOfEpisodes: number | null;
+  startDate: string | null;
+  latestEpisodeDate: string | null;
+  categories: Array<{ title: string; slug: string }>;
+  hasGuests: boolean | null;
+  status: string | null;
+  author: { name: string | null; email: string | null };
+}
+
+export interface PodchaserPodcastSearchResult {
+  podcastQuery: string;
+  podcastCandidates: PodchaserPodcastCandidate[];
+  pagination: PodchaserSearchPagination;
+  suggestedQuery: string | null;
+}
+
+export interface PodchaserPodcastCredit {
+  creator: PodchaserCreatorCandidate;
+  roleCode: string;
+  roleTitle: string;
+  episodeCount: number;
+  latestEpisode: { id: string; title: string; airDate: string | null } | null;
+}
+
+export interface PodchaserPodcastCreditsResult {
+  podcastId: string;
+  credits: PodchaserPodcastCredit[];
+  pagination: PodchaserSearchPagination;
 }
 
 export interface PodchaserGuestAppearancesResult {
@@ -191,29 +264,125 @@ const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 const APPEARANCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 250;
 const creatorSearchCache = new Map<string, { expiresAt: number; value: PodchaserCreatorSearchResult }>();
+const podcastSearchCache = new Map<string, { expiresAt: number; value: PodchaserPodcastSearchResult }>();
+const podcastCreditsCache = new Map<string, { expiresAt: number; value: PodchaserPodcastCreditsResult }>();
 const guestAppearanceCache = new Map<string, { expiresAt: number; value: PodchaserGuestAppearancesResult }>();
 
-export async function searchPodchaserCreators(personQuery: string, max = 10): Promise<PodchaserCreatorSearchResult> {
+export async function searchPodchaserCreators(
+  personQuery: string,
+  max = 10,
+  page = 1,
+  sort: PodchaserCreatorSort = "appearance_count",
+): Promise<PodchaserCreatorSearchResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
+  const requestedPage = Math.max(Math.trunc(page), 1);
   const normalizedQuery = personQuery.trim();
-  const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}`;
+  const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}::${requestedPage}::${sort}`;
   const cached = getCached(creatorSearchCache, cacheKey);
   if (cached) return cached;
 
-  const creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
+  let creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
     "/search/creators",
-    {
-      q: normalizedQuery,
-      per_page: String(limit),
-      sort: "appearance_count",
-      sort_direction: "desc",
-    },
+    creatorSearchQuery(normalizedQuery, limit, requestedPage, sort),
   );
+  let candidates = extractData(creatorResponse).map(normalizeCreator);
+  let suggestedQuery: string | null = null;
+
+  // A single controlled fallback helps with a misspelled surname without
+  // turning the search box into a request-per-keystroke typeahead.
+  if (requestedPage === 1 && candidates.length === 0) {
+    const fallbackQuery = fallbackSearchTerm(normalizedQuery);
+    if (fallbackQuery) {
+      creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
+        "/search/creators",
+        creatorSearchQuery(fallbackQuery, limit, 1, sort),
+      );
+      candidates = rankCreatorSuggestions(normalizedQuery, extractData(creatorResponse).map(normalizeCreator));
+      suggestedQuery = candidates[0]?.name ?? null;
+    }
+  }
+
   const value = {
     personQuery: normalizedQuery,
-    creatorCandidates: extractData(creatorResponse).map(normalizeCreator),
+    creatorCandidates: candidates,
+    pagination: normalizePagination(creatorResponse, requestedPage, limit, candidates.length),
+    suggestedQuery,
   };
   setCached(creatorSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
+  return value;
+}
+
+export async function searchPodchaserPodcasts(
+  podcastQuery: string,
+  max = 10,
+  page = 1,
+  sort: PodchaserPodcastSort = "relevance",
+): Promise<PodchaserPodcastSearchResult> {
+  const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
+  const requestedPage = Math.max(Math.trunc(page), 1);
+  const normalizedQuery = podcastQuery.trim();
+  const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}::${requestedPage}::${sort}`;
+  const cached = getCached(podcastSearchCache, cacheKey);
+  if (cached) return cached;
+
+  let response = await requestPodchaser<PodchaserPodcastRaw[] | PodchaserPaginatedRaw<PodchaserPodcastRaw>>(
+    "/search/podcasts",
+    {
+      q: normalizedQuery,
+      page: String(requestedPage),
+      per_page: String(limit),
+      sort,
+      sort_direction: sort === "alphabetical" ? "asc" : "desc",
+    },
+  );
+  let candidates = extractData(response).map(normalizePodcast);
+  let suggestedQuery: string | null = null;
+
+  if (requestedPage === 1 && candidates.length === 0) {
+    const fallbackQuery = fallbackSearchTerm(normalizedQuery);
+    if (fallbackQuery) {
+      response = await requestPodchaser<PodchaserPodcastRaw[] | PodchaserPaginatedRaw<PodchaserPodcastRaw>>(
+        "/search/podcasts",
+        { q: fallbackQuery, page: "1", per_page: String(limit), sort, sort_direction: sort === "alphabetical" ? "asc" : "desc" },
+      );
+      candidates = rankPodcastSuggestions(normalizedQuery, extractData(response).map(normalizePodcast));
+      suggestedQuery = candidates[0]?.title ?? null;
+    }
+  }
+
+  const value = {
+    podcastQuery: normalizedQuery,
+    podcastCandidates: candidates,
+    pagination: normalizePagination(response, requestedPage, limit, candidates.length),
+    suggestedQuery,
+  };
+  setCached(podcastSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
+  return value;
+}
+
+export async function getPodchaserPodcastCredits(
+  podcastId: string,
+  max = 25,
+): Promise<PodchaserPodcastCreditsResult> {
+  const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
+  const normalizedPodcastId = podcastId.trim();
+  const cacheKey = `${normalizedPodcastId}::${limit}`;
+  const cached = getCached(podcastCreditsCache, cacheKey);
+  if (cached) return cached;
+
+  const response = await requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditListRaw>>(
+    `/podcasts/${encodeURIComponent(normalizedPodcastId)}/credits`,
+    { per_page: String(limit), sort: "relevance", sort_direction: "desc" },
+  );
+  const credits = extractData(response)
+    .map(normalizePodcastCreditListItem)
+    .filter((credit) => Boolean(credit.creator.id));
+  const value = {
+    podcastId: normalizedPodcastId,
+    credits,
+    pagination: normalizePagination(response, 1, limit, credits.length),
+  };
+  setCached(podcastCreditsCache, cacheKey, value, APPEARANCE_CACHE_TTL_MS);
   return value;
 }
 
@@ -378,6 +547,44 @@ function normalizeCreator(raw: PodchaserCreatorRaw): PodchaserCreatorCandidate {
   };
 }
 
+function normalizePodcast(raw: PodchaserPodcastRaw): PodchaserPodcastCandidate {
+  return {
+    id: String(raw.id ?? ""),
+    title: stringOrNull(raw.title) ?? "Untitled podcast",
+    description: stringOrNull(raw.description),
+    imageUrl: stringOrNull(raw.imageUrl),
+    language: stringOrNull(raw.language),
+    numberOfEpisodes: typeof raw.numberOfEpisodes === "number" ? raw.numberOfEpisodes : null,
+    startDate: podchaserDateToIso(raw.startDate),
+    latestEpisodeDate: podchaserDateToIso(raw.latestEpisodeDate),
+    categories: (raw.categories ?? []).map((category) => ({
+      title: stringOrNull(category.title) ?? "Other",
+      slug: stringOrNull(category.slug) ?? "other",
+    })),
+    hasGuests: typeof raw.hasGuests === "boolean" ? raw.hasGuests : null,
+    status: stringOrNull(raw.status),
+    author: {
+      name: stringOrNull(raw.author?.name),
+      email: stringOrNull(raw.author?.email),
+    },
+  };
+}
+
+function normalizePodcastCreditListItem(raw: PodchaserPodcastCreditListRaw): PodchaserPodcastCredit {
+  const latestEpisodeId = raw.lastEpisode?.id == null ? null : String(raw.lastEpisode.id);
+  return {
+    creator: normalizeCreator(raw.creator ?? {}),
+    roleCode: stringOrNull(raw.role?.code) ?? "contributor",
+    roleTitle: stringOrNull(raw.role?.title) ?? "Contributor",
+    episodeCount: numberOrZero(raw.episodeCount),
+    latestEpisode: latestEpisodeId ? {
+      id: latestEpisodeId,
+      title: stringOrNull(raw.lastEpisode?.title) ?? "Untitled episode",
+      airDate: podchaserDateToIso(raw.lastEpisode?.airDate),
+    } : null,
+  };
+}
+
 function normalizeEpisodeCredit(raw: PodchaserEpisodeCreditRaw): PodchaserGuestEpisode {
   return {
     creditId: raw.id == null ? null : String(raw.id),
@@ -437,6 +644,85 @@ function canonicalName(value: string): string {
     .split(/\s+/)
     .filter((token) => token && !ignoredHonorifics.has(token))
     .join("");
+}
+
+function creatorSearchQuery(
+  query: string,
+  limit: number,
+  page: number,
+  sort: PodchaserCreatorSort,
+): Record<string, string> {
+  return {
+    q: query,
+    page: String(page),
+    per_page: String(limit),
+    sort,
+    sort_direction: sort === "alphabetical" ? "asc" : "desc",
+  };
+}
+
+function normalizePagination<T>(
+  response: T[] | PodchaserPaginatedRaw<T>,
+  requestedPage: number,
+  requestedPerPage: number,
+  fallbackCount: number,
+): PodchaserSearchPagination {
+  if (Array.isArray(response)) {
+    return { page: requestedPage, perPage: requestedPerPage, totalResults: fallbackCount, totalPages: 1, hasMore: false };
+  }
+  const totalResults = numberOrZero(response.pagination?.total_results) || fallbackCount;
+  const perPage = numberOrZero(response.pagination?.per_page) || requestedPerPage;
+  const totalPages = numberOrZero(response.pagination?.total_pages) || Math.max(1, Math.ceil(totalResults / perPage));
+  return {
+    page: numberOrZero(response.pagination?.page) || requestedPage,
+    perPage,
+    totalResults,
+    totalPages,
+    hasMore: response.pagination?.has_more ?? requestedPage < totalPages,
+  };
+}
+
+function fallbackSearchTerm(query: string): string | null {
+  const tokens = query
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !["the", "show", "podcast", "with"].includes(token.toLowerCase()));
+  if (tokens.length < 2) return null;
+  return [...tokens].sort((left, right) => left.length - right.length)[0] ?? null;
+}
+
+function rankCreatorSuggestions(query: string, candidates: PodchaserCreatorCandidate[]): PodchaserCreatorCandidate[] {
+  return [...candidates].sort((left, right) => suggestionDistance(query, left.name) - suggestionDistance(query, right.name));
+}
+
+function rankPodcastSuggestions(query: string, candidates: PodchaserPodcastCandidate[]): PodchaserPodcastCandidate[] {
+  return [...candidates].sort((left, right) => suggestionDistance(query, left.title) - suggestionDistance(query, right.title));
+}
+
+function suggestionDistance(query: string, candidate: string): number {
+  const left = canonicalName(query);
+  const right = canonicalName(candidate);
+  if (!left || !right) return Number.MAX_SAFE_INTEGER;
+  if (right.includes(left) || left.includes(right)) return Math.abs(right.length - left.length);
+  return levenshtein(left, right);
+}
+
+function levenshtein(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j += 1) {
+      current[j] = Math.min(
+        (current[j - 1] ?? 0) + 1,
+        (previous[j] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + (left[i - 1] === right[j - 1] ? 0 : 1),
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[right.length] ?? left.length;
 }
 
 function stringOrNull(value: unknown): string | null {
