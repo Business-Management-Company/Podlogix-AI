@@ -190,6 +190,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [railExpanded, setRailExpanded] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
 
+  // Any page can fire window.dispatchEvent(new CustomEvent("podlogix:openAi")) to open the panel
+  useEffect(() => {
+    const handler = () => setAiOpen(true);
+    window.addEventListener("podlogix:openAi", handler);
+    return () => window.removeEventListener("podlogix:openAi", handler);
+  }, []);
+
   // ── Nav mode: workspace vs. show context ──
   const showMatch = location.match(/^\/shows\/([^/]+)/);
   const showId = showMatch?.[1];
@@ -615,7 +622,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
 
-      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} suppressFloat={location === "/help"} />
+      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} />
 
     </div>
   );
@@ -648,7 +655,7 @@ const GREETING: AiMessage = {
   text: "Hey! I'm your Podlogix AI — ask me anything about your podcast: episode ideas, show notes, growth, sponsorships, or whatever's on your mind. 🎙️",
 };
 
-function AiPanel({ aiOpen, setAiOpen, suppressFloat }: { aiOpen: boolean; setAiOpen: (v: boolean) => void; suppressFloat?: boolean }) {
+function AiPanel({ aiOpen, setAiOpen }: { aiOpen: boolean; setAiOpen: (v: boolean) => void }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<AiMessage[]>([GREETING]);
   const [loading, setLoading] = useState(false);
@@ -751,8 +758,8 @@ function AiPanel({ aiOpen, setAiOpen, suppressFloat }: { aiOpen: boolean; setAiO
 
   return (
     <>
-      {/* Floating trigger — hidden on /help where the AI panel is embedded inline */}
-      {!aiOpen && !suppressFloat && (
+      {/* Floating trigger */}
+      {!aiOpen && (
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
