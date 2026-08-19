@@ -47,6 +47,11 @@ interface GoogleCalendarConnection {
   email?: string;
 }
 
+interface YouTubeSourceConnection {
+  connected: boolean;
+  channelTitle?: string | null;
+}
+
 interface CreatorSocialProfile {
   id: string;
   platform: string;
@@ -184,6 +189,10 @@ export default function Connectors() {
     queryKey: ["/api/calendar/google/status"],
   });
 
+  const { data: youtubeSourceStatus } = useQuery<YouTubeSourceConnection>({
+    queryKey: ["/api/content-sources/youtube/status"],
+  });
+
   const { data: creatorProfiles = [] } = useQuery<CreatorSocialProfile[]>({
     queryKey: ["/api/creator/social-profiles"],
   });
@@ -301,6 +310,12 @@ export default function Connectors() {
     },
   });
 
+  const connectYouTubeSourceMutation = useMutation({
+    mutationFn: async () => (await apiRequest("GET", "/api/content-sources/youtube/auth")).json(),
+    onSuccess: (data) => { window.location.href = data.authUrl; },
+    onError: () => toast({ title: "Error", description: "Failed to connect YouTube", variant: "destructive" }),
+  });
+
   const addProfileMutation = useMutation({
     mutationFn: async ({ platform, profileUrl }: { platform: string; profileUrl: string }) => {
       const res = await apiRequest("POST", "/api/creator/social-profiles", { platform, profileUrl });
@@ -365,6 +380,27 @@ export default function Connectors() {
       <section className="mb-8">
         <SectionHeader title="Podcast hosting" />
         <BuzzsproutConnect />
+      </section>
+
+      <section className="mb-8">
+        <SectionHeader title="Content sources" />
+        <p className="mb-3 text-xs text-zinc-500">Import creator-owned recordings into your Podlogix production workflow.</p>
+        <Card padding="none">
+          <ConnectorRow
+            icon={<Youtube className="h-4 w-4 text-red-500" />}
+            name="YouTube"
+            detail={youtubeSourceStatus?.connected ? youtubeSourceStatus.channelTitle ?? "Verified channel" : "Verify ownership and browse your channel videos"}
+            status={youtubeSourceStatus?.connected ? "connected" : "off"}
+            statusLabel={youtubeSourceStatus?.connected ? "Connected" : "Not connected"}
+            action={youtubeSourceStatus?.connected ? (
+              <Button size="sm" variant="outline" onClick={() => { window.location.href = "/youtube-import"; }}>Import videos</Button>
+            ) : (
+              <Button size="sm" variant="outline" disabled={connectYouTubeSourceMutation.isPending} onClick={() => connectYouTubeSourceMutation.mutate()}>
+                {connectYouTubeSourceMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Connect"}
+              </Button>
+            )}
+          />
+        </Card>
       </section>
 
       {/* ── Posting accounts ── */}

@@ -69,6 +69,7 @@ import BrandDashboard from "@/pages/BrandDashboard";
 import Connectors from "@/pages/Connectors";
 import IdentityHub from "@/pages/IdentityHub";
 import ClientPortal from "@/pages/ClientPortal";
+import YouTubeImport from "@/pages/YouTubeImport";
 
 // ─── Placeholder pages ────────────────────────────────────────────────────────
 // Real destinations in the information architecture that don't have a built
@@ -169,6 +170,7 @@ function AuthenticatedRoutes() {
         {/* ── Settings cluster ── */}
         <Route path="/settings" component={AccountSettings} />
         <Route path="/connectors" component={Connectors} />
+        <Route path="/youtube-import" component={YouTubeImport} />
         <Route path="/identity" component={IdentityHub} />
         <Route path="/help" component={KnowledgeBase} />
 

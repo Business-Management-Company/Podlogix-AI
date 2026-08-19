@@ -497,6 +497,24 @@ export const googleCalendarConnections = pgTable("google_calendar_connections", 
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Authenticated YouTube creator source. Distinct from public analytics and
+// posting connections: this proves ownership for the content import picker.
+export const youtubeConnections = pgTable("youtube_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  googleUserId: varchar("google_user_id"),
+  email: varchar("email"),
+  channelId: varchar("channel_id").notNull(),
+  channelTitle: varchar("channel_title"),
+  channelThumbnailUrl: text("channel_thumbnail_url"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  scope: text("scope"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Notifications (for dashboard and email alerts)
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1280,3 +1298,4 @@ export type BuzzsproutConnection = typeof buzzsproutConnections.$inferSelect;
 export type InsertBuzzsproutConnection = z.infer<typeof insertBuzzsproutConnectionSchema>;
 export type BuzzsproutEpisode = typeof buzzsproutEpisodes.$inferSelect;
 export type InsertBuzzsproutEpisode = z.infer<typeof insertBuzzsproutEpisodeSchema>;
+export type YouTubeConnection = typeof youtubeConnections.$inferSelect;
