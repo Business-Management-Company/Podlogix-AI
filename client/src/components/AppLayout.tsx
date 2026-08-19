@@ -615,7 +615,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
 
-      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} />
+      <AiPanel aiOpen={aiOpen} setAiOpen={setAiOpen} suppressFloat={location === "/help"} />
 
     </div>
   );
@@ -648,7 +648,7 @@ const GREETING: AiMessage = {
   text: "Hey! I'm your Podlogix AI — ask me anything about your podcast: episode ideas, show notes, growth, sponsorships, or whatever's on your mind. 🎙️",
 };
 
-function AiPanel({ aiOpen, setAiOpen }: { aiOpen: boolean; setAiOpen: (v: boolean) => void }) {
+function AiPanel({ aiOpen, setAiOpen, suppressFloat }: { aiOpen: boolean; setAiOpen: (v: boolean) => void; suppressFloat?: boolean }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<AiMessage[]>([GREETING]);
   const [loading, setLoading] = useState(false);
@@ -751,8 +751,8 @@ function AiPanel({ aiOpen, setAiOpen }: { aiOpen: boolean; setAiOpen: (v: boolea
 
   return (
     <>
-      {/* Floating trigger */}
-      {!aiOpen && (
+      {/* Floating trigger — hidden on /help where the AI panel is embedded inline */}
+      {!aiOpen && !suppressFloat && (
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
