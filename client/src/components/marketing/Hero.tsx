@@ -117,7 +117,8 @@ export function Hero() {
               "stream, and grow.",
             ].map((line) => (
               <span key={line} className="block overflow-hidden">
-                <motion.span variants={lineReveal} className="block" style={{ color: "#ffffff" }}>
+                {/* Each headline line is locked — no mid-line rewrap, no dangling words */}
+                <motion.span variants={lineReveal} className="block sm:whitespace-nowrap" style={{ color: "#ffffff" }}>
                   {line}
                 </motion.span>
               </span>
