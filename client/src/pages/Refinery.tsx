@@ -68,6 +68,7 @@ export default function Refinery() {
   const [minutesSaved, setMinutesSaved] = useState<number | null>(null);
   const [clipPlatforms, setClipPlatforms] = useState<string[]>(["youtube", "instagram", "tiktok"]);
   const [selDuration, setSelDuration] = useState<number | null>(null);
+  const [selBytes, setSelBytes] = useState<number | null>(null);
 
   // Clip copy (graduated from the Media Lab beta): platform-tuned title,
   // caption, and hashtags for a short video. The analyzer takes clips up to
@@ -100,8 +101,18 @@ export default function Refinery() {
 
   useEffect(() => {
     setSelDuration(null);
+    setSelBytes(null);
     clipCopy.reset();
-    if (selected) void mediaDuration(selected.url, selected.type).then((d) => setSelDuration(d || null));
+    if (!selected) return;
+    void mediaDuration(selected.url, selected.type).then((d) => setSelDuration(d || null));
+    // Big files can stall the metadata probe entirely — a HEAD request for
+    // Content-Length still catches them, so the size gate never goes silent.
+    void fetch(selected.url, { method: "HEAD" })
+      .then((r) => {
+        const len = Number(r.headers.get("content-length") || 0);
+        if (len > 0) setSelBytes(len);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.url]);
 
@@ -428,7 +439,9 @@ export default function Refinery() {
 
               {/* Clip copy — graduated from the Media Lab beta */}
               {selected.type === "video" && (() => {
-                const tooLong = selDuration !== null && selDuration > 300;
+                const tooLong =
+                  (selDuration !== null && selDuration > 300) ||
+                  (selBytes !== null && selBytes > 100 * 1024 * 1024);
                 const result = clipCopy.data;
                 return (
                   <div className="mt-4 border-t border-zinc-100 pt-4">
@@ -438,7 +451,8 @@ export default function Refinery() {
                     </p>
                     {tooLong ? (
                       <p className="rounded-lg bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
-                        This recording runs {Math.round(selDuration! / 60)} minutes — refine it and cut a clip first, then bring the clip back here.
+                        This recording is too big for clip copy
+                        {selDuration !== null && selDuration > 300 ? ` (${Math.round(selDuration / 60)} minutes)` : " (over 100MB)"} — refine it and cut a clip first, then bring the clip back here.
                       </p>
                     ) : (
                       <>
