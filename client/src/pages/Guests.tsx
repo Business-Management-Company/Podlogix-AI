@@ -7,6 +7,7 @@ import {
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
+import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -594,6 +595,10 @@ export default function Guests() {
                 </section>
 
                 {selected.prospect ? (
+                  <GuestSocialProfiles socialLinks={selected.prospect.socialLinks} />
+                ) : null}
+
+                {selected.prospect ? (
                   <section>
                     <SectionHeader title="Guest research" />
                     <GuestResearchSummary
@@ -601,7 +606,6 @@ export default function Guests() {
                       bio={selected.prospect.bio}
                       location={selected.prospect.location}
                       creditedEpisodes={selected.prospect.episodeAppearanceCount}
-                      socialLinks={selected.prospect.socialLinks}
                       compact
                     />
                   </section>
