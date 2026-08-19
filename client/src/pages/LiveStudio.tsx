@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, BarChart3, Camera, CameraOff, CheckCircle2, Circle, Clapperboard, Clock, Download,
   FileText, FolderOpen, Home as HomeIcon, LayoutGrid, Loader2, Mic, MicOff, MonitorUp, Music,
-  Plus, Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Wand2, XCircle,
+  Pencil, Plus, Radio, Scissors, Share2, Sparkles, Square, Trash2, Type, UserPlus, Wand2, XCircle,
 } from "lucide-react";
 import { LiveRoom, type RemoteFeed } from "@/lib/live-room";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
@@ -112,6 +112,10 @@ export default function LiveStudio() {
     () => localStorage.getItem("podlogix.studio") || null,
   );
   const [newStudioName, setNewStudioName] = useState("");
+  const [editStudio, setEditStudio] = useState<Studio | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editThumbUrl, setEditThumbUrl] = useState<string | null>(null);
+  const [editThumbUploading, setEditThumbUploading] = useState(false);
   // ── Workspace lobby (Restream-style shell) ──
   const [lobbyTab, setLobbyTab] = useState<"home" | "past" | "clips" | "storage" | "channels" | "analytics">("home");
   const [statsRange, setStatsRange] = useState<7 | 14 | 30 | 90>(30);
@@ -302,6 +306,42 @@ export default function LiveStudio() {
     },
     onError: () => toast({ title: "Couldn't create the studio", variant: "destructive" }),
   });
+
+  const updateStudioMutation = useMutation({
+    mutationFn: async () => {
+      if (!editStudio) throw new Error("no studio");
+      const res = await apiRequest("PATCH", `/api/studios/${editStudio.id}`, {
+        name: editName.trim(),
+        thumbnailUrl: editThumbUrl,
+      });
+      if (!res.ok) throw new Error("update failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studios"] });
+      setEditStudio(null);
+    },
+    onError: () => toast({ title: "Couldn't save the studio", variant: "destructive" }),
+  });
+
+  const uploadStudioThumbnail = async (file: File) => {
+    setEditThumbUploading(true);
+    try {
+      const req = await apiRequest("POST", "/api/uploads/request-url", {
+        name: file.name,
+        size: file.size,
+        contentType: file.type || "image/jpeg",
+      });
+      const { uploadURL, objectPath } = await req.json();
+      const put = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
+      if (!put.ok) throw new Error("upload failed");
+      setEditThumbUrl(objectPath);
+    } catch {
+      toast({ title: "Couldn't upload the thumbnail", variant: "destructive" });
+    } finally {
+      setEditThumbUploading(false);
+    }
+  };
 
   const deleteStudioMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/studios/${id}`),
@@ -1013,7 +1053,7 @@ export default function LiveStudio() {
                         >
                           <div className="flex min-w-0 items-center gap-3">
                             <span
-                              className="flex h-11 w-[72px] shrink-0 items-center justify-center rounded-lg ring-1 ring-white/10"
+                              className="flex h-11 w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-white/10"
                               style={{
                                 background: [
                                   "linear-gradient(135deg, #2a1a3e 0%, #0f2740 100%)",
@@ -1022,7 +1062,11 @@ export default function LiveStudio() {
                                 ][i % 3],
                               }}
                             >
-                              <Radio className="h-4 w-4 text-white/60" />
+                              {s.thumbnailUrl ? (
+                                <img src={s.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <Radio className="h-4 w-4 text-white/60" />
+                              )}
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate text-sm font-semibold text-zinc-100">{s.name}</span>
@@ -1061,6 +1105,18 @@ export default function LiveStudio() {
                             <Button size="sm" className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700" onClick={() => setActiveStudioId(s.id)}>
                               Enter Studio →
                             </Button>
+                            <button
+                              onClick={() => {
+                                setEditStudio(s);
+                                setEditName(s.name);
+                                setEditThumbUrl(s.thumbnailUrl ?? null);
+                              }}
+                              className="rounded-lg p-1.5 text-zinc-600 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100"
+                              aria-label={`Edit ${s.name}`}
+                              title="Edit studio"
+                            >
+                              <Pencil size={13} />
+                            </button>
                             <button
                               onClick={() => {
                                 if (window.confirm(`Delete \u201c${s.name}\u201d? Past recordings and clips stay in your library.`)) {
@@ -1350,6 +1406,77 @@ export default function LiveStudio() {
               ))}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit studio: title + thumbnail */}
+      <Dialog open={!!editStudio} onOpenChange={(v) => { if (!v) setEditStudio(null); }}>
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Edit studio</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Rename the studio or give it a thumbnail for your streams list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Title</label>
+              <Input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && editName.trim()) updateStudioMutation.mutate(); }}
+                placeholder="Studio name"
+                className="border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-600"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Thumbnail</label>
+              <div className="flex items-center gap-3">
+                <span className="flex h-[60px] w-[100px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-900 ring-1 ring-zinc-700">
+                  {editThumbUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                  ) : editThumbUrl ? (
+                    <img src={editThumbUrl} alt="Studio thumbnail" className="h-full w-full object-cover" />
+                  ) : (
+                    <Radio className="h-4 w-4 text-zinc-600" />
+                  )}
+                </span>
+                <div className="flex flex-col items-start gap-1.5">
+                  <label className="cursor-pointer rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-500">
+                    {editThumbUrl ? "Change image" : "Upload image"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadStudioThumbnail(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {editThumbUrl && (
+                    <button onClick={() => setEditThumbUrl(null)} className="text-xs text-zinc-500 hover:text-red-400">
+                      Remove thumbnail
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" className="text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200" onClick={() => setEditStudio(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => updateStudioMutation.mutate()}
+                disabled={!editName.trim() || editThumbUploading || updateStudioMutation.isPending}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {updateStudioMutation.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

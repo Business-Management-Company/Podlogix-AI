@@ -193,14 +193,21 @@ export default function Refinery() {
         }
       `}</style>
 
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
-          <Wand2 className="h-6 w-6 text-zinc-400" />
-          Refiner
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Turn raw conversations into clear, compelling content — every checkmark is a real transformation of your actual file.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
+            <Wand2 className="h-6 w-6 text-zinc-400" />
+            Refiner
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Turn raw conversations into clear, compelling content — every checkmark is a real transformation of your actual file.
+          </p>
+        </div>
+        <Link href="/studio/live">
+          <Button variant="outline" className="shrink-0">
+            <Clapperboard className="mr-1.5 h-4 w-4" /> Back to Studios
+          </Button>
+        </Link>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)_280px]">

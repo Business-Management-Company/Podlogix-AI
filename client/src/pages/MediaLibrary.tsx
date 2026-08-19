@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -13,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import {
   AudioLines, Check, Clapperboard, Download, ExternalLink, Film, FolderOpen,
-  Image as ImageIcon, Link2, Loader2, Plus, Search, Sparkles, Trash2, Upload,
+  Image as ImageIcon, Link2, Loader2, Play, Plus, Radio, Search, Sparkles, Trash2, Upload, Wand2,
 } from "lucide-react";
 import {
   SiInstagram, SiYoutube, SiFacebook, SiLinkedin, SiTiktok, SiX, SiThreads,
@@ -165,6 +166,8 @@ export default function MediaLibrary() {
   const [addOpen, setAddOpen] = useState(false);
   const [addUrl, setAddUrl] = useState("");
   const [addBusy, setAddBusy] = useState(false);
+  const [preview, setPreview] = useState<MediaLibraryItem | null>(null);
+  const [, navigate] = useLocation();
   const uploadPathRef = useRef<string | null>(null);
 
   const getUploadParams = async (file: File) => {
@@ -232,6 +235,9 @@ export default function MediaLibrary() {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={() => navigate("/studio/live")} data-testid="button-back-to-studios">
+            <Radio className="mr-1.5 h-4 w-4" /> Back to Studios
+          </Button>
           <Button variant="outline" onClick={() => setAddOpen(true)} data-testid="button-add-media">
             <Plus className="mr-1.5 h-4 w-4" /> Add media
           </Button>
@@ -240,6 +246,38 @@ export default function MediaLibrary() {
           </Button>
         </div>
       </div>
+
+      {/* Preview: play in place — the Refiner is one explicit click away, never automatic */}
+      <Dialog open={!!preview} onOpenChange={(v) => { if (!v) setPreview(null); }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-6">{preview?.caption || "Preview"}</DialogTitle>
+            <DialogDescription>
+              {preview?.mediaType === "audio" ? "Listen here, or send it to the Refiner." : "Watch here, or send it to the Refiner."}
+            </DialogDescription>
+          </DialogHeader>
+          {preview?.mediaUrl && (
+            <div className="space-y-4">
+              {preview.mediaType === "video" ? (
+                <video src={preview.mediaUrl} controls autoPlay className="aspect-video w-full rounded-lg bg-black" />
+              ) : (
+                <div className="flex flex-col items-center gap-4 rounded-lg bg-emerald-50/60 px-4 py-8">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+                    <AudioLines className="h-6 w-6 text-emerald-600" />
+                  </span>
+                  <audio src={preview.mediaUrl} controls autoPlay className="w-full" />
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" onClick={() => setPreview(null)}>Close</Button>
+                <Button onClick={() => navigate(`/studio/refine?src=${encodeURIComponent(preview.mediaUrl!)}`)}>
+                  <Wand2 className="mr-1.5 h-4 w-4" /> Open in Refiner
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add media dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -340,15 +378,26 @@ export default function MediaLibrary() {
               <Card key={item.id} padding="none" className="group overflow-hidden">
                 <div className="relative aspect-square bg-zinc-100">
                   {item.mediaType === "audio" && item.mediaUrl ? (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-emerald-50/60 px-3">
+                    <button
+                      onClick={() => setPreview(item)}
+                      className="flex h-full w-full flex-col items-center justify-center gap-3 bg-emerald-50/60 px-3 transition-colors hover:bg-emerald-50"
+                      aria-label="Preview audio"
+                    >
                       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
                         <AudioLines className="h-5 w-5 text-emerald-600" />
                       </span>
-                      <audio src={item.mediaUrl} controls className="w-full" preload="none" />
-                    </div>
+                      <span className="text-[11px] font-medium text-emerald-700">Play audio</span>
+                    </button>
                   ) : visual ? (
                     item.mediaType === "video" && item.mediaUrl ? (
-                      <video src={item.mediaUrl} className="h-full w-full object-cover" />
+                      <button onClick={() => setPreview(item)} className="relative block h-full w-full" aria-label="Preview video">
+                        <video src={item.mediaUrl} className="h-full w-full object-cover" preload="metadata" />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/20">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Play className="ml-0.5 h-4 w-4 text-white" />
+                          </span>
+                        </span>
+                      </button>
                     ) : (
                       <img src={visual} alt="" className="h-full w-full object-cover" loading="lazy" />
                     )

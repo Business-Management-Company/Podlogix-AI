@@ -176,6 +176,7 @@ export interface IStorage {
   getStudios(userId: string): Promise<Studio[]>;
   getStudioByInviteCode(code: string): Promise<Studio | undefined>;
   updateStudioInviteCode(id: string, userId: string, code: string): Promise<void>;
+  updateStudio(id: string, userId: string, patch: { name?: string; thumbnailUrl?: string | null }): Promise<Studio | undefined>;
   getStudioScenes(studioId: string, userId: string): Promise<StudioScene[]>;
   createStudioScene(scene: InsertStudioScene): Promise<StudioScene>;
   deleteStudioScene(id: string, userId: string): Promise<void>;
@@ -868,6 +869,13 @@ export class DatabaseStorage implements IStorage {
   async updateStudioInviteCode(id: string, userId: string, code: string): Promise<void> {
     await db.update(studios).set({ guestInviteCode: code })
       .where(and(eq(studios.id, id), eq(studios.userId, userId)));
+  }
+
+  async updateStudio(id: string, userId: string, patch: { name?: string; thumbnailUrl?: string | null }): Promise<Studio | undefined> {
+    const [updated] = await db.update(studios).set(patch)
+      .where(and(eq(studios.id, id), eq(studios.userId, userId)))
+      .returning();
+    return updated;
   }
 
   async getStudioScenes(studioId: string, userId: string): Promise<StudioScene[]> {

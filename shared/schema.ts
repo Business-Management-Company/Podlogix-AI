@@ -853,6 +853,7 @@ export const studios = pgTable("studios", {
   // Guest room invite code (LiveKit) — the room belongs to the studio, so
   // guests can join the green room before the show goes live.
   guestInviteCode: varchar("guest_invite_code"),
+  thumbnailUrl: text("thumbnail_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
