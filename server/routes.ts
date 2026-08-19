@@ -98,6 +98,12 @@ import { sendEmail, isEmailConfigured } from "./services/emailService";
 import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
 import { registerConnectorRoutes } from "./connectorRoutes";
 import { exchangeYouTubeCode, getOwnedChannel, getOwnedVideo, getYouTubeAuthUrl, listOwnedVideos } from "./services/youtubeContentSource";
+import {
+  getPodcastIndexAuthMode,
+  isPodcastIndexConfigured,
+  PodcastIndexError,
+  probePodcastIndex,
+} from "./services/podcastIndexService";
 
 async function sendEmailCampaign(campaignId: string, userId: string, recipientIds?: string[]) {
   // Check if email is configured first
@@ -3256,6 +3262,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         { id: "influencers-club", name: "Influencers.club (Social Analytics)", category: "Analytics", envVars: ["INFLUENCERS_CLUB_API_KEY"], note: "All 7 Social Analytics tabs", codeStatus: "ready" },
         { id: "upload-post", name: "Upload-Post (Social Hub posting)", category: "Social", envVars: ["UPLOAD_POST_API_KEY"], note: "Cross-platform posting", codeStatus: "ready" },
         { id: "spotify", name: "Spotify OAuth", category: "Listener", envVars: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"], note: "Listener show import", codeStatus: "ready" },
+        { id: "podcast-index", name: "Podcast Index", category: "Podcast Discovery", envVars: ["PODCAST_INDEX_API_KEY"], note: "Read-only podcast, episode, and guest-appearance discovery", codeStatus: "ready" },
         { id: "youtube", name: "YouTube Data API", category: "Social", envVars: ["YOUTUBE_API_KEY"], note: "Channel stats on creator profiles", codeStatus: "ready" },
         { id: "meta", name: "Instagram / Facebook (Meta)", category: "Social", envVars: ["META_APP_ID", "META_APP_SECRET"], note: "OAuth connections", codeStatus: "ready" },
         { id: "linkedin", name: "LinkedIn OAuth", category: "Social", envVars: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"], note: "Profile connection", codeStatus: "ready" },
@@ -3275,6 +3282,42 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     } catch (error) {
       console.error('Error checking integration status:', error);
       res.status(500).json({ message: 'Failed to check integration status' });
+    }
+  });
+
+  // Read-only Podcast Index capability probe (admin only). This deliberately
+  // does not persist provider data or expose the configured credential.
+  app.get('/api/admin/podcast-index/probe', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      if (!isPodcastIndexConfigured()) {
+        return res.status(503).json({
+          configured: false,
+          message: 'PODCAST_INDEX_API_KEY is not configured',
+        });
+      }
+
+      const input = z.object({
+        q: z.string().trim().min(2).max(120).default('podcasting'),
+        person: z.string().trim().min(2).max(120).default('Joe Rogan'),
+        max: z.coerce.number().int().min(1).max(10).default(5),
+      }).parse(req.query);
+      const probe = await probePodcastIndex(input.q, input.person, input.max);
+      res.json({ configured: true, ...probe });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid probe query' });
+      }
+      if (error instanceof PodcastIndexError) {
+        const status = error.code === 'AUTH_FAILED' ? 502 : error.code === 'RATE_LIMITED' ? 429 : 502;
+        return res.status(status).json({
+          configured: isPodcastIndexConfigured(),
+          authMode: getPodcastIndexAuthMode(),
+          code: error.code,
+          message: error.message,
+        });
+      }
+      console.error('Podcast Index probe failed:', error);
+      res.status(500).json({ message: 'Podcast Index probe failed' });
     }
   });
 
