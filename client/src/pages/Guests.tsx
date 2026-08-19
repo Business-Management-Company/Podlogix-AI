@@ -5,6 +5,7 @@ import {
   Briefcase, ChevronRight, Compass, Loader2, Mail, Plus, Search, Send, StickyNote, Users,
 } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
+import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { GUEST_STAGES, guestStageMeta, socialProfileSummary } from "@/lib/guest-workflow";
+import { GUEST_STAGES, guestStageMeta } from "@/lib/guest-workflow";
 import type { ContactNote, EmailContact, GuestPipelineEntry, GuestProspect } from "@shared/schema";
 
 interface DashboardData {
@@ -516,23 +517,14 @@ export default function Guests() {
                 {selected.prospect ? (
                   <section>
                     <SectionHeader title="Guest research" />
-                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-                      {selected.prospect.subtitle ? <p className="text-sm font-medium text-zinc-900">{selected.prospect.subtitle}</p> : null}
-                      {selected.prospect.bio ? <p className="mt-2 line-clamp-5 text-sm leading-5 text-zinc-600">{selected.prospect.bio}</p> : null}
-                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
-                        {selected.prospect.location ? <span>{selected.prospect.location}</span> : null}
-                        {selected.prospect.episodeAppearanceCount != null ? <span>{selected.prospect.episodeAppearanceCount.toLocaleString()} credited episodes (all roles)</span> : null}
-                      </div>
-                      {Object.entries(selected.prospect.socialLinks ?? {}).length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {Object.entries(selected.prospect.socialLinks ?? {}).map(([platform, url]) => (
-                            <span key={platform} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">
-                              {socialProfileSummary(platform, url)}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
+                    <GuestResearchSummary
+                      subtitle={selected.prospect.subtitle}
+                      bio={selected.prospect.bio}
+                      location={selected.prospect.location}
+                      creditedEpisodes={selected.prospect.episodeAppearanceCount}
+                      socialLinks={selected.prospect.socialLinks}
+                      compact
+                    />
                   </section>
                 ) : null}
 

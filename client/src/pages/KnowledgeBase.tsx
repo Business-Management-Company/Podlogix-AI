@@ -379,7 +379,7 @@ const articles: Article[] = [
   },
   {
     id: "discover-directory",
-    title: "Discover & Shortlist",
+    title: "Discover & Guest Prospects",
     description: "Find creators worth inviting, and save the good ones.",
     category: "Guests",
     icon: <Search className="h-5 w-5" />,
@@ -387,8 +387,8 @@ const articles: Article[] = [
     content: [
       "Discover searches for creators across social platforms — by topic, name, or handle. Each result shows their followers, engagement, and contact info when available.",
       "Search for a person, confirm the correct identity, and review the podcasts and episodes where they appeared. Social enrichment through IC is optional and only runs when you request it.",
-      "When you find someone interesting, save them to your Shortlist or add them directly to a show's guest pipeline. An email address is not required until you are ready to reach out.",
-      "The flow: Discover someone → confirm their podcast history → save to Shortlist or add as a Prospect → enrich contact details only when needed.",
+      "When you find someone interesting, save them as a Guest Prospect or add them directly to a show's guest pipeline. An email address is not required until you are ready to reach out.",
+      "The flow: Discover someone → confirm their podcast history → save as a Guest Prospect → assign them to a show pipeline → enrich contact details only when needed.",
     ],
   },
 

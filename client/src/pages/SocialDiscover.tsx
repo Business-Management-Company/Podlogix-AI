@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BookmarkPlus, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid,
-  List, Loader2, Mail, MapPin, Mic2, Search, UserPlus, Users,
+  BookmarkPlus, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, ExternalLink,
+  Globe2, LayoutGrid, List, Loader2, Mail, Mic2, Rss, Search, Star, UserPlus, Users,
 } from "lucide-react";
 import {
   GuestAppearanceHistory,
   type GuestAppearanceResult,
 } from "@/components/guest/GuestAppearanceHistory";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
+import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
-import { GUEST_STAGES, socialProfileSummary, type GuestStage } from "@/lib/guest-workflow";
+import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type SearchMode = "people" | "podcasts";
@@ -39,6 +40,7 @@ interface CreatorCandidate {
   profileUrl: string | null;
   imageUrl: string | null;
   episodeAppearanceCount: number | null;
+  followerCount: number | null;
   socialLinks: { twitter: string | null; wikipedia: string | null } & Record<string, string | null>;
 }
 
@@ -48,13 +50,24 @@ interface PodcastCandidate {
   description: string | null;
   imageUrl: string | null;
   language: string | null;
+  webUrl: string | null;
+  rssUrl: string | null;
   numberOfEpisodes: number | null;
+  avgEpisodeLength: number | null;
+  daysBetweenEpisodes: number | null;
+  followerCount: number | null;
+  ratingCount: number | null;
+  ratingAverage: number | null;
+  reviewCount: number | null;
   startDate: string | null;
   latestEpisodeDate: string | null;
   categories: Array<{ title: string; slug: string }>;
   hasGuests: boolean | null;
+  explicit: boolean | null;
   status: string | null;
   author: { name: string | null; email: string | null };
+  socialLinks: Record<string, string | null>;
+  socialFollowerCounts: Record<string, number | null>;
 }
 
 interface SearchPagination {
@@ -69,12 +82,14 @@ interface CreatorSearchResult {
   creatorCandidates: CreatorCandidate[];
   pagination: SearchPagination;
   suggestedQuery: string | null;
+  restrictedFields: string[];
 }
 
 interface PodcastSearchResult {
   podcastCandidates: PodcastCandidate[];
   pagination: SearchPagination;
   suggestedQuery: string | null;
+  restrictedFields: string[];
 }
 
 interface PodcastCredit {
@@ -125,6 +140,35 @@ function formatDate(value: string | null): string {
   if (!value) return "Unavailable";
   return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null || seconds <= 0) return "Unavailable";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
+}
+
+function formatCadence(days: number | null): string {
+  if (days == null || days <= 0) return "Unavailable";
+  if (days <= 2) return "Several times a week";
+  if (days <= 9) return "Weekly";
+  if (days <= 18) return "Every other week";
+  if (days <= 40) return "Monthly";
+  return `About every ${Math.round(days)} days`;
+}
+
+const SOCIAL_LABELS: Record<string, string> = {
+  twitter: "X",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  youtube: "YouTube",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  patreon: "Patreon",
+  twitch: "Twitch",
+};
 
 function candidatePayload(candidate: CreatorCandidate) {
   const socialLinks = Object.fromEntries(
@@ -239,7 +283,7 @@ export default function SocialDiscover() {
       const response = await apiRequest("POST", "/api/guest-prospects", candidatePayload(candidate));
       return response.json() as Promise<GuestProspect>;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }); toast({ title: "Saved to Shortlist" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }); toast({ title: "Saved as guest prospect" }); },
     onError: (error: Error) => toast({ title: "Couldn't save guest", description: error.message, variant: "destructive" }),
   });
   const addToPipelineMutation = useMutation({
@@ -407,6 +451,7 @@ export default function SocialDiscover() {
         credits={podcastCreditsQuery.data}
         creditsLoading={podcastCreditsQuery.isFetching}
         creditsError={podcastCreditsQuery.error}
+        restrictedFields={podcastSearchQuery.data?.restrictedFields ?? []}
         onClose={() => setSelectedPodcast(null)}
         onChoosePerson={chooseCreator}
       />
@@ -472,8 +517,8 @@ interface PersonDrawerProps {
 function PersonDrawer(props: PersonDrawerProps) {
   const { candidate, prospect, appearances, appearancesLoading, appearancesError } = props;
   return <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}><SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">{candidate ? <><SheetHeader><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader><div className="mt-6 space-y-6">
-    <div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved to Shortlist" : "Save to Shortlist"}</Button><RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks)} isPending={props.revealPending} onConfirm={props.onReveal} /></div>
-    <section><SectionHeader title="Guest research" /><div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">{candidate.location ? <p className="flex items-center gap-1 text-xs text-zinc-500"><MapPin size={12} />{candidate.location}</p> : null}{candidate.bio ? <p className="mt-3 text-sm leading-6 text-zinc-600">{candidate.bio}</p> : null}{Object.entries(candidate.socialLinks).some(([, value]) => Boolean(value)) ? <div className="mt-3 flex flex-wrap gap-2">{Object.entries(candidate.socialLinks).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([platform, url]) => <span key={platform} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">{socialProfileSummary(platform, url)}</span>)}</div> : null}</div></section>
+    <div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved as Guest Prospect" : "Save as Guest Prospect"}</Button><RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks)} isPending={props.revealPending} onConfirm={props.onReveal} /></div>
+    <section><SectionHeader title="Guest research" /><GuestResearchSummary subtitle={candidate.subtitle} bio={candidate.bio} location={candidate.location} creditedEpisodes={candidate.episodeAppearanceCount} socialLinks={candidate.socialLinks} /></section>
     <GuestAppearanceHistory appearances={appearances} isLoading={appearancesLoading} error={appearancesError} />
     <section><SectionHeader title="Add to guest pipeline" />{props.ownedPodcasts.length > 0 ? <div className="space-y-2.5 rounded-xl border border-zinc-200 p-4"><Select value={props.targetShowId} onValueChange={props.onTargetShow}><SelectTrigger><SelectValue placeholder="Choose your show" /></SelectTrigger><SelectContent>{props.ownedPodcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent></Select><Select value={props.pipelineStage} onValueChange={(value) => props.onStage(value as GuestStage)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent></Select><Button className="w-full" onClick={props.onAddPipeline} disabled={!props.targetShowId || props.pipelinePending || props.addedToPodcastId === props.targetShowId}>{props.addedToPodcastId === props.targetShowId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}{props.addedToPodcastId === props.targetShowId ? "Added to Pipeline" : "Add to Guest Pipeline"}</Button></div> : <p className="rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">Connect a show to add this guest to a pipeline. <Link href="/dashboard/rss" className="underline">Connect a show →</Link></p>}</section>
   </div></> : null}</SheetContent></Sheet>;
@@ -484,15 +529,113 @@ interface PodcastDrawerProps {
   credits?: PodcastCreditsResult;
   creditsLoading: boolean;
   creditsError: Error | null;
+  restrictedFields: string[];
   onClose: () => void;
   onChoosePerson: (candidate: CreatorCandidate) => void;
 }
 
-function PodcastDrawer({ podcast, credits, creditsLoading, creditsError, onClose, onChoosePerson }: PodcastDrawerProps) {
-  return <Sheet open={Boolean(podcast)} onOpenChange={(open) => !open && onClose()}><SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">{podcast ? <><SheetHeader><div className="flex items-center gap-4"><PodcastArtwork podcast={podcast} size="lg" /><div className="min-w-0"><SheetTitle className="line-clamp-2 text-left">{podcast.title}</SheetTitle><p className="mt-1 text-sm text-zinc-500">{podcast.author.name || "Podcast show"}</p></div></div></SheetHeader><div className="mt-6 space-y-6">
-    <section><SectionHeader title="Show details" /><div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4"><p className="text-sm leading-6 text-zinc-600">{podcast.description || "No description available."}</p><div className="mt-3 flex flex-wrap gap-2">{podcast.categories.map((category) => <span key={category.slug} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">{category.title}</span>)}</div></div></section>
-    <div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-zinc-200 p-4"><p className="text-2xl font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}</p><p className="text-xs text-zinc-500">Episodes</p></div><div className="rounded-xl border border-zinc-200 p-4"><p className="flex items-center gap-1 text-sm font-semibold text-zinc-950"><CalendarDays className="h-4 w-4" />{formatDate(podcast.latestEpisodeDate)}</p><p className="mt-1 text-xs text-zinc-500">Latest episode</p></div></div>
-    {podcast.author.email ? <a href={`mailto:${podcast.author.email}`} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700 hover:border-zinc-400"><Mail className="h-4 w-4 text-zinc-400" /><span><span className="font-medium text-zinc-950">Public show email</span><span className="block text-xs text-zinc-500">{podcast.author.email}</span></span></a> : null}
-    <section><SectionHeader title={`Hosts and guests${credits ? ` · ${formatCount(credits.pagination.totalResults)}` : ""}`} />{creditsError ? <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{creditsError.message}</p> : creditsLoading ? <p className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading credited people…</p> : <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">{credits?.credits.map((credit) => <button key={`${credit.creator.id}-${credit.roleCode}`} type="button" onClick={() => onChoosePerson(credit.creator)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50"><PersonAvatar candidate={credit.creator} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{credit.creator.name}</span><span className="block text-xs text-zinc-500">{credit.roleTitle} · {credit.episodeCount} episode{credit.episodeCount === 1 ? "" : "s"}</span></span><ChevronRight className="h-4 w-4 text-zinc-300" /></button>)}</Card>}</section>
-  </div></> : null}</SheetContent></Sheet>;
+function PodcastDrawer({ podcast, credits, creditsLoading, creditsError, restrictedFields, onClose, onChoosePerson }: PodcastDrawerProps) {
+  const socialLinks = Object.entries(podcast?.socialLinks ?? {})
+    .filter((entry): entry is [string, string] => Boolean(entry[1]));
+  const socialFollowerCounts = Object.entries(podcast?.socialFollowerCounts ?? {})
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number");
+  const hasRestrictedProof = restrictedFields.some((field) => /social|rating|review/i.test(field));
+
+  return (
+    <Sheet open={Boolean(podcast)} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">
+        {podcast ? (
+          <>
+            <SheetHeader>
+              <div className="flex items-center gap-4">
+                <PodcastArtwork podcast={podcast} size="lg" />
+                <div className="min-w-0">
+                  <SheetTitle className="line-clamp-2 text-left">{podcast.title}</SheetTitle>
+                  <p className="mt-1 text-sm text-zinc-500">{podcast.author.name || "Podcast show"}</p>
+                </div>
+              </div>
+            </SheetHeader>
+            <div className="mt-6 space-y-6">
+              <section>
+                <SectionHeader title="Show details" />
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm leading-6 text-zinc-600">{podcast.description || "No description available."}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {podcast.categories.map((category) => <span key={category.slug} className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600">{category.title}</span>)}
+                  </div>
+                </div>
+              </section>
+
+              {podcast.webUrl || podcast.rssUrl || socialLinks.length > 0 ? (
+                <section>
+                  <SectionHeader title="Official links" />
+                  <div className="flex flex-wrap gap-2">
+                    {podcast.webUrl ? <a href={podcast.webUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:border-zinc-400"><Globe2 className="h-4 w-4" />Website<ExternalLink className="h-3 w-3" /></a> : null}
+                    {podcast.rssUrl ? <a href={podcast.rssUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:border-zinc-400"><Rss className="h-4 w-4" />RSS feed<ExternalLink className="h-3 w-3" /></a> : null}
+                    {socialLinks.map(([platform, url]) => <a key={platform} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:border-zinc-400">{SOCIAL_LABELS[platform] || platform}<ExternalLink className="h-3 w-3" /></a>)}
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-400">These links belong to the podcast show and may differ from an individual guest's profiles.</p>
+                </section>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <DetailCard label="Episodes" value={formatCount(podcast.numberOfEpisodes)} />
+                <DetailCard label="Latest episode" value={formatDate(podcast.latestEpisodeDate)} icon={<CalendarDays className="h-4 w-4" />} />
+                <DetailCard label="First episode" value={formatDate(podcast.startDate)} />
+                <DetailCard label="Average length" value={formatDuration(podcast.avgEpisodeLength)} icon={<Clock3 className="h-4 w-4" />} />
+                <DetailCard label="Release cadence" value={formatCadence(podcast.daysBetweenEpisodes)} />
+                <DetailCard label="Language" value={podcast.language?.toUpperCase() || "Unavailable"} />
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
+                {podcast.status ? <span className="rounded-full bg-zinc-100 px-2.5 py-1">Status: {podcast.status}</span> : null}
+                {podcast.explicit != null ? <span className="rounded-full bg-zinc-100 px-2.5 py-1">{podcast.explicit ? "Marked explicit" : "Not marked explicit"}</span> : null}
+                {podcast.hasGuests != null ? <span className="rounded-full bg-zinc-100 px-2.5 py-1">{podcast.hasGuests ? "Features guests" : "No guest credits found"}</span> : null}
+              </div>
+
+              {podcast.ratingAverage != null || podcast.reviewCount != null || socialFollowerCounts.length > 0 ? (
+                <section>
+                  <SectionHeader title="Public proof" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {podcast.ratingAverage != null ? (
+                      <div className="rounded-xl border border-zinc-200 p-4">
+                        <p className="flex items-center gap-1 text-lg font-semibold text-zinc-950"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{podcast.ratingAverage.toFixed(1)}</p>
+                        <p className="text-xs text-zinc-500">Listener rating · {formatCount(podcast.ratingCount)} ratings · {formatCount(podcast.reviewCount)} reviews</p>
+                      </div>
+                    ) : null}
+                    {socialFollowerCounts.length > 0 ? (
+                      <div className="rounded-xl border border-zinc-200 p-4">
+                        <p className="text-sm font-medium text-zinc-950">Public social reach</p>
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
+                          {socialFollowerCounts.map(([platform, count]) => <span key={platform}>{SOCIAL_LABELS[platform] || platform}: {formatCount(count)}</span>)}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-400">Ratings describe the podcast, not the quality of every individual guest.</p>
+                </section>
+              ) : hasRestrictedProof ? (
+                <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-xs text-zinc-500">Some social-reach and listener-review fields are not included with the connected Podchaser permissions.</p>
+              ) : null}
+
+              {podcast.author.email ? <a href={`mailto:${podcast.author.email}`} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700 hover:border-zinc-400"><Mail className="h-4 w-4 text-zinc-400" /><span><span className="font-medium text-zinc-950">Public show email</span><span className="block text-xs text-zinc-500">{podcast.author.email}</span></span></a> : null}
+
+              <section>
+                <SectionHeader title={`Hosts and guests${credits ? ` · ${formatCount(credits.pagination.totalResults)}` : ""}`} />
+                {creditsError ? <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{creditsError.message}</p> : creditsLoading ? <p className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading credited people…</p> : <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">{credits?.credits.map((credit) => <button key={`${credit.creator.id}-${credit.roleCode}`} type="button" onClick={() => onChoosePerson(credit.creator)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50"><PersonAvatar candidate={credit.creator} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{credit.creator.name}</span><span className="block text-xs text-zinc-500">{credit.roleTitle} · {credit.episodeCount} episode{credit.episodeCount === 1 ? "" : "s"}</span></span><ChevronRight className="h-4 w-4 text-zinc-300" /></button>)}</Card>}
+              </section>
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function DetailCard({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 p-4">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-950">{icon}{value}</p>
+      <p className="mt-1 text-xs text-zinc-500">{label}</p>
+    </div>
+  );
 }
