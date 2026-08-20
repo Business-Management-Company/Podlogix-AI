@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Compass, Loader2, Mail, Plus, Search, Send, StickyNote, Users,
+  Briefcase, ChevronRight, Compass, Loader2, Mail, Plus, Search, Send, Star, StickyNote, Users,
 } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
+import { StarButton } from "@/components/guest/StarButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
@@ -27,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
+import { useToggleProspectStar } from "@/hooks/use-toggle-prospect-star";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { GUEST_STAGES, guestStageMeta } from "@/lib/guest-workflow";
 import type { ContactNote, EmailContact, GuestPipelineEntry, GuestProspect } from "@shared/schema";
@@ -98,6 +100,7 @@ export default function Guests() {
   const [newGuest, setNewGuest] = useState({ email: "", firstName: "", lastName: "", notes: "" });
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const [starredOnly, setStarredOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<EmailContact>>({});
   const [noteDraft, setNoteDraft] = useState("");
@@ -223,6 +226,7 @@ export default function Guests() {
   });
 
   const promoteContactMutation = usePromoteGuestContact();
+  const toggleStarMutation = useToggleProspectStar();
 
   const inviteGuest = (entry: GuestEntry) => {
     const email = guestEmail(entry.contact, entry.prospect);
@@ -246,6 +250,7 @@ export default function Guests() {
     const q = search.trim().toLowerCase();
     return (guests ?? [])
       .filter((g) => stageFilter === "all" || g.stage === stageFilter)
+      .filter((g) => !starredOnly || Boolean(g.prospect?.starred))
       .filter((g) => {
         if (!q) return true;
         const hay = [
@@ -255,13 +260,19 @@ export default function Guests() {
         return hay.includes(q);
       })
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime());
-  }, [guests, search, stageFilter]);
+  }, [guests, search, stageFilter, starredOnly]);
 
   const stageCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const g of guests ?? []) counts.set(g.stage, (counts.get(g.stage) ?? 0) + 1);
     return counts;
   }, [guests]);
+  const starredCount = (guests ?? []).filter((g) => g.prospect?.starred).length;
+
+  const toggleStarred = (prospect?: GuestProspect) => {
+    if (!prospect) return;
+    toggleStarMutation.mutate({ id: prospect.id, starred: !prospect.starred });
+  };
 
   const isLoading = dashboardLoading || buzzsproutLoading || (!!podcast && guestsLoading);
   const totalGuests = guests?.length ?? 0;
@@ -395,6 +406,17 @@ export default function Guests() {
               >
                 All · {totalGuests}
               </button>
+              {starredCount > 0 ? (
+                <button
+                  onClick={() => setStarredOnly((value) => !value)}
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    starredOnly ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  }`}
+                >
+                  <Star size={11} fill="currentColor" aria-hidden="true" />
+                  Starred · {starredCount}
+                </button>
+              ) : null}
               {GUEST_STAGES.map((stage) => {
                 const count = stageCounts.get(stage.id) ?? 0;
                 if (count === 0) return null;
@@ -421,33 +443,41 @@ export default function Guests() {
               filtered.map((entry) => {
                 const meta = guestStageMeta(entry.stage);
                 return (
-                  <button
-                    key={entry.id}
-                    onClick={() => openDrawer(entry)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-50"
-                  >
-                    {entry.prospect?.imageUrl ? (
-                      <img src={entry.prospect.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 object-cover" />
-                    ) : (
-                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarTone(entry.contact, entry.prospect)}`}>
-                        {initials(entry.contact, entry.prospect)}
+                  <div key={entry.id} className="flex items-center gap-1 px-2 transition-colors hover:bg-zinc-50">
+                    <StarButton
+                      size="sm"
+                      starred={entry.prospect?.starred}
+                      isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === entry.prospect?.id}
+                      onToggle={() => toggleStarred(entry.prospect)}
+                      className="border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
+                    />
+                    <button
+                      onClick={() => openDrawer(entry)}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left"
+                    >
+                      {entry.prospect?.imageUrl ? (
+                        <img src={entry.prospect.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                      ) : (
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarTone(entry.contact, entry.prospect)}`}>
+                          {initials(entry.contact, entry.prospect)}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-zinc-950">
+                          {guestName(entry.contact, entry.prospect)}
+                        </span>
+                        <span className="block truncate text-xs text-zinc-500">
+                          {[guestEmail(entry.contact, entry.prospect), entry.prospect?.subtitle, [entry.contact?.title, entry.contact?.company].filter(Boolean).join(" · ")]
+                            .filter(Boolean)
+                            .join("  ·  ")}
+                        </span>
                       </span>
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-zinc-950">
-                        {guestName(entry.contact, entry.prospect)}
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${meta.chip}`}>
+                        {meta.label}
                       </span>
-                      <span className="block truncate text-xs text-zinc-500">
-                        {[guestEmail(entry.contact, entry.prospect), entry.prospect?.subtitle, [entry.contact?.title, entry.contact?.company].filter(Boolean).join(" · ")]
-                          .filter(Boolean)
-                          .join("  ·  ")}
-                      </span>
-                    </span>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${meta.chip}`}>
-                      {meta.label}
-                    </span>
-                    <ChevronRight size={14} className="shrink-0 text-zinc-300" />
-                  </button>
+                      <ChevronRight size={14} className="shrink-0 text-zinc-300" />
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -469,7 +499,7 @@ export default function Guests() {
                       {initials(selected.contact, selected.prospect)}
                     </span>
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <SheetTitle className="truncate text-left">{guestName(selected.contact, selected.prospect)}</SheetTitle>
                     {guestEmail(selected.contact, selected.prospect) ? (
                       <a href={`mailto:${guestEmail(selected.contact, selected.prospect)}`} className="flex items-center gap-1 truncate text-sm text-zinc-500 hover:text-zinc-800">
@@ -480,6 +510,11 @@ export default function Guests() {
                       <p className="text-sm text-zinc-400">Contact details not added</p>
                     )}
                   </div>
+                  <StarButton
+                    starred={selected.prospect?.starred}
+                    isPending={toggleStarMutation.isPending}
+                    onToggle={() => toggleStarred(selected.prospect)}
+                  />
                 </div>
               </SheetHeader>
 

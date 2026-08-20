@@ -741,6 +741,9 @@ export const guestProspects = pgTable("guest_prospects", {
   email: varchar("email"),
   socialLinks: jsonb("social_links").$type<Record<string, string>>().default({}),
   episodeAppearanceCount: integer("episode_appearance_count"),
+  // A user-curated flag ("these are the ones I'm most excited about"), independent
+  // of pipeline stage or contact status — applies to anyone already reviewed.
+  starred: boolean("starred").notNull().default(false),
   lastResearchedAt: timestamp("last_researched_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

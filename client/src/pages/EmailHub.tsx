@@ -16,22 +16,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
+import { StarButton } from "@/components/guest/StarButton";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
-import { 
+import { useToggleProspectStar } from "@/hooks/use-toggle-prospect-star";
+import { GUEST_STAGES, guestStageMeta } from "@/lib/guest-workflow";
+import {
   ChevronRight,
-  Mail, 
-  Users, 
-  Sparkles, 
-  Plus, 
-  Send, 
-  Trash2, 
+  Mail,
+  Users,
+  Sparkles,
+  Plus,
+  Send,
+  Star,
+  Trash2,
   Edit3,
   Loader2,
   FileText,
   Wand2,
   RefreshCw
 } from "lucide-react";
-import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect } from "@shared/schema";
+import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect as BaseGuestProspect } from "@shared/schema";
+
+// pipelineStage is computed by the server (most recent pipeline entry, if any),
+// not a schema column, so it's added here rather than in shared/schema.ts.
+type GuestProspect = BaseGuestProspect & { pipelineStage?: string | null };
 
 const EMPTY_PROSPECTS: GuestProspect[] = [];
 
@@ -82,6 +90,7 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
   const [showAddContact, setShowAddContact] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [contactFilter, setContactFilter] = useState<string>("all");
   const [contactDraft, setContactDraft] = useState<Partial<EmailContact>>({});
   const [newContact, setNewContact] = useState({ email: "", firstName: "", lastName: "", category: "subscriber" });
   const [composeEmail, setComposeEmail] = useState({ name: "", subject: "", body: "", recipientType: "all" });
@@ -111,6 +120,22 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
       .filter((prospect) => Boolean(prospect.email && prospect.imageUrl))
       .map((prospect) => [prospect.email!.trim().toLowerCase(), prospect.imageUrl!] as const),
   ), [prospects]);
+  const toggleStarMutation = useToggleProspectStar();
+
+  const starredCount = contacts.filter((contact) => linkedGuestProspect(contact, prospects)?.starred).length;
+  const stageCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const contact of contacts) {
+      const stage = linkedGuestProspect(contact, prospects)?.pipelineStage;
+      if (stage) counts.set(stage, (counts.get(stage) ?? 0) + 1);
+    }
+    return counts;
+  }, [contacts, prospects]);
+  const filteredContacts = useMemo(() => {
+    if (contactFilter === "all") return contacts;
+    if (contactFilter === "starred") return contacts.filter((contact) => linkedGuestProspect(contact, prospects)?.starred);
+    return contacts.filter((contact) => linkedGuestProspect(contact, prospects)?.pipelineStage === contactFilter);
+  }, [contacts, prospects, contactFilter]);
 
   const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<EmailCampaign[]>({
     queryKey: ['/api/email/campaigns'],
@@ -377,42 +402,97 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-2">
-              {contacts.map((contact) => (
-                <Card key={contact.id} className="p-0">
-                  <div className="flex items-center gap-2 p-4">
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setContactFilter("all")}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    contactFilter === "all" ? "bg-zinc-950 text-white" : "bg-zinc-100 text-zinc-500 hover:text-zinc-700"
+                  }`}
+                >
+                  All · {peopleCount}
+                </button>
+                {starredCount > 0 ? (
+                  <button
+                    onClick={() => setContactFilter(contactFilter === "starred" ? "all" : "starred")}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      contactFilter === "starred" ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    }`}
+                  >
+                    <Star size={11} fill="currentColor" aria-hidden="true" />
+                    Starred · {starredCount}
+                  </button>
+                ) : null}
+                {GUEST_STAGES.map((stage) => {
+                  const count = stageCounts.get(stage.id) ?? 0;
+                  if (count === 0) return null;
+                  return (
                     <button
-                      type="button"
-                      onClick={() => openContact(contact.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      key={stage.id}
+                      onClick={() => setContactFilter(contactFilter === stage.id ? "all" : stage.id)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        contactFilter === stage.id ? "bg-zinc-950 text-white" : `${stage.chip} hover:opacity-80`
+                      }`}
                     >
-                      <MasterContactAvatar
-                        contact={contact}
-                        prospectImageById={prospectImageById}
-                        prospectImageByEmail={prospectImageByEmail}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">
-                          {contactDisplayName(contact, linkedGuestProspect(contact, prospects))}
-                        </span>
-                        <span className="block truncate text-sm text-muted-foreground">{contact.email || "Email not added"}</span>
-                      </span>
-                      <Badge className={categoryColors[contact.category || 'subscriber']}>
-                        {contact.category}
-                      </Badge>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      {stage.label} · {count}
                     </button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteContactMutation.mutate(contact.id)}
-                      data-testid={`button-delete-contact-${contact.id}`}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                  );
+                })}
+              </div>
+
+              {filteredContacts.length === 0 ? (
+                <p className="px-2 py-8 text-center text-sm text-muted-foreground">No contacts match this filter.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {filteredContacts.map((contact) => {
+                    const linkedProspect = linkedGuestProspect(contact, prospects);
+                    return (
+                      <Card key={contact.id} className="p-0">
+                        <div className="flex items-center gap-2 p-4">
+                          {linkedProspect ? (
+                            <StarButton
+                              size="sm"
+                              starred={linkedProspect.starred}
+                              isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === linkedProspect.id}
+                              onToggle={() => toggleStarMutation.mutate({ id: linkedProspect.id, starred: !linkedProspect.starred })}
+                              className="border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => openContact(contact.id)}
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          >
+                            <MasterContactAvatar
+                              contact={contact}
+                              prospectImageById={prospectImageById}
+                              prospectImageByEmail={prospectImageByEmail}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium">
+                                {contactDisplayName(contact, linkedProspect)}
+                              </span>
+                              <span className="block truncate text-sm text-muted-foreground">{contact.email || "Email not added"}</span>
+                            </span>
+                            <Badge className={categoryColors[contact.category || 'subscriber']}>
+                              {contact.category}
+                            </Badge>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteContactMutation.mutate(contact.id)}
+                            data-testid={`button-delete-contact-${contact.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </TabsContent>

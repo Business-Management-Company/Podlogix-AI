@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BookmarkPlus, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Cpu, ExternalLink,
+  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Cpu, ExternalLink,
   FlaskConical, Globe2, GraduationCap, HeartPulse, Info, LayoutGrid, List, Loader2, Mail, MessagesSquare,
   Mic2, Rss, Search, Star, UserPlus, Users,
 } from "lucide-react";
@@ -12,6 +12,7 @@ import {
 } from "@/components/guest/GuestAppearanceHistory";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
+import { StarButton } from "@/components/guest/StarButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
@@ -26,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
+import { useToggleProspectStar } from "@/hooks/use-toggle-prospect-star";
 import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -125,6 +127,8 @@ interface GuestProspect {
   name: string;
   email: string | null;
   masterContactId?: string | null;
+  pipelineStage?: string | null;
+  starred?: boolean;
   socialLinks: Record<string, string> | null;
 }
 
@@ -314,13 +318,16 @@ export default function SocialDiscover() {
   const activeCreator = creatorDetailQuery.data?.creator ?? selectedCreator;
   const savedProspect = activeCreator ? prospectData?.prospects.find((prospect) => prospect.providerPersonId === activeCreator.id) ?? null : null;
   const promoteContactMutation = usePromoteGuestContact();
+  const toggleStarMutation = useToggleProspectStar();
 
   const saveProspectMutation = useMutation({
     mutationFn: async (candidate: CreatorCandidate) => {
       const response = await apiRequest("POST", "/api/guest-prospects", candidatePayload(candidate));
       return response.json() as Promise<GuestProspect>;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }); toast({ title: "Saved to shortlist" }); },
+    // Silent — this is an internal step before Add to Pipeline, Add to Contacts,
+    // or starring; those actions show their own toast.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }),
     onError: (error: Error) => toast({ title: "Couldn't save guest", description: error.message, variant: "destructive" }),
   });
   const addToPipelineMutation = useMutation({
@@ -367,6 +374,19 @@ export default function SocialDiscover() {
       let prospect = savedProspect;
       if (!prospect) prospect = await saveProspectMutation.mutateAsync(activeCreator);
       await promoteContactMutation.mutateAsync(prospect.id);
+    } catch {
+      // Both mutations surface their own actionable toast message.
+    }
+  };
+
+  const toggleStarred = async () => {
+    try {
+      if (!activeCreator) return;
+      let prospect = savedProspect;
+      if (!prospect) prospect = await saveProspectMutation.mutateAsync(activeCreator);
+      const nextStarred = !prospect.starred;
+      await toggleStarMutation.mutateAsync({ id: prospect.id, starred: nextStarred });
+      toast({ title: nextStarred ? "Starred" : "Star removed" });
     } catch {
       // Both mutations surface their own actionable toast message.
     }
@@ -558,19 +578,19 @@ export default function SocialDiscover() {
         targetShowId={targetShowId}
         pipelineStage={pipelineStage}
         addedToPodcastId={addedToPodcastId}
-        savePending={saveProspectMutation.isPending}
         contactPending={promoteContactMutation.isPending || saveProspectMutation.isPending}
         revealPending={revealEmailMutation.isPending}
         pipelinePending={addToPipelineMutation.isPending}
+        starPending={toggleStarMutation.isPending || saveProspectMutation.isPending}
         pipelineDialogOpen={pipelineDialogOpen}
         onClose={() => setSelectedCreator(null)}
-        onSave={() => activeCreator && saveProspectMutation.mutate(activeCreator)}
         onAddContact={() => void addToContacts()}
         onReveal={() => revealEmailMutation.mutate()}
         onTargetShow={setSelectedTargetShowId}
         onStage={setPipelineStage}
         onAddPipeline={() => addToPipelineMutation.mutate()}
         onPipelineDialog={setPipelineDialogOpen}
+        onToggleStar={() => void toggleStarred()}
       />
       <PodcastDrawer
         podcast={selectedPodcast}
@@ -629,19 +649,19 @@ interface PersonDrawerProps {
   targetShowId: string;
   pipelineStage: GuestStage;
   addedToPodcastId: string | null;
-  savePending: boolean;
   contactPending: boolean;
   revealPending: boolean;
   pipelinePending: boolean;
+  starPending: boolean;
   pipelineDialogOpen: boolean;
   onClose: () => void;
-  onSave: () => void;
   onAddContact: () => void;
   onReveal: () => void;
   onTargetShow: (id: string) => void;
   onStage: (stage: GuestStage) => void;
   onAddPipeline: () => void;
   onPipelineDialog: (open: boolean) => void;
+  onToggleStar: () => void;
 }
 
 function HostedShowActivity({ podcast }: { podcast?: GuestAppearanceResult["hostedPodcasts"][number] }) {
@@ -672,16 +692,21 @@ function PersonDrawer(props: PersonDrawerProps) {
       <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[52vw]">
           {candidate ? <>
-            <SheetHeader className="rounded-xl border-l-4 border-l-primary bg-zinc-50 p-4"><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader>
+            <SheetHeader className="rounded-xl border-l-4 border-l-primary bg-zinc-50 p-4">
+              <div className="flex items-center gap-3">
+                <PersonAvatar candidate={candidate} size="lg" />
+                <div className="min-w-0 flex-1"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div>
+                <TooltipProvider delayDuration={250}><Tooltip><TooltipTrigger asChild><span><StarButton starred={prospect?.starred} isPending={props.starPending} onToggle={props.onToggleStar} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-56">Star your top picks — works whether they're just reviewed, in a pipeline, or already a contact.</TooltipContent></Tooltip></TooltipProvider>
+              </div>
+            </SheetHeader>
             <div className="mt-4 space-y-4">
               <TooltipProvider delayDuration={250}>
                 <div className="flex flex-wrap gap-2">
-                  <Tooltip><TooltipTrigger asChild><Button onClick={() => props.onPipelineDialog(true)} className="h-9"><UserPlus className="mr-1.5 h-4 w-4" />Add to Pipeline</Button></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Assign this guest to a show and booking stage. Pipeline guests are also saved to your Shortlist.</TooltipContent></Tooltip>
-                  <Tooltip><TooltipTrigger asChild><span><Button variant="outline" className="h-9" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Shortlisted" : "Shortlist"}</Button></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Save for research without committing the guest to a show or outreach stage.</TooltipContent></Tooltip>
-                  <Tooltip><TooltipTrigger asChild><span><MasterContactButton className="h-9" masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Create a master contact record for notes, outreach, and future campaigns.</TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><Button onClick={() => props.onPipelineDialog(true)} className="h-9"><UserPlus className="mr-1.5 h-4 w-4" />Add to Pipeline</Button></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Assign this guest to a show and booking stage — the right choice once you're actively pursuing them.</TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><span><MasterContactButton className="h-9" masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Create a master contact record for notes, outreach, and future campaigns — no show commitment needed.</TooltipContent></Tooltip>
                   <Tooltip><TooltipTrigger asChild><span><RevealEmailButton className="h-9" email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks) || Boolean(appearances?.hostedPodcasts.some((podcast) => hasEnrichmentProfile(podcast.socialLinks)))} isPending={props.revealPending} onConfirm={props.onReveal} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Use one Influencers Club credit once; the saved email is reused afterward.</TooltipContent></Tooltip>
                 </div>
-                <p className="flex items-center gap-1.5 text-xs text-zinc-500"><Info className="h-3.5 w-3.5" aria-hidden="true" /><span><strong className="font-medium text-zinc-700">Shortlist</strong> is research-only. <strong className="font-medium text-zinc-700">Pipeline</strong> means you are actively pursuing this guest for a show.</span></p>
+                <p className="flex items-center gap-1.5 text-xs text-zinc-500"><Info className="h-3.5 w-3.5" aria-hidden="true" /><span><strong className="font-medium text-zinc-700">Pipeline</strong> means you're actively pursuing this guest for a specific show. <strong className="font-medium text-zinc-700">Contacts</strong> just saves them for outreach — no show needed. Use the star for your top picks either way.</span></p>
               </TooltipProvider>
               <GuestSocialProfiles compact socialLinks={candidate.socialLinks} hostedPodcasts={appearances?.hostedPodcasts} />
               <HostedShowActivity podcast={appearances?.hostedPodcasts[0]} />
@@ -736,6 +761,10 @@ function PodcastDrawer({ podcast, credits, creditsLoading, creditsError, restric
                 </div>
               </div>
             </SheetHeader>
+            <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500">
+              <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              This is the show, not a guest — pick a person from "Hosts and guests" below to add them to your pipeline or contacts.
+            </p>
             <div className="mt-6 space-y-6">
               <section>
                 <SectionHeader title="Show details" />

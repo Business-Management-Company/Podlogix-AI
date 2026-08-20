@@ -46,7 +46,7 @@ import {
   UserPlus,
   Fingerprint,
   Compass,
-  BookMarked,
+  Star,
   FlaskConical,
   Puzzle,
   PenSquare,
@@ -93,7 +93,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
   // Guest work follows the user's natural funnel: discover, research, pursue.
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
-  { title: "Shortlist", url: "/social/directory", icon: BookMarked, group: "Guests" },
+  { title: "Starred", url: "/social/directory", icon: Star, group: "Guests" },
   { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
   // Contacts and Email are distinct workspace tools. A person can exist in
   // Contacts without being a guest, and campaigns should not crowd guest CRM.

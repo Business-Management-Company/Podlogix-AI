@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { BadgeCheck, BookMarked, ChevronRight, Loader2, Mail, Mic2, Trash2, Users } from "lucide-react";
+import { BadgeCheck, ChevronRight, Loader2, Mail, Mic2, Star, Trash2, Users } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
+import { StarButton } from "@/components/guest/StarButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
@@ -13,6 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
+import { useToggleProspectStar } from "@/hooks/use-toggle-prospect-star";
 import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -39,6 +41,8 @@ interface GuestProspect {
   bio?: string | null;
   email?: string | null;
   masterContactId?: string | null;
+  pipelineStage?: string | null;
+  starred?: boolean;
   episodeAppearanceCount?: number | null;
   socialLinks?: Record<string, string> | null;
 }
@@ -85,10 +89,11 @@ export default function Directory() {
   const { data: prospectData, isLoading: prospectsLoading } = useQuery<{ prospects: GuestProspect[] }>({
     queryKey: ["/api/guest-prospects"],
   });
-  const prospects = prospectData?.prospects ?? [];
+  const prospects = (prospectData?.prospects ?? []).filter((prospect) => prospect.starred);
   const selectedProspect = prospects.find((prospect) => prospect.id === selectedProspectId) ?? null;
   const appearanceQuery = useGuestAppearances(selectedProspect?.providerPersonId);
   const promoteContactMutation = usePromoteGuestContact();
+  const toggleStarMutation = useToggleProspectStar();
   const isLoading = creatorsLoading || prospectsLoading;
 
   const deleteMutation = useMutation({
@@ -101,19 +106,6 @@ export default function Directory() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to remove creator", variant: "destructive" });
-    },
-  });
-
-  const deleteProspectMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/guest-prospects/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
-      toast({ title: "Removed from Guest Prospects" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Couldn't remove guest", description: error.message, variant: "destructive" });
     },
   });
 
@@ -169,28 +161,35 @@ export default function Directory() {
   return (
     <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Guest Prospects</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Starred</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Saved guest profiles you can review and add to any show's pipeline.
+          Your top picks — starred from Discover, Guest Pipeline, or Contacts. Star or unstar anywhere; this is just the filtered view.
         </p>
       </div>
 
       {isLoading ? null : lists.size === 0 && prospects.length === 0 ? (
         <EmptyState
-          icon={BookMarked}
-          title="No guest prospects yet"
-          description="When you find a promising guest in Discover, save them here for review."
+          icon={Star}
+          title="No starred guests yet"
+          description="Star your top picks anywhere you research a guest — Discover, Guest Pipeline, or Contacts — and they'll show up here."
           action={{ label: "Go to Discover", href: "/social/discover" }}
         />
       ) : (
         <div className="space-y-6">
           {prospects.length > 0 ? (
             <section>
-              <SectionHeader title={`Saved guests · ${prospects.length}`} />
+              <SectionHeader title={`Starred guests · ${prospects.length}`} />
               <Card padding="none">
                 <div className="divide-y divide-zinc-100">
                   {prospects.map((prospect) => (
                     <CardRow key={prospect.id}>
+                      <StarButton
+                        size="sm"
+                        starred={prospect.starred}
+                        isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === prospect.id}
+                        onToggle={() => toggleStarMutation.mutate({ id: prospect.id, starred: !prospect.starred })}
+                        className="border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
+                      />
                       <button type="button" onClick={() => openProspect(prospect.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                         {prospect.imageUrl ? (
                           <img src={prospect.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 object-cover" />
@@ -208,14 +207,6 @@ export default function Directory() {
                           <span className="block text-[11px] text-zinc-500">credited episodes</span>
                         </span>
                         <ChevronRight size={14} className="shrink-0 text-zinc-300" />
-                      </button>
-                      <button
-                        onClick={() => deleteProspectMutation.mutate(prospect.id)}
-                        disabled={deleteProspectMutation.isPending}
-                        className="shrink-0 rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        aria-label={`Remove ${prospect.name}`}
-                      >
-                        {deleteProspectMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                       </button>
                     </CardRow>
                   ))}
@@ -293,7 +284,7 @@ export default function Directory() {
                       {selectedProspect.name.slice(0, 2).toUpperCase()}
                     </span>
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <SheetTitle className="truncate text-left">{selectedProspect.name}</SheetTitle>
                     {selectedProspect.email ? (
                       <p className="flex items-center gap-1 truncate text-sm text-zinc-500"><Mail size={12} />{selectedProspect.email}</p>
@@ -301,6 +292,11 @@ export default function Directory() {
                       <p className="text-sm text-zinc-400">Contact details not added</p>
                     )}
                   </div>
+                  <StarButton
+                    starred={selectedProspect.starred}
+                    isPending={toggleStarMutation.isPending}
+                    onToggle={() => toggleStarMutation.mutate({ id: selectedProspect.id, starred: !selectedProspect.starred })}
+                  />
                 </div>
               </SheetHeader>
 
