@@ -177,6 +177,7 @@ export interface IStorage {
   deleteGuestProspect(id: string, userId: string): Promise<void>;
   // Guest Pipeline
   getGuestPipelineEntriesByPodcast(podcastId: string): Promise<GuestPipelineEntry[]>;
+  getGuestPipelineEntriesByUser(userId: string): Promise<GuestPipelineEntry[]>;
   getGuestPipelineEntriesByProspect(guestProspectId: string): Promise<GuestPipelineEntry[]>;
   getGuestPipelineEntriesByContact(contactId: string): Promise<GuestPipelineEntry[]>;
   getGuestProspectsByEmail(userId: string, email: string): Promise<GuestProspect[]>;
@@ -941,6 +942,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(guestPipelineEntries)
       .where(eq(guestPipelineEntries.podcastId, podcastId))
       .orderBy(desc(guestPipelineEntries.createdAt));
+  }
+
+  async getGuestPipelineEntriesByUser(userId: string): Promise<GuestPipelineEntry[]> {
+    const rows = await db.select({ entry: guestPipelineEntries })
+      .from(guestPipelineEntries)
+      .innerJoin(podcasts, eq(podcasts.id, guestPipelineEntries.podcastId))
+      .where(eq(podcasts.userId, userId))
+      .orderBy(desc(guestPipelineEntries.updatedAt));
+    return rows.map((row: { entry: GuestPipelineEntry }) => row.entry);
   }
 
   async getGuestPipelineEntriesByProspect(guestProspectId: string): Promise<GuestPipelineEntry[]> {

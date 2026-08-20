@@ -4363,9 +4363,13 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.get('/api/guest-prospects', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const [prospects, contacts] = await Promise.all([
+      const [prospects, contacts, pipelineEntries] = await Promise.all([
         storage.getGuestProspectsByUser(userId),
         storage.getEmailContacts(userId),
+        // Native shows only — Buzzsprout-synced shows aren't in the podcasts
+        // table, so their pipeline entries don't surface a stage here. Cosmetic
+        // gap: the badge is missing, the pipeline entry itself is unaffected.
+        storage.getGuestPipelineEntriesByUser(userId),
       ]);
       const contactsByProspectId = new Map(contacts
         .filter((contact) => Boolean(contact.guestProspectId))
@@ -4373,17 +4377,43 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       const contactsByEmail = new Map(contacts
         .filter((contact) => Boolean(contact.email))
         .map((contact) => [contact.email!.trim().toLowerCase(), contact]));
+      // Entries are already ordered by updatedAt desc, so the first match per
+      // prospect is their most recently touched pipeline stage.
+      const stageByProspectId = new Map<string, string>();
+      for (const entry of pipelineEntries) {
+        if (entry.guestProspectId && !stageByProspectId.has(entry.guestProspectId)) {
+          stageByProspectId.set(entry.guestProspectId, entry.stage);
+        }
+      }
       res.json({
         prospects: prospects.map((prospect) => ({
           ...prospect,
           masterContactId: contactsByProspectId.get(prospect.id)?.id
             ?? (prospect.email ? contactsByEmail.get(prospect.email.trim().toLowerCase())?.id : undefined)
             ?? null,
+          pipelineStage: stageByProspectId.get(prospect.id) ?? null,
         })),
       });
     } catch (error) {
       console.error('Error fetching guest prospects:', error);
       res.status(500).json({ message: 'Failed to fetch guest prospects' });
+    }
+  });
+
+  app.patch('/api/guest-prospects/:id/star', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const existing = await storage.getGuestProspect(req.params.id, userId);
+      if (!existing) return res.status(404).json({ message: 'Guest prospect not found' });
+      const input = z.object({ starred: z.boolean() }).parse(req.body);
+      const updated = await storage.updateGuestProspect(req.params.id, userId, { starred: input.starred });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid request' });
+      }
+      console.error('Error starring guest prospect:', error);
+      res.status(500).json({ message: 'Failed to update guest prospect' });
     }
   });
 
