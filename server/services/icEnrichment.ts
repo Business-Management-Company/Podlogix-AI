@@ -67,6 +67,41 @@ export async function saveEnrichment(platform: string, handle: string, payload: 
  * or the upstream call failed — so callers can respond with their own
  * "not available" message.
  */
+/**
+ * Influencers.club's enrich/handle/full response nests everything under
+ * result.<platform> (with YouTube using subscriber_count instead of
+ * follower_count), not flat top-level fields — this maps the real shape.
+ */
+export function extractIcAnalytics(data: any, platform: string, fallbackHandle: string) {
+  const result = data?.result ?? data ?? {};
+  const p = result?.[platform] ?? {};
+  const followers = platform === "youtube" ? (p.subscriber_count ?? 0) : (p.follower_count ?? 0);
+  return {
+    handle: p.username || (p.custom_url ? String(p.custom_url).replace(/^@/, "") : null) || fallbackHandle,
+    platform,
+    name: p.full_name || [result?.first_name, result?.last_name].filter(Boolean).join(" ") || fallbackHandle,
+    bio: p.biography || null,
+    profilePicture: p.profile_picture_hd || p.profile_picture || null,
+    followers,
+    following: p.following_count ?? 0,
+    postsCount: p.media_count ?? 0,
+    engagementRate: p.engagement_percent ?? 0,
+    avgLikes: p.avg_likes ?? 0,
+    avgComments: p.avg_comments ?? 0,
+    avgViews: p.reels?.avg_view_count ?? 0,
+    avgReelLikes: p.reels?.avg_like_count ?? 0,
+    postsPerMonth: p.posting_frequency_recent_months ?? 0,
+    email: result?.email ?? null,
+    emailVerified: false,
+    location: result?.location || p.location || p.country || null,
+    language: result?.speaking_language || null,
+    businessCategory: p.category || null,
+    isVerified: p.is_verified ?? false,
+    socialLinks: result?.links_in_bio ?? [],
+    rawData: data,
+  };
+}
+
 export async function enrichHandleCached(
   apiKey: string,
   platform: string,
