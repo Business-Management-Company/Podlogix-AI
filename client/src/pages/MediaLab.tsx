@@ -30,7 +30,10 @@ interface FfmpegJob {
 const PRESETS = [
   {
     id: "refine",
-    label: "Refine Audio — the one-click cleanup",
+    // Deliberately not "Refine" — that name is reserved for the Refiner
+    // product surface. This is the raw ffmpeg version of the same idea,
+    // kept here for testing new presets before they graduate into Refiner.
+    label: "Loudness cleanup — one-click ffmpeg pass",
     description: "Cuts dead air and long pauses, masters loudness to podcast standard (-16 LUFS). Real editing, not a filter toggle.",
     outputExtension: "mp3",
     command:

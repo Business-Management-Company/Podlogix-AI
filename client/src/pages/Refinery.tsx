@@ -4,8 +4,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
+import { ObjectUploader } from "@/components/ObjectUploader";
 import {
-  CheckCircle2, Circle, Clapperboard, Loader2, Music, Sparkles, Gem, XCircle,
+  CheckCircle2, Circle, Clapperboard, Loader2, Music, Sparkles, Gem, XCircle, Upload,
 } from "lucide-react";
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 
@@ -264,6 +265,12 @@ export default function Refinery() {
   const sources = (libraryData?.items ?? []).filter(
     (i) => i.mediaUrl && (i.mediaType === "video" || i.mediaType === "audio"),
   );
+
+  const getUploadParams = async (file: File) => {
+    const res = await apiRequest("POST", "/api/uploads/request-url", { name: file.name, size: file.size, contentType: file.type });
+    const data = await res.json();
+    return { method: "PUT" as const, url: data.uploadURL };
+  };
 
   // Media is picked in Media Storage (or the Editing Room) and arrives here
   // via ?src= — once the library loads, enrich the selection with its real
@@ -552,26 +559,44 @@ export default function Refinery() {
       </div>
 
       {!selected ? (
-        /* The full library lives in Media Storage; the rail here is just the
-           freshest recordings so a straight-to-Refiner visit starts in one click. */
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 px-8 py-16 text-center">
+        /* Upload is the primary action — a redirect to Media Storage makes
+           you leave and come back, which is friction a drop zone avoids.
+           Recent recordings gets the larger share of the row since it's
+           where most people actually start (something already recorded). */
+        <div className="grid items-start gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 px-6 py-10 text-center">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-950">
               <Gem className="h-6 w-6 text-amber-400" />
             </span>
             <h2 className="mt-4 text-lg font-semibold text-zinc-900">Pick something to refine</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500">
-              Grab a recent recording on the right, or choose anything in Media Storage — play it and press{" "}
-              <span className="font-medium text-zinc-700">Open in Refiner</span>.
+            <p className="mx-auto mt-1 text-sm text-zinc-500">
+              Upload a recording, or grab one from the right.
             </p>
-            <div className="mt-5 flex justify-center gap-2">
-              <Link href="/media-library">
-                <Button>Open Media Storage</Button>
-              </Link>
-              <Link href="/studio/live">
-                <Button variant="outline">Record in the Studio</Button>
-              </Link>
+            <div className="mt-5">
+              <ObjectUploader
+                maxFileSize={500 * 1024 * 1024}
+                onGetUploadParameters={getUploadParams}
+                onComplete={(r) => {
+                  const file = r.successful[0];
+                  if (!file) return;
+                  setSelected({
+                    url: file.uploadURL,
+                    title: file.name,
+                    type: file.type.startsWith("audio/") ? "audio" : "video",
+                  });
+                }}
+                buttonClassName="!h-auto !w-full !justify-center !gap-2 !border !border-dashed !border-zinc-300 !bg-white !py-4 !text-zinc-500 hover:!bg-zinc-50"
+              >
+                <Upload className="h-4 w-4" />
+                <span className="text-xs font-medium">Upload a recording</span>
+                <span className="text-[11px] text-zinc-400">· up to 500MB</span>
+              </ObjectUploader>
             </div>
+            <p className="mt-4 text-xs text-zinc-500">
+              <Link href="/media-library" className="font-medium text-zinc-700 underline underline-offset-2">Browse Media Storage</Link>
+              {" · "}
+              <Link href="/studio/live" className="font-medium text-zinc-700 underline underline-offset-2">Record in the Studio</Link>
+            </p>
           </div>
           <div className="rounded-2xl border border-zinc-200 bg-white p-4">
             <p className="mb-3 text-sm font-semibold text-zinc-900">Recent recordings</p>
@@ -580,8 +605,8 @@ export default function Refinery() {
                 Record a show or add media, and your latest recordings land here.
               </p>
             ) : (
-              <div className="space-y-2">
-                {sources.slice(0, 6).map((item) => (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {sources.slice(0, 12).map((item) => (
                   <button
                     key={item.id}
                     onClick={() =>
@@ -591,16 +616,16 @@ export default function Refinery() {
                         type: item.mediaType === "audio" ? "audio" : "video",
                       })
                     }
-                    className="flex w-full items-center gap-2.5 rounded-xl border border-zinc-200 p-2 text-left transition-colors hover:border-zinc-400"
+                    className="overflow-hidden rounded-xl border border-zinc-200 text-left transition-colors hover:border-zinc-400"
                   >
                     {item.mediaType === "audio" ? (
-                      <span className="flex h-11 w-16 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-                        <Music className="h-4 w-4 text-emerald-600" />
+                      <span className="flex h-24 w-full items-center justify-center bg-emerald-50">
+                        <Music className="h-6 w-6 text-emerald-600" />
                       </span>
                     ) : (
-                      <video src={item.mediaUrl!} muted preload="metadata" className="h-11 w-16 shrink-0 rounded-lg bg-black object-cover" />
+                      <video src={item.mediaUrl!} muted preload="metadata" className="h-24 w-full bg-black object-cover" />
                     )}
-                    <span className="min-w-0">
+                    <span className="block px-2.5 py-2">
                       <span className="block truncate text-xs font-medium text-zinc-900">{item.caption || item.platform}</span>
                       <span className="block text-[10px] uppercase text-zinc-400">{item.mediaType}</span>
                     </span>
