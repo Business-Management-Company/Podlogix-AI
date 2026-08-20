@@ -603,6 +603,87 @@ export async function setupAuth(app: Express) {
     }
   });
 
+  // ── Google OAuth ─────────────────────────────────────────────────────────
+  app.get("/auth/google", (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).send("Google Sign-In is not configured");
+    }
+    const appUrl = process.env.APP_URL || "https://podlogix.io";
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: `${appUrl}/auth/google/callback`,
+      response_type: "code",
+      scope: "openid email profile",
+      access_type: "offline",
+      prompt: "select_account",
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  });
+
+  app.get("/auth/google/callback", async (req, res) => {
+    try {
+      const { code, error } = req.query as Record<string, string>;
+      if (error || !code) {
+        return res.redirect("/login?error=google_denied");
+      }
+      const appUrl = process.env.APP_URL || "https://podlogix.io";
+      const callbackUrl = `${appUrl}/auth/google/callback`;
+
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: process.env.GOOGLE_CLIENT_ID!,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+          redirect_uri: callbackUrl,
+          grant_type: "authorization_code",
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        console.error("[Auth] Google token exchange failed:", await tokenRes.text());
+        return res.redirect("/login?error=google_failed");
+      }
+
+      const tokens = await tokenRes.json() as { access_token: string };
+
+      const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+
+      if (!userInfoRes.ok) {
+        return res.redirect("/login?error=google_failed");
+      }
+
+      const googleUser = await userInfoRes.json() as {
+        email: string;
+        given_name?: string;
+        family_name?: string;
+        picture?: string;
+      };
+
+      let user = await authStorage.getUserByEmail(googleUser.email);
+      if (!user) {
+        user = await authStorage.upsertUser({
+          email: googleUser.email,
+          firstName: googleUser.given_name ?? "",
+          lastName: googleUser.family_name ?? "",
+          profileImageUrl: googleUser.picture,
+        });
+      } else if (!user.profileImageUrl && googleUser.picture) {
+        await authStorage.updateUserProfile(user.id, { profileImageUrl: googleUser.picture });
+      }
+
+      req.session.userId = user.id;
+      res.redirect("/dashboard");
+    } catch (err) {
+      console.error("[Auth] Google OAuth error:", err);
+      res.redirect("/login?error=google_failed");
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
