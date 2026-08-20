@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -15,6 +15,7 @@ import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, CardRow, EmptyState, SectionHeader } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -191,7 +192,7 @@ function candidatePayload(candidate: CreatorCandidate) {
   };
 }
 
-function hasEnrichmentProfile(socialLinks?: Record<string, string | null> | null): boolean {
+function hasEnrichmentProfile(socialLinks?: Record<string, string | null | undefined> | null): boolean {
   return ["instagram", "youtube", "tiktok", "twitter", "twitch"].some((platform) => Boolean(socialLinks?.[platform]));
 }
 
@@ -228,6 +229,8 @@ export default function SocialDiscover() {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [searchInput, setSearchInput] = useState(() => queryParam("person"));
+  const [debouncedSearchInput, setDebouncedSearchInput] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [peoplePage, setPeoplePage] = useState(1);
   const [podcastPage, setPodcastPage] = useState(1);
@@ -238,6 +241,12 @@ export default function SocialDiscover() {
   const [selectedTargetShowId, setSelectedTargetShowId] = useState(() => queryParam("showId"));
   const [pipelineStage, setPipelineStage] = useState<GuestStage>("prospect");
   const [addedToPodcastId, setAddedToPodcastId] = useState<string | null>(null);
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedSearchInput(searchInput.trim()), 650);
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
 
   const { data: dashboard } = useQuery<{ podcasts: PodcastOption[] }>({ queryKey: ["/api/dashboard"] });
   const { data: buzzsprout } = useQuery<BuzzsproutStatus>({ queryKey: ["/api/connectors/buzzsprout/status"], retry: false });
@@ -260,6 +269,20 @@ export default function SocialDiscover() {
     queryKey: ["/api/guest-discovery/podcasts", submittedQuery, podcastPage, podcastSort],
     queryFn: () => fetchJson(`/api/guest-discovery/podcasts?q=${encodeURIComponent(submittedQuery)}&max=10&page=${podcastPage}&sort=${podcastSort}`),
     enabled: submittedQuery.length >= 2,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  });
+  const peopleSuggestionQuery = useQuery<CreatorSearchResult>({
+    queryKey: ["/api/guest-discovery/search", "suggestions", debouncedSearchInput],
+    queryFn: () => fetchJson(`/api/guest-discovery/search?q=${encodeURIComponent(debouncedSearchInput)}&max=5&page=1&sort=relevance`),
+    enabled: suggestionsOpen && debouncedSearchInput.length >= 2,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  });
+  const podcastSuggestionQuery = useQuery<PodcastSearchResult>({
+    queryKey: ["/api/guest-discovery/podcasts", "suggestions", debouncedSearchInput],
+    queryFn: () => fetchJson(`/api/guest-discovery/podcasts?q=${encodeURIComponent(debouncedSearchInput)}&max=5&page=1&sort=relevance`),
+    enabled: suggestionsOpen && debouncedSearchInput.length >= 3,
     staleTime: 30 * 60 * 1000,
     retry: false,
   });
@@ -286,7 +309,7 @@ export default function SocialDiscover() {
       const response = await apiRequest("POST", "/api/guest-prospects", candidatePayload(candidate));
       return response.json() as Promise<GuestProspect>;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }); toast({ title: "Saved as guest prospect" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] }); toast({ title: "Saved to shortlist" }); },
     onError: (error: Error) => toast({ title: "Couldn't save guest", description: error.message, variant: "destructive" }),
   });
   const addToPipelineMutation = useMutation({
@@ -303,6 +326,7 @@ export default function SocialDiscover() {
     },
     onSuccess: () => {
       setAddedToPodcastId(targetShowId);
+      setPipelineDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/podcasts", targetShowId, "guests"] });
       toast({ title: "Added to guest pipeline" });
@@ -340,10 +364,13 @@ export default function SocialDiscover() {
   const submitSearch = () => {
     const query = searchInput.trim();
     if (query.length < 2) return;
-    setPeoplePage(1); setPodcastPage(1); setSelectedCreator(null); setSelectedPodcast(null); setSubmittedQuery(query);
+    setSuggestionsOpen(false); setPeoplePage(1); setPodcastPage(1); setSelectedCreator(null); setSelectedPodcast(null); setSubmittedQuery(query);
   };
   const chooseCreator = (candidate: CreatorCandidate) => {
-    setSelectedPodcast(null); setSelectedCreator(candidate); setAddedToPodcastId(null);
+    setSuggestionsOpen(false); setPipelineDialogOpen(false); setSearchInput(candidate.name); setSelectedPodcast(null); setSelectedCreator(candidate); setAddedToPodcastId(null);
+  };
+  const choosePodcast = (podcast: PodcastCandidate) => {
+    setSuggestionsOpen(false); setSearchInput(podcast.title); setSelectedCreator(null); setSelectedPodcast(podcast);
   };
 
   const people = peopleSearchQuery.data?.creatorCandidates ?? [];
@@ -359,6 +386,12 @@ export default function SocialDiscover() {
     peopleSearchQuery.data?.suggestedQuery,
     podcastSearchQuery.data?.suggestedQuery,
   ].filter((value): value is string => Boolean(value))));
+  const currentSearchInput = searchInput.trim();
+  const suggestionsReady = currentSearchInput === debouncedSearchInput;
+  const peopleSuggestions = suggestionsReady ? peopleSuggestionQuery.data?.creatorCandidates ?? [] : [];
+  const podcastSuggestions = suggestionsReady ? podcastSuggestionQuery.data?.podcastCandidates ?? [] : [];
+  const suggestionsPending = !suggestionsReady || peopleSuggestionQuery.isFetching || podcastSuggestionQuery.isFetching;
+  const showSuggestions = suggestionsOpen && currentSearchInput.length >= 2;
   const applySuggestion = (suggestion: string) => {
     setSearchInput(suggestion);
     setSubmittedQuery(suggestion);
@@ -375,21 +408,67 @@ export default function SocialDiscover() {
 
       <section>
         <Card padding="lg">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              aria-label="Person or podcast show"
-              placeholder="Search a person or podcast show"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
-              className="flex-1"
-            />
-            <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || searchPending}>
-              {searchPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
-              Search
-            </Button>
+          <div
+            className="relative"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSuggestionsOpen(false);
+            }}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                role="combobox"
+                aria-label="Person or podcast show"
+                aria-autocomplete="list"
+                aria-controls="guest-search-suggestions"
+                aria-expanded={showSuggestions}
+                placeholder="Search a person or podcast show"
+                value={searchInput}
+                onFocus={() => setSuggestionsOpen(true)}
+                onChange={(event) => { setSearchInput(event.target.value); setSuggestionsOpen(true); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") submitSearch();
+                  if (event.key === "Escape") setSuggestionsOpen(false);
+                }}
+                className="flex-1"
+              />
+              <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || searchPending}>
+                {searchPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
+                Search
+              </Button>
+            </div>
+            {showSuggestions ? (
+              <div id="guest-search-suggestions" role="listbox" className="absolute inset-x-0 top-full z-40 mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 shadow-xl">
+                {suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? (
+                  <p className="flex items-center gap-2 px-3 py-4 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Finding likely matches…</p>
+                ) : null}
+                {peopleSuggestions.length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">People</p>
+                    {peopleSuggestions.map((candidate) => (
+                      <button key={candidate.id} type="button" role="option" aria-selected="false" onClick={() => chooseCreator(candidate)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none">
+                        <PersonAvatar candidate={candidate} />
+                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{candidate.name}</span><span className="block truncate text-xs text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</span></span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {podcastSuggestions.length > 0 ? (
+                  <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2">
+                    <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Podcast shows</p>
+                    {podcastSuggestions.map((podcast) => (
+                      <button key={podcast.id} type="button" role="option" aria-selected="false" onClick={() => choosePodcast(podcast)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none">
+                        <PodcastArtwork podcast={podcast} />
+                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{podcast.title}</span><span className="block truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</span></span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {!suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? <p className="px-3 py-4 text-sm text-zinc-500">No quick matches yet. Run the full search for broader results.</p> : null}
+                <button type="button" onClick={submitSearch} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for “{searchInput.trim()}”</button>
+              </div>
+            ) : null}
           </div>
-          <p className="mt-2 text-xs text-zinc-400">One search checks both people and podcast shows. It runs only when submitted so typing never consumes the shared provider allowance.</p>
+          <p className="mt-2 text-xs text-zinc-400">Suggestions appear after a short pause. Select a match immediately or run the full search; results are cached to protect your provider credits.</p>
         </Card>
       </section>
 
@@ -435,7 +514,7 @@ export default function SocialDiscover() {
                 <SelectContent><SelectItem value="relevance">Best match</SelectItem><SelectItem value="power_score">Podchaser rating</SelectItem><SelectItem value="date_of_first_episode">Newest shows</SelectItem><SelectItem value="alphabetical">Title A–Z</SelectItem></SelectContent>
               </Select>
             </div>
-            {viewMode === "table" ? <PodcastTable podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} /> : <PodcastCards podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} />}
+            {viewMode === "table" ? <PodcastTable podcasts={podcastResults} onChoose={choosePodcast} /> : <PodcastCards podcasts={podcastResults} onChoose={choosePodcast} />}
             {podcastPagination ? <PaginationControls pagination={podcastPagination} onPage={setPodcastPage} /> : null}
           </section> : null}
         </div>
@@ -457,6 +536,7 @@ export default function SocialDiscover() {
         contactPending={promoteContactMutation.isPending || saveProspectMutation.isPending}
         revealPending={revealEmailMutation.isPending}
         pipelinePending={addToPipelineMutation.isPending}
+        pipelineDialogOpen={pipelineDialogOpen}
         onClose={() => setSelectedCreator(null)}
         onSave={() => activeCreator && saveProspectMutation.mutate(activeCreator)}
         onAddContact={() => void addToContacts()}
@@ -464,6 +544,7 @@ export default function SocialDiscover() {
         onTargetShow={setSelectedTargetShowId}
         onStage={setPipelineStage}
         onAddPipeline={() => addToPipelineMutation.mutate()}
+        onPipelineDialog={setPipelineDialogOpen}
       />
       <PodcastDrawer
         podcast={selectedPodcast}
@@ -526,6 +607,7 @@ interface PersonDrawerProps {
   contactPending: boolean;
   revealPending: boolean;
   pipelinePending: boolean;
+  pipelineDialogOpen: boolean;
   onClose: () => void;
   onSave: () => void;
   onAddContact: () => void;
@@ -533,17 +615,69 @@ interface PersonDrawerProps {
   onTargetShow: (id: string) => void;
   onStage: (stage: GuestStage) => void;
   onAddPipeline: () => void;
+  onPipelineDialog: (open: boolean) => void;
+}
+
+function HostedShowActivity({ podcast }: { podcast?: GuestAppearanceResult["hostedPodcasts"][number] }) {
+  if (!podcast) return null;
+  const latestDate = podcast.latestEpisodeDate ?? podcast.latestEpisode?.airDate ?? null;
+  return (
+    <section>
+      <SectionHeader title="Hosted show activity" />
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+        <div className="flex items-center gap-3">
+          {podcast.podcastImageUrl ? <img src={podcast.podcastImageUrl} alt="" className="h-11 w-11 rounded-lg border border-zinc-200 object-cover" /> : <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-white"><Mic2 className="h-4 w-4 text-zinc-400" /></span>}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-zinc-950">{podcast.podcastTitle}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{podcast.author?.name || "Hosted podcast"}</p>
+          </div>
+          {podcast.status ? <span className="rounded-full bg-white px-2.5 py-1 text-xs capitalize text-zinc-600">{podcast.status}</span> : null}
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg border border-zinc-200 bg-white p-3"><p className="flex items-center gap-1.5 text-xs font-medium text-zinc-500"><CalendarDays className="h-3.5 w-3.5" />Latest episode</p><p className="mt-1 text-sm font-medium text-zinc-950">{formatDate(latestDate)}</p></div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-3"><p className="text-xs font-medium text-zinc-500">Published episodes</p><p className="mt-1 text-sm font-medium text-zinc-950">{podcast.numberOfEpisodes != null ? formatCount(podcast.numberOfEpisodes) : "Unavailable"}</p></div>
+        </div>
+        {podcast.latestEpisode?.title ? <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">Latest credited episode: {podcast.latestEpisode.title}</p> : null}
+      </div>
+    </section>
+  );
 }
 
 function PersonDrawer(props: PersonDrawerProps) {
   const { candidate, prospect, appearances, appearancesLoading, appearancesError } = props;
-  return <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}><SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">{candidate ? <><SheetHeader><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader><div className="mt-6 space-y-6">
-    <div className="grid gap-2 sm:grid-cols-3"><Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved as Prospect" : "Save as Prospect"}</Button><MasterContactButton masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} /><RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks)} isPending={props.revealPending} onConfirm={props.onReveal} /></div>
-    <GuestSocialProfiles socialLinks={candidate.socialLinks} hostedPodcasts={appearances?.hostedPodcasts} />
-    <section><SectionHeader title="Guest research" /><GuestResearchSummary subtitle={candidate.subtitle} bio={candidate.bio} location={candidate.location} creditedEpisodes={candidate.episodeAppearanceCount} /></section>
-    <GuestAppearanceHistory guestName={candidate.name} appearances={appearances} isLoading={appearancesLoading} error={appearancesError} />
-    <section><SectionHeader title="Add to guest pipeline" />{props.ownedPodcasts.length > 0 ? <div className="space-y-2.5 rounded-xl border border-zinc-200 p-4"><Select value={props.targetShowId} onValueChange={props.onTargetShow}><SelectTrigger><SelectValue placeholder="Choose your show" /></SelectTrigger><SelectContent>{props.ownedPodcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent></Select><Select value={props.pipelineStage} onValueChange={(value) => props.onStage(value as GuestStage)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent></Select><Button className="w-full" onClick={props.onAddPipeline} disabled={!props.targetShowId || props.pipelinePending || props.addedToPodcastId === props.targetShowId}>{props.addedToPodcastId === props.targetShowId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}{props.addedToPodcastId === props.targetShowId ? "Added to Pipeline" : "Add to Guest Pipeline"}</Button></div> : <p className="rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">Connect a show to add this guest to a pipeline. <Link href="/dashboard/rss" className="underline">Connect a show →</Link></p>}</section>
-  </div></> : null}</SheetContent></Sheet>;
+  return (
+    <>
+      <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">
+          {candidate ? <>
+            <SheetHeader><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader>
+            <div className="mt-6 space-y-6">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved to Shortlist" : "Save to Shortlist"}</Button>
+                <Button variant="outline" onClick={() => props.onPipelineDialog(true)}><UserPlus className="mr-1.5 h-4 w-4" />Add to Pipeline</Button>
+                <MasterContactButton masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} />
+                <RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks) || Boolean(appearances?.hostedPodcasts.some((podcast) => hasEnrichmentProfile(podcast.socialLinks)))} isPending={props.revealPending} onConfirm={props.onReveal} />
+              </div>
+              <GuestSocialProfiles socialLinks={candidate.socialLinks} hostedPodcasts={appearances?.hostedPodcasts} />
+              <HostedShowActivity podcast={appearances?.hostedPodcasts[0]} />
+              <section><SectionHeader title="Guest research" /><GuestResearchSummary subtitle={candidate.subtitle} bio={candidate.bio} location={candidate.location} creditedEpisodes={candidate.episodeAppearanceCount} /></section>
+              <GuestAppearanceHistory guestName={candidate.name} appearances={appearances} isLoading={appearancesLoading} error={appearancesError} />
+            </div>
+          </> : null}
+        </SheetContent>
+      </Sheet>
+      <Dialog open={props.pipelineDialogOpen} onOpenChange={props.onPipelineDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add to guest pipeline</DialogTitle><DialogDescription>Assign this person to one of your shows and choose their current booking stage. This also saves them to your shortlist.</DialogDescription></DialogHeader>
+          {props.ownedPodcasts.length > 0 ? <div className="space-y-3">
+            <Select value={props.targetShowId} onValueChange={props.onTargetShow}><SelectTrigger><SelectValue placeholder="Choose your show" /></SelectTrigger><SelectContent>{props.ownedPodcasts.map((podcast) => <SelectItem key={podcast.id} value={podcast.id}>{podcast.title}</SelectItem>)}</SelectContent></Select>
+            <Select value={props.pipelineStage} onValueChange={(value) => props.onStage(value as GuestStage)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{GUEST_STAGES.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>)}</SelectContent></Select>
+            <Button className="w-full" onClick={props.onAddPipeline} disabled={!props.targetShowId || props.pipelinePending || props.addedToPodcastId === props.targetShowId}>{props.pipelinePending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : props.addedToPodcastId === props.targetShowId ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <UserPlus className="mr-1.5 h-4 w-4" />}{props.addedToPodcastId === props.targetShowId ? "Added to Pipeline" : "Add to Guest Pipeline"}</Button>
+          </div> : <p className="rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">Connect a show to add this guest to a pipeline. <Link href="/dashboard/rss" className="underline">Connect a show →</Link></p>}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 interface PodcastDrawerProps {
