@@ -76,8 +76,8 @@ export const ready = (async () => {
 
     // Registered after registerRoutes so the session middleware it installs
     // covers these routes too.
-    const { registerRefinerTranscribe } = await import("./refinerTranscribe");
-    registerRefinerTranscribe(app);
+    const { registerFacetTranscribe } = await import("./facetTranscribe");
+    registerFacetTranscribe(app);
     const { registerSocialAnalyticsCache } = await import("./socialAnalyticsCache");
     registerSocialAnalyticsCache(app);
     const { registerSearchRoutes } = await import("./searchRoutes");

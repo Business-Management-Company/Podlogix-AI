@@ -247,13 +247,13 @@ export default function MediaLibrary() {
         </div>
       </div>
 
-      {/* Preview: play in place — the Refiner is one explicit click away, never automatic */}
+      {/* Preview: play in place — Facet is one explicit click away, never automatic */}
       <Dialog open={!!preview} onOpenChange={(v) => { if (!v) setPreview(null); }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="truncate pr-6">{preview?.caption || "Preview"}</DialogTitle>
             <DialogDescription>
-              {preview?.mediaType === "audio" ? "Listen here, or send it to the Refiner." : "Watch here, or send it to the Refiner."}
+              {preview?.mediaType === "audio" ? "Listen here, or send it to Facet." : "Watch here, or send it to Facet."}
             </DialogDescription>
           </DialogHeader>
           {preview?.mediaUrl && (
@@ -270,8 +270,8 @@ export default function MediaLibrary() {
               )}
               <div className="flex items-center justify-end gap-2">
                 <Button variant="outline" onClick={() => setPreview(null)}>Close</Button>
-                <Button onClick={() => navigate(`/studio/refine?src=${encodeURIComponent(preview.mediaUrl!)}`)}>
-                  <Gem className="mr-1.5 h-4 w-4" /> Open in Refiner
+                <Button onClick={() => navigate(`/studio/facet?src=${encodeURIComponent(preview.mediaUrl!)}`)}>
+                  <Gem className="mr-1.5 h-4 w-4" /> Open in Facet
                 </Button>
               </div>
             </div>
