@@ -72,7 +72,11 @@ function MasterContactAvatar({
   );
 }
 
-export default function EmailHub() {
+interface EmailHubProps {
+  mode?: "all" | "contacts" | "email";
+}
+
+export default function EmailHub({ mode = "all" }: EmailHubProps) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [showAddContact, setShowAddContact] = useState(false);
@@ -248,12 +252,18 @@ export default function EmailHub() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Mail className="h-6 w-6 text-primary" />
-            Master Contacts & Email
+            {mode === "contacts" ? <Users className="h-6 w-6 text-primary" /> : <Mail className="h-6 w-6 text-primary" />}
+            {mode === "contacts" ? "Contacts" : mode === "email" ? "Email" : "Master Contacts & Email"}
           </h1>
-          <p className="text-muted-foreground">Your reusable people list, including guest prospects you choose to promote—even before an email is known</p>
+          <p className="text-muted-foreground">
+            {mode === "contacts"
+              ? "Your master people list for relationship details, notes, and outreach history"
+              : mode === "email"
+                ? "Create campaigns and personalized outreach for your saved contacts"
+                : "Your reusable people list, including guest prospects you choose to promote—even before an email is known"}
+          </p>
         </div>
-        {emailStatus?.configured ? (
+        {mode !== "contacts" && (emailStatus?.configured ? (
           <Badge variant="secondary" className="bg-green-500/20 text-green-400">
             Email Connected
           </Badge>
@@ -261,15 +271,15 @@ export default function EmailHub() {
           <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400">
             Setup Required
           </Badge>
-        )}
+        ))}
       </div>
 
-      <Tabs defaultValue="contacts" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="contacts" data-testid="tab-contacts">
+      <Tabs defaultValue={mode === "email" ? "campaigns" : "contacts"} className="space-y-4">
+        {mode !== "contacts" ? <TabsList>
+          {mode === "all" ? <TabsTrigger value="contacts" data-testid="tab-contacts">
             <Users className="h-4 w-4 mr-2" />
             Master Contacts ({peopleCount})
-          </TabsTrigger>
+          </TabsTrigger> : null}
           <TabsTrigger value="campaigns" data-testid="tab-campaigns">
             <Send className="h-4 w-4 mr-2" />
             Campaigns ({campaigns.length})
@@ -278,7 +288,7 @@ export default function EmailHub() {
             <Sparkles className="h-4 w-4 mr-2" />
             AI Compose
           </TabsTrigger>
-        </TabsList>
+        </TabsList> : null}
 
         <TabsContent value="contacts" className="space-y-4">
           <div className="flex justify-between items-center">

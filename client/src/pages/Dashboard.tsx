@@ -297,7 +297,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 gap-2">
           {[
             { label: "Social Hub",    icon: Share2,    href: "/dashboard/social-hub" },
-            { label: "Email Hub",     icon: Mail,      href: "/dashboard/email" },
+            { label: "Email",         icon: Mail,      href: "/email" },
             { label: "Analytics",     icon: BarChart3, href: "/listener/analytics" },
             { label: "Voice Identity",icon: Shield,    href: "/identity" },
           ].map((item) => {

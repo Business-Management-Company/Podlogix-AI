@@ -20,7 +20,8 @@ const PAGES: Array<{ label: string; href: string; keywords: string }> = [
   { label: "Episodes", href: "/episodes", keywords: "podcast episodes drafts publish" },
   { label: "Listen", href: "/listener", keywords: "player listen playback" },
   { label: "Guests", href: "/guests", keywords: "guest pipeline crm booking" },
-  { label: "Master Contacts", href: "/dashboard/email", keywords: "email contacts people newsletter crm" },
+  { label: "Contacts", href: "/contacts", keywords: "master contacts people relationships crm" },
+  { label: "Email", href: "/email", keywords: "email campaigns newsletter compose outreach" },
   { label: "Discover", href: "/social/discover", keywords: "find creators influencers research" },
   { label: "Directory", href: "/social/directory", keywords: "saved creators directory" },
   { label: "Social Hub", href: "/dashboard/social-hub", keywords: "social accounts connect analytics" },
@@ -196,7 +197,7 @@ export function GlobalSearch({ dark }: { dark: boolean }) {
           )}
           {!!results?.guests.length && (
             <Group title="Guests & contacts">
-              {results.guests.map((g) => <Row key={g.id} icon={UserPlus} label={guestName(g)} sub={g.email ?? "Master Contact"} href="/dashboard/email" />)}
+              {results.guests.map((g) => <Row key={g.id} icon={UserPlus} label={guestName(g)} sub={g.email ?? "Master Contact"} href="/contacts" />)}
             </Group>
           )}
           {hasAnything && (

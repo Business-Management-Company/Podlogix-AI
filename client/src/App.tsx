@@ -126,6 +126,18 @@ function TeamPage() {
   );
 }
 
+function ContactsPage() {
+  return <EmailHub mode="contacts" />;
+}
+
+function EmailPage() {
+  return <EmailHub mode="email" />;
+}
+
+function LegacyEmailHubPage() {
+  return <EmailHub mode="all" />;
+}
+
 // ─── Redirect helpers ─────────────────────────────────────────────────────────
 
 /** Redirects an old /podcasts/:id[/subpath] URL to its /shows/:id equivalent. */
@@ -143,6 +155,8 @@ function AuthenticatedRoutes() {
         {/* ── Workspace ── */}
         <Route path="/today" component={Activity} />
         <Route path="/shows" component={Shows} />
+        <Route path="/contacts" component={ContactsPage} />
+        <Route path="/email" component={EmailPage} />
         {/* TODO: filter Episodes by show — currently lists all native episodes */}
         <Route path="/episodes" component={Episodes} />
         <Route path="/episodes/:episodeId" component={EpisodeDetail} />
@@ -221,7 +235,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard/podcast" component={ProfileEditor} />
         <Route path="/dashboard/rss" component={RssManagement} />
         <Route path="/dashboard/distribution" component={Distribution} />
-        <Route path="/dashboard/email" component={EmailHub} />
+        <Route path="/dashboard/email" component={LegacyEmailHubPage} />
         <Route path="/dashboard/ai" component={AiAssistant} />
         <Route path="/dashboard/video-analysis" component={VideoAnalysis} />
         <Route path="/dashboard/social-hub" component={SocialHub} />
