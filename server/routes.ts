@@ -117,6 +117,7 @@ import {
   searchPodchaserPodcasts,
 } from "./services/podchaserGuestService";
 import { getGuestPodcastPlayback } from "./services/guestPodcastPlaybackService";
+import { enrichHandleCached, getCachedEnrichment, saveEnrichment, icEnrichmentEnabled } from "./services/icEnrichment";
 import {
   contactNameParts,
   emailContactCreateInputSchema,
@@ -3978,6 +3979,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       if (!apiKey) {
         return res.status(400).json({ error: 'Influencers.club API key not configured' });
       }
+      if (!icEnrichmentEnabled()) {
+        return res.status(400).json({ error: 'Creator discovery is currently disabled' });
+      }
 
       const { platform, filters, prompt, limit = 20 } = req.body;
 
@@ -4029,31 +4033,17 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         return res.status(400).json({ error: 'Handle and platform are required' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          handle: normalizeSocialHandle(handle),
-          platform,
-          email_required: 'preferred',
-          include_lookalikes: false,
-        }),
+      const enriched = await enrichHandleCached(apiKey, platform, handle, {
+        email_required: 'preferred',
+        include_lookalikes: false,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Influencers.club enrich error:', errorText);
-        return res.status(response.status).json({ 
-          error: 'Enrichment failed',
-          details: errorText 
+      if (!enriched) {
+        return res.status(icEnrichmentEnabled() ? 502 : 400).json({
+          error: icEnrichmentEnabled() ? 'Enrichment failed' : 'Creator enrichment is currently disabled',
         });
       }
 
-      const data = await response.json();
-      res.json(data);
+      res.json({ ...enriched.data, cached: enriched.fromCache });
     } catch (error) {
       console.error('Error enriching handle:', error);
       res.status(500).json({ error: 'Failed to enrich creator' });
@@ -4506,29 +4496,44 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         return res.status(422).json({ message: 'No supported social profile is available for this guest yet.' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          handle: target.handle,
-          platform: target.platform,
-          email_required: 'preferred',
-          include_lookalikes: false,
-        }),
-        signal: AbortSignal.timeout(20_000),
-      });
+      // Global creator cache next — this handle may already have been
+      // enriched via search, another guest's profile, or a different feature.
+      const cachedEnrichment = await getCachedEnrichment(target.platform, target.handle);
+      let data: any;
+      let charged = false;
+      if (cachedEnrichment) {
+        data = cachedEnrichment.payload;
+      } else {
+        if (!icEnrichmentEnabled()) {
+          return res.status(503).json({ message: 'Contact enrichment is currently disabled.' });
+        }
+        const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            handle: target.handle,
+            platform: target.platform,
+            email_required: 'preferred',
+            include_lookalikes: false,
+          }),
+          signal: AbortSignal.timeout(20_000),
+        });
 
-      if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        console.error('Guest email reveal failed:', response.status, detail.slice(0, 300));
-        const status = response.status === 429 ? 429 : 502;
-        return res.status(status).json({ message: response.status === 429 ? 'Contact enrichment allowance has been reached.' : 'Contact enrichment could not be completed.' });
+        if (!response.ok) {
+          const detail = await response.text().catch(() => '');
+          console.error('Guest email reveal failed:', response.status, detail.slice(0, 300));
+          const status = response.status === 429 ? 429 : 502;
+          return res.status(status).json({ message: response.status === 429 ? 'Contact enrichment allowance has been reached.' : 'Contact enrichment could not be completed.' });
+        }
+
+        data = await response.json();
+        charged = true;
+        await saveEnrichment(target.platform, target.handle, data);
       }
 
-      const data = await response.json();
       const email = extractGuestEnrichmentEmail(data);
       if (!email) return res.status(404).json({ message: 'No verified email was found for this guest.' });
 
@@ -4539,7 +4544,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         {},
         'Email revealed from a saved guest profile.',
       );
-      res.json({ ...linked, charged: true, cached: false, contactId: linked.contact.id });
+      res.json({ ...linked, charged, cached: !charged, contactId: linked.contact.id });
     } catch (error) {
       if (error instanceof GuestContactConflictError) {
         return res.status(409).json({ message: error.message });
@@ -7159,120 +7164,28 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
 
-      const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          handle: normalizeSocialHandle(handle),
-          platform: platform.toLowerCase(),
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        console.error('Influencers.club enrich error:', error);
-        return res.status(response.status).json({ error: 'Failed to fetch analytics', detail: error.slice(0, 300) });
+      const enriched = await enrichHandleCached(apiKey, platform.toLowerCase(), handle);
+      if (!enriched) {
+        return res.status(icEnrichmentEnabled() ? 502 : 400).json({
+          error: icEnrichmentEnabled() ? 'Failed to fetch analytics' : 'Creator enrichment is currently disabled',
+        });
       }
 
-      const data = await response.json();
-      const analytics = extractIcAnalytics(data, platform.toLowerCase(), handle);
+      const analytics = extractIcAnalytics(enriched.data, platform.toLowerCase(), handle);
 
-      res.json({ success: true, analytics });
+      res.json({ success: true, analytics, cached: enriched.fromCache });
     } catch (error) {
       console.error('Error fetching social analytics:', error);
       res.status(500).json({ message: 'Failed to fetch analytics' });
     }
   });
 
-  // Get analytics for all user's connected accounts
-  app.get('/api/social-analytics/my-accounts', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session.userId!;
-      const platformMapping: Record<string, string> = {
-        'instagram': 'instagram',
-        'tiktok': 'tiktok',
-        'youtube': 'youtube',
-        'twitter': 'twitter',
-        'x': 'twitter',
-        'twitch': 'twitch',
-      };
-
-      // Two sources of "which handles do I check": accounts connected via
-      // Upload-Post (OAuth), and handles the creator typed into their Link
-      // Page (profile.socialIcons) — no OAuth needed for the latter, so it
-      // works even when Upload-Post isn't configured. Upload-Post wins for
-      // a platform if both list it.
-      const uploadPostAccounts = await storage.getUploadPostAccountsByUser(userId);
-      const accounts: Array<{ id: string; platform: string; platformUsername: string | null; profilePictureUrl?: string | null }> =
-        (uploadPostAccounts || []).map((a) => ({
-          id: a.id,
-          platform: a.platform,
-          platformUsername: a.platformUsername,
-          profilePictureUrl: a.profilePictureUrl,
-        }));
-      const coveredPlatforms = new Set(accounts.map((a) => a.platform?.toLowerCase()));
-
-      const profile = await storage.getProfileByUserId(userId);
-      for (const icon of (profile?.socialIcons as { platform: string; url: string }[] | undefined) || []) {
-        const platformKey = icon.platform?.toLowerCase();
-        if (!platformKey || !platformMapping[platformKey] || coveredPlatforms.has(platformKey)) continue;
-        const handle = normalizeSocialHandle(icon.url);
-        if (!handle) continue;
-        accounts.push({ id: `profile-${platformKey}`, platform: platformKey, platformUsername: handle });
-        coveredPlatforms.add(platformKey);
-      }
-
-      if (accounts.length === 0) {
-        return res.json({ accounts: [], message: 'No connected accounts found' });
-      }
-
-      const apiKey = getInfluencersClubApiKey();
-      if (!apiKey) {
-        return res.status(400).json({ error: 'Analytics API not configured' });
-      }
-
-      const analyticsResults = [];
-
-      for (const account of accounts) {
-        const platform = platformMapping[account.platform?.toLowerCase() || ''];
-        if (!platform || !account.platformUsername) continue;
-
-        try {
-          const response = await fetch('https://api-dashboard.influencers.club/public/v1/creators/enrich/handle/full/', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              handle: normalizeSocialHandle(account.platformUsername),
-              platform,
-            }),
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            const analytics = extractIcAnalytics(data, platform, account.platformUsername);
-            analyticsResults.push({
-              accountId: account.id,
-              ...analytics,
-              profilePicture: analytics.profilePicture || account.profilePictureUrl || null,
-            });
-          }
-        } catch (err) {
-          console.error(`Error fetching analytics for ${account.platformUsername}:`, err);
-        }
-      }
-
-      res.json({ success: true, accounts: analyticsResults });
-    } catch (error) {
-      console.error('Error fetching my account analytics:', error);
-      res.status(500).json({ message: 'Failed to fetch analytics' });
-    }
-  });
+  // NOTE: the uncached /api/social-analytics/my-accounts route was removed —
+  // it enriched every connected account on every page view with no cache and
+  // no kill-switch gate, unlike /my-accounts-cached (server/socialAnalyticsCache.ts),
+  // which every client page actually uses. Nothing referenced it, but it was
+  // still reachable by anyone authenticated and was silently spending real
+  // Influencers.club credits.
 
   // Calculate suggested rates based on analytics
   app.post('/api/social-analytics/calculate-rates', isAuthenticated, async (req: any, res) => {
@@ -7367,6 +7280,9 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       if (!apiKey) {
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
+      if (!icEnrichmentEnabled()) {
+        return res.status(400).json({ error: 'Creator discovery is currently disabled' });
+      }
 
       const filters = parseResult.data;
 
@@ -7457,6 +7373,9 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       if (!apiKey) {
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
+      if (!icEnrichmentEnabled()) {
+        return res.status(400).json({ error: 'Creator discovery is currently disabled' });
+      }
 
       const { handle, platform, limit, minFollowers, maxFollowers, location } = parseResult.data;
 
@@ -7529,6 +7448,9 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       if (!apiKey) {
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
+      if (!icEnrichmentEnabled()) {
+        return res.status(400).json({ error: 'Creator enrichment is currently disabled' });
+      }
 
       const { email, mode } = parseResult.data;
       // Influencers.club exposes a single email-enrich endpoint (no basic/advanced split)
@@ -7594,6 +7516,9 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       const apiKey = getInfluencersClubApiKey();
       if (!apiKey) {
         return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+      if (!icEnrichmentEnabled()) {
+        return res.status(400).json({ error: 'Creator enrichment is currently disabled' });
       }
 
       const { handle, platform, limit } = parseResult.data;
@@ -7705,6 +7630,9 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       const apiKey = getInfluencersClubApiKey();
       if (!apiKey) {
         return res.status(400).json({ error: 'Analytics API not configured' });
+      }
+      if (!icEnrichmentEnabled()) {
+        return res.status(400).json({ error: 'Batch creator enrichment is currently disabled' });
       }
 
       const { handles } = parseResult.data;
