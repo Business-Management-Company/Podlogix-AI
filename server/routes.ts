@@ -117,7 +117,7 @@ import {
   searchPodchaserPodcasts,
 } from "./services/podchaserGuestService";
 import { getGuestPodcastPlayback } from "./services/guestPodcastPlaybackService";
-import { enrichHandleCached, getCachedEnrichment, saveEnrichment, icEnrichmentEnabled } from "./services/icEnrichment";
+import { enrichHandleCached, getCachedEnrichment, saveEnrichment, icEnrichmentEnabled, extractIcAnalytics } from "./services/icEnrichment";
 import {
   contactNameParts,
   emailContactCreateInputSchema,
@@ -7108,40 +7108,8 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
     return h.replace(/^@/, "").replace(/\/+$/, "");
   }
 
-  /**
-   * Influencers.club's enrich/handle/full response nests everything under
-   * result.<platform> (with YouTube using subscriber_count instead of
-   * follower_count), not flat top-level fields — this maps the real shape.
-   */
-  function extractIcAnalytics(data: any, platform: string, fallbackHandle: string) {
-    const result = data?.result ?? data ?? {};
-    const p = result?.[platform] ?? {};
-    const followers = platform === "youtube" ? (p.subscriber_count ?? 0) : (p.follower_count ?? 0);
-    return {
-      handle: p.username || (p.custom_url ? String(p.custom_url).replace(/^@/, "") : null) || fallbackHandle,
-      platform,
-      name: p.full_name || [result?.first_name, result?.last_name].filter(Boolean).join(" ") || fallbackHandle,
-      bio: p.biography || null,
-      profilePicture: p.profile_picture_hd || p.profile_picture || null,
-      followers,
-      following: p.following_count ?? 0,
-      postsCount: p.media_count ?? 0,
-      engagementRate: p.engagement_percent ?? 0,
-      avgLikes: p.avg_likes ?? 0,
-      avgComments: p.avg_comments ?? 0,
-      avgViews: p.reels?.avg_view_count ?? 0,
-      avgReelLikes: p.reels?.avg_like_count ?? 0,
-      postsPerMonth: p.posting_frequency_recent_months ?? 0,
-      email: result?.email ?? null,
-      emailVerified: false,
-      location: result?.location || p.location || p.country || null,
-      language: result?.speaking_language || null,
-      businessCategory: p.category || null,
-      isVerified: p.is_verified ?? false,
-      socialLinks: result?.links_in_bio ?? [],
-      rawData: data,
-    };
-  }
+  // extractIcAnalytics moved to server/services/icEnrichment.ts (imported above)
+  // so the morning enrichment sweep can share the same response mapping.
 
   
   // Get analytics for a user's connected social account
