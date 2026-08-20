@@ -23,7 +23,6 @@ const PAGES: Array<{ label: string; href: string; keywords: string }> = [
   { label: "Contacts", href: "/contacts", keywords: "master contacts people relationships crm" },
   { label: "Email", href: "/email", keywords: "email campaigns newsletter compose outreach" },
   { label: "Discover", href: "/social/discover", keywords: "find creators influencers research" },
-  { label: "Directory", href: "/social/directory", keywords: "saved creators directory" },
   { label: "Social Hub", href: "/dashboard/social-hub", keywords: "social accounts connect analytics" },
   { label: "Posts", href: "/social/posts", keywords: "create post composer campaign cadence schedule" },
   { label: "Engagement", href: "/social/engagement", keywords: "comments dms inbox replies" },

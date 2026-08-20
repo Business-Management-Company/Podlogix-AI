@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
@@ -37,6 +38,8 @@ import {
   MapPin,
   Briefcase,
   IdCard,
+  Info,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect as BaseGuestProspect } from "@shared/schema";
@@ -109,7 +112,8 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
   const [showCompose, setShowCompose] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [contactFilter, setContactFilter] = useState<string>("all");
-  const [contactDraft, setContactDraft] = useState<Partial<EmailContact>>({});
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactSort, setContactSort] = useState<"recent" | "name">("recent");
   const [newContact, setNewContact] = useState({ email: "", firstName: "", lastName: "", category: "subscriber" });
   const [composeEmail, setComposeEmail] = useState({ name: "", subject: "", body: "", recipientType: "all" });
   const [aiPrompt, setAiPrompt] = useState({ purpose: "guest_invite", podcastName: "", recipientName: "", customPrompt: "" });
@@ -150,10 +154,28 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
     return counts;
   }, [contacts, prospects]);
   const filteredContacts = useMemo(() => {
-    if (contactFilter === "all") return contacts;
-    if (contactFilter === "starred") return contacts.filter((contact) => linkedGuestProspect(contact, prospects)?.starred);
-    return contacts.filter((contact) => linkedGuestProspect(contact, prospects)?.pipelineStage === contactFilter);
-  }, [contacts, prospects, contactFilter]);
+    let list = contacts;
+    if (contactFilter === "starred") {
+      list = list.filter((contact) => linkedGuestProspect(contact, prospects)?.starred);
+    } else if (contactFilter !== "all") {
+      list = list.filter((contact) => linkedGuestProspect(contact, prospects)?.pipelineStage === contactFilter);
+    }
+    const query = contactSearch.trim().toLowerCase();
+    if (query) {
+      list = list.filter((contact) => {
+        const prospect = linkedGuestProspect(contact, prospects);
+        const name = contactDisplayName(contact, prospect).toLowerCase();
+        return name.includes(query) || (contact.email ?? "").toLowerCase().includes(query);
+      });
+    }
+    list = [...list];
+    if (contactSort === "name") {
+      list.sort((a, b) => contactDisplayName(a, linkedGuestProspect(a, prospects)).localeCompare(contactDisplayName(b, linkedGuestProspect(b, prospects))));
+    } else {
+      list.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    }
+    return list;
+  }, [contacts, prospects, contactFilter, contactSearch, contactSort]);
 
   const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<EmailCampaign[]>({
     queryKey: ['/api/email/campaigns'],
@@ -185,24 +207,6 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
     onError: () => {
       toast({ title: "Error", description: "Failed to add contact", variant: "destructive" });
     },
-  });
-
-  const updateContactMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedContact) throw new Error("Choose a contact first");
-      const res = await apiRequest('PATCH', `/api/email/contacts/${selectedContact.id}`, contactDraft);
-      return res.json() as Promise<EmailContact>;
-    },
-    onSuccess: (contact) => {
-      queryClient.setQueryData<EmailContact[]>(['/api/email/contacts'], (current = []) =>
-        current.map((item) => item.id === contact.id ? contact : item));
-      queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/podcasts'] });
-      setContactDraft({});
-      toast({ title: "Contact saved" });
-    },
-    onError: (error: Error) => toast({ title: "Couldn't save contact", description: error.message, variant: "destructive" }),
   });
 
   const deleteContactMutation = useMutation({
@@ -295,20 +299,24 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
 
   const openContact = (id: string) => {
     setSelectedContactId(id);
-    setContactDraft({});
   };
-
-  const contactDraftValue = (field: keyof EmailContact): string =>
-    String((contactDraft[field] ?? selectedContact?.[field] ?? "") as string);
 
   return (
     <div className="w-full max-w-6xl px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           {mode === "contacts" ? (
-            <p className="text-sm text-muted-foreground">
-              Your master people list for relationship details, notes, and outreach history
-            </p>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="inline-flex cursor-default items-center gap-1.5 text-sm text-muted-foreground">
+                    Your master people list for relationship details, notes, and outreach history
+                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-64">Learn more about your contacts.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : (
             <>
               <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -438,6 +446,28 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
             </Card>
           ) : (
             <div className="space-y-3">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative flex-1 sm:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input
+                    placeholder="Search contacts…"
+                    className="pl-9"
+                    value={contactSearch}
+                    onChange={(event) => setContactSearch(event.target.value)}
+                    data-testid="input-contact-search"
+                  />
+                </div>
+                <Select value={contactSort} onValueChange={(value) => setContactSort(value as "recent" | "name")}>
+                  <SelectTrigger className="w-full sm:w-44" data-testid="select-contact-sort">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recent">Recently added</SelectItem>
+                    <SelectItem value="name">Name A–Z</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => setContactFilter("all")}
@@ -478,7 +508,7 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
               {filteredContacts.length === 0 ? (
                 <p className="px-2 py-8 text-center text-sm text-muted-foreground">No contacts match this filter.</p>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="divide-y rounded-xl border">
                   {filteredContacts.map((contact) => {
                     const linkedProspect = linkedGuestProspect(contact, prospects);
                     // Only guests with a real pipeline entry get an editable stage
@@ -486,79 +516,75 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                     // added to a pipeline) falls back to their static category.
                     const stage = linkedProspect?.pipelineStage ? guestStageMeta(linkedProspect.pipelineStage) : null;
                     return (
-                      <Card key={contact.id} className="p-3">
-                        <div className="flex items-start justify-between gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openContact(contact.id)}
-                            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                          >
-                            <MasterContactAvatar
-                              contact={contact}
-                              prospectImageById={prospectImageById}
-                              prospectImageByEmail={prospectImageByEmail}
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium">
-                                {contactDisplayName(contact, linkedProspect)}
-                              </span>
-                              <span className="block truncate text-xs text-muted-foreground">{contact.email || "Email not added"}</span>
+                      <div key={contact.id} className="flex items-center gap-3 px-4 py-3">
+                        {linkedProspect ? (
+                          <StarButton
+                            size="sm"
+                            starred={linkedProspect.starred}
+                            isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === linkedProspect.id}
+                            onToggle={() => toggleStarMutation.mutate({ id: linkedProspect.id, starred: !linkedProspect.starred })}
+                            className="shrink-0 border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
+                          />
+                        ) : (
+                          <span className="w-9 shrink-0" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openContact(contact.id)}
+                          className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                        >
+                          <MasterContactAvatar
+                            contact={contact}
+                            prospectImageById={prospectImageById}
+                            prospectImageByEmail={prospectImageByEmail}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">
+                              {contactDisplayName(contact, linkedProspect)}
                             </span>
-                          </button>
-                          <div className="flex shrink-0 items-center">
-                            {linkedProspect ? (
-                              <StarButton
-                                size="sm"
-                                starred={linkedProspect.starred}
-                                isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === linkedProspect.id}
-                                onToggle={() => toggleStarMutation.mutate({ id: linkedProspect.id, starred: !linkedProspect.starred })}
-                                className="border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
-                              />
-                            ) : null}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => deleteContactMutation.mutate(contact.id)}
-                              data-testid={`button-delete-contact-${contact.id}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="mt-2.5 flex items-center justify-between gap-2 pl-[42px]">
-                          {stage ? (
-                            <Select
-                              value={stage.id}
-                              onValueChange={(value) => updateStageMutation.mutate({ prospectId: linkedProspect!.id, stage: value })}
-                            >
-                              <SelectTrigger
-                                className={`h-6 w-auto gap-1 rounded-full border-0 px-2.5 text-xs font-medium [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60 ${stage.chip}`}
-                                data-testid={`select-stage-${contact.id}`}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {GUEST_STAGES.map((s) => (
-                                  <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Badge className={categoryColors[contact.category || 'subscriber']}>
-                              {contact.category}
-                            </Badge>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => openContact(contact.id)}
-                            className="text-muted-foreground transition-colors hover:text-foreground"
-                            aria-label="View contact"
+                            <span className="block truncate text-xs text-muted-foreground">{contact.email || "Email not added"}</span>
+                          </span>
+                        </button>
+                        {stage ? (
+                          <Select
+                            value={stage.id}
+                            onValueChange={(value) => updateStageMutation.mutate({ prospectId: linkedProspect!.id, stage: value })}
                           >
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </Card>
+                            <SelectTrigger
+                              className={`h-6 w-auto shrink-0 gap-1 rounded-full border-0 px-2.5 text-xs font-medium [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60 ${stage.chip}`}
+                              data-testid={`select-stage-${contact.id}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GUEST_STAGES.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge className={`shrink-0 ${categoryColors[contact.category || 'subscriber']}`}>
+                            {contact.category}
+                          </Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => deleteContactMutation.mutate(contact.id)}
+                          data-testid={`button-delete-contact-${contact.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => openContact(contact.id)}
+                          className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                          aria-label="View contact"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -798,15 +824,15 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
           {selectedContact ? (
             <>
               <SheetHeader>
-                <div className="flex items-center gap-4">
+                <div className="flex items-start gap-5">
                   {linkedProspect?.imageUrl ? (
-                    <img src={linkedProspect.imageUrl} alt="" className="h-20 w-20 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                    <img src={linkedProspect.imageUrl} alt="" className="h-36 w-36 shrink-0 rounded-2xl border object-cover" />
                   ) : (
-                    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/20 text-2xl font-semibold text-primary">
+                    <span className="flex h-36 w-36 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-4xl font-semibold text-primary">
                       {(selectedContact.firstName || selectedContact.email || "?").slice(0, 2).toUpperCase()}
                     </span>
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 pt-1">
                     <SheetTitle className="truncate text-left text-xl">
                       {contactDisplayName(selectedContact, linkedProspect)}
                     </SheetTitle>
@@ -821,152 +847,72 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                         </Badge>
                       )}
                     </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <HeaderFact icon={Mail} label="Email" value={selectedContact.email || "Not added"} />
+                      <HeaderFact icon={MapPin} label="Location" value={linkedProspect?.location || "—"} />
+                      <HeaderFact icon={Briefcase} label="Company" value={selectedContact.company || "—"} />
+                      <HeaderFact icon={IdCard} label="Role" value={selectedContact.title || "—"} />
+                    </div>
                   </div>
-                </div>
-
-                {/* At-a-glance facts sit beside the photo, not buried in the
-                    edit form below — mirrors how a business card reads. */}
-                <div className="mt-4 grid grid-cols-2 gap-2.5">
-                  <HeaderFact icon={Mail} label="Email" value={selectedContact.email || "Not added"} />
-                  <HeaderFact icon={MapPin} label="Location" value={linkedProspect?.location || "—"} />
-                  <HeaderFact icon={Briefcase} label="Company" value={selectedContact.company || "—"} />
-                  <HeaderFact icon={IdCard} label="Role" value={selectedContact.title || "—"} />
                 </div>
               </SheetHeader>
 
-              <Tabs defaultValue="overview" className="mt-6">
-                <TabsList>
-                  <TabsTrigger value="overview" data-testid="tab-contact-overview">Overview</TabsTrigger>
-                  {linkedProspect || selectedContact.category === "guest" ? (
-                    <TabsTrigger value="research" data-testid="tab-contact-research">Research</TabsTrigger>
-                  ) : null}
-                  {linkedProspect ? (
-                    <TabsTrigger value="history" data-testid="tab-contact-history">History</TabsTrigger>
-                  ) : null}
-                </TabsList>
-
-                <TabsContent value="overview" className="mt-4 space-y-6">
+              {/* One continuous scroll, not tabs — the header already covers
+                  who this is, so the rest reads as a single research sheet:
+                  stage first (the thing you're most likely to change), then
+                  social, then the fuller research and appearance history. */}
+              <div className="mt-6 space-y-6">
+                {linkedProspect ? (
                   <section>
-                    <div className="space-y-3 rounded-xl border p-4">
-                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
-                        Email address
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                          <Input
-                            type="email"
-                            inputMode="email"
-                            autoComplete="email"
-                            className="pl-9"
-                            value={contactDraftValue("email")}
-                            onChange={(event) => setContactDraft({ ...contactDraft, email: event.target.value })}
-                            data-testid="input-official-contact-email"
-                          />
-                        </div>
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="space-y-1.5 text-xs font-medium text-zinc-500">
-                          First name
-                          <Input value={contactDraftValue("firstName")} onChange={(event) => setContactDraft({ ...contactDraft, firstName: event.target.value })} />
-                        </label>
-                        <label className="space-y-1.5 text-xs font-medium text-zinc-500">
-                          Last name
-                          <Input value={contactDraftValue("lastName")} onChange={(event) => setContactDraft({ ...contactDraft, lastName: event.target.value })} />
-                        </label>
-                      </div>
-                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
-                        Company
-                        <Input value={contactDraftValue("company")} onChange={(event) => setContactDraft({ ...contactDraft, company: event.target.value })} />
-                      </label>
-                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
-                        Role / title
-                        <Input value={contactDraftValue("title")} onChange={(event) => setContactDraft({ ...contactDraft, title: event.target.value })} />
-                      </label>
-                      <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
-                        Category
-                        <Select
-                          value={String(contactDraft.category ?? selectedContact.category ?? "subscriber")}
-                          onValueChange={(category) => setContactDraft({ ...contactDraft, category })}
-                        >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="guest">Guest</SelectItem>
-                            <SelectItem value="subscriber">Subscriber</SelectItem>
-                            <SelectItem value="sponsor">Sponsor</SelectItem>
-                            <SelectItem value="collaborator">Collaborator</SelectItem>
-                            <SelectItem value="team">Team</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </label>
-                      {Object.keys(contactDraft).length > 0 ? (
-                        <Button
-                          className="w-full"
-                          size="sm"
-                          onClick={() => updateContactMutation.mutate()}
-                          disabled={updateContactMutation.isPending}
-                        >
-                          {updateContactMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                          Save contact details
-                        </Button>
-                      ) : null}
-                    </div>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Pipeline stage</h3>
+                    {linkedProspect.pipelineStage ? (
+                      <Select
+                        value={linkedProspect.pipelineStage}
+                        onValueChange={(value) => updateStageMutation.mutate({ prospectId: linkedProspect.id, stage: value })}
+                      >
+                        <SelectTrigger className={`w-48 border-0 font-medium ${guestStageMeta(linkedProspect.pipelineStage).chip}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GUEST_STAGES.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-zinc-500">Not in a Guest Pipeline yet — add them from Guests to track a stage.</p>
+                    )}
                   </section>
-                </TabsContent>
-
-                <TabsContent value="research" className="mt-4 space-y-6">
-                  {linkedProspect ? (
-                    <>
-                      <section>
-                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Pipeline stage</h3>
-                        {linkedProspect.pipelineStage ? (
-                          <Select
-                            value={linkedProspect.pipelineStage}
-                            onValueChange={(value) => updateStageMutation.mutate({ prospectId: linkedProspect.id, stage: value })}
-                          >
-                            <SelectTrigger className={`w-48 border-0 font-medium ${guestStageMeta(linkedProspect.pipelineStage).chip}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {GUEST_STAGES.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <p className="text-sm text-zinc-500">Not in a Guest Pipeline yet — add them from Guests to track a stage.</p>
-                        )}
-                      </section>
-                      <GuestSocialProfiles
-                        socialLinks={linkedProspect.socialLinks}
-                        hostedPodcasts={linkedAppearanceQuery.data?.hostedPodcasts}
-                      />
-                      <section>
-                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Linked guest research</h3>
-                        <GuestResearchSummary
-                          subtitle={linkedProspect.subtitle}
-                          bio={linkedProspect.bio}
-                          location={linkedProspect.location}
-                          creditedEpisodes={linkedProspect.episodeAppearanceCount}
-                        />
-                      </section>
-                    </>
-                  ) : (
-                    <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-500">
-                      This guest contact is not linked to a researched Guest Prospect yet.
-                    </p>
-                  )}
-                </TabsContent>
+                ) : null}
 
                 {linkedProspect ? (
-                  <TabsContent value="history" className="mt-4">
+                  <>
+                    <GuestSocialProfiles
+                      socialLinks={linkedProspect.socialLinks}
+                      hostedPodcasts={linkedAppearanceQuery.data?.hostedPodcasts}
+                    />
+                    <section>
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Guest research</h3>
+                      <GuestResearchSummary
+                        subtitle={linkedProspect.subtitle}
+                        bio={linkedProspect.bio}
+                        location={linkedProspect.location}
+                        creditedEpisodes={linkedProspect.episodeAppearanceCount}
+                      />
+                    </section>
                     <GuestAppearanceHistory
                       guestName={linkedProspect.name}
                       appearances={linkedAppearanceQuery.data}
                       isLoading={linkedAppearanceQuery.isFetching}
                       error={linkedAppearanceQuery.error}
                     />
-                  </TabsContent>
+                  </>
+                ) : selectedContact.category === "guest" ? (
+                  <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-500">
+                    This guest contact is not linked to a researched Guest Prospect yet.
+                  </p>
                 ) : null}
-              </Tabs>
+              </div>
             </>
           ) : null}
         </SheetContent>

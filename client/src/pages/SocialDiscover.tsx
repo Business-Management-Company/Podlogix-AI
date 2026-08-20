@@ -433,14 +433,12 @@ export default function SocialDiscover() {
 
   return (
     <div className="w-full max-w-7xl px-6 py-8">
-      <div className="mb-6">
-        <p className="text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
-      </div>
-
-      <section>
-        <Card padding="lg">
+      <section className="mb-8 overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+        <div className="p-6 sm:p-8">
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Find your next guest</h1>
+          <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
           <div
-            className="relative"
+            className="relative mt-5"
             onBlur={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSuggestionsOpen(false);
             }}
@@ -499,22 +497,24 @@ export default function SocialDiscover() {
               </div>
             ) : null}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-medium text-zinc-500">Explore topics</span>
+          <p className="mb-2 mt-6 text-xs font-medium text-zinc-500">Explore topics</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {DISCOVERY_TOPICS.map(({ label, query, icon: TopicIcon }) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => submitSearch(query)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-950"
+                className="flex flex-col items-start gap-2 rounded-xl border border-zinc-200 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
               >
-                <TopicIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                {label}
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <TopicIcon className="h-4 w-4 text-primary" aria-hidden="true" />
+                </span>
+                <span className="text-xs font-medium text-zinc-700">{label}</span>
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
-        </Card>
+          <p className="mt-4 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
+        </div>
       </section>
 
       {peopleSearchQuery.isError ? <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">People search:</span> {peopleSearchQuery.error.message}</p> : null}
@@ -563,8 +563,6 @@ export default function SocialDiscover() {
             {podcastPagination ? <PaginationControls pagination={podcastPagination} onPage={setPodcastPage} /> : null}
           </section> : null}
         </div>
-      ) : !submittedQuery ? (
-        <div className="mt-4"><EmptyState icon={Search} title="Search for a guest or podcast" description="We'll group possible people and podcast shows, then keep the detailed research inside Podlogix." /></div>
       ) : null}
 
       <PersonDrawer

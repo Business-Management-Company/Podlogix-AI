@@ -58,7 +58,6 @@ import SocialPosts from "@/pages/SocialPosts";
 import Engagement from "@/pages/Engagement";
 import LiveStudio from "@/pages/LiveStudio";
 import MediaLibrary from "@/pages/MediaLibrary";
-import Directory from "@/pages/Directory";
 import MediaLab from "@/pages/MediaLab";
 import Guests from "@/pages/Guests";
 import MyGuestProfile from "@/pages/MyGuestProfile";
@@ -210,6 +209,10 @@ function AuthenticatedRoutes() {
         <Route path="/podcasts">
           <Redirect to="/shows" replace />
         </Route>
+        {/* Starred is a filter on Contacts/Guest Pipeline now, not its own page. */}
+        <Route path="/social/directory">
+          <Redirect to="/social/discover" replace />
+        </Route>
         <Route path="/podcasts/:id">
           <PodcastRedirect />
         </Route>
@@ -252,7 +255,6 @@ function AuthenticatedRoutes() {
         <Route path="/studio/facet" component={Facet} />
         <Route path="/media-library" component={MediaLibrary} />
         <Route path="/social/discover" component={SocialDiscover} />
-        <Route path="/social/directory" component={Directory} />
         <Route path="/media-lab" component={MediaLab} />
         <Route path="/dashboard/social-analytics" component={SocialAnalytics} />
         <Route path="/dashboard/certify" component={DashboardCertify} />
