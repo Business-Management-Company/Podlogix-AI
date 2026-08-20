@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
+import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { 
@@ -725,6 +726,10 @@ export default function EmailHub() {
 
                 {linkedProspect ? (
                   <>
+                    <GuestSocialProfiles
+                      socialLinks={linkedProspect.socialLinks}
+                      hostedPodcasts={linkedAppearanceQuery.data?.hostedPodcasts}
+                    />
                     <section>
                       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Linked guest research</h3>
                       <GuestResearchSummary
@@ -732,7 +737,6 @@ export default function EmailHub() {
                         bio={linkedProspect.bio}
                         location={linkedProspect.location}
                         creditedEpisodes={linkedProspect.episodeAppearanceCount}
-                        socialLinks={linkedProspect.socialLinks}
                       />
                     </section>
                     <GuestAppearanceHistory
