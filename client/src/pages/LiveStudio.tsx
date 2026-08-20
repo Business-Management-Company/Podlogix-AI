@@ -156,7 +156,7 @@ export default function LiveStudio() {
   const [prompterSpeed, setPrompterSpeed] = useState<PrompterSpeed>("normal");
 
   // ── AI moment detection ──
-  // ── Post-production pipeline (the Refiner) ──
+  // ── Post-production pipeline (Facet) ──
   type StepState = "idle" | "running" | "done" | "failed";
   const [pipeline, setPipeline] = useState<{ transcribe: StepState; detect: StepState }>({
     transcribe: "idle", detect: "idle",
@@ -747,7 +747,7 @@ export default function LiveStudio() {
     }
   };
 
-  // ── The Refiner: real post-production, one button. Every checkmark below
+  // ── Facet: real post-production, one button. Every checkmark below
   // corresponds to an actual transformation — never a timer. ──
 
   const stepTranscribe = async (): Promise<{ text: string; segments: CaptionSegment[] }> => {
@@ -795,7 +795,7 @@ export default function LiveStudio() {
     try {
       const t = await stepTranscribe();
       await stepDetect(t);
-      toast({ title: "Moments marked", description: "Cut the keepers below \u2014 Refiner handles the audio polish." });
+      toast({ title: "Moments marked", description: "Cut the keepers below \u2014 Facet handles the audio polish." });
     } catch (e) {
       toast({
         title: "The pipeline stopped",
@@ -982,7 +982,7 @@ export default function LiveStudio() {
               ["home", "Home", HomeIcon, null],
               ["past", "Past streams", Clock, null],
               ["clips", "Clips", Scissors, null],
-              ["refiner", "Refiner", Gem, "/studio/refine"],
+              ["facet", "Facet", Gem, "/studio/facet"],
               ["storage", "Storage", FolderOpen, null],
               ["channels", "Channels", Share2, null],
               ["analytics", "Analytics", BarChart3, null],
@@ -1897,7 +1897,7 @@ export default function LiveStudio() {
                   </>
                 )}
               </Button>
-              <Link href={`/studio/refine?src=${encodeURIComponent(vodUrl.trim())}`}>
+              <Link href={`/studio/facet?src=${encodeURIComponent(vodUrl.trim())}`}>
                 <Button className="bg-red-600 text-white hover:bg-red-700">
                   <Gem className="mr-1.5 h-4 w-4" />
                   Refine this show

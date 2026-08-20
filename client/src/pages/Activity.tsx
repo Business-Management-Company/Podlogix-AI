@@ -45,7 +45,7 @@ import type { Episode, LiveSession } from "@shared/schema";
  * business/activity layer (social · schedule · calendar · releases), and
  * supporting intelligence (recent activity · episodes · quick actions).
  *
- * House rule carried over from the Refiner: every number here is measured
+ * House rule carried over from Facet: every number here is measured
  * from real data — nothing is invented, and empty states earn a CTA
  * instead of a blank card.
  */
@@ -916,7 +916,7 @@ export default function Activity() {
               {([
                 ["Record", Mic, "/studio/live", "bg-red-500/15 text-red-400"],
                 ["Go Live", Radio, "/studio/live", "bg-violet-500/15 text-violet-400"],
-                ["Refine", Gem, "/studio/refine", "bg-amber-500/15 text-amber-400"],
+                ["Refine", Gem, "/studio/facet", "bg-amber-500/15 text-amber-400"],
                 ["Post", PenSquare, "/social/posts", "bg-sky-500/15 text-sky-400"],
                 ["Newsletter", Mail, "/dashboard/email", "bg-emerald-500/15 text-emerald-400"],
                 ["Invite Guest", UserPlus, "/guests", "bg-pink-500/15 text-pink-400"],

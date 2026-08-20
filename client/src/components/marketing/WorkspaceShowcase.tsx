@@ -10,7 +10,7 @@ import { fadeUp, viewportOnce } from "./motion";
 /**
  * Section 2 — click-through product tour. Four hand-built demo views (demo
  * data, clearly a product preview) inside the 3-D browser frame, switched by
- * CTA tabs: Dashboard, Live Studio, Podcast, The Refinery. Views are drawn in
+ * CTA tabs: Dashboard, Live Studio, Podcast, Facet. Views are drawn in
  * JSX rather than screenshots so they never go stale and always match the
  * marketing theme.
  */
@@ -46,7 +46,7 @@ const TOUR = [
     ],
   },
   {
-    id: "refinery", label: "Refiner", Icon: Gem, url: "podlogix.io/studio/refine",
+    id: "facet", label: "Facet", Icon: Gem, url: "podlogix.io/studio/facet",
     captions: [
       { label: "Pipeline", value: "Real transformations" },
       { label: "Minutes saved", value: "Measured, not invented" },
@@ -265,12 +265,12 @@ function PodcastView() {
   );
 }
 
-function RefineryView() {
+function FacetView() {
   return (
     <div className="flex h-full gap-2.5 overflow-hidden bg-[#f6f6f7] p-4 text-zinc-900">
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-bold">Refiner</p>
+          <p className="text-sm font-bold">Facet</p>
           <span className="rounded bg-red-600 px-2 py-0.5 text-[8px] font-bold text-white">Refining\u2026</span>
         </div>
         <div className="relative mt-1.5 overflow-hidden rounded-lg bg-zinc-950 p-2">
@@ -335,7 +335,7 @@ const VIEWS: Record<TourId, () => JSX.Element> = {
   dashboard: DashboardView,
   studio: StudioView,
   podcast: PodcastView,
-  refinery: RefineryView,
+  facet: FacetView,
 };
 
 // ── Section ──────────────────────────────────────────────────────────────────
@@ -366,7 +366,7 @@ export function WorkspaceShowcase() {
             <span className="block">Every room, one roof.</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Click through the rooms — dashboard, studio, podcast, Refiner. Demo data; the real thing is one signup away.
+            Click through the rooms — dashboard, studio, podcast, Facet. Demo data; the real thing is one signup away.
           </p>
         </motion.div>
 

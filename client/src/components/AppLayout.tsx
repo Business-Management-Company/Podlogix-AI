@@ -105,7 +105,7 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   // Campaign and Cadence are tabs inside Posts — no separate panel entries.
   { title: "Bio Page", url: "/dashboard/profile", icon: Link2, group: "Social" },
   { title: "Live Studio", url: "/studio/live", icon: Radio, group: "Studio" },
-  { title: "Refiner", url: "/studio/refine", icon: Gem, group: "Studio" },
+  { title: "Facet", url: "/studio/facet", icon: Gem, group: "Studio" },
   { title: "Media Storage", url: "/media-library", icon: GalleryVerticalEnd, group: "Studio" },
   // Beta — filtered out of the panel for non-allowlisted accounts (see activeGroupItems).
   { title: "Media Lab", url: "/media-lab", icon: FlaskConical, group: "Studio" },
@@ -136,10 +136,10 @@ const RAIL_ITEMS: RailItem[] = [
   { title: "Contacts", icon: Contact, url: "/contacts", isActive: (leaf) => leaf?.group === "Contacts" },
   { title: "Email", icon: Send, url: "/email", isActive: (leaf) => leaf?.group === "Email" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
-  // Refiner and Media Storage keep their Studio panel entries, but each gets
+  // Facet and Media Storage keep their Studio panel entries, but each gets
   // its own rail icon — most sessions go straight to one of them.
-  { title: "Studio", icon: WandSparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" && leaf?.url !== "/media-library" && leaf?.url !== "/studio/refine" },
-  { title: "Refiner", icon: Gem, url: "/studio/refine", isActive: (leaf) => leaf?.url === "/studio/refine" },
+  { title: "Studio", icon: WandSparkles, url: "/studio/live", isActive: (leaf) => leaf?.group === "Studio" && leaf?.url !== "/media-library" && leaf?.url !== "/studio/facet" },
+  { title: "Facet", icon: Gem, url: "/studio/facet", isActive: (leaf) => leaf?.url === "/studio/facet" },
   { title: "Media Storage", icon: GalleryVerticalEnd, url: "/media-library", isActive: (leaf) => leaf?.url === "/media-library" },
   { title: "Connectors", icon: Plug, url: "/connectors", isActive: (leaf) => leaf?.url === "/connectors" },
   { title: "Settings", icon: Settings, url: "/settings", isActive: (leaf) => leaf?.group === "Settings" },
