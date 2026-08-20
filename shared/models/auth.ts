@@ -25,6 +25,10 @@ export const users = pgTable("users", {
   phone: varchar("phone"),
   zipCode: varchar("zip_code"),
   bio: text("bio"),
+  // The Podchaser creator id the user has confirmed is themself — powers
+  // "what shows have I been on" using the same appearance-history lookup
+  // already used to research OTHER people as guest prospects.
+  podchaserPersonId: varchar("podchaser_person_id"),
   role: varchar("role").default("user"), // user, admin, superadmin
   isActive: varchar("is_active").default("true"), // true, false - for account suspension
   createdAt: timestamp("created_at").defaultNow(),

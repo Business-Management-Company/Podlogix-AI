@@ -1,11 +1,14 @@
+// Translucent tint + saturated text, not flat pastel fills — matches the
+// category-badge idiom elsewhere (EmailHub's categoryColors) instead of the
+// old bg-100/text-800 combo, which read as dated/candy-colored.
 export const GUEST_STAGES = [
-  { id: "prospect", label: "Prospect", chip: "bg-zinc-100 text-zinc-600" },
-  { id: "invited", label: "Invited", chip: "bg-amber-100 text-amber-800" },
-  { id: "booked", label: "Booked", chip: "bg-blue-100 text-blue-800" },
-  { id: "recorded", label: "Recorded", chip: "bg-purple-100 text-purple-800" },
-  { id: "published", label: "Published", chip: "bg-emerald-100 text-emerald-800" },
-  { id: "follow_up", label: "Follow up", chip: "bg-orange-100 text-orange-800" },
-  { id: "alumni", label: "Alumni", chip: "bg-slate-100 text-slate-600" },
+  { id: "prospect", label: "Prospect", chip: "bg-zinc-500/15 text-zinc-600" },
+  { id: "invited", label: "Invited", chip: "bg-amber-500/15 text-amber-600" },
+  { id: "booked", label: "Booked", chip: "bg-blue-500/15 text-blue-600" },
+  { id: "recorded", label: "Recorded", chip: "bg-purple-500/15 text-purple-600" },
+  { id: "published", label: "Published", chip: "bg-emerald-500/15 text-emerald-600" },
+  { id: "follow_up", label: "Follow up", chip: "bg-orange-500/15 text-orange-600" },
+  { id: "alumni", label: "Alumni", chip: "bg-slate-500/15 text-slate-600" },
 ] as const;
 
 export type GuestStage = (typeof GUEST_STAGES)[number]["id"];

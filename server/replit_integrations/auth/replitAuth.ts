@@ -418,6 +418,7 @@ export async function setupAuth(app: Express) {
         phone: user.phone,
         zipCode: user.zipCode,
         bio: user.bio,
+        podchaserPersonId: user.podchaserPersonId,
         role: user.role,
       });
     } catch (error) {
@@ -459,6 +460,7 @@ export async function setupAuth(app: Express) {
         phone: user.phone,
         zipCode: user.zipCode,
         bio: user.bio,
+        podchaserPersonId: user.podchaserPersonId,
         role: user.role,
       });
     } catch (error) {
@@ -486,6 +488,7 @@ export async function setupAuth(app: Express) {
         phone: user.phone,
         zipCode: user.zipCode,
         bio: user.bio,
+        podchaserPersonId: user.podchaserPersonId,
         role: user.role,
       });
     } catch (error) {

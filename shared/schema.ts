@@ -773,6 +773,15 @@ export const emailContacts = pgTable("email_contacts", {
   company: varchar("company"),
   title: varchar("title"),
   category: varchar("category").default("subscriber"), // guest, subscriber, sponsor, collaborator, team
+  // Copied from guest_prospects at promotion time (see ensureOfficialGuestContact
+  // in routes.ts) so the contact record survives even if the prospect research
+  // is later deleted, instead of relying only on the guestProspectId join.
+  subtitle: text("subtitle"),
+  location: varchar("location"),
+  bio: text("bio"),
+  imageUrl: text("image_url"),
+  socialLinks: jsonb("social_links").$type<Record<string, string>>(),
+  episodeAppearanceCount: integer("episode_appearance_count"),
   notes: text("notes"),
   tags: text("tags").array(),
   isSubscribed: boolean("is_subscribed").default(true),

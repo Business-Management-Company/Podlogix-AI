@@ -290,8 +290,7 @@ export default function Guests() {
     <div className="w-full max-w-[1100px] px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Guest pipeline</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="text-sm text-zinc-500">
             Track each show's guests from prospect through published and follow-up.
           </p>
         </div>
@@ -410,7 +409,7 @@ export default function Guests() {
                 <button
                   onClick={() => setStarredOnly((value) => !value)}
                   className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    starredOnly ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    starredOnly ? "bg-amber-500 text-white" : "bg-amber-500/15 text-amber-600 hover:bg-amber-500/25"
                   }`}
                 >
                   <Star size={11} fill="currentColor" aria-hidden="true" />
@@ -545,19 +544,20 @@ export default function Guests() {
                   </div>
                 </div>
 
-                <section>
-                  <SectionHeader title="Contact information" />
-                  <div className="space-y-2.5">
-                    {selected.prospect ? (
-                      <MasterContactButton
-                        masterContactId={selected.contactId}
-                        isPending={promoteContactMutation.isPending}
-                        onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
-                        className="w-full"
-                      />
-                    ) : null}
+                {/* Quick actions — Master Contacts / Reveal Email are the other
+                    two CTAs a host reaches for before reading anything else,
+                    so they sit with Pipeline stage + Invite instead of buried
+                    inside the contact-editing form below. */}
+                {selected.prospect ? (
+                  <div className="space-y-2">
+                    <MasterContactButton
+                      masterContactId={selected.contactId}
+                      isPending={promoteContactMutation.isPending}
+                      onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
+                      className="w-full"
+                    />
 
-                    {selected.prospect && !guestEmail(selected.contact, selected.prospect) ? (
+                    {!guestEmail(selected.contact, selected.prospect) ? (
                       <RevealEmailButton
                         canReveal={hasEnrichmentProfile(selected.prospect)}
                         isPending={revealEmailMutation.isPending}
@@ -565,7 +565,29 @@ export default function Guests() {
                         className="w-full"
                       />
                     ) : null}
+                  </div>
+                ) : null}
 
+                {selected.prospect ? (
+                  <GuestSocialProfiles socialLinks={selected.prospect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
+                ) : null}
+
+                {selected.prospect ? (
+                  <section>
+                    <SectionHeader title="Guest research" />
+                    <GuestResearchSummary
+                      subtitle={selected.prospect.subtitle}
+                      bio={selected.prospect.bio}
+                      location={selected.prospect.location}
+                      creditedEpisodes={selected.prospect.episodeAppearanceCount}
+                      compact
+                    />
+                  </section>
+                ) : null}
+
+                <section>
+                  <SectionHeader title="Contact information" />
+                  <div className="space-y-2.5">
                     {selected.contact ? (
                       <>
                         <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
@@ -628,23 +650,6 @@ export default function Guests() {
                     )}
                   </div>
                 </section>
-
-                {selected.prospect ? (
-                  <GuestSocialProfiles socialLinks={selected.prospect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
-                ) : null}
-
-                {selected.prospect ? (
-                  <section>
-                    <SectionHeader title="Guest research" />
-                    <GuestResearchSummary
-                      subtitle={selected.prospect.subtitle}
-                      bio={selected.prospect.bio}
-                      location={selected.prospect.location}
-                      creditedEpisodes={selected.prospect.episodeAppearanceCount}
-                      compact
-                    />
-                  </section>
-                ) : null}
 
                 {selected.prospect?.providerPersonId ? (
                   <GuestAppearanceHistory
