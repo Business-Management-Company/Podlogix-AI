@@ -46,7 +46,6 @@ import {
   UserPlus,
   Fingerprint,
   Compass,
-  Star,
   IdCard,
   FlaskConical,
   Puzzle,
@@ -93,8 +92,9 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Episodes", url: "/episodes", icon: List, group: "Podcast" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
   // Guest work follows the user's natural funnel: discover, research, pursue.
+  // Starring isn't its own destination — it's a filter on Contacts and Guest
+  // Pipeline, so there's no separate "Starred" nav item here.
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
-  { title: "Starred", url: "/social/directory", icon: Star, group: "Guests" },
   { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
   // The reverse direction of the same funnel — what shows the host themself
   // has appeared on, for pitching new ones.
