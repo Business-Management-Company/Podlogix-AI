@@ -685,8 +685,21 @@ function HostedShowActivity({ podcast }: { podcast?: GuestAppearanceResult["host
   );
 }
 
+const STAR_HINT_SEEN_KEY = "podlogix:star-hint-seen";
+
 function PersonDrawer(props: PersonDrawerProps) {
   const { candidate, prospect, appearances, appearancesLoading, appearancesError } = props;
+  const [starHintOpen, setStarHintOpen] = useState(false);
+
+  useEffect(() => {
+    if (!candidate || typeof window === "undefined") return;
+    if (window.localStorage.getItem(STAR_HINT_SEEN_KEY)) return;
+    window.localStorage.setItem(STAR_HINT_SEEN_KEY, "1");
+    setStarHintOpen(true);
+    const timeoutId = window.setTimeout(() => setStarHintOpen(false), 4500);
+    return () => window.clearTimeout(timeoutId);
+  }, [candidate]);
+
   return (
     <>
       <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}>
@@ -696,7 +709,7 @@ function PersonDrawer(props: PersonDrawerProps) {
               <div className="flex items-center gap-3">
                 <PersonAvatar candidate={candidate} size="lg" />
                 <div className="min-w-0 flex-1"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div>
-                <TooltipProvider delayDuration={250}><Tooltip><TooltipTrigger asChild><span><StarButton starred={prospect?.starred} isPending={props.starPending} onToggle={props.onToggleStar} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-56">Star your top picks — works whether they're just reviewed, in a pipeline, or already a contact.</TooltipContent></Tooltip></TooltipProvider>
+                <TooltipProvider delayDuration={250}><Tooltip open={starHintOpen} onOpenChange={setStarHintOpen}><TooltipTrigger asChild><span><StarButton starred={prospect?.starred} isPending={props.starPending} onToggle={props.onToggleStar} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-56 border-blue-600 bg-blue-600 text-white">Star your top picks — works whether they're just reviewed, in a pipeline, or already a contact.</TooltipContent></Tooltip></TooltipProvider>
               </div>
             </SheetHeader>
             <div className="mt-4 space-y-4">
