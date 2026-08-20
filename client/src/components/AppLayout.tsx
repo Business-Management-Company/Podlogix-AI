@@ -47,6 +47,7 @@ import {
   Fingerprint,
   Compass,
   Star,
+  IdCard,
   FlaskConical,
   Puzzle,
   PenSquare,
@@ -95,6 +96,9 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
   { title: "Starred", url: "/social/directory", icon: Star, group: "Guests" },
   { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
+  // The reverse direction of the same funnel — what shows the host themself
+  // has appeared on, for pitching new ones.
+  { title: "My Appearances", url: "/guests/my-profile", icon: IdCard, group: "Guests" },
   // Contacts and Email are distinct workspace tools. A person can exist in
   // Contacts without being a guest, and campaigns should not crowd guest CRM.
   { title: "Contacts", url: "/contacts", icon: Contact, group: "Contacts" },
@@ -256,17 +260,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     return best;
   })();
 
-  // Today pinned at top, then — only when the URL is inside one of the
-  // groups — that group's items. No group active (e.g. on /today or Voice
-  // Certification) means the panel shows just Today; the rail alone still
-  // gets you everywhere else.
+  // Panel only renders when the URL is inside a group (see panelOpen check
+  // below), so it always has a group to show — no pinned Dashboard row here,
+  // since the rail's own Dashboard icon is already one click away.
   const activeGroupItems = (
     activeLeaf?.group ? WORKSPACE_PRIMARY.filter((i) => i.group === activeLeaf.group) : []
   ).filter((i) => i.url !== "/media-lab" || user?.email === "andrew@podlogix.co");
   const panelItems =
-    navMode === "show"
-      ? showNavItems(showId!)
-      : [WORKSPACE_PRIMARY.find((i) => i.exact)!, ...activeGroupItems];
+    navMode === "show" ? showNavItems(showId!) : activeGroupItems;
 
   const panelLinkClass = (active: boolean) =>
     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors cursor-pointer ${
@@ -318,16 +319,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                   if (!panelOpen) setPanelOpen(true);
                 }}
                 className={`
-                  relative flex items-center h-10 rounded-xl transition-all duration-150
-                  ${railExpanded ? "gap-2.5 px-3 w-full" : "justify-center w-10"}
-                  ${isActive ? "bg-white/10 shadow-sm" : "hover:bg-white/[0.06]"}
+                  relative flex items-center h-10 rounded-full transition-all duration-150
+                  ${railExpanded ? "gap-2.5 px-3.5 w-full" : "justify-center w-10"}
+                  ${isActive ? "bg-primary/20 ring-1 ring-primary/40" : "hover:bg-white/[0.06]"}
                 `}
                 aria-label={item.title}
               >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
-                )}
-                <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? "text-white" : "text-slate-500"}`} />
+                <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? "text-primary" : "text-slate-500"}`} />
                 {railExpanded && (
                   <span className={`text-sm truncate ${isActive ? "text-white font-medium" : "text-slate-400"}`}>
                     {item.title}

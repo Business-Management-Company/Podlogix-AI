@@ -161,8 +161,7 @@ export default function Directory() {
   return (
     <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Starred</h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500">
           Your top picks — starred from Discover, Guest Pipeline, or Contacts. Star or unstar anywhere; this is just the filtered view.
         </p>
       </div>
@@ -316,22 +315,9 @@ export default function Directory() {
                     className="w-full"
                   />
                 </div>
-                <GuestSocialProfiles socialLinks={selectedProspect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
-                <section>
-                  <SectionHeader title="Guest research" />
-                  <GuestResearchSummary
-                    subtitle={selectedProspect.subtitle}
-                    bio={selectedProspect.bio}
-                    location={selectedProspect.location}
-                    creditedEpisodes={selectedProspect.episodeAppearanceCount}
-                  />
-                </section>
-                <GuestAppearanceHistory
-                  guestName={selectedProspect.name}
-                  appearances={appearanceQuery.data}
-                  isLoading={appearanceQuery.isFetching}
-                  error={appearanceQuery.error}
-                />
+                {/* The pipeline CTA is the other action a host reaches for
+                    immediately — it sits with the rest of the CTAs instead of
+                    after a full scroll through research and history. */}
                 <section>
                   <SectionHeader title="Add to guest pipeline" />
                   {podcasts.length > 0 ? (
@@ -356,6 +342,22 @@ export default function Directory() {
                     <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-500">Connect a show before adding this person to a pipeline.</p>
                   )}
                 </section>
+                <GuestSocialProfiles socialLinks={selectedProspect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
+                <section>
+                  <SectionHeader title="Guest research" />
+                  <GuestResearchSummary
+                    subtitle={selectedProspect.subtitle}
+                    bio={selectedProspect.bio}
+                    location={selectedProspect.location}
+                    creditedEpisodes={selectedProspect.episodeAppearanceCount}
+                  />
+                </section>
+                <GuestAppearanceHistory
+                  guestName={selectedProspect.name}
+                  appearances={appearanceQuery.data}
+                  isLoading={appearanceQuery.isFetching}
+                  error={appearanceQuery.error}
+                />
               </div>
             </>
           ) : null}

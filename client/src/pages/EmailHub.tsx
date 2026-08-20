@@ -33,7 +33,11 @@ import {
   Loader2,
   FileText,
   Wand2,
-  RefreshCw
+  RefreshCw,
+  MapPin,
+  Briefcase,
+  IdCard,
+  type LucideIcon,
 } from "lucide-react";
 import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect as BaseGuestProspect } from "@shared/schema";
 
@@ -42,6 +46,20 @@ import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect as BaseG
 type GuestProspect = BaseGuestProspect & { pipelineStage?: string | null };
 
 const EMPTY_PROSPECTS: GuestProspect[] = [];
+
+function HeaderFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-medium">{value}</p>
+      </div>
+    </div>
+  );
+}
 
 function contactDisplayName(contact: EmailContact, prospect?: GuestProspect | null): string {
   return prospect?.name
@@ -200,6 +218,17 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
     },
   });
 
+  const updateStageMutation = useMutation({
+    mutationFn: async ({ prospectId, stage }: { prospectId: string; stage: string }) => {
+      const res = await apiRequest('PATCH', `/api/guest-prospects/${prospectId}/stage`, { stage });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't update stage", description: error.message, variant: "destructive" }),
+  });
+
   const createCampaignMutation = useMutation({
     mutationFn: async (campaign: typeof composeEmail) => {
       const res = await apiRequest('POST', '/api/email/campaigns', campaign);
@@ -276,17 +305,23 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
     <div className="w-full max-w-6xl px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            {mode === "contacts" ? <Users className="h-6 w-6 text-primary" /> : <Mail className="h-6 w-6 text-primary" />}
-            {mode === "contacts" ? "Contacts" : mode === "email" ? "Email" : "Master Contacts & Email"}
-          </h1>
-          <p className="text-muted-foreground">
-            {mode === "contacts"
-              ? "Your master people list for relationship details, notes, and outreach history"
-              : mode === "email"
-                ? "Create campaigns and personalized outreach for your saved contacts"
-                : "Your reusable people list, including guest prospects you choose to promote—even before an email is known"}
-          </p>
+          {mode === "contacts" ? (
+            <p className="text-sm text-muted-foreground">
+              Your master people list for relationship details, notes, and outreach history
+            </p>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Mail className="h-6 w-6 text-primary" />
+                {mode === "email" ? "Email" : "Master Contacts & Email"}
+              </h1>
+              <p className="text-muted-foreground">
+                {mode === "email"
+                  ? "Create campaigns and personalized outreach for your saved contacts"
+                  : "Your reusable people list, including guest prospects you choose to promote—even before an email is known"}
+              </p>
+            </>
+          )}
         </div>
         {mode !== "contacts" && (emailStatus?.configured ? (
           <Badge variant="secondary" className="bg-green-500/20 text-green-400">
@@ -416,7 +451,7 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                   <button
                     onClick={() => setContactFilter(contactFilter === "starred" ? "all" : "starred")}
                     className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      contactFilter === "starred" ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      contactFilter === "starred" ? "bg-amber-500 text-white" : "bg-amber-500/15 text-amber-600 hover:bg-amber-500/25"
                     }`}
                   >
                     <Star size={11} fill="currentColor" aria-hidden="true" />
@@ -443,25 +478,20 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
               {filteredContacts.length === 0 ? (
                 <p className="px-2 py-8 text-center text-sm text-muted-foreground">No contacts match this filter.</p>
               ) : (
-                <div className="grid gap-2">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {filteredContacts.map((contact) => {
                     const linkedProspect = linkedGuestProspect(contact, prospects);
+                    // Only guests with a real pipeline entry get an editable stage
+                    // chip — everyone else (sponsors, subscribers, guests never
+                    // added to a pipeline) falls back to their static category.
+                    const stage = linkedProspect?.pipelineStage ? guestStageMeta(linkedProspect.pipelineStage) : null;
                     return (
-                      <Card key={contact.id} className="p-0">
-                        <div className="flex items-center gap-2 p-4">
-                          {linkedProspect ? (
-                            <StarButton
-                              size="sm"
-                              starred={linkedProspect.starred}
-                              isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === linkedProspect.id}
-                              onToggle={() => toggleStarMutation.mutate({ id: linkedProspect.id, starred: !linkedProspect.starred })}
-                              className="border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
-                            />
-                          ) : null}
+                      <Card key={contact.id} className="p-3">
+                        <div className="flex items-start justify-between gap-1.5">
                           <button
                             type="button"
                             onClick={() => openContact(contact.id)}
-                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                           >
                             <MasterContactAvatar
                               contact={contact}
@@ -469,24 +499,64 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                               prospectImageByEmail={prospectImageByEmail}
                             />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium">
+                              <span className="block truncate text-sm font-medium">
                                 {contactDisplayName(contact, linkedProspect)}
                               </span>
-                              <span className="block truncate text-sm text-muted-foreground">{contact.email || "Email not added"}</span>
+                              <span className="block truncate text-xs text-muted-foreground">{contact.email || "Email not added"}</span>
                             </span>
+                          </button>
+                          <div className="flex shrink-0 items-center">
+                            {linkedProspect ? (
+                              <StarButton
+                                size="sm"
+                                starred={linkedProspect.starred}
+                                isPending={toggleStarMutation.isPending && toggleStarMutation.variables?.id === linkedProspect.id}
+                                onToggle={() => toggleStarMutation.mutate({ id: linkedProspect.id, starred: !linkedProspect.starred })}
+                                className="border-transparent bg-transparent hover:border-transparent hover:bg-transparent"
+                              />
+                            ) : null}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => deleteContactMutation.mutate(contact.id)}
+                              data-testid={`button-delete-contact-${contact.id}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-2.5 flex items-center justify-between gap-2 pl-[42px]">
+                          {stage ? (
+                            <Select
+                              value={stage.id}
+                              onValueChange={(value) => updateStageMutation.mutate({ prospectId: linkedProspect!.id, stage: value })}
+                            >
+                              <SelectTrigger
+                                className={`h-6 w-auto gap-1 rounded-full border-0 px-2.5 text-xs font-medium [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60 ${stage.chip}`}
+                                data-testid={`select-stage-${contact.id}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {GUEST_STAGES.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
                             <Badge className={categoryColors[contact.category || 'subscriber']}>
                               {contact.category}
                             </Badge>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteContactMutation.mutate(contact.id)}
-                            data-testid={`button-delete-contact-${contact.id}`}
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openContact(contact.id)}
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                            aria-label="View contact"
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
                         </div>
                       </Card>
                     );
@@ -728,28 +798,56 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
           {selectedContact ? (
             <>
               <SheetHeader>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   {linkedProspect?.imageUrl ? (
-                    <img src={linkedProspect.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                    <img src={linkedProspect.imageUrl} alt="" className="h-20 w-20 shrink-0 rounded-full border border-zinc-200 object-cover" />
                   ) : (
-                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/20 text-lg font-semibold text-primary">
+                    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/20 text-2xl font-semibold text-primary">
                       {(selectedContact.firstName || selectedContact.email || "?").slice(0, 2).toUpperCase()}
                     </span>
                   )}
                   <div className="min-w-0">
-                    <SheetTitle className="truncate text-left">
+                    <SheetTitle className="truncate text-left text-xl">
                       {contactDisplayName(selectedContact, linkedProspect)}
                     </SheetTitle>
-                    <p className="truncate text-sm text-zinc-500">{selectedContact.email || "Email not added"}</p>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {linkedProspect?.pipelineStage ? (
+                        <Badge className={`${guestStageMeta(linkedProspect.pipelineStage).chip} font-medium`}>
+                          {guestStageMeta(linkedProspect.pipelineStage).label}
+                        </Badge>
+                      ) : (
+                        <Badge className={categoryColors[selectedContact.category || 'subscriber']}>
+                          {selectedContact.category}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
+                </div>
+
+                {/* At-a-glance facts sit beside the photo, not buried in the
+                    edit form below — mirrors how a business card reads. */}
+                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                  <HeaderFact icon={Mail} label="Email" value={selectedContact.email || "Not added"} />
+                  <HeaderFact icon={MapPin} label="Location" value={linkedProspect?.location || "—"} />
+                  <HeaderFact icon={Briefcase} label="Company" value={selectedContact.company || "—"} />
+                  <HeaderFact icon={IdCard} label="Role" value={selectedContact.title || "—"} />
                 </div>
               </SheetHeader>
 
-              <div className="mt-6 space-y-6">
-                {selectedContact ? (
+              <Tabs defaultValue="overview" className="mt-6">
+                <TabsList>
+                  <TabsTrigger value="overview" data-testid="tab-contact-overview">Overview</TabsTrigger>
+                  {linkedProspect || selectedContact.category === "guest" ? (
+                    <TabsTrigger value="research" data-testid="tab-contact-research">Research</TabsTrigger>
+                  ) : null}
+                  {linkedProspect ? (
+                    <TabsTrigger value="history" data-testid="tab-contact-history">History</TabsTrigger>
+                  ) : null}
+                </TabsList>
+
+                <TabsContent value="overview" className="mt-4 space-y-6">
                   <section>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Contact details</h3>
-                    <div className="space-y-3 rounded-xl border border-zinc-200 p-4">
+                    <div className="space-y-3 rounded-xl border p-4">
                       <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
                         Email address
                         <div className="relative">
@@ -812,36 +910,63 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                       ) : null}
                     </div>
                   </section>
-                ) : null}
+                </TabsContent>
+
+                <TabsContent value="research" className="mt-4 space-y-6">
+                  {linkedProspect ? (
+                    <>
+                      <section>
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Pipeline stage</h3>
+                        {linkedProspect.pipelineStage ? (
+                          <Select
+                            value={linkedProspect.pipelineStage}
+                            onValueChange={(value) => updateStageMutation.mutate({ prospectId: linkedProspect.id, stage: value })}
+                          >
+                            <SelectTrigger className={`w-48 border-0 font-medium ${guestStageMeta(linkedProspect.pipelineStage).chip}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GUEST_STAGES.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <p className="text-sm text-zinc-500">Not in a Guest Pipeline yet — add them from Guests to track a stage.</p>
+                        )}
+                      </section>
+                      <GuestSocialProfiles
+                        socialLinks={linkedProspect.socialLinks}
+                        hostedPodcasts={linkedAppearanceQuery.data?.hostedPodcasts}
+                      />
+                      <section>
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Linked guest research</h3>
+                        <GuestResearchSummary
+                          subtitle={linkedProspect.subtitle}
+                          bio={linkedProspect.bio}
+                          location={linkedProspect.location}
+                          creditedEpisodes={linkedProspect.episodeAppearanceCount}
+                        />
+                      </section>
+                    </>
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-500">
+                      This guest contact is not linked to a researched Guest Prospect yet.
+                    </p>
+                  )}
+                </TabsContent>
 
                 {linkedProspect ? (
-                  <>
-                    <GuestSocialProfiles
-                      socialLinks={linkedProspect.socialLinks}
-                      hostedPodcasts={linkedAppearanceQuery.data?.hostedPodcasts}
-                    />
-                    <section>
-                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Linked guest research</h3>
-                      <GuestResearchSummary
-                        subtitle={linkedProspect.subtitle}
-                        bio={linkedProspect.bio}
-                        location={linkedProspect.location}
-                        creditedEpisodes={linkedProspect.episodeAppearanceCount}
-                      />
-                    </section>
+                  <TabsContent value="history" className="mt-4">
                     <GuestAppearanceHistory
                       guestName={linkedProspect.name}
                       appearances={linkedAppearanceQuery.data}
                       isLoading={linkedAppearanceQuery.isFetching}
                       error={linkedAppearanceQuery.error}
                     />
-                  </>
-                ) : selectedContact.category === "guest" ? (
-                  <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-500">
-                    This guest contact is not linked to a researched Guest Prospect yet.
-                  </p>
+                  </TabsContent>
                 ) : null}
-              </div>
+              </Tabs>
             </>
           ) : null}
         </SheetContent>

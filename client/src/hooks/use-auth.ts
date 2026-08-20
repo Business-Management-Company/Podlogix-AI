@@ -9,6 +9,7 @@ interface AuthUser {
   phone: string | null;
   zipCode: string | null;
   bio: string | null;
+  podchaserPersonId: string | null;
   role: string | null;
 }
 
