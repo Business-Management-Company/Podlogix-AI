@@ -1,5 +1,16 @@
 import React from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Globe2 } from "lucide-react";
+import {
+  SiFacebook,
+  SiInstagram,
+  SiLinkedin,
+  SiPatreon,
+  SiTiktok,
+  SiTwitch,
+  SiWikipedia,
+  SiX,
+  SiYoutube,
+} from "react-icons/si";
 import { SectionHeader } from "@/components/kit";
 import { socialProfileSummary } from "@/lib/guest-workflow";
 
@@ -11,6 +22,7 @@ interface GuestSocialProfilesProps {
     webUrl?: string | null;
     socialLinks?: Record<string, string | null | undefined> | null;
   }>;
+  compact?: boolean;
 }
 
 const PLATFORM_ORDER = [
@@ -43,6 +55,38 @@ function normalizedUrl(url: string): string {
   return url.trim().replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "").toLowerCase();
 }
 
+const PLATFORM_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  facebook: SiFacebook,
+  instagram: SiInstagram,
+  linkedin: SiLinkedin,
+  patreon: SiPatreon,
+  tiktok: SiTiktok,
+  twitch: SiTwitch,
+  twitter: SiX,
+  wikipedia: SiWikipedia,
+  x: SiX,
+  youtube: SiYoutube,
+};
+
+const PLATFORM_COLOR: Record<string, string> = {
+  facebook: "text-[#1877F2]",
+  instagram: "text-[#E4405F]",
+  linkedin: "text-[#0A66C2]",
+  patreon: "text-[#FF424D]",
+  tiktok: "text-zinc-950",
+  twitch: "text-[#9146FF]",
+  twitter: "text-zinc-950",
+  x: "text-zinc-950",
+  youtube: "text-[#FF0000]",
+};
+
+function PlatformIcon({ platform }: { platform: string }) {
+  const normalized = platform.toLowerCase();
+  if (normalized === "website") return <Globe2 className="h-4 w-4 text-zinc-500" aria-hidden="true" />;
+  const Icon = PLATFORM_ICON[normalized] ?? Globe2;
+  return <Icon className={`h-4 w-4 ${PLATFORM_COLOR[normalized] ?? "text-zinc-500"}`} aria-hidden="true" />;
+}
+
 function SocialLinkButtons({ links }: { links: SocialLink[] }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -52,17 +96,18 @@ function SocialLinkButtons({ links }: { links: SocialLink[] }) {
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950"
         >
+          <PlatformIcon platform={platform} />
           {socialProfileSummary(platform, url)}
-          <ExternalLink className="h-3.5 w-3.5 text-zinc-400" />
+          <ExternalLink className="h-3 w-3 text-zinc-400" aria-hidden="true" />
         </a>
       ))}
     </div>
   );
 }
 
-export function GuestSocialProfiles({ socialLinks, hostedPodcasts = [] }: GuestSocialProfilesProps) {
+export function GuestSocialProfiles({ socialLinks, hostedPodcasts = [], compact = false }: GuestSocialProfilesProps) {
   const personalLinks = orderedLinks(socialLinks);
   const seenUrls = new Set(personalLinks.map(([, url]) => normalizedUrl(url)));
   const personalPlatforms = new Set(personalLinks.map(([platform]) => platform.toLowerCase()));
@@ -83,9 +128,9 @@ export function GuestSocialProfiles({ socialLinks, hostedPodcasts = [] }: GuestS
   if (personalLinks.length === 0 && hostedSources.length === 0) return null;
 
   return (
-    <section aria-label="Social profiles">
-      <SectionHeader title="Social profiles" />
-      <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+    <section aria-label="Social profiles" className={compact ? "space-y-2" : undefined}>
+      {compact ? <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Social profiles</p> : <SectionHeader title="Social profiles" />}
+      <div className={`space-y-2 ${compact ? "" : "rounded-xl border border-zinc-200 bg-zinc-50 p-3"}`}>
         {personalLinks.length > 0 ? (
           <div className="space-y-2">
             {hostedSources.length > 0 ? <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Personal</p> : null}
@@ -94,7 +139,7 @@ export function GuestSocialProfiles({ socialLinks, hostedPodcasts = [] }: GuestS
         ) : null}
         {hostedSources.map((source) => (
           <div key={source.podcastId} className="space-y-2 border-t border-zinc-200 pt-3 first:border-0 first:pt-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Via {source.podcastTitle}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Via {source.podcastTitle}</p>
             <SocialLinkButtons links={source.officialLinks} />
           </div>
         ))}

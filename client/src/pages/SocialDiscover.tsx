@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BookmarkPlus, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, ExternalLink,
-  Globe2, LayoutGrid, List, Loader2, Mail, Mic2, Rss, Search, Star, UserPlus, Users,
+  BookmarkPlus, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Cpu, ExternalLink,
+  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, LayoutGrid, List, Loader2, Mail, MessagesSquare,
+  Mic2, Rss, Search, Star, UserPlus, Users,
 } from "lucide-react";
 import {
   GuestAppearanceHistory,
@@ -21,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
@@ -30,6 +32,15 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 type ViewMode = "table" | "cards";
 type CreatorSort = "relevance" | "appearance_count" | "alphabetical" | "recent_episode";
 type PodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
+
+const DISCOVERY_TOPICS = [
+  { label: "Health & wellness", query: "health wellness", icon: HeartPulse },
+  { label: "Business", query: "business entrepreneurship", icon: BriefcaseBusiness },
+  { label: "Technology", query: "technology", icon: Cpu },
+  { label: "Science", query: "science", icon: FlaskConical },
+  { label: "Education", query: "education", icon: GraduationCap },
+  { label: "Society & culture", query: "society culture", icon: MessagesSquare },
+] as const;
 
 interface CreatorCandidate {
   id: string;
@@ -361,9 +372,10 @@ export default function SocialDiscover() {
     }
   };
 
-  const submitSearch = () => {
-    const query = searchInput.trim();
+  const submitSearch = (requestedQuery?: string) => {
+    const query = (requestedQuery ?? searchInput).trim();
     if (query.length < 2) return;
+    if (requestedQuery) setSearchInput(query);
     setSuggestionsOpen(false); setPeoplePage(1); setPodcastPage(1); setSelectedCreator(null); setSelectedPodcast(null); setSubmittedQuery(query);
   };
   const chooseCreator = (candidate: CreatorCandidate) => {
@@ -431,7 +443,7 @@ export default function SocialDiscover() {
                 }}
                 className="flex-1"
               />
-              <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || searchPending}>
+              <Button onClick={() => submitSearch()} disabled={searchInput.trim().length < 2 || searchPending}>
                 {searchPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
                 Search
               </Button>
@@ -464,11 +476,25 @@ export default function SocialDiscover() {
                   </div>
                 ) : null}
                 {!suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? <p className="px-3 py-4 text-sm text-zinc-500">No quick matches yet. Run the full search for broader results.</p> : null}
-                <button type="button" onClick={submitSearch} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for “{searchInput.trim()}”</button>
+                <button type="button" onClick={() => submitSearch()} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for “{searchInput.trim()}”</button>
               </div>
             ) : null}
           </div>
-          <p className="mt-2 text-xs text-zinc-400">Suggestions appear after a short pause. Select a match immediately or run the full search; results are cached to protect your provider credits.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-medium text-zinc-500">Explore topics</span>
+            {DISCOVERY_TOPICS.map(({ label, query, icon: TopicIcon }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => submitSearch(query)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-950"
+              >
+                <TopicIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
         </Card>
       </section>
 
@@ -622,23 +648,19 @@ function HostedShowActivity({ podcast }: { podcast?: GuestAppearanceResult["host
   if (!podcast) return null;
   const latestDate = podcast.latestEpisodeDate ?? podcast.latestEpisode?.airDate ?? null;
   return (
-    <section>
-      <SectionHeader title="Hosted show activity" />
-      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+    <section aria-label="Hosted show activity" className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
         <div className="flex items-center gap-3">
-          {podcast.podcastImageUrl ? <img src={podcast.podcastImageUrl} alt="" className="h-11 w-11 rounded-lg border border-zinc-200 object-cover" /> : <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-white"><Mic2 className="h-4 w-4 text-zinc-400" /></span>}
+          {podcast.podcastImageUrl ? <img src={podcast.podcastImageUrl} alt="" className="h-10 w-10 rounded-lg border border-zinc-200 object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white"><Mic2 className="h-4 w-4 text-zinc-400" /></span>}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-zinc-950">{podcast.podcastTitle}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">{podcast.author?.name || "Hosted podcast"}</p>
+            <p className="truncate text-sm font-semibold text-zinc-950">{podcast.podcastTitle}</p>
+            <p className="mt-0.5 truncate text-xs text-zinc-500">{podcast.latestEpisode?.title ? `Latest: ${podcast.latestEpisode.title}` : podcast.author?.name || "Hosted podcast"}</p>
           </div>
-          {podcast.status ? <span className="rounded-full bg-white px-2.5 py-1 text-xs capitalize text-zinc-600">{podcast.status}</span> : null}
+          <div className="flex shrink-0 items-center gap-3 text-xs text-zinc-600">
+            <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />{formatDate(latestDate)}</span>
+            <span className="hidden sm:inline">{podcast.numberOfEpisodes != null ? `${formatCount(podcast.numberOfEpisodes)} episodes` : "Episodes unavailable"}</span>
+            {podcast.status ? <span className="rounded-full bg-white px-2 py-1 capitalize">{podcast.status}</span> : null}
+          </div>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <div className="rounded-lg border border-zinc-200 bg-white p-3"><p className="flex items-center gap-1.5 text-xs font-medium text-zinc-500"><CalendarDays className="h-3.5 w-3.5" />Latest episode</p><p className="mt-1 text-sm font-medium text-zinc-950">{formatDate(latestDate)}</p></div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-3"><p className="text-xs font-medium text-zinc-500">Published episodes</p><p className="mt-1 text-sm font-medium text-zinc-950">{podcast.numberOfEpisodes != null ? formatCount(podcast.numberOfEpisodes) : "Unavailable"}</p></div>
-        </div>
-        {podcast.latestEpisode?.title ? <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">Latest credited episode: {podcast.latestEpisode.title}</p> : null}
-      </div>
     </section>
   );
 }
@@ -648,19 +670,22 @@ function PersonDrawer(props: PersonDrawerProps) {
   return (
     <>
       <Sheet open={Boolean(candidate)} onOpenChange={(open) => !open && props.onClose()}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[52vw]">
           {candidate ? <>
-            <SheetHeader><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader>
-            <div className="mt-6 space-y-6">
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <Button variant="outline" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Saved to Shortlist" : "Save to Shortlist"}</Button>
-                <Button variant="outline" onClick={() => props.onPipelineDialog(true)}><UserPlus className="mr-1.5 h-4 w-4" />Add to Pipeline</Button>
-                <MasterContactButton masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} />
-                <RevealEmailButton email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks) || Boolean(appearances?.hostedPodcasts.some((podcast) => hasEnrichmentProfile(podcast.socialLinks)))} isPending={props.revealPending} onConfirm={props.onReveal} />
-              </div>
-              <GuestSocialProfiles socialLinks={candidate.socialLinks} hostedPodcasts={appearances?.hostedPodcasts} />
+            <SheetHeader className="rounded-xl border-l-4 border-l-primary bg-zinc-50 p-4"><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-left">{candidate.name}</SheetTitle><p className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</p></div></div></SheetHeader>
+            <div className="mt-4 space-y-4">
+              <TooltipProvider delayDuration={250}>
+                <div className="flex flex-wrap gap-2">
+                  <Tooltip><TooltipTrigger asChild><Button onClick={() => props.onPipelineDialog(true)} className="h-9"><UserPlus className="mr-1.5 h-4 w-4" />Add to Pipeline</Button></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Assign this guest to a show and booking stage. Pipeline guests are also saved to your Shortlist.</TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><span><Button variant="outline" className="h-9" onClick={props.onSave} disabled={Boolean(prospect) || props.savePending}>{prospect ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <BookmarkPlus className="mr-1.5 h-4 w-4" />}{prospect ? "Shortlisted" : "Shortlist"}</Button></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Save for research without committing the guest to a show or outreach stage.</TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><span><MasterContactButton className="h-9" masterContactId={prospect?.masterContactId} isPending={props.contactPending} onAdd={props.onAddContact} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Create a master contact record for notes, outreach, and future campaigns.</TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><span><RevealEmailButton className="h-9" email={prospect?.email} canReveal={hasEnrichmentProfile(candidate.socialLinks) || Boolean(appearances?.hostedPodcasts.some((podcast) => hasEnrichmentProfile(podcast.socialLinks)))} isPending={props.revealPending} onConfirm={props.onReveal} /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-64">Use one Influencers Club credit once; the saved email is reused afterward.</TooltipContent></Tooltip>
+                </div>
+                <p className="flex items-center gap-1.5 text-xs text-zinc-500"><Info className="h-3.5 w-3.5" aria-hidden="true" /><span><strong className="font-medium text-zinc-700">Shortlist</strong> is research-only. <strong className="font-medium text-zinc-700">Pipeline</strong> means you are actively pursuing this guest for a show.</span></p>
+              </TooltipProvider>
+              <GuestSocialProfiles compact socialLinks={candidate.socialLinks} hostedPodcasts={appearances?.hostedPodcasts} />
               <HostedShowActivity podcast={appearances?.hostedPodcasts[0]} />
-              <section><SectionHeader title="Guest research" /><GuestResearchSummary subtitle={candidate.subtitle} bio={candidate.bio} location={candidate.location} creditedEpisodes={candidate.episodeAppearanceCount} /></section>
+              <section><SectionHeader title="Guest snapshot" /><GuestResearchSummary compact subtitle={candidate.subtitle} bio={candidate.bio} location={candidate.location} creditedEpisodes={candidate.episodeAppearanceCount} /></section>
               <GuestAppearanceHistory guestName={candidate.name} appearances={appearances} isLoading={appearancesLoading} error={appearancesError} />
             </div>
           </> : null}

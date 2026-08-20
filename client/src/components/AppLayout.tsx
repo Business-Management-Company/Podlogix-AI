@@ -91,12 +91,14 @@ const WORKSPACE_PRIMARY: NavItem[] = [
   { title: "Shows", url: "/shows", icon: Mic, group: "Podcast" },
   { title: "Episodes", url: "/episodes", icon: List, group: "Podcast" },
   { title: "Listen", url: "/listener", icon: Headphones, group: "Podcast" },
-  { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests & CRM" },
-  { title: "People & Contacts", url: "/dashboard/email", icon: Contact, group: "Guests & CRM" },
-  // Discover/Shortlist live under Guests & CRM: they exist to find and keep
-  // guests, feeding the CRM/email side — not to manage posting.
-  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests & CRM" },
-  { title: "Shortlist", url: "/social/directory", icon: BookMarked, group: "Guests & CRM" },
+  // Guest work follows the user's natural funnel: discover, research, pursue.
+  { title: "Discover", url: "/social/discover", icon: Compass, group: "Guests" },
+  { title: "Shortlist", url: "/social/directory", icon: BookMarked, group: "Guests" },
+  { title: "Guest Pipeline", url: "/guests", icon: UserPlus, group: "Guests" },
+  // Contacts and Email are distinct workspace tools. A person can exist in
+  // Contacts without being a guest, and campaigns should not crowd guest CRM.
+  { title: "Contacts", url: "/contacts", icon: Contact, group: "Contacts" },
+  { title: "Email", url: "/email", icon: Send, group: "Email" },
   { title: "Social Hub", url: "/dashboard/social-hub", icon: Share2, group: "Social" },
   { title: "Engagement", url: "/social/engagement", icon: MessageCircle, group: "Social" },
   { title: "Posts", url: "/social/posts", icon: PenSquare, group: "Social", exact: true },
@@ -130,7 +132,9 @@ interface RailItem {
 const RAIL_ITEMS: RailItem[] = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
   { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
-  { title: "Guests & CRM", icon: UserPlus, url: "/guests", isActive: (leaf) => leaf?.group === "Guests & CRM" },
+  { title: "Guests", icon: UserPlus, url: "/social/discover", isActive: (leaf) => leaf?.group === "Guests" },
+  { title: "Contacts", icon: Contact, url: "/contacts", isActive: (leaf) => leaf?.group === "Contacts" },
+  { title: "Email", icon: Send, url: "/email", isActive: (leaf) => leaf?.group === "Email" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },
   // Refiner and Media Storage keep their Studio panel entries, but each gets
   // its own rail icon — most sessions go straight to one of them.
