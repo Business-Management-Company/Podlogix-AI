@@ -200,6 +200,17 @@ async function ensureOfficialGuestContact(
     throw new GuestContactConflictError("That contact is already linked to another guest prospect.");
   }
 
+  // Carried onto the contact so it survives even if the prospect research is
+  // later deleted, rather than relying only on the live guestProspectId join.
+  const researchFields = {
+    subtitle: prospect.subtitle,
+    location: prospect.location,
+    bio: prospect.bio,
+    imageUrl: prospect.imageUrl,
+    socialLinks: prospect.socialLinks,
+    episodeAppearanceCount: prospect.episodeAppearanceCount,
+  };
+
   if (!contact) {
     const fallbackName = contactNameParts(prospect.name);
     contact = await storage.createEmailContact({
@@ -213,11 +224,13 @@ async function ensureOfficialGuestContact(
       category: "guest",
       notes: sourceNote,
       isSubscribed: false,
+      ...researchFields,
     });
   } else {
     const fallbackName = contactNameParts(prospect.name);
     const updates: Partial<EmailContact> = {
       ...details,
+      ...researchFields,
       ...(contact.guestProspectId ? {} : { guestProspectId: prospect.id }),
       ...(email && contact.email?.trim().toLowerCase() !== email ? { email } : {}),
       ...(!contact.firstName && details.firstName === undefined ? { firstName: fallbackName.firstName } : {}),
@@ -390,6 +403,30 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error updating user profile:", err);
       res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // PATCH /api/user/podchaser-identity — link or clear which Podchaser
+  // creator is "me", so "What shows have I been on" can reuse the existing
+  // guest-appearance-history lookup pointed at the user's own person id.
+  app.patch("/api/user/podchaser-identity", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const { creatorId } = z.object({ creatorId: z.string().trim().min(1).max(80).nullable() }).parse(req.body);
+      if (creatorId) {
+        // Validate the id actually resolves before saving it — a typo'd or
+        // stale id would otherwise silently break the appearances lookup.
+        await getPodchaserCreator(creatorId);
+      }
+      const updated = await authStorage.updateUserProfile(userId, { podchaserPersonId: creatorId });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({ podchaserPersonId: updated.podchaserPersonId });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || "Invalid request" });
+      }
+      return sendPodchaserRouteError(res, error);
     }
   });
 
@@ -4414,6 +4451,32 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       }
       console.error('Error starring guest prospect:', error);
       res.status(500).json({ message: 'Failed to update guest prospect' });
+    }
+  });
+
+  // Lets the Contacts page move a guest's pipeline stage without knowing the
+  // pipeline entry's own id — it only has the prospect id. Mirrors the
+  // most-recently-touched-entry resolution GET /api/guest-prospects uses to
+  // derive pipelineStage in the first place.
+  app.patch('/api/guest-prospects/:id/stage', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const existing = await storage.getGuestProspect(req.params.id, userId);
+      if (!existing) return res.status(404).json({ message: 'Guest prospect not found' });
+      const input = z.object({
+        stage: z.enum(['prospect', 'invited', 'booked', 'recorded', 'published', 'follow_up', 'alumni']),
+      }).parse(req.body);
+      const entries = await storage.getGuestPipelineEntriesByUser(userId);
+      const entry = entries.find((e) => e.guestProspectId === req.params.id);
+      if (!entry) return res.status(404).json({ message: 'This guest is not in a pipeline yet' });
+      const updated = await storage.updateGuestPipelineEntry(entry.id, { stage: input.stage });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid request' });
+      }
+      console.error('Error updating guest prospect stage:', error);
+      res.status(500).json({ message: 'Failed to update stage' });
     }
   });
 

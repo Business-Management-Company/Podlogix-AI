@@ -434,8 +434,7 @@ export default function SocialDiscover() {
   return (
     <div className="w-full max-w-7xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Discover guests</h1>
-        <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
+        <p className="text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
       </div>
 
       <section>

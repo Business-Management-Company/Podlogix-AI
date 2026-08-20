@@ -9,7 +9,11 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "shadcn-card rounded-xl border bg-card border-card-border text-card-foreground shadow-sm",
+      // border-card-border used to be here, but --card-border was never
+      // defined in index.css — it silently fell back to currentColor
+      // (near-black), giving every card a heavy dark frame instead of a
+      // subtle one. border-border is the token that's actually defined.
+      "shadcn-card rounded-xl border bg-card border-border text-card-foreground shadow-sm",
       className
     )}
     {...props}

@@ -61,6 +61,7 @@ import MediaLibrary from "@/pages/MediaLibrary";
 import Directory from "@/pages/Directory";
 import MediaLab from "@/pages/MediaLab";
 import Guests from "@/pages/Guests";
+import MyGuestProfile from "@/pages/MyGuestProfile";
 import DashboardCertify from "@/pages/DashboardCertify";
 import DashboardCertifyLikeness from "@/pages/DashboardCertifyLikeness";
 import ListenerDashboard from "@/pages/ListenerDashboard";
@@ -163,6 +164,7 @@ function AuthenticatedRoutes() {
         {/* TODO Phase 9: split SocialAnalytics into a real Audience experience */}
         <Route path="/audience" component={SocialAnalytics} />
         <Route path="/guests" component={Guests} />
+        <Route path="/guests/my-profile" component={MyGuestProfile} />
 
         {/* ── Show context ── */}
         <Route path="/shows/:id" component={ShowOverview} />
