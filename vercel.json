@@ -15,5 +15,8 @@
     { "source": "/feeds/(.*)", "destination": "/api/index" },
     { "source": "/objects/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/enrich-creators", "schedule": "0 13 * * *" }
   ]
 }

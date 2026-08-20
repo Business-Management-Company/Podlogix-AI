@@ -86,6 +86,8 @@ export const ready = (async () => {
     registerEngagementCache(app);
     const { registerAiChatRoutes } = await import("./aiChatRoutes");
     registerAiChatRoutes(app);
+    const { registerCronRoutes } = await import("./cronRoutes");
+    registerCronRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
