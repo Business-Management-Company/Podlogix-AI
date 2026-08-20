@@ -25,7 +25,7 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import PublicProfile from "@/pages/PublicProfile";
 import StudioGuest from "@/pages/StudioGuest";
-import Refinery from "@/pages/Refinery";
+import Facet from "@/pages/Facet";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 
@@ -213,6 +213,10 @@ function AuthenticatedRoutes() {
         <Route path="/podcasts/:id">
           <PodcastRedirect />
         </Route>
+        {/* Refiner was renamed to Facet (trademark reasons) — same page. */}
+        <Route path="/studio/refine">
+          <Redirect to="/studio/facet" replace />
+        </Route>
         <Route path="/podcasts/:id/episodes">
           <PodcastRedirect suffix="/episodes" />
         </Route>
@@ -245,7 +249,7 @@ function AuthenticatedRoutes() {
         <Route path="/social/engagement" component={Engagement} />
         <Route path="/studio/live" component={LiveStudio} />
         <Route path="/studio/guest" component={StudioGuest} />
-        <Route path="/studio/refine" component={Refinery} />
+        <Route path="/studio/facet" component={Facet} />
         <Route path="/media-library" component={MediaLibrary} />
         <Route path="/social/discover" component={SocialDiscover} />
         <Route path="/social/directory" component={Directory} />

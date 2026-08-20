@@ -6248,7 +6248,7 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
         segments: Array.isArray((data as any).segments)
           ? (data as any).segments.map((s: any) => ({ start: s.start, end: s.end, text: String(s.text ?? '').trim() }))
           : [],
-        // Word timing rides along free — the Refiner's browser lane cuts with it.
+        // Word timing rides along free — Facet's browser lane cuts with it.
         words: Array.isArray((data as any).words)
           ? (data as any).words.map((w: any) => ({ word: w.word, start: w.start, end: w.end }))
           : [],
@@ -7005,7 +7005,7 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
   // confirmed (Aug 2026) that POST /api/uploadposts/analyze-shorts works over the API with our key.
   // Quota (300 analyses/mo on Professional) is counted per account email, not per key.
 
-  // Graduated from the Media Lab beta into the Refiner's Clip copy panel —
+  // Graduated from the Media Lab beta into Facet's Clip copy panel —
   // generally available, same host/size guards.
   app.post('/api/media-lab/analyze-shorts', isAuthenticated, async (req: any, res) => {
     try {

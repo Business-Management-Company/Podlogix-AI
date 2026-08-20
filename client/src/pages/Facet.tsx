@@ -11,7 +11,9 @@ import {
 import { extractAudioAsWav } from "@/lib/audio-extraction";
 
 /**
- * /studio/refine — Refiner. Post-production as its own room, outside the
+ * /studio/facet — Facet (renamed from "Refiner" for trademark reasons — the
+ * gem-cutting metaphor holds: this is the room where a raw recording gets
+ * cut into its finished facets). Post-production as its own room, outside the
  * live studio: pick any recording, press Refine, watch a REAL pipeline run —
  * every checkmark is an actual transformation of the actual file, and the
  * results are measured, never invented. (The house rule, born from the
@@ -176,7 +178,7 @@ const mediaDuration = (url: string, kind: "audio" | "video") =>
     el.src = url;
   });
 
-export default function Refinery() {
+export default function Facet() {
   const { toast } = useToast();
 
   const [selected, setSelected] = useState<{ url: string; title: string; type: "video" | "audio" } | null>(null);
@@ -327,7 +329,7 @@ export default function Refinery() {
           return String(tData.text ?? "");
         };
         const serverLane = async () => {
-          const srv = await apiRequest("POST", "/api/refiner/transcribe", { mediaUrl: selected.url });
+          const srv = await apiRequest("POST", "/api/facet/transcribe", { mediaUrl: selected.url });
           const sData = await srv.json().catch(() => ({}));
           if (!srv.ok) throw new Error(String(sData.message ?? "Transcription failed"));
           if (Array.isArray(sData.words)) words = sData.words as WordStamp[];
@@ -531,11 +533,11 @@ export default function Refinery() {
   return (
     <div className="w-full max-w-6xl px-6 py-8">
       <style>{`
-        @keyframes refinery-sweep {
+        @keyframes facet-sweep {
           0% { background-position: 0% 50%; }
           100% { background-position: 200% 50%; }
         }
-        @keyframes refinery-reveal {
+        @keyframes facet-reveal {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
@@ -545,7 +547,7 @@ export default function Refinery() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-950">
             <Gem className="h-6 w-6 text-zinc-400" />
-            Refiner
+            Facet
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
             Turn raw conversations into clear, compelling content — every checkmark is a real transformation of your actual file.
@@ -647,7 +649,7 @@ export default function Refinery() {
                     ? {
                         background: "linear-gradient(90deg, #d84b2d, #f5c33b, #d84b2d, #f5c33b, #d84b2d)",
                         backgroundSize: "200% 100%",
-                        animation: "refinery-sweep 2.2s linear infinite",
+                        animation: "facet-sweep 2.2s linear infinite",
                       }
                     : { background: "transparent" }
                 }
@@ -730,7 +732,7 @@ export default function Refinery() {
 
               {/* Before / after — appears when the work is truly done */}
               {done && refinedUrl && (
-                <div className="mt-5 grid gap-3 sm:grid-cols-2" style={{ animation: "refinery-reveal .6s ease both" }}>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2" style={{ animation: "facet-reveal .6s ease both" }}>
                   <div className="rounded-xl border border-zinc-200 bg-white p-3">
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Before</p>
                     {selected.type === "audio" ? (
@@ -797,7 +799,7 @@ export default function Refinery() {
                 )}
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
-                Marked clips and captions live in your studio's Editing Room — Refiner polishes the whole show.
+                Marked clips and captions live in your studio's Editing Room — Facet polishes the whole show.
               </p>
 
               {/* Clip copy — graduated from the Media Lab beta */}
@@ -881,7 +883,7 @@ export default function Refinery() {
 
           {/* ── Processing results — measured, never invented ── */}
           {(transcript || minutesSaved !== null) && (
-            <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5" style={{ animation: "refinery-reveal .6s ease both" }}>
+            <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5" style={{ animation: "facet-reveal .6s ease both" }}>
               <p className="text-sm font-semibold text-zinc-900">Processing results</p>
               <p className="mb-4 text-xs text-zinc-500">What actually happened to your file — measured, never invented.</p>
               <div className="grid grid-cols-3 gap-3">

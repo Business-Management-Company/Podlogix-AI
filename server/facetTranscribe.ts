@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { isAuthenticated } from "./replit_integrations/auth";
 
 /**
- * Long-form transcription for the Refiner.
+ * Long-form transcription for Facet.
  *
  * The in-browser path (decode → mono WAV → POST) hits a hard cliff near 24
  * minutes: even at the 8 kHz floor the WAV crosses Whisper's 25 MB cap — the
@@ -12,11 +12,11 @@ import { isAuthenticated } from "./replit_integrations/auth";
  * transcribes with word-level timestamps. Word timing is the foundation the
  * real remove-fillers step will cut against.
  */
-export function registerRefinerTranscribe(app: Express) {
+export function registerFacetTranscribe(app: Express) {
   const UPLOAD_POST_API_BASE = "https://api.upload-post.com";
   const apiKey = () => (process.env.UPLOAD_POST_API_KEY || "").trim();
 
-  app.post("/api/refiner/transcribe", isAuthenticated, async (req: any, res) => {
+  app.post("/api/facet/transcribe", isAuthenticated, async (req: any, res) => {
     try {
       if (!process.env.OPENAI_API_KEY) {
         return res.status(503).json({ message: "Transcription needs the OpenAI key configured" });
@@ -90,7 +90,7 @@ export function registerRefinerTranscribe(app: Express) {
       });
       const data: any = await whisper.json().catch(() => ({}));
       if (!whisper.ok) {
-        console.error("Whisper error (refiner):", whisper.status, data);
+        console.error("Whisper error (facet):", whisper.status, data);
         return res.status(whisper.status >= 500 ? 502 : whisper.status).json({ message: data?.error?.message || "Transcription failed" });
       }
 
@@ -105,7 +105,7 @@ export function registerRefinerTranscribe(app: Express) {
           : [],
       });
     } catch (error) {
-      console.error("Refiner transcription error:", error);
+      console.error("Facet transcription error:", error);
       res.status(500).json({ message: "Transcription failed" });
     }
   });

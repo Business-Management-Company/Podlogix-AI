@@ -14,7 +14,7 @@ import {
 const PAGES: Array<{ label: string; href: string; keywords: string }> = [
   { label: "Dashboard", href: "/today", keywords: "home today command center" },
   { label: "Live Studio", href: "/studio/live", keywords: "record go live stream broadcast studio" },
-  { label: "Refiner", href: "/studio/refine", keywords: "refine polish cut gaps fillers video audio clip copy" },
+  { label: "Facet", href: "/studio/facet", keywords: "refiner refine polish cut gaps fillers video audio clip copy" },
   { label: "Media Storage", href: "/media-library", keywords: "media library files uploads storage videos audio" },
   { label: "Shows", href: "/shows", keywords: "podcast shows hosting" },
   { label: "Episodes", href: "/episodes", keywords: "podcast episodes drafts publish" },
