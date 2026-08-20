@@ -340,8 +340,14 @@ export async function getPodchaserCreator(creatorId: string): Promise<PodchaserC
   const normalizedCreatorId = creatorId.trim();
   const cached = getCached(creatorDetailCache, normalizedCreatorId);
   if (cached) return cached;
-  const response = await requestPodchaser<PodchaserCreatorRaw>(`/creators/${encodeURIComponent(normalizedCreatorId)}`);
-  const value = normalizeCreator(response);
+  // Single-object Podchaser responses may arrive enveloped as { data: {...} },
+  // same as /podcasts/{id} — without unwrapping, every field silently reads as
+  // undefined and normalizeCreator falls back to "Unknown creator" with a
+  // blank id, which then fails guest-prospect validation downstream.
+  const response = await requestPodchaser<PodchaserCreatorRaw | PodchaserObjectEnvelope<PodchaserCreatorRaw>>(
+    `/creators/${encodeURIComponent(normalizedCreatorId)}`,
+  );
+  const value = normalizeCreator(extractObject(response));
   setCached(creatorDetailCache, normalizedCreatorId, value, APPEARANCE_CACHE_TTL_MS);
   return value;
 }
