@@ -21,6 +21,11 @@ export interface GuestPodcastAppearance {
   webUrl?: string | null;
   socialLinks?: Record<string, string | null | undefined>;
   episodeCount: number;
+  numberOfEpisodes?: number | null;
+  latestEpisodeDate?: string | null;
+  status?: string | null;
+  author?: { name: string | null; email: string | null };
+  latestEpisode?: { id: string; title: string; airDate: string | null } | null;
 }
 
 export interface GuestAppearanceResult {

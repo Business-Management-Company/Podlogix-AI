@@ -80,11 +80,6 @@ test("returns structured guest credits and measures Starter quota use", async ()
               rssUrl: "https://feeds.example.com/huberman-lab",
               socialLinks: {
                 twitter: "https://x.com/hubermanlab",
-                facebook: "https://facebook.com/hubermanlab",
-                instagram: "https://instagram.com/hubermanlab",
-                youtube: "https://youtube.com/@hubermanlab",
-                linkedin: "https://linkedin.com/in/andrew-huberman",
-                tiktok: "https://tiktok.com/@hubermanlab",
               },
             },
             role: { code: "host", title: "Host" },
@@ -102,6 +97,32 @@ test("returns structured guest credits and measures Starter quota use", async ()
           lastEpisode: { id: "episode-1", title: "Andrew Huberman on Sleep", airDate: "2026-08-01 12:00:00" },
         }],
         pagination: { total_results: 8, page: 1, per_page: 10, total_pages: 1, has_more: false },
+      });
+    }
+    if (url.pathname.endsWith("/podcasts/huberman-lab/socials")) {
+      return jsonResponse({
+        socialLinks: {
+          facebook: "https://facebook.com/hubermanlab",
+          instagram: "https://instagram.com/hubermanlab",
+          youtube: "https://youtube.com/@hubermanlab",
+          linkedin: "https://linkedin.com/in/andrew-huberman",
+          tiktok: "https://tiktok.com/@hubermanlab",
+        },
+        hostSocials: [],
+      });
+    }
+    if (url.pathname.endsWith("/podcasts/huberman-lab")) {
+      return jsonResponse({
+        data: {
+          id: "huberman-lab",
+          title: "Huberman Lab",
+          webUrl: "https://hubermanlab.com",
+          rssUrl: "https://feeds.example.com/huberman-lab",
+          numberOfEpisodes: 438,
+          latestEpisodeDate: "2026-08-17 08:00:00",
+          status: "active",
+          author: { name: "Scicomm Media", email: "show@example.com" },
+        },
       });
     }
     return jsonResponse({ error: { message: "Unexpected test request" } }, 500);
@@ -122,6 +143,10 @@ test("returns structured guest credits and measures Starter quota use", async ()
   assert.equal(result.hostedPodcasts[0]?.podcastTitle, "Huberman Lab");
   assert.equal(result.hostedPodcasts[0]?.webUrl, "https://hubermanlab.com");
   assert.equal(result.hostedPodcasts[0]?.socialLinks.instagram, "https://instagram.com/hubermanlab");
+  assert.equal(result.hostedPodcasts[0]?.socialLinks.youtube, "https://youtube.com/@hubermanlab");
+  assert.equal(result.hostedPodcasts[0]?.numberOfEpisodes, 438);
+  assert.equal(result.hostedPodcasts[0]?.latestEpisodeDate, "2026-08-17T08:00:00.000Z");
+  assert.equal(result.hostedPodcasts[0]?.status, "active");
   assert.equal(result.hostedPodcasts[0]?.roleCode, "host");
   assert.deepEqual(result.pagination, { guestEpisodesTotal: 17, guestPodcastsTotal: 8, hostedPodcastsTotal: 1 });
   assert.equal(result.quota.tier, "starter");

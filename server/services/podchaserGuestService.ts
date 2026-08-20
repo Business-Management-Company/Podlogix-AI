@@ -120,6 +120,16 @@ interface PodchaserPaginatedRaw<T> {
   restricted_fields?: string[];
 }
 
+interface PodchaserObjectEnvelope<T> {
+  data?: T;
+  restricted_fields?: string[];
+}
+
+interface PodchaserPodcastSocialsRaw {
+  socialLinks?: PodchaserSocialLinksRaw;
+  socialFollowers?: PodchaserSocialFollowerCountsRaw;
+}
+
 interface PodchaserUsageRaw {
   tier?: string;
   quota?: number | null;
@@ -185,6 +195,10 @@ export interface PodchaserGuestPodcast {
   roleCode: string;
   roleTitle: string;
   episodeCount: number;
+  numberOfEpisodes: number | null;
+  latestEpisodeDate: string | null;
+  status: string | null;
+  author: { name: string | null; email: string | null };
   latestEpisode: {
     id: string;
     title: string;
@@ -352,8 +366,8 @@ export async function searchPodchaserCreators(
   let candidates = extractData(creatorResponse).map(normalizeCreator);
   let suggestedQuery: string | null = null;
 
-  // A single controlled fallback helps with a misspelled surname without
-  // turning the search box into a request-per-keystroke typeahead.
+  // A single controlled fallback helps with a misspelled surname while keeping
+  // each debounced search term to at most one spelling-recovery request.
   if (requestedPage === 1 && candidates.length === 0) {
     const fallbackQuery = fallbackSearchTerm(normalizedQuery);
     if (fallbackQuery) {
@@ -476,11 +490,24 @@ export async function getPodchaserGuestAppearances(
       { role: "host", per_page: "5", sort: "relevance", sort_direction: "desc" },
     ),
   ]);
+  const hostedPodcasts = extractData(hostedPodcastResponse).map(normalizePodcastCredit);
+  const primaryHostedPodcast = hostedPodcasts[0];
+  if (primaryHostedPodcast?.podcastId) {
+    const podcastId = encodeURIComponent(primaryHostedPodcast.podcastId);
+    const [detailResult, socialsResult] = await Promise.allSettled([
+      requestPodchaser<PodchaserPodcastRaw | PodchaserObjectEnvelope<PodchaserPodcastRaw>>(`/podcasts/${podcastId}`),
+      requestPodchaser<PodchaserPodcastSocialsRaw | PodchaserObjectEnvelope<PodchaserPodcastSocialsRaw>>(`/podcasts/${podcastId}/socials`),
+    ]);
+    const detail = detailResult.status === "fulfilled" ? extractObject(detailResult.value) : null;
+    const socials = socialsResult.status === "fulfilled" ? extractObject(socialsResult.value) : null;
+    hostedPodcasts[0] = mergeHostedPodcast(primaryHostedPodcast, detail, socials);
+  }
+
   const value = {
     creatorId: normalizedCreatorId,
     guestEpisodes: extractData(episodeResponse).map(normalizeEpisodeCredit),
     guestPodcasts: extractData(podcastResponse).map(normalizePodcastCredit),
-    hostedPodcasts: extractData(hostedPodcastResponse).map(normalizePodcastCredit),
+    hostedPodcasts,
     pagination: {
       guestEpisodesTotal: numberOrZero(episodeResponse.pagination?.total_results),
       guestPodcastsTotal: numberOrZero(podcastResponse.pagination?.total_results),
@@ -581,6 +608,11 @@ async function requestPodchaser<T>(path: string, query: Record<string, string> =
 function extractData<T>(response: T[] | PodchaserPaginatedRaw<T>): T[] {
   if (Array.isArray(response)) return response;
   return Array.isArray(response.data) ? response.data : [];
+}
+
+function extractObject<T>(response: T | PodchaserObjectEnvelope<T>): T {
+  if (response && typeof response === "object" && "data" in response && response.data) return response.data;
+  return response as T;
 }
 
 function selectCreator(query: string, candidates: PodchaserCreatorCandidate[]): PodchaserCreatorCandidate | null {
@@ -710,11 +742,49 @@ function normalizePodcastCredit(raw: PodchaserPodcastCreditRaw): PodchaserGuestP
     roleCode: stringOrNull(raw.role?.code) ?? "guest",
     roleTitle: stringOrNull(raw.role?.title) ?? "Guest",
     episodeCount: numberOrZero(raw.episodeCount),
+    numberOfEpisodes: finiteNumberOrNull(raw.podcast?.numberOfEpisodes),
+    latestEpisodeDate: podchaserDateToIso(raw.podcast?.latestEpisodeDate ?? raw.lastEpisode?.airDate),
+    status: stringOrNull(raw.podcast?.status),
+    author: {
+      name: stringOrNull(raw.podcast?.author?.name),
+      email: stringOrNull(raw.podcast?.author?.email),
+    },
     latestEpisode: latestEpisodeId ? {
       id: latestEpisodeId,
       title: stringOrNull(raw.lastEpisode?.title) ?? "Untitled episode",
       airDate: podchaserDateToIso(raw.lastEpisode?.airDate),
     } : null,
+  };
+}
+
+function mergeHostedPodcast(
+  podcast: PodchaserGuestPodcast,
+  detail: PodchaserPodcastRaw | null,
+  socials: PodchaserPodcastSocialsRaw | null,
+): PodchaserGuestPodcast {
+  const detailSocials = normalizePodcastSocialLinks(detail?.socialLinks);
+  const endpointSocials = normalizePodcastSocialLinks(socials?.socialLinks);
+  return {
+    ...podcast,
+    podcastTitle: stringOrNull(detail?.title) ?? podcast.podcastTitle,
+    podcastImageUrl: stringOrNull(detail?.imageUrl) ?? podcast.podcastImageUrl,
+    webUrl: stringOrNull(detail?.webUrl) ?? podcast.webUrl,
+    rssUrl: stringOrNull(detail?.rssUrl) ?? podcast.rssUrl,
+    socialLinks: Object.fromEntries(
+      Object.keys(podcast.socialLinks).map((platform) => [
+        platform,
+        endpointSocials[platform as keyof PodchaserSocialLinksRaw]
+          ?? detailSocials[platform as keyof PodchaserSocialLinksRaw]
+          ?? podcast.socialLinks[platform as keyof PodchaserSocialLinksRaw],
+      ]),
+    ) as PodchaserGuestPodcast["socialLinks"],
+    numberOfEpisodes: finiteNumberOrNull(detail?.numberOfEpisodes) ?? podcast.numberOfEpisodes,
+    latestEpisodeDate: podchaserDateToIso(detail?.latestEpisodeDate) ?? podcast.latestEpisodeDate,
+    status: stringOrNull(detail?.status) ?? podcast.status,
+    author: {
+      name: stringOrNull(detail?.author?.name) ?? podcast.author.name,
+      email: stringOrNull(detail?.author?.email) ?? podcast.author.email,
+    },
   };
 }
 
