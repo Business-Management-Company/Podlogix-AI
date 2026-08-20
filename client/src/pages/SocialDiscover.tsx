@@ -19,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
@@ -27,7 +26,6 @@ import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
 import { GUEST_STAGES, type GuestStage } from "@/lib/guest-workflow";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type SearchMode = "people" | "podcasts";
 type ViewMode = "table" | "cards";
 type CreatorSort = "relevance" | "appearance_count" | "alphabetical" | "recent_episode";
 type PodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
@@ -228,12 +226,12 @@ function PaginationControls({ pagination, onPage }: { pagination: SearchPaginati
 
 export default function SocialDiscover() {
   const { toast } = useToast();
-  const [mode, setMode] = useState<SearchMode>("people");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [searchInput, setSearchInput] = useState(() => queryParam("person"));
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [creatorSort, setCreatorSort] = useState<CreatorSort>("appearance_count");
+  const [peoplePage, setPeoplePage] = useState(1);
+  const [podcastPage, setPodcastPage] = useState(1);
+  const [creatorSort, setCreatorSort] = useState<CreatorSort>("relevance");
   const [podcastSort, setPodcastSort] = useState<PodcastSort>("relevance");
   const [selectedCreator, setSelectedCreator] = useState<CreatorCandidate | null>(null);
   const [selectedPodcast, setSelectedPodcast] = useState<PodcastCandidate | null>(null);
@@ -252,16 +250,16 @@ export default function SocialDiscover() {
   const targetShowId = ownedPodcasts.some((podcast) => podcast.id === selectedTargetShowId) ? selectedTargetShowId : "";
 
   const peopleSearchQuery = useQuery<CreatorSearchResult>({
-    queryKey: ["/api/guest-discovery/search", submittedQuery, page, creatorSort],
-    queryFn: () => fetchJson(`/api/guest-discovery/search?q=${encodeURIComponent(submittedQuery)}&max=10&page=${page}&sort=${creatorSort}`),
-    enabled: mode === "people" && submittedQuery.length >= 2,
+    queryKey: ["/api/guest-discovery/search", submittedQuery, peoplePage, creatorSort],
+    queryFn: () => fetchJson(`/api/guest-discovery/search?q=${encodeURIComponent(submittedQuery)}&max=10&page=${peoplePage}&sort=${creatorSort}`),
+    enabled: submittedQuery.length >= 2,
     staleTime: 30 * 60 * 1000,
     retry: false,
   });
   const podcastSearchQuery = useQuery<PodcastSearchResult>({
-    queryKey: ["/api/guest-discovery/podcasts", submittedQuery, page, podcastSort],
-    queryFn: () => fetchJson(`/api/guest-discovery/podcasts?q=${encodeURIComponent(submittedQuery)}&max=10&page=${page}&sort=${podcastSort}`),
-    enabled: mode === "podcasts" && submittedQuery.length >= 2,
+    queryKey: ["/api/guest-discovery/podcasts", submittedQuery, podcastPage, podcastSort],
+    queryFn: () => fetchJson(`/api/guest-discovery/podcasts?q=${encodeURIComponent(submittedQuery)}&max=10&page=${podcastPage}&sort=${podcastSort}`),
+    enabled: submittedQuery.length >= 2,
     staleTime: 30 * 60 * 1000,
     retry: false,
   });
@@ -342,21 +340,31 @@ export default function SocialDiscover() {
   const submitSearch = () => {
     const query = searchInput.trim();
     if (query.length < 2) return;
-    setPage(1); setSelectedCreator(null); setSelectedPodcast(null); setSubmittedQuery(query);
-  };
-  const changeMode = (value: string) => {
-    setMode(value as SearchMode); setSubmittedQuery(""); setPage(1); setSelectedCreator(null); setSelectedPodcast(null);
+    setPeoplePage(1); setPodcastPage(1); setSelectedCreator(null); setSelectedPodcast(null); setSubmittedQuery(query);
   };
   const chooseCreator = (candidate: CreatorCandidate) => {
     setSelectedPodcast(null); setSelectedCreator(candidate); setAddedToPodcastId(null);
   };
 
-  const activeSearch = mode === "people" ? peopleSearchQuery : podcastSearchQuery;
   const people = peopleSearchQuery.data?.creatorCandidates ?? [];
   const podcastResults = podcastSearchQuery.data?.podcastCandidates ?? [];
-  const pagination = mode === "people" ? peopleSearchQuery.data?.pagination : podcastSearchQuery.data?.pagination;
-  const suggestedQuery = mode === "people" ? peopleSearchQuery.data?.suggestedQuery : podcastSearchQuery.data?.suggestedQuery;
-  const totalResults = pagination?.totalResults ?? (mode === "people" ? people.length : podcastResults.length);
+  const peoplePagination = peopleSearchQuery.data?.pagination;
+  const podcastPagination = podcastSearchQuery.data?.pagination;
+  const peopleTotal = peoplePagination?.totalResults ?? people.length;
+  const podcastTotal = podcastPagination?.totalResults ?? podcastResults.length;
+  const totalResults = peopleTotal + podcastTotal;
+  const searchPending = peopleSearchQuery.isFetching || podcastSearchQuery.isFetching;
+  const searchSettled = !peopleSearchQuery.isFetching && !podcastSearchQuery.isFetching;
+  const suggestedQueries = Array.from(new Set([
+    peopleSearchQuery.data?.suggestedQuery,
+    podcastSearchQuery.data?.suggestedQuery,
+  ].filter((value): value is string => Boolean(value))));
+  const applySuggestion = (suggestion: string) => {
+    setSearchInput(suggestion);
+    setSubmittedQuery(suggestion);
+    setPeoplePage(1);
+    setPodcastPage(1);
+  };
 
   return (
     <div className="w-full max-w-7xl px-6 py-8">
@@ -365,81 +373,74 @@ export default function SocialDiscover() {
         <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
       </div>
 
-      <Tabs value={mode} onValueChange={changeMode}>
-        <TabsList aria-label="Search catalog">
-          <TabsTrigger value="people"><Users className="mr-1.5 h-4 w-4" />People</TabsTrigger>
-          <TabsTrigger value="podcasts"><Mic2 className="mr-1.5 h-4 w-4" />Podcast shows</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <section className="mt-4">
+      <section>
         <Card padding="lg">
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
-              aria-label={mode === "people" ? "Guest name" : "Podcast show name"}
-              placeholder={mode === "people" ? "Search a person, e.g. Andrew Huberman" : "Search a podcast show, e.g. Huberman Lab"}
+              aria-label="Person or podcast show"
+              placeholder="Search a person or podcast show"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && submitSearch()}
               className="flex-1"
             />
-            <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || activeSearch.isFetching}>
-              {activeSearch.isFetching ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
-              Search {mode === "people" ? "people" : "podcasts"}
+            <Button onClick={submitSearch} disabled={searchInput.trim().length < 2 || searchPending}>
+              {searchPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
+              Search
             </Button>
           </div>
-          <p className="mt-2 text-xs text-zinc-400">Search runs only when submitted so typing never consumes the shared provider allowance.</p>
+          <p className="mt-2 text-xs text-zinc-400">One search checks both people and podcast shows. It runs only when submitted so typing never consumes the shared provider allowance.</p>
         </Card>
       </section>
 
-      {activeSearch.isError ? (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{activeSearch.error.message}</p>
-      ) : suggestedQuery ? (
-        <button type="button" onClick={() => { setSearchInput(suggestedQuery); setSubmittedQuery(suggestedQuery); setPage(1); }} className="mt-4 w-full rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 hover:bg-amber-100">
-          Did you mean <span className="font-semibold">{suggestedQuery}</span>?
-        </button>
+      {peopleSearchQuery.isError ? <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">People search:</span> {peopleSearchQuery.error.message}</p> : null}
+      {podcastSearchQuery.isError ? <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">Podcast search:</span> {podcastSearchQuery.error.message}</p> : null}
+      {suggestedQueries.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>Did you mean</span>
+          {suggestedQueries.map((suggestion) => <button key={suggestion} type="button" onClick={() => applySuggestion(suggestion)} className="font-semibold underline underline-offset-2">{suggestion}</button>)}
+          <span>?</span>
+        </div>
       ) : null}
 
-      {submittedQuery && !activeSearch.isFetching && totalResults === 0 ? (
-        <div className="mt-4"><EmptyState icon={Search} title={`No matching ${mode}`} description="Try a shorter name, remove titles such as Dr., or search by one distinctive word." /></div>
+      {submittedQuery && searchSettled && totalResults === 0 && !peopleSearchQuery.isError && !podcastSearchQuery.isError ? (
+        <div className="mt-4"><EmptyState icon={Search} title="No matching people or podcasts" description="Try a shorter name, remove titles such as Dr., or search by one distinctive word." /></div>
       ) : totalResults > 0 ? (
-        <section className="mt-6">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <SectionHeader title={`${mode === "people" ? "People" : "Podcast shows"} · ${formatCount(totalResults)} results`} />
-            <div className="flex items-center gap-2">
-              {mode === "people" ? (
-                <Select value={creatorSort} onValueChange={(value) => { setCreatorSort(value as CreatorSort); setPage(1); }}>
-                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="appearance_count">Most credited episodes</SelectItem><SelectItem value="relevance">Best match</SelectItem><SelectItem value="recent_episode">Recently active</SelectItem><SelectItem value="alphabetical">Name A–Z</SelectItem></SelectContent>
-                </Select>
-              ) : (
-                <Select value={podcastSort} onValueChange={(value) => { setPodcastSort(value as PodcastSort); setPage(1); }}>
-                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="relevance">Best match</SelectItem><SelectItem value="power_score">Podchaser rating</SelectItem><SelectItem value="date_of_first_episode">Newest shows</SelectItem><SelectItem value="alphabetical">Title A–Z</SelectItem></SelectContent>
-                </Select>
-              )}
-              <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
-                <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
-                <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+        <div className="mt-6 space-y-8">
+          <div className="flex justify-end">
+            <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
+              <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
+              <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
+            </ToggleGroup>
           </div>
-          {mode === "people" ? (
-            <p className="mb-3 text-xs text-zinc-500">
-              Credited episodes can include host, guest, producer, and other roles. Open a person for guest-only totals and history.
-            </p>
-          ) : null}
 
-          {mode === "people" ? (
-            viewMode === "table" ? <PeopleTable people={people} onChoose={chooseCreator} /> : <PeopleCards people={people} onChoose={chooseCreator} />
-          ) : viewMode === "table" ? (
-            <PodcastTable podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} />
-          ) : (
-            <PodcastCards podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} />
-          )}
-          {pagination ? <PaginationControls pagination={pagination} onPage={setPage} /> : null}
-        </section>
+          {peopleTotal > 0 ? <section>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <SectionHeader title={`People · ${formatCount(peopleTotal)} results`} />
+              <Select value={creatorSort} onValueChange={(value) => { setCreatorSort(value as CreatorSort); setPeoplePage(1); }}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="appearance_count">Most credited episodes</SelectItem><SelectItem value="relevance">Best match</SelectItem><SelectItem value="recent_episode">Recently active</SelectItem><SelectItem value="alphabetical">Name A–Z</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <p className="mb-3 text-xs text-zinc-500">Credited episodes can include host, guest, producer, and other roles. Open a person for guest-only totals and history.</p>
+            {viewMode === "table" ? <PeopleTable people={people} onChoose={chooseCreator} /> : <PeopleCards people={people} onChoose={chooseCreator} />}
+            {peoplePagination ? <PaginationControls pagination={peoplePagination} onPage={setPeoplePage} /> : null}
+          </section> : null}
+
+          {podcastTotal > 0 ? <section>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <SectionHeader title={`Podcast shows · ${formatCount(podcastTotal)} results`} />
+              <Select value={podcastSort} onValueChange={(value) => { setPodcastSort(value as PodcastSort); setPodcastPage(1); }}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="relevance">Best match</SelectItem><SelectItem value="power_score">Podchaser rating</SelectItem><SelectItem value="date_of_first_episode">Newest shows</SelectItem><SelectItem value="alphabetical">Title A–Z</SelectItem></SelectContent>
+              </Select>
+            </div>
+            {viewMode === "table" ? <PodcastTable podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} /> : <PodcastCards podcasts={podcastResults} onChoose={(podcast) => { setSelectedCreator(null); setSelectedPodcast(podcast); }} />}
+            {podcastPagination ? <PaginationControls pagination={podcastPagination} onPage={setPodcastPage} /> : null}
+          </section> : null}
+        </div>
       ) : !submittedQuery ? (
-        <div className="mt-4"><EmptyState icon={mode === "people" ? Users : Mic2} title={`Search ${mode === "people" ? "for a guest" : "podcast shows"}`} description={mode === "people" ? "We'll show possible identities first, then load their guest-only podcast history after you choose one." : "Choose a show to review its description, hosts, recurring guests, and public contact information."} /></div>
+        <div className="mt-4"><EmptyState icon={Search} title="Search for a guest or podcast" description="We'll group possible people and podcast shows, then keep the detailed research inside Podlogix." /></div>
       ) : null}
 
       <PersonDrawer
