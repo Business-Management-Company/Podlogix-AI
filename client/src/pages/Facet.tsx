@@ -238,8 +238,8 @@ function humanRecordingName(item: LibraryItem): string {
 }
 
 type RecordingStatus = "raw" | "polishing" | "polished";
-function recordingStatus(item: LibraryItem, isActive: boolean): RecordingStatus {
-  if (isActive) return "polishing";
+function recordingStatus(item: LibraryItem, isPolishing: boolean): RecordingStatus {
+  if (isPolishing) return "polishing";
   // Legacy items were saved with "refined"/"final cut" in the title before
   // this page's copy became "Polish" — both forms count as polished.
   if (/polished|refined|final cut/i.test(item.caption ?? "")) return "polished";
@@ -507,11 +507,15 @@ export default function Facet() {
         let url: string;
         let isVideo = false;
         if (isProduced && selected.type === "video") {
-          // Keep every cut where the editor put it. Video polish on: gentle
-          // eq re-encode; off: stream-copy the picture untouched. Same for
-          // audio polish vs. loudnorm.
-          const vf = videoPolish ? `-vf eq=brightness=0.02:contrast=1.05:saturation=1.1 -c:v h264_nvenc -preset p1 -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M` : `-c:v copy`;
-          const af = audioPolish ? `-af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k` : `-c:a copy`;
+          if (!videoPolish && !audioPolish) {
+            throw new Error("Turn on Audio polish or Video polish to change this recording.");
+          }
+          // Always transcode into mp4-safe codecs — webm sources (VP8/VP9/Opus)
+          // cannot be stream-copied into an mp4 container.
+          const vf = videoPolish
+            ? `-vf eq=brightness=0.02:contrast=1.05:saturation=1.1 -c:v h264_nvenc -preset p1 -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M`
+            : `-c:v h264_nvenc -preset p1 -cq 23 -b:v 2500k -maxrate 3500k -bufsize 7M`;
+          const af = audioPolish ? `-af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac -b:a 160k` : `-c:a aac -b:a 160k`;
           url = await submitAndCollect([selected.url], `ffmpeg -y -i {input} ${vf} ${af} {output}`, "mp4", `${selected.title} — polished video`);
           isVideo = true;
           setVideoCut(true);
@@ -609,7 +613,7 @@ export default function Facet() {
   const wordsTranscribed = transcript ? transcript.text.split(/\s+/).filter(Boolean).length : null;
   const done = pipeline.polish === "done";
 
-  const StepRow = ({ state, label, sub }: { state: StepState | "soon" | "off"; label: string; sub: string }) => (
+  const StepRow = ({ state, label, sub }: { state: StepState | "soon" | "off" | "skipped"; label: string; sub: string }) => (
     <div className="flex items-center gap-3 py-2.5">
       {state === "running" ? (
         <Loader2 className="h-5 w-5 shrink-0 animate-spin text-zinc-500" />
@@ -621,11 +625,12 @@ export default function Facet() {
         <Circle className="h-5 w-5 shrink-0 text-zinc-300" />
       )}
       <span className="min-w-0 flex-1">
-        <span className={`block text-sm font-medium ${state === "soon" ? "text-zinc-400" : "text-zinc-900"}`}>{label}</span>
+        <span className={`block text-sm font-medium ${state === "soon" || state === "skipped" ? "text-zinc-400" : "text-zinc-900"}`}>{label}</span>
         <span className="block text-xs text-zinc-500">{sub}</span>
       </span>
       {state === "done" && <span className="text-xs font-semibold text-emerald-600">Done</span>}
       {state === "soon" && <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">Coming</span>}
+      {state === "skipped" && <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">Not applied</span>}
       {state === "off" && <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-400">Off</span>}
     </div>
   );
@@ -673,7 +678,7 @@ export default function Facet() {
                     {formatShortDate(item.createdAt)}
                   </span>
                 </span>
-                <StatusBadge status={recordingStatus(item, isActive)} />
+                <StatusBadge status={recordingStatus(item, isActive && busy)} />
               </button>
             );
           })}
@@ -938,20 +943,20 @@ export default function Facet() {
                 />
                 <StepRow state={!audioPolish ? "off" : pipeline.polish} label="Polish the sound" sub="Loudness mastered to a clean, consistent level" />
                 <StepRow
-                  state={contentType === "produced" || fillerLevel === "light" ? "off" : wordCut === false ? "soon" : pipeline.polish}
+                  state={contentType === "produced" || fillerLevel === "light" ? "off" : wordCut === false ? "skipped" : pipeline.polish}
                   label="Clarify the delivery"
                   sub="Hesitation sounds cleaned up, word by word"
                 />
                 {selected.type === "video" && (
                   <StepRow
-                    state={videoCut === false ? "soon" : pipeline.polish}
+                    state={videoCut === false ? "skipped" : pipeline.polish}
                     label="Align the video"
                     sub={contentType === "produced" ? "Picture preserved, audio mastered" : "The same cuts, applied to the picture"}
                   />
                 )}
                 {selected.type === "video" && (
                   <StepRow
-                    state={!videoPolish ? "off" : videoCut === false ? "soon" : pipeline.polish}
+                    state={!videoPolish ? "off" : videoCut === false ? "skipped" : pipeline.polish}
                     label="Finish the look"
                     sub="Gentle contrast and color lift"
                   />
