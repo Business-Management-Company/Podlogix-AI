@@ -3726,11 +3726,12 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     { name: "Vercel (Pro)", purpose: "Hosting (podlogix.io)", monthlyUsd: 20, notes: "Per seat · on-demand build/bandwidth overages bill separately (no public billing API — watch the dashboard)", linkUrl: "https://vercel.com/podlogix" },
     { name: "Resend (Pro)", purpose: "Transactional email", monthlyUsd: 20, notes: "No public spend API — overage visible in their dashboard", linkUrl: "https://resend.com/overview" },
     { name: "OpenAI API", purpose: "AI Write, AI images, AI Studio, transcription", monthlyUsd: null, notes: "Usage-based — month-to-date pulls live once OPENAI_ADMIN_KEY is set (platform.openai.com → Admin keys)", linkUrl: "https://platform.openai.com/usage" },
+    { name: "Podchaser (Starter)", purpose: "Guest intelligence — creator search, appearances, podcast credits", monthlyUsd: 0, notes: "Free Starter tier · 1,000 requests/month · cached to minimize spend" },
   ];
 
   app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts] = await Promise.all([
+      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts, podchaserQuota] = await Promise.all([
         (async () => {
           try {
             const apiKey = getInfluencersClubApiKey();
@@ -3796,6 +3797,26 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
             return { monthToDateUsd };
           } catch { return null; }
         })(),
+        (async () => {
+          try {
+            if (!isPodchaserConfigured()) return null;
+            const apiKey = process.env.PODCHASER_API_KEY!.trim();
+            const response = await fetch("https://developers.podchaser.com/api/rest/v1/usage", {
+              headers: { Accept: "application/json", "x-api-key": apiKey },
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!response.ok) return null;
+            const raw = await response.json();
+            const d = raw?.data ?? raw;
+            return {
+              tier: d.tier ?? "unknown",
+              quota: typeof d.quota === "number" ? d.quota : null,
+              used: typeof d.used === "number" ? d.used : 0,
+              remaining: typeof d.remaining === "number" ? d.remaining : null,
+              cycleEnd: d.cycle_end ?? null,
+            };
+          } catch { return null; }
+        })(),
       ]);
 
       const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
@@ -3808,7 +3829,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         ffmpegConsumption,
         profileSlots,
         openaiCosts,
-        // Fixed subscriptions plus every metered cost we can read live.
+        podchaserQuota,
         estimatedMonthlyUsd: fixedTotalUsd + (openaiCosts?.monthToDateUsd ?? 0),
       });
     } catch (error) {

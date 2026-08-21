@@ -317,6 +317,7 @@ export default function AdminDashboard() {
     } | null;
     profileSlots: { used: number; total: number } | null;
     openaiCosts: { monthToDateUsd: number } | null;
+    podchaserQuota: { tier: string; quota: number | null; used: number; remaining: number | null; cycleEnd: string | null } | null;
     estimatedMonthlyUsd: number;
   }
 
@@ -1790,6 +1791,32 @@ export default function AdminDashboard() {
                         </p>
                         {financials.profileSlots && (
                           <UsageMeter used={financials.profileSlots.used} total={financials.profileSlots.total} />
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                        <CardTitle className="text-sm font-medium">Podchaser requests</CardTitle>
+                        <Podcast className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {financials.podchaserQuota
+                            ? financials.podchaserQuota.remaining != null
+                              ? `${financials.podchaserQuota.remaining} left`
+                              : `${financials.podchaserQuota.used} used`
+                            : "—"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {financials.podchaserQuota
+                            ? `${financials.podchaserQuota.tier} tier${financials.podchaserQuota.quota != null ? ` · ${financials.podchaserQuota.quota}/mo` : ""} · cached to minimize spend`
+                            : "API key not configured"}
+                        </p>
+                        {financials.podchaserQuota?.quota != null && (
+                          <UsageMeter
+                            used={financials.podchaserQuota.used}
+                            total={financials.podchaserQuota.quota}
+                          />
                         )}
                       </CardContent>
                     </Card>
