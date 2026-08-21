@@ -20,6 +20,7 @@ import {
   Radio,
   Rss,
   Scissors,
+  Search,
   Share2,
   Sparkles,
   UserPlus,
@@ -457,6 +458,24 @@ export default function Activity() {
     }
     return set;
   }, [calendarEvents]);
+
+  // ── Service status (bottom strip) ──
+  const { data: icStatus } = useQuery<{ configured: boolean; valid?: boolean; credits?: number }>({
+    queryKey: ["/api/influencers-club/status"],
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const { data: integrationData } = useQuery<{ integrations: Array<{ id: string; name: string; configured: boolean }> }>({
+    queryKey: ["/api/admin/integration-status"],
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const podchaser = integrationData?.integrations?.find((i) => i.id === "podchaser");
+  const { data: creditsData } = useQuery<{ success: boolean; credits: { available: number; used: number; total: number; plan: string } }>({
+    queryKey: ["/api/social-analytics/credits"],
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   // Recent activity — merged from real streams of events
   const activity = useMemo(() => {
@@ -934,6 +953,45 @@ export default function Activity() {
               ))}
             </div>
           </DashCard>
+        </div>
+
+        {/* Service status strip */}
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex items-center gap-3 rounded-xl bg-zinc-900/60 px-4 py-3 ring-1 ring-white/[0.06]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
+              <Sparkles size={15} className="text-emerald-400" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-zinc-400">Credits Remaining</p>
+              <p className="text-sm font-semibold tabular-nums text-zinc-100">
+                {creditsData?.credits ? compact(creditsData.credits.available) : icStatus?.credits != null ? compact(icStatus.credits) : "—"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl bg-zinc-900/60 px-4 py-3 ring-1 ring-white/[0.06]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15">
+              <Search size={15} className="text-violet-400" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-zinc-400">Influencer.club</p>
+              <p className="text-sm font-semibold text-zinc-100">
+                {icStatus?.configured ? (icStatus.valid !== false ? "Connected" : "Key invalid") : "Not configured"}
+              </p>
+            </div>
+            <span className={`ml-auto h-2 w-2 shrink-0 rounded-full ${icStatus?.configured && icStatus.valid !== false ? "bg-emerald-400" : "bg-zinc-600"}`} />
+          </div>
+          <div className="flex items-center gap-3 rounded-xl bg-zinc-900/60 px-4 py-3 ring-1 ring-white/[0.06]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/15">
+              <Mic size={15} className="text-sky-400" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-zinc-400">Podchaser</p>
+              <p className="text-sm font-semibold text-zinc-100">
+                {podchaser ? (podchaser.configured ? "Connected" : "Missing key") : "—"}
+              </p>
+            </div>
+            <span className={`ml-auto h-2 w-2 shrink-0 rounded-full ${podchaser?.configured ? "bg-emerald-400" : "bg-zinc-600"}`} />
+          </div>
         </div>
       </div>
     </div>

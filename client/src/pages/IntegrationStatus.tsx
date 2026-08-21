@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, X } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
+import { Link } from "wouter";
 
 interface Integration {
   id: string;
@@ -72,6 +73,10 @@ export default function IntegrationStatus() {
   return (
     <div className="w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
+        <Link href="/admin" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="h-4 w-4" />
+          Admin Dashboard
+        </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Integration Status</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Live check of configured keys — updates on every deploy
