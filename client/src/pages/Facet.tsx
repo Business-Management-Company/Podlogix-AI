@@ -237,24 +237,6 @@ function humanRecordingName(item: LibraryItem): string {
   return date !== "—" ? `${kind} — ${date}` : kind;
 }
 
-type RecordingStatus = "raw" | "polishing" | "polished";
-function recordingStatus(item: LibraryItem, isPolishing: boolean): RecordingStatus {
-  if (isPolishing) return "polishing";
-  // Legacy items were saved with "refined"/"final cut" in the title before
-  // this page's copy became "Polish" — both forms count as polished.
-  if (/polished|refined|final cut/i.test(item.caption ?? "")) return "polished";
-  return "raw";
-}
-
-function StatusBadge({ status }: { status: RecordingStatus }) {
-  const map: Record<RecordingStatus, string> = {
-    raw: "bg-zinc-100 text-zinc-500",
-    polishing: "bg-amber-100 text-amber-700",
-    polished: "bg-emerald-100 text-emerald-700",
-  };
-  const label: Record<RecordingStatus, string> = { raw: "Raw", polishing: "Polishing", polished: "Polished" };
-  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${map[status]}`}>{label[status]}</span>;
-}
 
 const BENEFITS = [
   { icon: Wind, title: "Smooth pacing", copy: "Dead air and long pauses trimmed, naturally." },
@@ -635,50 +617,43 @@ export default function Facet() {
     </div>
   );
 
-  // Shared between the empty and selected states — right rail, capped at
-  // six, compact rows rather than a thumbnail grid.
   const RecentRecordingsRail = (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-semibold text-zinc-900">Recent recordings</p>
-        <Link href="/media-library" className="text-xs font-medium text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline">
-          View all
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Recent</p>
+        <Link href="/media-library" className="text-[10px] font-medium text-zinc-400 underline-offset-2 hover:text-zinc-700 hover:underline">
+          All
         </Link>
       </div>
       {railItems.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-zinc-500">
-          Record a show or add media, and your latest recordings land here.
-        </p>
+        <p className="py-4 text-center text-[10px] text-zinc-400">No recordings yet</p>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {railItems.map((item) => {
             const isActive = selected?.url === item.mediaUrl;
             return (
               <button
                 key={item.id}
                 onClick={() => pickRecording(item)}
-                className={`flex w-full items-center gap-2.5 rounded-xl border p-2 text-left transition-colors ${
-                  isActive ? "border-zinc-950 bg-zinc-50" : "border-transparent hover:border-zinc-200 hover:bg-zinc-50/60"
+                className={`group block w-full overflow-hidden rounded-lg transition-all ${
+                  isActive ? "ring-2 ring-zinc-950" : "hover:ring-1 hover:ring-zinc-300"
                 }`}
               >
                 {item.thumbnailUrl ? (
-                  <img src={item.thumbnailUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg bg-black object-cover" />
+                  <img src={item.thumbnailUrl} alt="" className="aspect-video w-full bg-zinc-900 object-cover" />
                 ) : item.mediaType === "audio" ? (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-                    <FileAudio className="h-4 w-4 text-emerald-600" />
+                  <span className="flex aspect-video w-full items-center justify-center bg-emerald-50">
+                    <FileAudio className="h-5 w-5 text-emerald-500" />
                   </span>
                 ) : (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
-                    <FileVideo className="h-4 w-4 text-zinc-500" />
+                  <span className="flex aspect-video w-full items-center justify-center bg-zinc-100">
+                    <FileVideo className="h-5 w-5 text-zinc-400" />
                   </span>
                 )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium text-zinc-900">{humanRecordingName(item)}</span>
-                  <span className="block text-[10px] text-zinc-400">
-                    {formatShortDate(item.createdAt)}
-                  </span>
+                <span className="block bg-white px-1.5 py-1">
+                  <span className="block truncate text-[10px] font-medium text-zinc-700">{humanRecordingName(item)}</span>
+                  <span className="block text-[9px] text-zinc-400">{formatShortDate(item.createdAt)}</span>
                 </span>
-                <StatusBadge status={recordingStatus(item, isActive && busy)} />
               </button>
             );
           })}
@@ -705,22 +680,36 @@ export default function Facet() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Facet</h1>
       </div>
 
-      {/* Main workspace (~65%) + Recent recordings rail (~30%) — DOM order
-          keeps the workspace first so it stacks above the rail on
-          tablet/mobile instead of the rail taking the top slot. */}
-      <div className="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
+      {/* When nothing is selected: steps | upload | recordings.
+          When a recording is selected: workspace (2fr) | recordings (1fr). */}
+      <div className={`grid items-start gap-5 ${!selected ? "lg:grid-cols-[1fr_minmax(0,2fr)_200px]" : "lg:grid-cols-[2fr_1fr]"}`}>
         {!selected ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-8">
-            <h2 className="text-xl font-semibold text-zinc-950">Polish a recording</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Turn a raw conversation into a clear, focused, listener-ready episode.
-            </p>
+          <>
+            {/* Left column — what Polish does */}
+            <div className="space-y-1">
+              <h2 className="mb-4 text-lg font-semibold text-zinc-950">Polish a recording</h2>
+              <p className="mb-5 text-sm leading-relaxed text-zinc-500">
+                Turn a raw conversation into a clear, focused, listener-ready episode.
+              </p>
+              {BENEFITS.map(({ icon: Icon, title, copy }) => (
+                <div key={title} className="flex items-start gap-3 rounded-xl p-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+                    <Icon className="h-4 w-4 text-zinc-500" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-medium text-zinc-900">{title}</span>
+                    <span className="block text-xs leading-snug text-zinc-500">{copy}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
 
-            <div className="mt-6 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 px-6 py-10 text-center">
-              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-950">
-                <Gem className="h-6 w-6 text-amber-400" />
+            {/* Center column — upload dropzone */}
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/40 px-8 py-14">
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-950">
+                <Gem className="h-7 w-7 text-amber-400" />
               </span>
-              <div className="mt-5">
+              <div className="mt-6 w-full max-w-xs">
                 <ObjectUploader
                   maxFileSize={500 * 1024 * 1024}
                   onGetUploadParameters={getUploadParams}
@@ -740,23 +729,13 @@ export default function Facet() {
                 </ObjectUploader>
               </div>
               <p className="mt-3 text-xs text-zinc-400">Video or audio · Up to 500 MB</p>
-              <p className="mt-4 text-xs text-zinc-500">
+              <p className="mt-5 text-xs text-zinc-500">
                 <Link href="/media-library" className="font-medium text-zinc-700 underline underline-offset-2">Browse Media Storage</Link>
                 {" · "}
                 <Link href="/studio/live" className="font-medium text-zinc-700 underline underline-offset-2">Record in Studio</Link>
               </p>
             </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {BENEFITS.map(({ icon: Icon, title, copy }) => (
-                <div key={title} className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3">
-                  <Icon className="h-4 w-4 text-zinc-400" />
-                  <p className="mt-2 text-xs font-semibold text-zinc-900">{title}</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">{copy}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          </>
         ) : (
           <div>
             {/* ── Selected recording: preview, metadata, Choose your Polish ── */}

@@ -136,7 +136,7 @@ interface RailItem {
 const RAIL_ITEMS: RailItem[] = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/today", isActive: (leaf) => leaf?.url === "/today" },
   { title: "Podcast", icon: Mic, url: "/shows", isActive: (leaf) => leaf?.group === "Podcast" },
-  { title: "Guests", icon: UserPlus, url: "/social/discover", isActive: (leaf) => leaf?.group === "Guests" },
+  { title: "Discover", icon: Compass, url: "/social/discover", isActive: (leaf) => leaf?.group === "Guests" },
   { title: "Contacts", icon: Contact, url: "/contacts", isActive: (leaf) => leaf?.group === "Contacts" },
   { title: "Email", icon: Send, url: "/email", isActive: (leaf) => leaf?.group === "Email" },
   { title: "Social", icon: Share2, url: "/dashboard/social-hub", isActive: (leaf) => leaf?.group === "Social" },

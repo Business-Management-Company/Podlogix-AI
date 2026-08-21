@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Compass, Loader2, Mail, Plus, Search, Send, Star, StickyNote, Users,
+  Briefcase, ChevronRight, Compass, LayoutGrid, List, Loader2, Mail, Plus, Search, Send, Star, StickyNote, Users,
 } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
@@ -104,6 +104,7 @@ export default function Guests() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<EmailContact>>({});
   const [noteDraft, setNoteDraft] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [selectedPodcastId, setSelectedPodcastId] = useState(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("showId") ?? "";
@@ -287,11 +288,11 @@ export default function Guests() {
     String((draft[field] ?? selected?.contact?.[field] ?? "") as string);
 
   return (
-    <div className="w-full max-w-[1100px] px-6 py-8">
+    <div className="w-full max-w-5xl px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-zinc-500">
-            Track each show's guests from prospect through published and follow-up.
+            Track guests from prospect through published and follow-up.
           </p>
         </div>
         <div className="flex gap-2">
@@ -353,16 +354,6 @@ export default function Guests() {
         </div>
       </div>
 
-      {podcasts.length > 1 ? (
-        <div className="mb-5 max-w-sm">
-          <Select value={podcast?.id ?? ""} onValueChange={setSelectedPodcastId}>
-            <SelectTrigger><SelectValue placeholder="Choose a show" /></SelectTrigger>
-            <SelectContent>
-              {podcasts.map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
 
       {isLoading ? (
         <div className="space-y-4">
@@ -385,16 +376,34 @@ export default function Guests() {
         />
       ) : (
         <>
-          {/* Search + stage filters */}
+          {/* Search + stage filters + view toggle */}
           <div className="mb-4 space-y-3">
-            <div className="relative max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder="Search guests…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                <Input
+                  placeholder="Search guests…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex rounded-lg border border-zinc-200 p-0.5">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "list" ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-zinc-600"}`}
+                  title="List view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("cards")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "cards" ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-zinc-600"}`}
+                  title="Card view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -434,12 +443,11 @@ export default function Guests() {
             </div>
           </div>
 
-          {/* Contact list */}
-          <Card padding="none" className="divide-y divide-zinc-100">
-            {filtered.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-zinc-400">No guests match.</p>
-            ) : (
-              filtered.map((entry) => {
+          {filtered.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-zinc-400">No guests match.</p>
+          ) : viewMode === "list" ? (
+            <Card padding="none" className="divide-y divide-zinc-100">
+              {filtered.map((entry) => {
                 const meta = guestStageMeta(entry.stage);
                 return (
                   <div key={entry.id} className="flex items-center gap-1 px-2 transition-colors hover:bg-zinc-50">
@@ -452,12 +460,12 @@ export default function Guests() {
                     />
                     <button
                       onClick={() => openDrawer(entry)}
-                      className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left"
+                      className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pr-2 text-left"
                     >
                       {entry.prospect?.imageUrl ? (
-                        <img src={entry.prospect.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                        <img src={entry.prospect.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-full border border-zinc-200 object-cover" />
                       ) : (
-                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarTone(entry.contact, entry.prospect)}`}>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarTone(entry.contact, entry.prospect)}`}>
                           {initials(entry.contact, entry.prospect)}
                         </span>
                       )}
@@ -478,9 +486,39 @@ export default function Guests() {
                     </button>
                   </div>
                 );
-              })
-            )}
-          </Card>
+              })}
+            </Card>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {filtered.map((entry) => {
+                const meta = guestStageMeta(entry.stage);
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => openDrawer(entry)}
+                    className="group flex flex-col items-center rounded-xl border border-zinc-200 bg-white p-4 text-center transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-sm"
+                  >
+                    {entry.prospect?.imageUrl ? (
+                      <img src={entry.prospect.imageUrl} alt="" className="h-16 w-16 rounded-full border border-zinc-200 object-cover" />
+                    ) : (
+                      <span className={`flex h-16 w-16 items-center justify-center rounded-full text-base font-semibold text-white ${avatarTone(entry.contact, entry.prospect)}`}>
+                        {initials(entry.contact, entry.prospect)}
+                      </span>
+                    )}
+                    <span className="mt-2.5 block w-full truncate text-sm font-medium text-zinc-950">
+                      {guestName(entry.contact, entry.prospect)}
+                    </span>
+                    <span className="block w-full truncate text-xs text-zinc-500">
+                      {entry.prospect?.subtitle || guestEmail(entry.contact, entry.prospect) || "Guest"}
+                    </span>
+                    <span className={`mt-2 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${meta.chip}`}>
+                      {meta.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 

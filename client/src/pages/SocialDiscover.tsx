@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Cpu, Download, ExternalLink,
+  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Cpu, Download, ExternalLink,
   FlaskConical, Globe2, GraduationCap, HeartPulse, Info, Landmark, LayoutGrid, Laugh, List, Loader2, Mail, Medal, MessagesSquare,
   Mic2, Music, Newspaper, Palette, Rss, Search, ShieldAlert, Star, Trophy, UserPlus, Users, type LucideIcon,
 } from "lucide-react";
@@ -35,11 +35,18 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 type ViewMode = "table" | "cards";
 type CreatorSort = "relevance" | "appearance_count" | "alphabetical" | "recent_episode";
 type PodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
+type DiscoverTab = "search" | "guests" | "podcasts" | "latest" | "active" | "credited";
 
-// The first 6 show by default; "See more categories" reveals the rest.
-// Podchaser has dozens of categories with real global counts, but there's no
-// confirmed API endpoint to list them (see routes.ts comment near the guest
-// discovery routes) — this is our own curated shortlist, not their taxonomy.
+const DISCOVER_TABS: { key: DiscoverTab; label: string; icon: LucideIcon }[] = [
+  { key: "search", label: "Search", icon: Search },
+  { key: "guests", label: "By Guest", icon: Users },
+  { key: "podcasts", label: "Podcast Shows", icon: Mic2 },
+  { key: "latest", label: "Latest Episodes", icon: CalendarDays },
+  { key: "active", label: "Recently Active", icon: Clock3 },
+  { key: "credited", label: "Most Credited", icon: Medal },
+];
+
+// All 15 shown at once in a 5-column grid (3 rows of 5).
 const DISCOVERY_TOPICS = [
   { label: "Health & wellness", query: "health wellness", icon: HeartPulse },
   { label: "Business", query: "business entrepreneurship", icon: BriefcaseBusiness },
@@ -60,7 +67,6 @@ const DISCOVERY_TOPICS = [
   { label: "Military & veterans", query: "veteran", icon: Medal },
 ] as const;
 
-const DEFAULT_TOPIC_COUNT = 6;
 
 /**
  * A topic tile shows real podcast artwork from Podchaser instead of a
@@ -318,7 +324,7 @@ export default function SocialDiscover() {
   const { user } = useAuth();
   const canExportTopics = user?.role === "admin" || user?.role === "superadmin";
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [showAllTopics, setShowAllTopics] = useState(false);
+  const [activeTab, setActiveTab] = useState<DiscoverTab>("search");
   // One call for every topic tile's art, not one call per tile — see the
   // comment on TopicTile.
   const { data: topicArtData } = useQuery<{ art: Record<string, string[]> }>({
@@ -519,8 +525,33 @@ export default function SocialDiscover() {
   return (
     <div className="w-full max-w-7xl px-6 py-8">
       <section className="mb-8 overflow-hidden rounded-2xl border bg-white">
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 border-b border-zinc-200 px-6 pt-4 sm:px-8">
+          {DISCOVER_TABS.map(({ key, label, icon: TabIcon }) => (
+            <button
+              key={key}
+              onClick={() => {
+                setActiveTab(key);
+                if (key === "guests") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
+                else if (key === "podcasts") { setPodcastSort("relevance"); submitSearch(submittedQuery || searchInput); }
+                else if (key === "latest") { setPodcastSort("date_of_first_episode"); submitSearch(submittedQuery || searchInput); }
+                else if (key === "active") { setCreatorSort("recent_episode"); submitSearch(submittedQuery || searchInput); }
+                else if (key === "credited") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
+              }}
+              className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 pb-3 text-sm font-medium transition-colors ${
+                activeTab === key
+                  ? "border-zinc-950 text-zinc-950"
+                  : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
+              }`}
+            >
+              <TabIcon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="p-6 sm:p-8">
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Find your next guest</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Discover</h1>
           <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
           <div
             className="relative mt-5"
@@ -578,25 +609,16 @@ export default function SocialDiscover() {
                   </div>
                 ) : null}
                 {!suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? <p className="px-3 py-4 text-sm text-zinc-500">No quick matches yet. Run the full search for broader results.</p> : null}
-                <button type="button" onClick={() => submitSearch()} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for “{searchInput.trim()}”</button>
+                <button type="button" onClick={() => submitSearch()} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for &ldquo;{searchInput.trim()}&rdquo;</button>
               </div>
             ) : null}
           </div>
-          <p className="mb-2 mt-6 text-xs font-medium text-zinc-500">Explore topics</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {(showAllTopics ? DISCOVERY_TOPICS : DISCOVERY_TOPICS.slice(0, DEFAULT_TOPIC_COUNT)).map(({ label, query, icon }) => (
+          <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">Explore topics</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
               <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => submitSearch(query)} canExport={canExportTopics} />
             ))}
           </div>
-          {DISCOVERY_TOPICS.length > DEFAULT_TOPIC_COUNT ? (
-            <button
-              type="button"
-              onClick={() => setShowAllTopics((v) => !v)}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-950"
-            >
-              {showAllTopics ? <>Show fewer categories <ChevronUp className="h-3.5 w-3.5" /></> : <>See more categories <ChevronDown className="h-3.5 w-3.5" /></>}
-            </button>
-          ) : null}
           <p className="mt-4 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
         </div>
       </section>
