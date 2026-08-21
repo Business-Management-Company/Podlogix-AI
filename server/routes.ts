@@ -3507,21 +3507,29 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   // request against the 1,000/month budget, so this is capped and goes
   // through searchPodchaserPodcasts's normal cache chain — a second export
   // of the same topic within 24h costs nothing.
+  //
+  // Sorted by power_score (Podchaser's engagement/influence metric) rather
+  // than relevance, so the strongest shows come back first instead of
+  // whatever happens to match the keyword. minEpisodes is the actual filter
+  // — a plain text search has no way to exclude dead or test shows at query
+  // time, so this drops anything under the threshold after the fact, before
+  // it ever reaches the CSV.
   app.get('/api/admin/podcast-export', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const input = z.object({
         q: z.string().trim().min(2).max(120),
         pages: z.coerce.number().int().min(1).max(10).default(5),
+        minEpisodes: z.coerce.number().int().min(0).max(1000).default(3),
       }).parse(req.query);
 
       const seen = new Map<string, PodchaserPodcastCandidate>();
       for (let page = 1; page <= input.pages; page++) {
-        const result = await searchPodchaserPodcasts(input.q, 25, page, 'relevance');
+        const result = await searchPodchaserPodcasts(input.q, 25, page, 'power_score');
         for (const podcast of result.podcastCandidates) seen.set(podcast.id, podcast);
         if (!result.pagination.hasMore) break;
       }
 
-      const rows = Array.from(seen.values());
+      const rows = Array.from(seen.values()).filter((p) => (p.numberOfEpisodes ?? 0) >= input.minEpisodes);
       const header = ['Title', 'RSS URL', 'Website', 'Description', 'Image URL', 'Categories', 'Episodes', 'Author', 'Author Email'];
       const lines = [header.join(',')];
       for (const podcast of rows) {
