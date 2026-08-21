@@ -152,6 +152,51 @@ function PodcastHistoryRow({ creatorId, guestName, podcast }: { creatorId: strin
   );
 }
 
+function RecentEpisodeRow({ creatorId, guestName, episode }: { creatorId: string; guestName: string; episode: GuestEpisodeAppearance }) {
+  const [expanded, setExpanded] = useState(false);
+  const playback = useGuestPodcastPlayback(creatorId, episode.podcastId, guestName, expanded);
+  const matched = playback.data?.episodes.find((ep) =>
+    ep.title.toLowerCase().includes(episode.episodeTitle.toLowerCase().slice(0, 30)) ||
+    episode.episodeTitle.toLowerCase().includes(ep.title.toLowerCase().slice(0, 30)),
+  );
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-50"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+          <PlayCircle className="h-4 w-4 text-zinc-500" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm font-medium text-zinc-950">{episode.episodeTitle}</p>
+          <p className="mt-0.5 truncate text-xs text-zinc-500">
+            {episode.podcastTitle} · {formatDate(episode.airDate)}
+          </p>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      {expanded ? (
+        <div className="border-t border-zinc-100 bg-zinc-50/70 px-4 py-3">
+          {playback.isLoading ? (
+            <p className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading audio…</p>
+          ) : playback.error ? (
+            <p className="text-xs text-zinc-500">Audio not available from publisher RSS.</p>
+          ) : matched ? (
+            <PlayableEpisode episode={matched} />
+          ) : playback.data?.episodes.length ? (
+            <PlayableEpisode episode={playback.data.episodes[0]} />
+          ) : (
+            <p className="text-xs text-zinc-500">No playable audio found in the publisher's RSS feed for this episode.</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function GuestAppearanceHistory({ guestName, appearances, isLoading, error }: GuestAppearanceHistoryProps) {
   const repeatPodcastCount = appearances?.guestPodcasts.filter((podcast) => podcast.episodeCount > 1).length ?? 0;
   const latestGuestEpisode = appearances?.guestEpisodes
@@ -238,14 +283,12 @@ export function GuestAppearanceHistory({ guestName, appearances, isLoading, erro
             {appearances.guestEpisodes.length > 0 ? (
               <Card padding="none" className="divide-y divide-zinc-100 overflow-hidden">
                 {appearances.guestEpisodes.map((episode) => (
-                  <CardRow key={`${episode.creditId}-${episode.episodeId}`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-medium text-zinc-950">{episode.episodeTitle}</p>
-                      <p className="mt-0.5 truncate text-xs text-zinc-500">
-                        {episode.podcastTitle} · {formatDate(episode.airDate)}
-                      </p>
-                    </div>
-                  </CardRow>
+                  <RecentEpisodeRow
+                    key={`${episode.creditId}-${episode.episodeId}`}
+                    creatorId={appearances.creatorId}
+                    guestName={guestName}
+                    episode={episode}
+                  />
                 ))}
               </Card>
             ) : (

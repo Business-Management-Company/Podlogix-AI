@@ -290,11 +290,11 @@ function hasEnrichmentProfile(socialLinks?: Record<string, string | null | undef
 }
 
 function PersonAvatar({ candidate, size = "md" }: { candidate: CreatorCandidate; size?: "md" | "lg" }) {
-  const classes = size === "lg" ? "h-16 w-16" : "h-11 w-11";
+  const classes = size === "lg" ? "h-32 w-32" : "h-11 w-11";
   if (candidate.imageUrl) {
     return <img src={candidate.imageUrl} alt="" className={`${classes} shrink-0 rounded-full border border-zinc-200 object-cover`} />;
   }
-  return <span className={`flex ${classes} shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50`}><Users size={size === "lg" ? 22 : 17} className="text-zinc-400" /></span>;
+  return <span className={`flex ${classes} shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50`}><Users size={size === "lg" ? 44 : 17} className="text-zinc-400" /></span>;
 }
 
 function PodcastArtwork({ podcast, size = "md" }: { podcast: PodcastCandidate; size?: "md" | "lg" }) {
@@ -362,7 +362,9 @@ export default function SocialDiscover() {
     ? [{ id: `buzzsprout:${buzzsprout.connection.id}`, title: buzzsprout.connection.podcastTitle || "Buzzsprout show" }]
     : [];
   const ownedPodcasts = [...nativePodcasts, ...buzzsproutPodcast];
-  const targetShowId = ownedPodcasts.some((podcast) => podcast.id === selectedTargetShowId) ? selectedTargetShowId : "";
+  const targetShowId = ownedPodcasts.some((podcast) => podcast.id === selectedTargetShowId)
+    ? selectedTargetShowId
+    : ownedPodcasts[0]?.id ?? "";
 
   const peopleSearchQuery = useQuery<CreatorSearchResult>({
     queryKey: ["/api/guest-discovery/search", submittedQuery, peoplePage, creatorSort],
