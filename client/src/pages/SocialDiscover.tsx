@@ -2,9 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Cpu, ExternalLink,
-  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, LayoutGrid, List, Loader2, Mail, MessagesSquare,
-  Mic2, Rss, Search, Star, UserPlus, Users, type LucideIcon,
+  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Cpu, ExternalLink,
+  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, Landmark, LayoutGrid, Laugh, List, Loader2, Mail, MessagesSquare,
+  Mic2, Music, Newspaper, Palette, Rss, Search, ShieldAlert, Star, Trophy, UserPlus, Users, type LucideIcon,
 } from "lucide-react";
 import {
   GuestAppearanceHistory,
@@ -35,6 +35,10 @@ type ViewMode = "table" | "cards";
 type CreatorSort = "relevance" | "appearance_count" | "alphabetical" | "recent_episode";
 type PodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
 
+// The first 6 show by default; "See more categories" reveals the rest.
+// Podchaser has dozens of categories with real global counts, but there's no
+// confirmed API endpoint to list them (see routes.ts comment near the guest
+// discovery routes) — this is our own curated shortlist, not their taxonomy.
 const DISCOVERY_TOPICS = [
   { label: "Health & wellness", query: "health wellness", icon: HeartPulse },
   { label: "Business", query: "business entrepreneurship", icon: BriefcaseBusiness },
@@ -42,7 +46,17 @@ const DISCOVERY_TOPICS = [
   { label: "Science", query: "science", icon: FlaskConical },
   { label: "Education", query: "education", icon: GraduationCap },
   { label: "Society & culture", query: "society culture", icon: MessagesSquare },
+  { label: "Comedy", query: "comedy", icon: Laugh },
+  { label: "News", query: "news", icon: Newspaper },
+  { label: "Sports", query: "sports", icon: Trophy },
+  { label: "True crime", query: "true crime", icon: ShieldAlert },
+  { label: "Music", query: "music", icon: Music },
+  { label: "History", query: "history", icon: Landmark },
+  { label: "Arts", query: "arts", icon: Palette },
+  { label: "Spirituality", query: "spirituality religion", icon: Globe2 },
 ] as const;
+
+const DEFAULT_TOPIC_COUNT = 6;
 
 /**
  * A topic tile shows real podcast artwork from Podchaser instead of a
@@ -288,6 +302,7 @@ function PaginationControls({ pagination, onPage }: { pagination: SearchPaginati
 export default function SocialDiscover() {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [showAllTopics, setShowAllTopics] = useState(false);
   const [searchInput, setSearchInput] = useState(() => queryParam("person"));
   const [debouncedSearchInput, setDebouncedSearchInput] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -544,10 +559,19 @@ export default function SocialDiscover() {
           </div>
           <p className="mb-2 mt-6 text-xs font-medium text-zinc-500">Explore topics</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
+            {(showAllTopics ? DISCOVERY_TOPICS : DISCOVERY_TOPICS.slice(0, DEFAULT_TOPIC_COUNT)).map(({ label, query, icon }) => (
               <TopicTile key={label} label={label} query={query} icon={icon} onSelect={() => submitSearch(query)} />
             ))}
           </div>
+          {DISCOVERY_TOPICS.length > DEFAULT_TOPIC_COUNT ? (
+            <button
+              type="button"
+              onClick={() => setShowAllTopics((v) => !v)}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-950"
+            >
+              {showAllTopics ? <>Show fewer categories <ChevronUp className="h-3.5 w-3.5" /></> : <>See more categories <ChevronDown className="h-3.5 w-3.5" /></>}
+            </button>
+          ) : null}
           <p className="mt-4 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
         </div>
       </section>
