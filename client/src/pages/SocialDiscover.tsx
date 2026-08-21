@@ -116,7 +116,7 @@ function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport 
         </div>
       )}
       <div className="px-2.5 py-2">
-        <span className="truncate text-xs font-medium text-zinc-700">{label}</span>
+        <span className="block truncate text-sm font-semibold text-zinc-800">{label}</span>
       </div>
     </div>
   );
@@ -524,84 +524,125 @@ export default function SocialDiscover() {
 
   return (
     <div className="w-full max-w-7xl px-6 py-8">
-      <section className="mb-8 overflow-hidden rounded-2xl border bg-white">
-        <div className="p-6 sm:p-8">
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Discover</h1>
-          <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
-          <div
-            className="relative mt-5"
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSuggestionsOpen(false);
-            }}
-          >
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                role="combobox"
-                aria-label="Person or podcast show"
-                aria-autocomplete="list"
-                aria-controls="guest-search-suggestions"
-                aria-expanded={showSuggestions}
-                placeholder="Search a person or podcast show"
-                value={searchInput}
-                onFocus={() => setSuggestionsOpen(true)}
-                onChange={(event) => { setSearchInput(event.target.value); setSuggestionsOpen(true); }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") submitSearch();
-                  if (event.key === "Escape") setSuggestionsOpen(false);
-                }}
-                className="flex-1"
-              />
-              <Button onClick={() => submitSearch()} disabled={searchInput.trim().length < 2 || searchPending}>
-                {searchPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
-                Search
-              </Button>
-            </div>
-            {showSuggestions ? (
-              <div id="guest-search-suggestions" role="listbox" className="absolute inset-x-0 top-full z-40 mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 shadow-xl">
-                {suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? (
-                  <p className="flex items-center gap-2 px-3 py-4 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Finding likely matches…</p>
-                ) : null}
-                {peopleSuggestions.length > 0 ? (
-                  <div className="space-y-1">
-                    <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">People</p>
-                    {peopleSuggestions.map((candidate) => (
-                      <button key={candidate.id} type="button" role="option" aria-selected="false" onClick={() => chooseCreator(candidate)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none">
-                        <PersonAvatar candidate={candidate} />
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{candidate.name}</span><span className="block truncate text-xs text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</span></span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {podcastSuggestions.length > 0 ? (
-                  <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2">
-                    <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Podcast shows</p>
-                    {podcastSuggestions.map((podcast) => (
-                      <button key={podcast.id} type="button" role="option" aria-selected="false" onClick={() => choosePodcast(podcast)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none">
-                        <PodcastArtwork podcast={podcast} />
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{podcast.title}</span><span className="block truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</span></span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {!suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? <p className="px-3 py-4 text-sm text-zinc-500">No quick matches yet. Run the full search for broader results.</p> : null}
-                <button type="button" onClick={() => submitSearch()} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for &ldquo;{searchInput.trim()}&rdquo;</button>
-              </div>
-            ) : null}
-          </div>
-          <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">Explore topics</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
-              <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
-            ))}
-          </div>
-          <p className="mt-4 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
+      {/* ── Categories hero ── */}
+      <section className="mb-6">
+        <h1 className="text-lg font-bold tracking-tight text-zinc-950">Categories</h1>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
+            <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
+          ))}
         </div>
       </section>
 
-      {peopleSearchQuery.isError ? <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">People search:</span> {peopleSearchQuery.error.message}</p> : null}
-      {podcastSearchQuery.isError ? <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">Podcast search:</span> {podcastSearchQuery.error.message}</p> : null}
+      {/* ── Filter bar ── */}
+      <div ref={resultsRef} className="sticky top-0 z-20 -mx-6 mb-4 border-b border-zinc-200 bg-white/95 px-6 py-2 backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-0.5 overflow-x-auto">
+            {DISCOVER_TABS.map(({ key, label, icon: TabIcon }) => (
+              <button
+                key={key}
+                onClick={() => {
+                  setActiveTab(key);
+                  if (key === "guests") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
+                  else if (key === "podcasts") { setPodcastSort("relevance"); submitSearch(submittedQuery || searchInput); }
+                  else if (key === "latest") { setPodcastSort("date_of_first_episode"); submitSearch(submittedQuery || searchInput); }
+                  else if (key === "active") { setCreatorSort("recent_episode"); submitSearch(submittedQuery || searchInput); }
+                  else if (key === "credited") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
+                }}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeTab === key
+                    ? "bg-zinc-950 text-white"
+                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                }`}
+              >
+                <TabIcon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+            {/* Categories dropdown — quick-jump back to a topic */}
+            <Select value="" onValueChange={(query) => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }}>
+              <SelectTrigger className="h-auto gap-1 border-0 bg-transparent px-3 py-1.5 text-xs font-medium text-zinc-500 shadow-none hover:bg-zinc-100 hover:text-zinc-700 focus:ring-0">
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span>Categories</span>
+              </SelectTrigger>
+              <SelectContent>
+                {DISCOVERY_TOPICS.map(({ label, query }) => (
+                  <SelectItem key={query} value={query}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            {totalResults > 0 && <span className="whitespace-nowrap text-xs text-zinc-400">{formatCount(totalResults)} results</span>}
+            <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
+              <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
+              <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Search field (no button) ── */}
+      <div
+        className="relative mb-6"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSuggestionsOpen(false);
+        }}
+      >
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        <Input
+          role="combobox"
+          aria-label="Search people or podcast shows"
+          aria-autocomplete="list"
+          aria-controls="guest-search-suggestions"
+          aria-expanded={showSuggestions}
+          placeholder="Search people or podcast shows…"
+          value={searchInput}
+          onFocus={() => setSuggestionsOpen(true)}
+          onChange={(event) => { setSearchInput(event.target.value); setSuggestionsOpen(true); }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submitSearch();
+            if (event.key === "Escape") setSuggestionsOpen(false);
+          }}
+          className="pl-9"
+        />
+        {showSuggestions ? (
+          <div id="guest-search-suggestions" role="listbox" className="absolute inset-x-0 top-full z-40 mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 shadow-xl">
+            {suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? (
+              <p className="flex items-center gap-2 px-3 py-4 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Finding likely matches…</p>
+            ) : null}
+            {peopleSuggestions.length > 0 ? (
+              <div className="space-y-1">
+                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">People</p>
+                {peopleSuggestions.map((candidate) => (
+                  <button key={candidate.id} type="button" role="option" aria-selected="false" onClick={() => chooseCreator(candidate)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none">
+                    <PersonAvatar candidate={candidate} />
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{candidate.name}</span><span className="block truncate text-xs text-zinc-500">{candidate.subtitle || candidate.location || "Guest profile"}</span></span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {podcastSuggestions.length > 0 ? (
+              <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2">
+                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Podcast shows</p>
+                {podcastSuggestions.map((podcast) => (
+                  <button key={podcast.id} type="button" role="option" aria-selected="false" onClick={() => choosePodcast(podcast)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none">
+                    <PodcastArtwork podcast={podcast} />
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-zinc-950">{podcast.title}</span><span className="block truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</span></span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {!suggestionsPending && peopleSuggestions.length === 0 && podcastSuggestions.length === 0 ? <p className="px-3 py-4 text-sm text-zinc-500">No quick matches yet. Press Enter for broader results.</p> : null}
+            <button type="button" onClick={() => submitSearch()} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-t border-zinc-100 px-3 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Search className="h-4 w-4" />See all results for &ldquo;{searchInput.trim()}&rdquo;</button>
+          </div>
+        ) : null}
+      </div>
+
+      {peopleSearchQuery.isError ? <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">People search:</span> {peopleSearchQuery.error.message}</p> : null}
+      {podcastSearchQuery.isError ? <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span className="font-medium">Podcast search:</span> {podcastSearchQuery.error.message}</p> : null}
       {suggestedQueries.length > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span>Did you mean</span>
           {suggestedQueries.map((suggestion) => <button key={suggestion} type="button" onClick={() => applySuggestion(suggestion)} className="font-semibold underline underline-offset-2">{suggestion}</button>)}
           <span>?</span>
@@ -609,42 +650,9 @@ export default function SocialDiscover() {
       ) : null}
 
       {submittedQuery && searchSettled && totalResults === 0 && !peopleSearchQuery.isError && !podcastSearchQuery.isError ? (
-        <div className="mt-4"><EmptyState icon={Search} title="No matching people or podcasts" description="Try a shorter name, remove titles such as Dr., or search by one distinctive word." /></div>
+        <EmptyState icon={Search} title="No matching people or podcasts" description="Try a shorter name, remove titles such as Dr., or search by one distinctive word." />
       ) : totalResults > 0 ? (
-        <div ref={resultsRef} className="mt-6 space-y-8">
-          {/* Filter bar + view toggle — above results */}
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-2 py-1.5">
-            <div className="flex items-center gap-0.5 overflow-x-auto">
-              {DISCOVER_TABS.map(({ key, label, icon: TabIcon }) => (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setActiveTab(key);
-                    if (key === "guests") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
-                    else if (key === "podcasts") { setPodcastSort("relevance"); submitSearch(submittedQuery || searchInput); }
-                    else if (key === "latest") { setPodcastSort("date_of_first_episode"); submitSearch(submittedQuery || searchInput); }
-                    else if (key === "active") { setCreatorSort("recent_episode"); submitSearch(submittedQuery || searchInput); }
-                    else if (key === "credited") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
-                  }}
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    activeTab === key
-                      ? "bg-zinc-950 text-white"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
-                  }`}
-                >
-                  <TabIcon className="h-3.5 w-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="whitespace-nowrap text-xs text-zinc-400">{formatCount(totalResults)} results</span>
-              <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
-                <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
-                <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-          </div>
+        <div className="space-y-8">
 
           {peopleTotal > 0 ? <section>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
