@@ -663,10 +663,10 @@ export default function SocialDiscover() {
 
 function PeopleTable({ people, onChoose }: { people: CreatorCandidate[]; onChoose: (candidate: CreatorCandidate) => void }) {
   return (
-    <Card padding="none" className="overflow-hidden"><Table><TableHeader><TableRow><TableHead>Guest</TableHead><TableHead className="hidden md:table-cell">Description</TableHead><TableHead className="hidden lg:table-cell">Location</TableHead><TableHead className="text-right">Credited episodes</TableHead></TableRow></TableHeader><TableBody>
+    <Card padding="none" className="overflow-hidden"><Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-[30%]">Guest</TableHead><TableHead className="hidden w-[38%] md:table-cell">Description</TableHead><TableHead className="hidden w-[17%] lg:table-cell">Location</TableHead><TableHead className="w-[15%] text-right">Credited episodes</TableHead></TableRow></TableHeader><TableBody>
       {people.map((candidate) => <TableRow key={candidate.id} tabIndex={0} role="button" aria-label={`Open ${candidate.name}`} className="cursor-pointer" onClick={() => onChoose(candidate)} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onChoose(candidate)}>
-        <TableCell><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} /><div className="min-w-0"><p className="font-semibold text-zinc-950">{candidate.name}</p><p className="max-w-xs truncate text-xs text-zinc-500 md:hidden">{candidate.subtitle || "Guest profile"}</p></div></div></TableCell>
-        <TableCell className="hidden max-w-lg md:table-cell"><p className="line-clamp-2 text-zinc-600">{candidate.subtitle || candidate.bio || "Guest profile"}</p></TableCell>
+        <TableCell><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} /><div className="min-w-0"><p className="font-semibold text-zinc-950">{candidate.name}</p><p className="truncate text-xs text-zinc-500 md:hidden">{candidate.subtitle || "Guest profile"}</p></div></div></TableCell>
+        <TableCell className="hidden md:table-cell"><p className="line-clamp-2 break-words text-zinc-600">{candidate.subtitle || candidate.bio || "Guest profile"}</p></TableCell>
         <TableCell className="hidden text-zinc-500 lg:table-cell">{candidate.location || "—"}</TableCell>
         <TableCell className="text-right"><span className="font-semibold text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
       </TableRow>)}
@@ -680,11 +680,11 @@ function PeopleCards({ people, onChoose }: { people: CreatorCandidate[]; onChoos
 
 function PodcastTable({ podcasts, onChoose }: { podcasts: PodcastCandidate[]; onChoose: (podcast: PodcastCandidate) => void }) {
   return (
-    <Card padding="none" className="overflow-hidden"><Table><TableHeader><TableRow><TableHead>Podcast</TableHead><TableHead className="hidden md:table-cell">Description</TableHead><TableHead className="hidden lg:table-cell">Categories</TableHead><TableHead className="text-right">Episodes</TableHead></TableRow></TableHeader><TableBody>
+    <Card padding="none" className="overflow-hidden"><Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-[30%]">Podcast</TableHead><TableHead className="hidden w-[38%] md:table-cell">Description</TableHead><TableHead className="hidden w-[17%] lg:table-cell">Categories</TableHead><TableHead className="w-[15%] text-right">Episodes</TableHead></TableRow></TableHeader><TableBody>
       {podcasts.map((podcast) => <TableRow key={podcast.id} tabIndex={0} role="button" aria-label={`Open ${podcast.title}`} className="cursor-pointer" onClick={() => onChoose(podcast)} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onChoose(podcast)}>
-        <TableCell><div className="flex items-center gap-3"><PodcastArtwork podcast={podcast} /><div className="min-w-0"><p className="font-semibold text-zinc-950">{podcast.title}</p><p className="truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</p></div></div></TableCell>
-        <TableCell className="hidden max-w-lg md:table-cell"><p className="line-clamp-2 text-zinc-600">{podcast.description || "No description available"}</p></TableCell>
-        <TableCell className="hidden lg:table-cell"><div className="flex max-w-xs flex-wrap gap-1">{podcast.categories.slice(0, 3).map((category) => <span key={category.slug} className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">{category.title}</span>)}</div></TableCell>
+        <TableCell><div className="flex items-center gap-3"><PodcastArtwork podcast={podcast} /><div className="min-w-0"><p className="truncate font-semibold text-zinc-950">{podcast.title}</p><p className="truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</p></div></div></TableCell>
+        <TableCell className="hidden md:table-cell"><p className="line-clamp-2 break-words text-zinc-600">{podcast.description || "No description available"}</p></TableCell>
+        <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1">{podcast.categories.slice(0, 3).map((category) => <span key={category.slug} className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">{category.title}</span>)}</div></TableCell>
         <TableCell className="text-right"><span className="font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
       </TableRow>)}
     </TableBody></Table></Card>
