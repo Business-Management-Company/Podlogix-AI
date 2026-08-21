@@ -1,3 +1,5 @@
+import { getCachedSearch, saveCachedSearch, saveCachedPodcasts, saveCachedCreators } from "./podchaserCache";
+
 const PODCHASER_API_BASE = "https://developers.podchaser.com/api/rest/v1";
 
 interface PodchaserCreatorRaw {
@@ -364,6 +366,11 @@ export async function searchPodchaserCreators(
   const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}::${requestedPage}::${sort}`;
   const cached = getCached(creatorSearchCache, cacheKey);
   if (cached) return cached;
+  const dbCached = await getCachedSearch<PodchaserCreatorSearchResult>(`creator::${cacheKey}`);
+  if (dbCached) {
+    setCached(creatorSearchCache, cacheKey, dbCached, SEARCH_CACHE_TTL_MS);
+    return dbCached;
+  }
 
   let creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
     "/search/creators",
@@ -394,6 +401,8 @@ export async function searchPodchaserCreators(
     restrictedFields: extractRestrictedFields(creatorResponse),
   };
   setCached(creatorSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
+  await saveCachedSearch(`creator::${cacheKey}`, "creator", value);
+  await saveCachedCreators(candidates.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl })));
   return value;
 }
 
@@ -409,6 +418,11 @@ export async function searchPodchaserPodcasts(
   const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}::${requestedPage}::${sort}`;
   const cached = getCached(podcastSearchCache, cacheKey);
   if (cached) return cached;
+  const dbCached = await getCachedSearch<PodchaserPodcastSearchResult>(`podcast::${cacheKey}`);
+  if (dbCached) {
+    setCached(podcastSearchCache, cacheKey, dbCached, SEARCH_CACHE_TTL_MS);
+    return dbCached;
+  }
 
   let response = await requestPodchaser<PodchaserPodcastRaw[] | PodchaserPaginatedRaw<PodchaserPodcastRaw>>(
     "/search/podcasts",
@@ -443,6 +457,8 @@ export async function searchPodchaserPodcasts(
     restrictedFields: extractRestrictedFields(response),
   };
   setCached(podcastSearchCache, cacheKey, value, SEARCH_CACHE_TTL_MS);
+  await saveCachedSearch(`podcast::${cacheKey}`, "podcast", value);
+  await saveCachedPodcasts(candidates.map((c) => ({ id: c.id, title: c.title, imageUrl: c.imageUrl, rssUrl: c.rssUrl })));
   return value;
 }
 
