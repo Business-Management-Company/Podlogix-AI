@@ -55,6 +55,7 @@ const DISCOVERY_TOPICS = [
   { label: "History", query: "history", icon: Landmark },
   { label: "Arts", query: "arts", icon: Palette },
   { label: "Spirituality", query: "spirituality religion", icon: Globe2 },
+  { label: "Military & veterans", query: "military veterans", icon: Medal },
 ] as const;
 
 const DEFAULT_TOPIC_COUNT = 6;
