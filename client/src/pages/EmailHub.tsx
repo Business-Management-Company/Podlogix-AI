@@ -40,8 +40,11 @@ import {
   IdCard,
   Info,
   Search,
+  Pencil,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
+import { Link } from "wouter";
 import type { EmailContact, EmailCampaign, EmailTemplate, GuestProspect as BaseGuestProspect } from "@shared/schema";
 
 // pipelineStage is computed by the server (most recent pipeline entry, if any),
@@ -50,16 +53,21 @@ type GuestProspect = BaseGuestProspect & { pipelineStage?: string | null };
 
 const EMPTY_PROSPECTS: GuestProspect[] = [];
 
-function HeaderFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+function HeaderFact({ icon: Icon, label, value, onEdit }: { icon: LucideIcon; label: string; value: string; onEdit?: () => void }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
+    <div className="group relative flex items-center gap-2.5 rounded-lg border p-2.5">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
         <Icon className="h-4 w-4 text-muted-foreground" />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="truncate text-sm font-medium">{value}</p>
       </div>
+      {onEdit ? (
+        <button type="button" onClick={onEdit} className="absolute right-2 top-2 rounded p-0.5 text-zinc-400 opacity-0 transition-opacity hover:text-zinc-700 group-hover:opacity-100">
+          <Pencil className="h-3 w-3" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -111,6 +119,8 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
   const [showAddContact, setShowAddContact] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [contactDraft, setContactDraft] = useState<Partial<EmailContact>>({});
   const [contactFilter, setContactFilter] = useState<string>("all");
   const [contactSearch, setContactSearch] = useState("");
   const [contactSort, setContactSort] = useState<"recent" | "name">("recent");
@@ -231,6 +241,23 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
       queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
     },
     onError: (error: Error) => toast({ title: "Couldn't update stage", description: error.message, variant: "destructive" }),
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: async (patch: Partial<EmailContact>) => {
+      if (!selectedContactId) throw new Error("no contact");
+      const res = await apiRequest('PATCH', `/api/email/contacts/${selectedContactId}`, patch);
+      if (!res.ok) throw new Error("save failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/guest-prospects'] });
+      setEditingField(null);
+      setContactDraft({});
+      toast({ title: "Contact updated" });
+    },
+    onError: (error: Error) => toast({ title: "Couldn't update contact", description: error.message, variant: "destructive" }),
   });
 
   const createCampaignMutation = useMutation({
@@ -819,7 +846,7 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
         </TabsContent>
       </Tabs>
 
-      <Sheet open={Boolean(selectedContact)} onOpenChange={(open) => !open && setSelectedContactId(null)}>
+      <Sheet open={Boolean(selectedContact)} onOpenChange={(open) => { if (!open) { setSelectedContactId(null); setEditingField(null); setContactDraft({}); } }}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-[50vw]">
           {selectedContact ? (
             <>
@@ -848,23 +875,81 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                       )}
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <HeaderFact icon={Mail} label="Email" value={selectedContact.email || "Not added"} />
-                      <HeaderFact icon={MapPin} label="Location" value={linkedProspect?.location || "—"} />
-                      <HeaderFact icon={Briefcase} label="Company" value={selectedContact.company || "—"} />
-                      <HeaderFact icon={IdCard} label="Role" value={selectedContact.title || "—"} />
+                      {editingField === "email" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            type="email"
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={selectedContact.email || ""}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && val !== selectedContact.email) updateContactMutation.mutate({ email: val });
+                              else setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingField(null); }}
+                          />
+                        </div>
+                      ) : (
+                        <HeaderFact icon={Mail} label="Email" value={selectedContact.email || "Not added"} onEdit={() => setEditingField("email")} />
+                      )}
+                      {editingField === "location" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={linkedProspect?.location || ""}
+                            onBlur={(e) => { setEditingField(null); }}
+                            onKeyDown={(e) => { if (e.key === "Escape") setEditingField(null); }}
+                            placeholder="Location"
+                          />
+                        </div>
+                      ) : (
+                        <HeaderFact icon={MapPin} label="Location" value={linkedProspect?.location || "—"} />
+                      )}
+                      {editingField === "company" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={selectedContact.company || ""}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== (selectedContact.company || "")) updateContactMutation.mutate({ company: val });
+                              else setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingField(null); }}
+                          />
+                        </div>
+                      ) : (
+                        <HeaderFact icon={Briefcase} label="Company" value={selectedContact.company || "—"} onEdit={() => setEditingField("company")} />
+                      )}
+                      {editingField === "title" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={selectedContact.title || ""}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== (selectedContact.title || "")) updateContactMutation.mutate({ title: val });
+                              else setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingField(null); }}
+                          />
+                        </div>
+                      ) : (
+                        <HeaderFact icon={IdCard} label="Role" value={selectedContact.title || "—"} onEdit={() => setEditingField("title")} />
+                      )}
                     </div>
                   </div>
                 </div>
               </SheetHeader>
 
-              {/* One continuous scroll, not tabs — the header already covers
-                  who this is, so the rest reads as a single research sheet:
-                  stage first (the thing you're most likely to change), then
-                  social, then the fuller research and appearance history. */}
               <div className="mt-6 space-y-6">
                 {linkedProspect ? (
                   <section>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Pipeline stage</h3>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-700">Pipeline stage</h3>
                     {linkedProspect.pipelineStage ? (
                       <Select
                         value={linkedProspect.pipelineStage}
@@ -880,10 +965,21 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-sm text-zinc-500">Not in a Guest Pipeline yet — add them from Guests to track a stage.</p>
+                      <Link href="/guests" className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-primary hover:text-primary">
+                        <UserPlus className="h-4 w-4" />
+                        Add to Guest Pipeline
+                      </Link>
                     )}
                   </section>
-                ) : null}
+                ) : (
+                  <section>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-700">Guest Pipeline</h3>
+                    <Link href="/guests" className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-primary hover:text-primary">
+                      <UserPlus className="h-4 w-4" />
+                      Add to Guest Pipeline
+                    </Link>
+                  </section>
+                )}
 
                 {linkedProspect ? (
                   <>
@@ -892,7 +988,7 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                       hostedPodcasts={linkedAppearanceQuery.data?.hostedPodcasts}
                     />
                     <section>
-                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Guest research</h3>
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-700">Guest research</h3>
                       <GuestResearchSummary
                         subtitle={linkedProspect.subtitle}
                         bio={linkedProspect.bio}
@@ -907,11 +1003,20 @@ export default function EmailHub({ mode = "all" }: EmailHubProps) {
                       error={linkedAppearanceQuery.error}
                     />
                   </>
-                ) : selectedContact.category === "guest" ? (
-                  <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-3 text-sm text-zinc-500">
-                    This guest contact is not linked to a researched Guest Prospect yet.
-                  </p>
                 ) : null}
+
+                <section className="border-t border-zinc-200 pt-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => deleteContactMutation.mutate(selectedContact.id)}
+                    disabled={deleteContactMutation.isPending}
+                  >
+                    {deleteContactMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
+                    Delete contact
+                  </Button>
+                </section>
               </div>
             </>
           ) : null}

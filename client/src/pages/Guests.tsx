@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Briefcase, ChevronRight, Compass, LayoutGrid, List, Loader2, Mail, Plus, Search, Send, Star, StickyNote, Users,
+  Briefcase, ChevronRight, Compass, IdCard, LayoutGrid, List, Loader2, Mail, MapPin, Plus, Search, Send, Star, StickyNote, Trash2, Users,
 } from "lucide-react";
 import { GuestAppearanceHistory } from "@/components/guest/GuestAppearanceHistory";
 import { MasterContactButton } from "@/components/guest/MasterContactButton";
@@ -12,6 +12,7 @@ import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
 import { Card, EmptyState, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -224,6 +225,18 @@ export default function Guests() {
       toast({ title: result.charged ? "Email revealed" : "Saved email loaded", description: result.email });
     },
     onError: (error: Error) => toast({ title: "Couldn't reveal email", description: error.message, variant: "destructive" }),
+  });
+
+  const deleteGuestMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/guest-pipeline/${id}`);
+    },
+    onSuccess: () => {
+      setSelectedId(null);
+      invalidateGuests();
+      toast({ title: "Guest removed from pipeline" });
+    },
+    onError: () => toast({ title: "Couldn't remove guest", variant: "destructive" }),
   });
 
   const promoteContactMutation = usePromoteGuestContact();
@@ -528,43 +541,78 @@ export default function Guests() {
           {selected && (
             <>
               <SheetHeader>
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-5">
                   {selected.prospect?.imageUrl ? (
-                    <img src={selected.prospect.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-full border border-zinc-200 object-cover" />
+                    <img src={selected.prospect.imageUrl} alt="" className="h-36 w-36 shrink-0 rounded-2xl border object-cover" />
                   ) : (
-                    <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white ${avatarTone(selected.contact, selected.prospect)}`}>
+                    <span className={`flex h-36 w-36 shrink-0 items-center justify-center rounded-2xl text-4xl font-semibold text-white ${avatarTone(selected.contact, selected.prospect)}`}>
                       {initials(selected.contact, selected.prospect)}
                     </span>
                   )}
-                  <div className="min-w-0 flex-1">
-                    <SheetTitle className="truncate text-left">{guestName(selected.contact, selected.prospect)}</SheetTitle>
-                    {guestEmail(selected.contact, selected.prospect) ? (
-                      <a href={`mailto:${guestEmail(selected.contact, selected.prospect)}`} className="flex items-center gap-1 truncate text-sm text-zinc-500 hover:text-zinc-800">
-                        <Mail size={12} className="shrink-0" />
-                        {guestEmail(selected.contact, selected.prospect)}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-zinc-400">Contact details not added</p>
-                    )}
+                  <div className="min-w-0 pt-1">
+                    <SheetTitle className="truncate text-left text-xl">{guestName(selected.contact, selected.prospect)}</SheetTitle>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Badge className={`${guestStageMeta(selected.stage).chip} font-medium`}>
+                        {guestStageMeta(selected.stage).label}
+                      </Badge>
+                      <StarButton
+                        starred={selected.prospect?.starred}
+                        isPending={toggleStarMutation.isPending}
+                        onToggle={() => toggleStarred(selected.prospect)}
+                      />
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Email</p>
+                          <p className="truncate text-sm font-medium">{guestEmail(selected.contact, selected.prospect) || "Not added"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Location</p>
+                          <p className="truncate text-sm font-medium">{selected.prospect?.location || "—"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                          <Briefcase className="h-4 w-4 text-muted-foreground" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Company</p>
+                          <p className="truncate text-sm font-medium">{selected.contact?.company || "—"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                          <IdCard className="h-4 w-4 text-muted-foreground" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Role</p>
+                          <p className="truncate text-sm font-medium">{selected.contact?.title || "—"}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <StarButton
-                    starred={selected.prospect?.starred}
-                    isPending={toggleStarMutation.isPending}
-                    onToggle={() => toggleStarred(selected.prospect)}
-                  />
                 </div>
               </SheetHeader>
 
-              <div className="mt-5 space-y-6">
-                {/* Stage + invite */}
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-zinc-500">Pipeline stage</p>
+              <div className="mt-6 space-y-6">
+                {/* Stage + invite + quick actions */}
+                <section>
+                  <SectionHeader title="Pipeline stage" />
                   <div className="flex items-center gap-2">
                     <Select
                       value={selected.stage}
                       onValueChange={(value) => updateStageMutation.mutate({ id: selected.id, stage: value })}
                     >
-                      <SelectTrigger className="flex-1">
+                      <SelectTrigger className={`w-48 border-0 font-medium ${guestStageMeta(selected.stage).chip}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -579,32 +627,22 @@ export default function Guests() {
                         Invite
                       </Button>
                     ) : null}
-                  </div>
-                </div>
-
-                {/* Quick actions — Master Contacts / Reveal Email are the other
-                    two CTAs a host reaches for before reading anything else,
-                    so they sit with Pipeline stage + Invite instead of buried
-                    inside the contact-editing form below. */}
-                {selected.prospect ? (
-                  <div className="space-y-2">
-                    <MasterContactButton
-                      masterContactId={selected.contactId}
-                      isPending={promoteContactMutation.isPending}
-                      onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
-                      className="w-full"
-                    />
-
-                    {!guestEmail(selected.contact, selected.prospect) ? (
+                    {selected.prospect ? (
+                      <MasterContactButton
+                        masterContactId={selected.contactId}
+                        isPending={promoteContactMutation.isPending}
+                        onAdd={() => promoteContactMutation.mutate(selected.prospect!.id)}
+                      />
+                    ) : null}
+                    {!guestEmail(selected.contact, selected.prospect) && selected.prospect ? (
                       <RevealEmailButton
                         canReveal={hasEnrichmentProfile(selected.prospect)}
                         isPending={revealEmailMutation.isPending}
                         onConfirm={() => revealEmailMutation.mutate(selected.prospect!.id)}
-                        className="w-full"
                       />
                     ) : null}
                   </div>
-                ) : null}
+                </section>
 
                 {selected.prospect ? (
                   <GuestSocialProfiles socialLinks={selected.prospect.socialLinks} hostedPodcasts={appearanceQuery.data?.hostedPodcasts} />
@@ -725,7 +763,7 @@ export default function Guests() {
                     )}
                     {selected.notes && (
                       <div className="rounded-lg border border-dashed border-zinc-200 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Pipeline note</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Pipeline note</p>
                         <p className="whitespace-pre-wrap text-sm text-zinc-700">{selected.notes}</p>
                       </div>
                     )}
@@ -739,6 +777,19 @@ export default function Guests() {
                       <p className="text-xs text-zinc-400">No notes yet — the story starts here.</p>
                     )}
                   </div>
+                </section>
+
+                <section className="border-t border-zinc-200 pt-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => deleteGuestMutation.mutate(selected.id)}
+                    disabled={deleteGuestMutation.isPending}
+                  >
+                    {deleteGuestMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
+                    Remove from pipeline
+                  </Button>
                 </section>
               </div>
             </>
