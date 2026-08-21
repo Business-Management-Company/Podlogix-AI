@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Cpu, ExternalLink,
   FlaskConical, Globe2, GraduationCap, HeartPulse, Info, LayoutGrid, List, Loader2, Mail, MessagesSquare,
-  Mic2, Rss, Search, Star, UserPlus, Users,
+  Mic2, Rss, Search, Star, UserPlus, Users, type LucideIcon,
 } from "lucide-react";
 import {
   GuestAppearanceHistory,
@@ -43,6 +43,51 @@ const DISCOVERY_TOPICS = [
   { label: "Education", query: "education", icon: GraduationCap },
   { label: "Society & culture", query: "society culture", icon: MessagesSquare },
 ] as const;
+
+/**
+ * A topic tile shows real podcast artwork from Podchaser instead of a
+ * generic icon — same idea as Podchaser's own category cards. Falls back to
+ * the plain icon+label version while loading, on error, or if a topic
+ * happens to return no artwork (e.g. Podchaser isn't configured).
+ */
+function TopicTile({ label, query, icon: TopicIcon, onSelect }: {
+  label: string;
+  query: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+}) {
+  const { data } = useQuery<{ podcastCandidates: Array<{ id: string; imageUrl: string | null }> }>({
+    queryKey: ["/api/guest-discovery/podcasts", "topic-art", query],
+    queryFn: () => fetchJson(`/api/guest-discovery/podcasts?${new URLSearchParams({ q: query, max: "4", sort: "power_score" })}`),
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  const images = (data?.podcastCandidates ?? []).map((p) => p.imageUrl).filter((url): url is string => Boolean(url)).slice(0, 4);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
+    >
+      {images.length > 0 ? (
+        <div className="grid aspect-[2/1] grid-cols-2 grid-rows-2 gap-px overflow-hidden bg-zinc-100">
+          {Array.from({ length: 4 }, (_, i) => images[i % images.length]).map((src, i) => (
+            <img key={i} src={src} alt="" className="h-full w-full object-cover" />
+          ))}
+        </div>
+      ) : (
+        <div className="flex aspect-[2/1] items-center justify-center bg-primary/5">
+          <TopicIcon className="h-6 w-6 text-primary/60" aria-hidden="true" />
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 p-2.5">
+        <TopicIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+        <span className="truncate text-xs font-medium text-zinc-700">{label}</span>
+      </div>
+    </button>
+  );
+}
 
 interface CreatorCandidate {
   id: string;
@@ -499,18 +544,8 @@ export default function SocialDiscover() {
           </div>
           <p className="mb-2 mt-6 text-xs font-medium text-zinc-500">Explore topics</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {DISCOVERY_TOPICS.map(({ label, query, icon: TopicIcon }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => submitSearch(query)}
-                className="flex flex-col items-start gap-2 rounded-xl border border-zinc-200 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <TopicIcon className="h-4 w-4 text-primary" aria-hidden="true" />
-                </span>
-                <span className="text-xs font-medium text-zinc-700">{label}</span>
-              </button>
+            {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
+              <TopicTile key={label} label={label} query={query} icon={icon} onSelect={() => submitSearch(query)} />
             ))}
           </div>
           <p className="mt-4 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
