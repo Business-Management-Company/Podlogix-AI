@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -111,12 +111,11 @@ function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport 
           ))}
         </div>
       ) : (
-        <div className="flex aspect-[2/1] items-center justify-center bg-primary/5">
-          <TopicIcon className="h-6 w-6 text-primary/60" aria-hidden="true" />
+        <div className="flex aspect-[2/1] items-center justify-center bg-zinc-50">
+          <TopicIcon className="h-6 w-6 text-zinc-300" aria-hidden="true" />
         </div>
       )}
-      <div className="flex items-center gap-1.5 p-2.5">
-        <TopicIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <div className="px-2.5 py-2">
         <span className="truncate text-xs font-medium text-zinc-700">{label}</span>
       </div>
     </div>
@@ -325,6 +324,7 @@ export default function SocialDiscover() {
   const canExportTopics = user?.role === "admin" || user?.role === "superadmin";
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [activeTab, setActiveTab] = useState<DiscoverTab>("search");
+  const resultsRef = useRef<HTMLDivElement>(null);
   // One call for every topic tile's art, not one call per tile — see the
   // comment on TopicTile.
   const { data: topicArtData } = useQuery<{ art: Record<string, string[]> }>({
@@ -525,31 +525,6 @@ export default function SocialDiscover() {
   return (
     <div className="w-full max-w-7xl px-6 py-8">
       <section className="mb-8 overflow-hidden rounded-2xl border bg-white">
-        {/* Tab bar */}
-        <div className="flex items-center gap-1 border-b border-zinc-200 px-6 pt-4 sm:px-8">
-          {DISCOVER_TABS.map(({ key, label, icon: TabIcon }) => (
-            <button
-              key={key}
-              onClick={() => {
-                setActiveTab(key);
-                if (key === "guests") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
-                else if (key === "podcasts") { setPodcastSort("relevance"); submitSearch(submittedQuery || searchInput); }
-                else if (key === "latest") { setPodcastSort("date_of_first_episode"); submitSearch(submittedQuery || searchInput); }
-                else if (key === "active") { setCreatorSort("recent_episode"); submitSearch(submittedQuery || searchInput); }
-                else if (key === "credited") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
-              }}
-              className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 pb-3 text-sm font-medium transition-colors ${
-                activeTab === key
-                  ? "border-zinc-950 text-zinc-950"
-                  : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
-              }`}
-            >
-              <TabIcon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-
         <div className="p-6 sm:p-8">
           <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Discover</h1>
           <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
@@ -616,7 +591,7 @@ export default function SocialDiscover() {
           <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">Explore topics</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
-              <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => submitSearch(query)} canExport={canExportTopics} />
+              <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
             ))}
           </div>
           <p className="mt-4 text-xs text-zinc-400">Suggestions appear after a short pause. Results are cached to protect your provider credits.</p>
@@ -636,12 +611,39 @@ export default function SocialDiscover() {
       {submittedQuery && searchSettled && totalResults === 0 && !peopleSearchQuery.isError && !podcastSearchQuery.isError ? (
         <div className="mt-4"><EmptyState icon={Search} title="No matching people or podcasts" description="Try a shorter name, remove titles such as Dr., or search by one distinctive word." /></div>
       ) : totalResults > 0 ? (
-        <div className="mt-6 space-y-8">
-          <div className="flex justify-end">
-            <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
-              <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
-              <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
-            </ToggleGroup>
+        <div ref={resultsRef} className="mt-6 space-y-8">
+          {/* Filter bar + view toggle — above results */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-2 py-1.5">
+            <div className="flex items-center gap-0.5 overflow-x-auto">
+              {DISCOVER_TABS.map(({ key, label, icon: TabIcon }) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setActiveTab(key);
+                    if (key === "guests") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
+                    else if (key === "podcasts") { setPodcastSort("relevance"); submitSearch(submittedQuery || searchInput); }
+                    else if (key === "latest") { setPodcastSort("date_of_first_episode"); submitSearch(submittedQuery || searchInput); }
+                    else if (key === "active") { setCreatorSort("recent_episode"); submitSearch(submittedQuery || searchInput); }
+                    else if (key === "credited") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
+                  }}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    activeTab === key
+                      ? "bg-zinc-950 text-white"
+                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                  }`}
+                >
+                  <TabIcon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="whitespace-nowrap text-xs text-zinc-400">{formatCount(totalResults)} results</span>
+              <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
+                <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
+                <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </div>
 
           {peopleTotal > 0 ? <section>
