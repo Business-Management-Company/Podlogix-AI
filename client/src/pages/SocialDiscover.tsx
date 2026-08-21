@@ -62,7 +62,9 @@ const DISCOVERY_TOPICS = [
   { label: "History", query: "history", icon: Landmark },
   { label: "Arts", query: "arts", icon: Palette },
   { label: "Spirituality", query: "spirituality religion", icon: Globe2 },
-  { label: "Military & veterans", query: "military veterans", icon: Medal },
+  // "veteran" alone, not "military veterans" — the combined phrase was
+  // pulling in a much broader, noisier set of tangential matches.
+  { label: "Military & veterans", query: "veteran", icon: Medal },
 ] as const;
 
 
@@ -94,7 +96,7 @@ function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport 
     >
       {canExport ? (
         <a
-          href={`/api/admin/podcast-export?${new URLSearchParams({ q: query, pages: "5" })}`}
+          href={`/api/admin/podcast-export?${new URLSearchParams({ q: query, pages: "10" })}`}
           onClick={(event) => event.stopPropagation()}
           title={`Download ${label} podcasts as CSV (admin only)`}
           className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
