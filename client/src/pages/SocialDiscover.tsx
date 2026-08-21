@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Cpu, ExternalLink,
-  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, Landmark, LayoutGrid, Laugh, List, Loader2, Mail, MessagesSquare,
+  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, Landmark, LayoutGrid, Laugh, List, Loader2, Mail, Medal, MessagesSquare,
   Mic2, Music, Newspaper, Palette, Rss, Search, ShieldAlert, Star, Trophy, UserPlus, Users, type LucideIcon,
 } from "lucide-react";
 import {
@@ -54,6 +54,7 @@ const DISCOVERY_TOPICS = [
   { label: "History", query: "history", icon: Landmark },
   { label: "Arts", query: "arts", icon: Palette },
   { label: "Spirituality", query: "spirituality religion", icon: Globe2 },
+  { label: "Military & veterans", query: "military veterans", icon: Medal },
 ] as const;
 
 const DEFAULT_TOPIC_COUNT = 6;
