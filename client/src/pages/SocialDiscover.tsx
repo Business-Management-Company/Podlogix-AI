@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Cpu, ExternalLink,
-  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, Landmark, LayoutGrid, Laugh, List, Loader2, Mail, MessagesSquare,
+  BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Cpu, Download, ExternalLink,
+  FlaskConical, Globe2, GraduationCap, HeartPulse, Info, Landmark, LayoutGrid, Laugh, List, Loader2, Mail, Medal, MessagesSquare,
   Mic2, Music, Newspaper, Palette, Rss, Search, ShieldAlert, Star, Trophy, UserPlus, Users, type LucideIcon,
 } from "lucide-react";
 import {
@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useGuestAppearances } from "@/hooks/use-guest-appearances";
 import { usePromoteGuestContact } from "@/hooks/use-promote-guest-contact";
 import { useToggleProspectStar } from "@/hooks/use-toggle-prospect-star";
@@ -61,29 +62,39 @@ const DEFAULT_TOPIC_COUNT = 6;
 /**
  * A topic tile shows real podcast artwork from Podchaser instead of a
  * generic icon — same idea as Podchaser's own category cards. Falls back to
- * the plain icon+label version while loading, on error, or if a topic
- * happens to return no artwork (e.g. Podchaser isn't configured).
+ * the plain icon+label version while `images` hasn't arrived yet, or a
+ * topic happens to return no artwork (e.g. Podchaser isn't configured).
+ * Art for every topic is fetched together by the parent (one HTTP call —
+ * see useTopicArt) rather than each tile firing its own request; 14+
+ * simultaneous searches on one page load was hitting the rate limit and
+ * silently dropping some tiles to their fallback.
  */
-function TopicTile({ label, query, icon: TopicIcon, onSelect }: {
+function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport }: {
   label: string;
   query: string;
   icon: LucideIcon;
+  images: string[];
   onSelect: () => void;
+  canExport: boolean;
 }) {
-  const { data } = useQuery<{ podcastCandidates: Array<{ id: string; imageUrl: string | null }> }>({
-    queryKey: ["/api/guest-discovery/podcasts", "topic-art", query],
-    queryFn: () => fetchJson(`/api/guest-discovery/podcasts?${new URLSearchParams({ q: query, max: "4", sort: "power_score" })}`),
-    staleTime: 60 * 60 * 1000,
-    retry: false,
-  });
-  const images = (data?.podcastCandidates ?? []).map((p) => p.imageUrl).filter((url): url is string => Boolean(url)).slice(0, 4);
-
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
-      className="group overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
+      onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onSelect()}
+      className="group relative cursor-pointer overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
     >
+      {canExport ? (
+        <a
+          href={`/api/admin/podcast-export?${new URLSearchParams({ q: query, pages: "5" })}`}
+          onClick={(event) => event.stopPropagation()}
+          title={`Download ${label} podcasts as CSV (admin only)`}
+          className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+        >
+          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      ) : null}
       {images.length > 0 ? (
         <div className="grid aspect-[2/1] grid-cols-2 grid-rows-2 gap-px overflow-hidden bg-zinc-100">
           {Array.from({ length: 4 }, (_, i) => images[i % images.length]).map((src, i) => (
@@ -99,7 +110,7 @@ function TopicTile({ label, query, icon: TopicIcon, onSelect }: {
         <TopicIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
         <span className="truncate text-xs font-medium text-zinc-700">{label}</span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -301,8 +312,19 @@ function PaginationControls({ pagination, onPage }: { pagination: SearchPaginati
 
 export default function SocialDiscover() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canExportTopics = user?.role === "admin" || user?.role === "superadmin";
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [showAllTopics, setShowAllTopics] = useState(false);
+  // One call for every topic tile's art, not one call per tile — see the
+  // comment on TopicTile.
+  const { data: topicArtData } = useQuery<{ art: Record<string, string[]> }>({
+    queryKey: ["/api/guest-discovery/topic-art", DISCOVERY_TOPICS.map((t) => t.query).join(",")],
+    queryFn: () => fetchJson(`/api/guest-discovery/topic-art?${new URLSearchParams({ topics: DISCOVERY_TOPICS.map((t) => t.query).join(",") })}`),
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  const topicArt = topicArtData?.art ?? {};
   const [searchInput, setSearchInput] = useState(() => queryParam("person"));
   const [debouncedSearchInput, setDebouncedSearchInput] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -493,7 +515,7 @@ export default function SocialDiscover() {
 
   return (
     <div className="w-full max-w-7xl px-6 py-8">
-      <section className="mb-8 overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+      <section className="mb-8 overflow-hidden rounded-2xl border bg-white">
         <div className="p-6 sm:p-8">
           <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Find your next guest</h1>
           <p className="mt-1 text-sm text-zinc-500">Search people or podcast shows, confirm the right match, and keep the research inside Podlogix.</p>
@@ -560,7 +582,7 @@ export default function SocialDiscover() {
           <p className="mb-2 mt-6 text-xs font-medium text-zinc-500">Explore topics</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {(showAllTopics ? DISCOVERY_TOPICS : DISCOVERY_TOPICS.slice(0, DEFAULT_TOPIC_COUNT)).map(({ label, query, icon }) => (
-              <TopicTile key={label} label={label} query={query} icon={icon} onSelect={() => submitSearch(query)} />
+              <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => submitSearch(query)} canExport={canExportTopics} />
             ))}
           </div>
           {DISCOVERY_TOPICS.length > DEFAULT_TOPIC_COUNT ? (

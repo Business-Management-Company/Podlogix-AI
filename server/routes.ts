@@ -115,6 +115,7 @@ import {
   probePodchaserGuest,
   searchPodchaserCreators,
   searchPodchaserPodcasts,
+  type PodchaserPodcastCandidate,
 } from "./services/podchaserGuestService";
 import { getGuestPodcastPlayback } from "./services/guestPodcastPlaybackService";
 import { enrichHandleCached, getCachedEnrichment, saveEnrichment, icEnrichmentEnabled, extractIcAnalytics } from "./services/icEnrichment";
@@ -3496,6 +3497,59 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  function csvField(value: unknown): string {
+    const str = value === null || value === undefined ? '' : String(value);
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  }
+
+  // Admin-only bulk export — "download podcast shows" for a topic (Military
+  // & Veterans was the first ask). Each page of results is one Podchaser
+  // request against the 1,000/month budget, so this is capped and goes
+  // through searchPodchaserPodcasts's normal cache chain — a second export
+  // of the same topic within 24h costs nothing.
+  app.get('/api/admin/podcast-export', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const input = z.object({
+        q: z.string().trim().min(2).max(120),
+        pages: z.coerce.number().int().min(1).max(10).default(5),
+      }).parse(req.query);
+
+      const seen = new Map<string, PodchaserPodcastCandidate>();
+      for (let page = 1; page <= input.pages; page++) {
+        const result = await searchPodchaserPodcasts(input.q, 25, page, 'relevance');
+        for (const podcast of result.podcastCandidates) seen.set(podcast.id, podcast);
+        if (!result.pagination.hasMore) break;
+      }
+
+      const rows = Array.from(seen.values());
+      const header = ['Title', 'RSS URL', 'Website', 'Description', 'Image URL', 'Categories', 'Episodes', 'Author', 'Author Email'];
+      const lines = [header.join(',')];
+      for (const podcast of rows) {
+        lines.push([
+          csvField(podcast.title),
+          csvField(podcast.rssUrl),
+          csvField(podcast.webUrl),
+          csvField((podcast.description || '').replace(/\s+/g, ' ').trim().slice(0, 500)),
+          csvField(podcast.imageUrl),
+          csvField(podcast.categories.map((c) => c.title).join('; ')),
+          csvField(podcast.numberOfEpisodes ?? ''),
+          csvField(podcast.author.name),
+          csvField(podcast.author.email),
+        ].join(','));
+      }
+
+      const filename = `${input.q.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}-podcasts.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(lines.join('\n'));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid export query' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
   const guestProbeQuerySchema = z.object({
     person: z.string().trim().min(2).max(120).default('Andrew Huberman'),
     max: z.coerce.number().int().min(1).max(25).default(10),
@@ -4316,6 +4370,43 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0]?.message || 'Invalid podcast search' });
+      }
+      return sendPodchaserRouteError(res, error);
+    }
+  });
+
+  // Batched, one HTTP call for however many topic tiles Discover renders.
+  // Fetched SEQUENTIALLY (not Promise.all) — 14+ simultaneous searches from
+  // one page load was hitting the Starter plan's rate limit, which silently
+  // dropped some tiles to their icon fallback with no visible error. Each
+  // topic still goes through searchPodchaserPodcasts's normal cache chain
+  // (memory -> DB -> real request), so repeat page loads cost nothing.
+  const topicArtSchema = z.object({
+    topics: z.string().trim().min(1).transform((value) => value.split(',').map((t) => t.trim()).filter(Boolean)).pipe(z.array(z.string()).min(1).max(30)),
+  });
+
+  app.get('/api/guest-discovery/topic-art', isAuthenticated, async (req: any, res) => {
+    try {
+      const { topics } = topicArtSchema.parse(req.query);
+      const configured = isPodchaserConfigured();
+      const art: Record<string, string[]> = {};
+      if (configured) {
+        for (const topic of topics) {
+          try {
+            const result = await searchPodchaserPodcasts(topic, 4, 1, 'power_score');
+            art[topic] = result.podcastCandidates.map((p) => p.imageUrl).filter((url): url is string => Boolean(url)).slice(0, 4);
+          } catch (error) {
+            console.error(`Topic art fetch failed for "${topic}":`, error);
+            art[topic] = [];
+          }
+        }
+      } else {
+        for (const topic of topics) art[topic] = [];
+      }
+      res.json({ configured, art });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid topics list' });
       }
       return sendPodchaserRouteError(res, error);
     }
