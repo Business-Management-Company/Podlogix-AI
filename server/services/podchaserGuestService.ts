@@ -338,7 +338,7 @@ const podcastSearchCache = new Map<string, { expiresAt: number; value: Podchaser
 const podcastCreditsCache = new Map<string, { expiresAt: number; value: PodchaserPodcastCreditsResult }>();
 const guestAppearanceCache = new Map<string, { expiresAt: number; value: PodchaserGuestAppearancesResult }>();
 
-export async function getPodchaserCreator(creatorId: string): Promise<PodchaserCreatorCandidate> {
+export async function getPodchaserCreator(creatorId: string, userId?: string): Promise<PodchaserCreatorCandidate> {
   const normalizedCreatorId = creatorId.trim();
   const cached = getCached(creatorDetailCache, normalizedCreatorId);
   if (cached) return cached;
@@ -348,6 +348,8 @@ export async function getPodchaserCreator(creatorId: string): Promise<PodchaserC
   // blank id, which then fails guest-prospect validation downstream.
   const response = await requestPodchaser<PodchaserCreatorRaw | PodchaserObjectEnvelope<PodchaserCreatorRaw>>(
     `/creators/${encodeURIComponent(normalizedCreatorId)}`,
+    {},
+    userId,
   );
   const value = normalizeCreator(extractObject(response));
   setCached(creatorDetailCache, normalizedCreatorId, value, APPEARANCE_CACHE_TTL_MS);
@@ -359,6 +361,7 @@ export async function searchPodchaserCreators(
   max = 10,
   page = 1,
   sort: PodchaserCreatorSort = "appearance_count",
+  userId?: string,
 ): Promise<PodchaserCreatorSearchResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
   const requestedPage = Math.max(Math.trunc(page), 1);
@@ -375,6 +378,7 @@ export async function searchPodchaserCreators(
   let creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
     "/search/creators",
     creatorSearchQuery(normalizedQuery, limit, requestedPage, sort),
+    userId,
   );
   let candidates = extractData(creatorResponse).map(normalizeCreator);
   let suggestedQuery: string | null = null;
@@ -387,6 +391,7 @@ export async function searchPodchaserCreators(
       creatorResponse = await requestPodchaser<PodchaserCreatorRaw[] | PodchaserPaginatedRaw<PodchaserCreatorRaw>>(
         "/search/creators",
         creatorSearchQuery(fallbackQuery, limit, 1, sort),
+        userId,
       );
       candidates = rankCreatorSuggestions(normalizedQuery, extractData(creatorResponse).map(normalizeCreator));
       suggestedQuery = candidates[0]?.name ?? null;
@@ -411,6 +416,7 @@ export async function searchPodchaserPodcasts(
   max = 10,
   page = 1,
   sort: PodchaserPodcastSort = "relevance",
+  userId?: string,
 ): Promise<PodchaserPodcastSearchResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
   const requestedPage = Math.max(Math.trunc(page), 1);
@@ -433,6 +439,7 @@ export async function searchPodchaserPodcasts(
       sort,
       sort_direction: sort === "alphabetical" ? "asc" : "desc",
     },
+    userId,
   );
   let candidates = extractData(response).map(normalizePodcast);
   let suggestedQuery: string | null = null;
@@ -443,6 +450,7 @@ export async function searchPodchaserPodcasts(
       response = await requestPodchaser<PodchaserPodcastRaw[] | PodchaserPaginatedRaw<PodchaserPodcastRaw>>(
         "/search/podcasts",
         { q: fallbackQuery, page: "1", per_page: String(limit), sort, sort_direction: sort === "alphabetical" ? "asc" : "desc" },
+        userId,
       );
       candidates = rankPodcastSuggestions(normalizedQuery, extractData(response).map(normalizePodcast));
       suggestedQuery = candidates[0]?.title ?? null;
@@ -465,6 +473,7 @@ export async function searchPodchaserPodcasts(
 export async function getPodchaserPodcastCredits(
   podcastId: string,
   max = 25,
+  userId?: string,
 ): Promise<PodchaserPodcastCreditsResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
   const normalizedPodcastId = podcastId.trim();
@@ -475,6 +484,7 @@ export async function getPodchaserPodcastCredits(
   const response = await requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditListRaw>>(
     `/podcasts/${encodeURIComponent(normalizedPodcastId)}/credits`,
     { per_page: String(limit), sort: "relevance", sort_direction: "desc" },
+    userId,
   );
   const credits = extractData(response)
     .map(normalizePodcastCreditListItem)
@@ -491,6 +501,7 @@ export async function getPodchaserPodcastCredits(
 export async function getPodchaserGuestAppearances(
   creatorId: string,
   max = 10,
+  userId?: string,
 ): Promise<PodchaserGuestAppearancesResult> {
   const limit = Math.min(Math.max(Math.trunc(max), 1), 25);
   const normalizedCreatorId = creatorId.trim();
@@ -502,14 +513,17 @@ export async function getPodchaserGuestAppearances(
     requestPodchaser<PodchaserPaginatedRaw<PodchaserEpisodeCreditRaw>>(
       `/creators/${encodeURIComponent(normalizedCreatorId)}/episodes`,
       { role: "guest", per_page: String(limit), sort: "air_date", sort_direction: "desc" },
+      userId,
     ),
     requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditRaw>>(
       `/creators/${encodeURIComponent(normalizedCreatorId)}/podcasts`,
       { role: "guest", per_page: String(limit), sort: "date", sort_direction: "desc" },
+      userId,
     ),
     requestPodchaser<PodchaserPaginatedRaw<PodchaserPodcastCreditRaw>>(
       `/creators/${encodeURIComponent(normalizedCreatorId)}/podcasts`,
       { role: "host", per_page: "5", sort: "relevance", sort_direction: "desc" },
+      userId,
     ),
   ]);
   const hostedPodcasts = extractData(hostedPodcastResponse).map(normalizePodcastCredit);
@@ -517,8 +531,8 @@ export async function getPodchaserGuestAppearances(
   if (primaryHostedPodcast?.podcastId) {
     const podcastId = encodeURIComponent(primaryHostedPodcast.podcastId);
     const [detailResult, socialsResult] = await Promise.allSettled([
-      requestPodchaser<PodchaserPodcastRaw | PodchaserObjectEnvelope<PodchaserPodcastRaw>>(`/podcasts/${podcastId}`),
-      requestPodchaser<PodchaserPodcastSocialsRaw | PodchaserObjectEnvelope<PodchaserPodcastSocialsRaw>>(`/podcasts/${podcastId}/socials`),
+      requestPodchaser<PodchaserPodcastRaw | PodchaserObjectEnvelope<PodchaserPodcastRaw>>(`/podcasts/${podcastId}`, {}, userId),
+      requestPodchaser<PodchaserPodcastSocialsRaw | PodchaserObjectEnvelope<PodchaserPodcastSocialsRaw>>(`/podcasts/${podcastId}/socials`, {}, userId),
     ]);
     const detail = detailResult.status === "fulfilled" ? extractObject(detailResult.value) : null;
     const socials = socialsResult.status === "fulfilled" ? extractObject(socialsResult.value) : null;
@@ -540,13 +554,13 @@ export async function getPodchaserGuestAppearances(
   return value;
 }
 
-export async function probePodchaserGuest(personQuery: string, max = 10): Promise<PodchaserGuestProbeResult> {
-  const usageBefore = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
-  const { creatorCandidates } = await searchPodchaserCreators(personQuery, max);
+export async function probePodchaserGuest(personQuery: string, max = 10, userId?: string): Promise<PodchaserGuestProbeResult> {
+  const usageBefore = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage", {}, userId));
+  const { creatorCandidates } = await searchPodchaserCreators(personQuery, max, 1, "appearance_count", userId);
   const selectedCreator = selectCreator(personQuery, creatorCandidates);
 
   if (!selectedCreator) {
-    const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
+    const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage", {}, userId));
     return {
       personQuery,
       identityConfidence: "not-found",
@@ -561,8 +575,8 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
     };
   }
 
-  const appearances = await getPodchaserGuestAppearances(selectedCreator.id, max);
-  const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage"));
+  const appearances = await getPodchaserGuestAppearances(selectedCreator.id, max, userId);
+  const quota = normalizeUsage(await requestPodchaser<PodchaserUsageRaw | PodchaserUsageEnvelope>("/usage", {}, userId));
 
   return {
     personQuery,
@@ -595,7 +609,7 @@ function actionLabelFor(path: string, query: Record<string, string>): string {
   return "other";
 }
 
-async function requestPodchaser<T>(path: string, query: Record<string, string> = {}): Promise<T> {
+async function requestPodchaser<T>(path: string, query: Record<string, string> = {}, userId?: string): Promise<T> {
   const apiKey = process.env.PODCHASER_API_KEY?.trim();
   if (!apiKey) throw new PodchaserError("NOT_CONFIGURED", "Podchaser is not configured.");
 
@@ -617,7 +631,11 @@ async function requestPodchaser<T>(path: string, query: Record<string, string> =
   // 1,000/month budget happens (every exported function above this line
   // checks its cache first) — log it here, once, regardless of outcome, so
   // podchaser_usage_log always matches what Podchaser actually billed us for.
-  void logPodchaserUsage(actionLabelFor(path, query), path, query, response.status);
+  // userId is whoever's browser action triggered this specific call, passed
+  // down from the route handler — undefined for calls with no single user
+  // behind them (e.g. an admin bulk export attributes to the admin, but a
+  // cache-warming batch job would have none).
+  void logPodchaserUsage(actionLabelFor(path, query), path, query, response.status, userId);
 
   if (response.status === 401) {
     throw new PodchaserError("AUTH_FAILED", "Podchaser rejected the configured API key.", response.status);

@@ -69,14 +69,23 @@ function ensureTables(): Promise<void> {
         action varchar NOT NULL,
         path varchar NOT NULL,
         query jsonb,
-        status_code integer
+        status_code integer,
+        user_id varchar
       )
+    `);
+    // Added after the table already existed in some environments — IF NOT
+    // EXISTS keeps this safe to run on both fresh and already-migrated DBs.
+    await db.execute(sql`
+      ALTER TABLE podchaser_usage_log ADD COLUMN IF NOT EXISTS user_id varchar
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS podchaser_usage_log_occurred_at_idx ON podchaser_usage_log (occurred_at)
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS podchaser_usage_log_action_idx ON podchaser_usage_log (action)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS podchaser_usage_log_user_id_idx ON podchaser_usage_log (user_id)
     `);
   })());
 }
@@ -147,12 +156,13 @@ export async function logPodchaserUsage(
   path: string,
   query: Record<string, string> = {},
   statusCode: number | null = null,
+  userId?: string,
 ): Promise<void> {
   try {
     await ensureTables();
     await db.execute(sql`
-      INSERT INTO podchaser_usage_log (action, path, query, status_code)
-      VALUES (${action}, ${path}, ${JSON.stringify(query)}::jsonb, ${statusCode})
+      INSERT INTO podchaser_usage_log (action, path, query, status_code, user_id)
+      VALUES (${action}, ${path}, ${JSON.stringify(query)}::jsonb, ${statusCode}, ${userId ?? null})
     `);
   } catch (error) {
     console.error("Failed to write podchaser_usage_log row:", error);
@@ -176,6 +186,32 @@ export async function getPodchaserUsageBreakdown(sinceDays = 30): Promise<Array<
   const rows: any[] = (result as any).rows ?? [];
   return rows.map((row) => ({
     action: row.action,
+    count: Number(row.count),
+    lastOccurredAt: row.last_occurred_at,
+  }));
+}
+
+/**
+ * Per-user breakdown — "which user is taking up what" of the 1,000/month
+ * budget. Joins against the users table for email so the Financials tab
+ * doesn't just show raw ids. Rows with no user_id (system/dashboard checks,
+ * or anything logged before this column existed) are grouped under a null
+ * user and labeled "System / unattributed" on the way out.
+ */
+export async function getPodchaserUsageByUser(sinceDays = 30): Promise<Array<{ userId: string | null; email: string | null; count: number; lastOccurredAt: string }>> {
+  await ensureTables();
+  const result = await db.execute(sql`
+    SELECT l.user_id, u.email, count(*)::int AS count, max(l.occurred_at) AS last_occurred_at
+    FROM podchaser_usage_log l
+    LEFT JOIN users u ON u.id = l.user_id
+    WHERE l.occurred_at > now() - interval '1 day' * ${sinceDays}
+    GROUP BY l.user_id, u.email
+    ORDER BY count DESC
+  `);
+  const rows: any[] = (result as any).rows ?? [];
+  return rows.map((row) => ({
+    userId: row.user_id ?? null,
+    email: row.email ?? null,
     count: Number(row.count),
     lastOccurredAt: row.last_occurred_at,
   }));

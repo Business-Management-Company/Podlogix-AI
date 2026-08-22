@@ -117,7 +117,7 @@ import {
   searchPodchaserPodcasts,
   type PodchaserPodcastCandidate,
 } from "./services/podchaserGuestService";
-import { logPodchaserUsage, getPodchaserUsageBreakdown } from "./services/podchaserCache";
+import { logPodchaserUsage, getPodchaserUsageBreakdown, getPodchaserUsageByUser } from "./services/podchaserCache";
 import { getGuestPodcastPlayback } from "./services/guestPodcastPlaybackService";
 import { enrichHandleCached, getCachedEnrichment, saveEnrichment, icEnrichmentEnabled, extractIcAnalytics } from "./services/icEnrichment";
 import {
@@ -419,7 +419,7 @@ export async function registerRoutes(
       if (creatorId) {
         // Validate the id actually resolves before saving it — a typo'd or
         // stale id would otherwise silently break the appearances lookup.
-        await getPodchaserCreator(creatorId);
+        await getPodchaserCreator(creatorId, userId);
       }
       const updated = await authStorage.updateUserProfile(userId, { podchaserPersonId: creatorId });
       if (!updated) return res.status(404).json({ message: "User not found" });
@@ -3523,9 +3523,10 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         minEpisodes: z.coerce.number().int().min(0).max(1000).default(3),
       }).parse(req.query);
 
+      const exportUserId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const seen = new Map<string, PodchaserPodcastCandidate>();
       for (let page = 1; page <= input.pages; page++) {
-        const result = await searchPodchaserPodcasts(input.q, 25, page, 'power_score');
+        const result = await searchPodchaserPodcasts(input.q, 25, page, 'power_score', exportUserId);
         for (const podcast of result.podcastCandidates) seen.set(podcast.id, podcast);
         if (!result.pagination.hasMore) break;
       }
@@ -3574,9 +3575,10 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         });
       }
 
+      const probeUserId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const input = guestProbeQuerySchema.parse(req.query);
       const [podchaser, podcastIndexAppearances] = await Promise.all([
-        probePodchaserGuest(input.person, input.max),
+        probePodchaserGuest(input.person, input.max, probeUserId),
         searchPodcastIndexPersonAppearances(input.person, input.max),
       ]);
       const podchaserEpisodeTitles = new Set(podchaser.guestEpisodes.map((episode) => canonicalGuestMatch(episode.episodeTitle)));
@@ -3732,7 +3734,8 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts, podchaserQuota, podchaserUsageBreakdown] = await Promise.all([
+      const financialsUserId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts, podchaserQuota, podchaserUsageBreakdown, podchaserUsageByUser] = await Promise.all([
         (async () => {
           try {
             const apiKey = getInfluencersClubApiKey();
@@ -3810,7 +3813,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
             // request every time an admin loads this page — log it distinctly
             // from the quota checks inside probePodchaserGuest so it's clear
             // in podchaser_usage_log how much budget dashboard views alone cost.
-            void logPodchaserUsage("usage_check_dashboard", "/usage", {}, response.status);
+            void logPodchaserUsage("usage_check_dashboard", "/usage", {}, response.status, financialsUserId);
             if (!response.ok) return null;
             const raw = await response.json();
             const d = raw?.data ?? raw;
@@ -3824,6 +3827,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
           } catch { return null; }
         })(),
         getPodchaserUsageBreakdown(30).catch(() => []),
+        getPodchaserUsageByUser(30).catch(() => []),
       ]);
 
       const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
@@ -3838,6 +3842,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         openaiCosts,
         podchaserQuota,
         podchaserUsageBreakdown,
+        podchaserUsageByUser,
         estimatedMonthlyUsd: fixedTotalUsd + (openaiCosts?.monthToDateUsd ?? 0),
       });
     } catch (error) {
@@ -4388,8 +4393,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   // user chooses the correct person.
   app.get('/api/guest-discovery/search', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const input = guestDiscoverySearchSchema.parse(req.query);
-      const result = await searchPodchaserCreators(input.q, input.max, input.page, input.sort);
+      const result = await searchPodchaserCreators(input.q, input.max, input.page, input.sort, userId);
       res.json({ configured: true, ...result });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -4401,8 +4407,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/guest-discovery/podcasts', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const input = podcastDiscoverySearchSchema.parse(req.query);
-      const result = await searchPodchaserPodcasts(input.q, input.max, input.page, input.sort);
+      const result = await searchPodchaserPodcasts(input.q, input.max, input.page, input.sort, userId);
       res.json({ configured: true, ...result });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -4427,10 +4434,11 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       const { topics } = topicArtSchema.parse(req.query);
       const configured = isPodchaserConfigured();
       const art: Record<string, string[]> = {};
+      const topicArtUserId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       if (configured) {
         for (const topic of topics) {
           try {
-            const result = await searchPodchaserPodcasts(topic, 4, 1, 'power_score');
+            const result = await searchPodchaserPodcasts(topic, 4, 1, 'power_score', topicArtUserId);
             art[topic] = result.podcastCandidates.map((p) => p.imageUrl).filter((url): url is string => Boolean(url)).slice(0, 4);
           } catch (error) {
             console.error(`Topic art fetch failed for "${topic}":`, error);
@@ -4451,9 +4459,10 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/guest-discovery/podcasts/:podcastId/credits', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const podcastId = z.string().trim().min(1).max(80).parse(req.params.podcastId);
       const input = guestAppearanceSchema.parse(req.query);
-      const result = await getPodchaserPodcastCredits(podcastId, input.max);
+      const result = await getPodchaserPodcastCredits(podcastId, input.max, userId);
       res.json({ configured: true, ...result });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -4465,8 +4474,9 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/guest-discovery/creators/:creatorId', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const creatorId = z.string().trim().min(1).max(80).parse(req.params.creatorId);
-      const creator = await getPodchaserCreator(creatorId);
+      const creator = await getPodchaserCreator(creatorId, userId);
       res.json({ configured: true, creator });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -4478,9 +4488,10 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/guest-discovery/creators/:creatorId/appearances', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const creatorId = z.string().trim().min(1).max(80).parse(req.params.creatorId);
       const input = guestAppearanceSchema.parse(req.query);
-      const result = await getPodchaserGuestAppearances(creatorId, input.max);
+      const result = await getPodchaserGuestAppearances(creatorId, input.max, userId);
       res.json({ configured: true, ...result });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -4492,10 +4503,11 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/guest-discovery/creators/:creatorId/podcasts/:podcastId/playback', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const creatorId = z.string().trim().min(1).max(80).parse(req.params.creatorId);
       const podcastId = z.string().trim().min(1).max(80).parse(req.params.podcastId);
       const guestName = z.string().trim().min(1).max(240).parse(req.query.guestName);
-      const result = await getGuestPodcastPlayback(creatorId, podcastId, guestName);
+      const result = await getGuestPodcastPlayback(creatorId, podcastId, guestName, userId);
       res.json({ configured: true, ...result });
     } catch (error) {
       if (error instanceof z.ZodError) {
