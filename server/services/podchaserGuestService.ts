@@ -1,4 +1,4 @@
-import { getCachedSearch, saveCachedSearch, saveCachedPodcasts, saveCachedCreators } from "./podchaserCache";
+import { getCachedSearch, saveCachedSearch, saveCachedPodcasts, saveCachedCreators, logPodchaserUsage } from "./podchaserCache";
 
 const PODCHASER_API_BASE = "https://developers.podchaser.com/api/rest/v1";
 
@@ -578,6 +578,23 @@ export async function probePodchaserGuest(personQuery: string, max = 10): Promis
   };
 }
 
+// Turns a raw Podchaser path (+ query) into a short, stable label for
+// podchaser_usage_log — this is what answers "what triggered these
+// requests" without having to thread caller context through six exported
+// functions and every one of their call sites in routes.ts.
+function actionLabelFor(path: string, query: Record<string, string>): string {
+  if (path === "/usage") return "usage_check";
+  if (path === "/search/creators") return "creator_search";
+  if (path === "/search/podcasts") return "podcast_search";
+  if (/^\/podcasts\/[^/]+\/credits$/.test(path)) return "podcast_credits";
+  if (/^\/podcasts\/[^/]+\/socials$/.test(path)) return "podcast_socials";
+  if (/^\/podcasts\/[^/]+$/.test(path)) return "podcast_detail";
+  if (/^\/creators\/[^/]+\/episodes$/.test(path)) return "guest_episodes";
+  if (/^\/creators\/[^/]+\/podcasts$/.test(path)) return query.role === "host" ? "hosted_podcasts" : "guest_podcasts";
+  if (/^\/creators\/[^/]+$/.test(path)) return "creator_detail";
+  return "other";
+}
+
 async function requestPodchaser<T>(path: string, query: Record<string, string> = {}): Promise<T> {
   const apiKey = process.env.PODCHASER_API_KEY?.trim();
   if (!apiKey) throw new PodchaserError("NOT_CONFIGURED", "Podchaser is not configured.");
@@ -595,6 +612,12 @@ async function requestPodchaser<T>(path: string, query: Record<string, string> =
     const message = error instanceof Error ? error.message : "Unknown network error";
     throw new PodchaserError("PROVIDER_ERROR", `Could not reach Podchaser: ${message}`);
   }
+
+  // The fetch above is the only place a real request against the
+  // 1,000/month budget happens (every exported function above this line
+  // checks its cache first) — log it here, once, regardless of outcome, so
+  // podchaser_usage_log always matches what Podchaser actually billed us for.
+  void logPodchaserUsage(actionLabelFor(path, query), path, query, response.status);
 
   if (response.status === 401) {
     throw new PodchaserError("AUTH_FAILED", "Podchaser rejected the configured API key.", response.status);

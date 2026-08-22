@@ -117,6 +117,7 @@ import {
   searchPodchaserPodcasts,
   type PodchaserPodcastCandidate,
 } from "./services/podchaserGuestService";
+import { logPodchaserUsage, getPodchaserUsageBreakdown } from "./services/podchaserCache";
 import { getGuestPodcastPlayback } from "./services/guestPodcastPlaybackService";
 import { enrichHandleCached, getCachedEnrichment, saveEnrichment, icEnrichmentEnabled, extractIcAnalytics } from "./services/icEnrichment";
 import {
@@ -3731,7 +3732,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
 
   app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
     try {
-      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts, podchaserQuota] = await Promise.all([
+      const [icCredits, ffmpegConsumption, profileSlots, openaiCosts, podchaserQuota, podchaserUsageBreakdown] = await Promise.all([
         (async () => {
           try {
             const apiKey = getInfluencersClubApiKey();
@@ -3805,6 +3806,11 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
               headers: { Accept: "application/json", "x-api-key": apiKey },
               signal: AbortSignal.timeout(10_000),
             });
+            // The Financials tab's own quota check is itself an uncached real
+            // request every time an admin loads this page — log it distinctly
+            // from the quota checks inside probePodchaserGuest so it's clear
+            // in podchaser_usage_log how much budget dashboard views alone cost.
+            void logPodchaserUsage("usage_check_dashboard", "/usage", {}, response.status);
             if (!response.ok) return null;
             const raw = await response.json();
             const d = raw?.data ?? raw;
@@ -3817,6 +3823,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
             };
           } catch { return null; }
         })(),
+        getPodchaserUsageBreakdown(30).catch(() => []),
       ]);
 
       const fixedTotalUsd = FIXED_PLATFORM_SERVICES.reduce((sum, s) => sum + (s.monthlyUsd ?? 0), 0);
@@ -3830,6 +3837,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
         profileSlots,
         openaiCosts,
         podchaserQuota,
+        podchaserUsageBreakdown,
         estimatedMonthlyUsd: fixedTotalUsd + (openaiCosts?.monthToDateUsd ?? 0),
       });
     } catch (error) {
