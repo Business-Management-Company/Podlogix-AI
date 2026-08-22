@@ -65,7 +65,7 @@ export default function CreateShowScratch() {
     onSuccess: (podcast) => {
       queryClient.invalidateQueries({ queryKey: ["/api/podcasts"] });
       toast({ title: "Show created", description: "Now let's get it published." });
-      navigate(`/shows/${podcast.id}/hosting`);
+      navigate(`/shows/${podcast.id}`);
     },
     onError: (err) => {
       toast({

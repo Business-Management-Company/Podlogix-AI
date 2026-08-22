@@ -8,10 +8,12 @@ import { AppLayout } from "@/components/AppLayout";
 import { PlaceholderPage } from "@/components/kit";
 import {
   Megaphone,
-  Users,
   Briefcase,
   Library,
   Users2,
+  PlayCircle,
+  Globe,
+  DollarSign,
 } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
@@ -51,9 +53,11 @@ import EmailHub from "@/pages/EmailHub";
 import AiAssistant from "@/pages/AiAssistant";
 import VideoAnalysis from "@/pages/VideoAnalysis";
 import SocialHub from "@/pages/SocialHub";
-import ShowPromotion from "@/pages/ShowPromotion";
 import ShowOverview from "@/pages/ShowOverview";
-import ShowHosting from "@/pages/ShowHosting";
+import ShowStudio from "@/pages/ShowStudio";
+import ShowStats from "@/pages/ShowStats";
+import ShowDirectories from "@/pages/ShowDirectories";
+import ShowRssMigration from "@/pages/ShowRssMigration";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import SocialDiscover from "@/pages/SocialDiscover";
 import SocialPosts from "@/pages/SocialPosts";
@@ -77,12 +81,32 @@ import YouTubeImport from "@/pages/YouTubeImport";
 // Real destinations in the information architecture that don't have a built
 // experience yet. PlaceholderPage keeps them feeling intentional, not broken.
 
-function ShowAudiencePage() {
+function ShowPlayersPage() {
   return (
     <PlaceholderPage
-      icon={Users}
-      title="Audience"
-      description="This show's listeners, download trends, subscriber growth, and audience segments."
+      icon={PlayCircle}
+      title="Players"
+      description="Embeddable audio players for this show — drop them into your website or blog posts."
+    />
+  );
+}
+
+function ShowWebsitePage() {
+  return (
+    <PlaceholderPage
+      icon={Globe}
+      title="Website"
+      description="A hosted website for this show, built from your episodes and artwork automatically."
+    />
+  );
+}
+
+function ShowMonetizationPage() {
+  return (
+    <PlaceholderPage
+      icon={DollarSign}
+      title="Monetization"
+      description="Sponsorships, dynamic ad insertion, and listener support for this show."
     />
   );
 }
@@ -175,10 +199,13 @@ function AuthenticatedRoutes() {
         {/* TODO: filter Episodes by show — currently lists all native episodes */}
         <Route path="/shows/:id/episodes" component={Episodes} />
         <Route path="/shows/:showId/episodes/:episodeId" component={EpisodeDetail} />
-        <Route path="/shows/:id/promotion" component={ShowPromotion} />
-        <Route path="/shows/:id/distribution" component={Distribution} />
-        <Route path="/shows/:id/hosting" component={ShowHosting} />
-        <Route path="/shows/:id/audience" component={ShowAudiencePage} />
+        <Route path="/shows/:id/studio" component={ShowStudio} />
+        <Route path="/shows/:id/players" component={ShowPlayersPage} />
+        <Route path="/shows/:id/website" component={ShowWebsitePage} />
+        <Route path="/shows/:id/monetization" component={ShowMonetizationPage} />
+        <Route path="/shows/:id/stats" component={ShowStats} />
+        <Route path="/shows/:id/directories" component={ShowDirectories} />
+        <Route path="/shows/:id/rss-migration" component={ShowRssMigration} />
         <Route path="/shows/:id/settings" component={ShowSettings} />
 
         {/* ── Unlinked placeholders (later phases) ── */}
@@ -229,10 +256,10 @@ function AuthenticatedRoutes() {
           <PodcastRedirect suffix="/episodes" />
         </Route>
         <Route path="/podcasts/:id/campaigns">
-          <PodcastRedirect suffix="/promotion" />
+          <PodcastRedirect />
         </Route>
         <Route path="/podcasts/:id/audience">
-          <PodcastRedirect suffix="/audience" />
+          <PodcastRedirect />
         </Route>
         <Route path="/podcasts/:id/business">
           <PodcastRedirect />
