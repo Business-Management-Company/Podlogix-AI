@@ -4,6 +4,7 @@ export { StatusPill } from "./StatusPill";
 export { StatTile } from "./StatTile";
 export { TopStat } from "./TopStat";
 export { EmptyState } from "./EmptyState";
+export { HeaderFact } from "./HeaderFact";
 export { PlaceholderPage } from "./PlaceholderPage";
 export { SkeletonRows } from "./SkeletonRows";
 export * from "./motion";

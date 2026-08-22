@@ -9,7 +9,7 @@ import { MasterContactButton } from "@/components/guest/MasterContactButton";
 import { StarButton } from "@/components/guest/StarButton";
 import { GuestResearchSummary } from "@/components/guest/GuestResearchSummary";
 import { GuestSocialProfiles } from "@/components/guest/GuestSocialProfiles";
-import { Card, EmptyState, SectionHeader } from "@/components/kit";
+import { Card, EmptyState, HeaderFact, SectionHeader } from "@/components/kit";
 import { RevealEmailButton } from "@/components/guest/RevealEmailButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +104,7 @@ export default function Guests() {
   const [starredOnly, setStarredOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<EmailContact>>({});
+  const [editingField, setEditingField] = useState<"email" | "company" | "title" | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [selectedPodcastId, setSelectedPodcastId] = useState(() => {
@@ -181,9 +182,13 @@ export default function Guests() {
   });
 
   const updateContactMutation = useMutation({
-    mutationFn: async () => {
+    // Called two ways: no args from the buried "Save details" form (which
+    // patches the whole `draft`), or with a single-field patch from the
+    // header pencils below (mirrors EmailHub.tsx's pattern) so a header edit
+    // doesn't need to touch the rest of the draft state.
+    mutationFn: async (patch?: Partial<EmailContact>) => {
       if (!selected?.contactId) throw new Error("no contact");
-      const res = await apiRequest("PATCH", `/api/email/contacts/${selected.contactId}`, draft);
+      const res = await apiRequest("PATCH", `/api/email/contacts/${selected.contactId}`, patch ?? draft);
       if (!res.ok) throw new Error("save failed");
       return res.json();
     },
@@ -192,6 +197,7 @@ export default function Guests() {
       queryClient.invalidateQueries({ queryKey: ["/api/email/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/guest-prospects"] });
       setDraft({});
+      setEditingField(null);
       toast({ title: "Contact saved" });
     },
     onError: (error: Error) => toast({ title: "Couldn't save contact", description: error.message, variant: "destructive" }),
@@ -294,6 +300,7 @@ export default function Guests() {
   const openDrawer = (entry: GuestEntry) => {
     setSelectedId(entry.id);
     setDraft({});
+    setEditingField(null);
     setNoteDraft("");
   };
 
@@ -562,42 +569,74 @@ export default function Guests() {
                       />
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Email</p>
-                          <p className="truncate text-sm font-medium">{guestEmail(selected.contact, selected.prospect) || "Not added"}</p>
+                      {editingField === "email" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            type="email"
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={guestEmail(selected.contact, selected.prospect) || ""}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && val !== selected.contact?.email) updateContactMutation.mutate({ email: val });
+                              else setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingField(null); }}
+                          />
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Location</p>
-                          <p className="truncate text-sm font-medium">{selected.prospect?.location || "—"}</p>
+                      ) : (
+                        <HeaderFact
+                          icon={Mail}
+                          label="Email"
+                          value={guestEmail(selected.contact, selected.prospect) || "Not added"}
+                          onEdit={selected.contactId ? () => setEditingField("email") : undefined}
+                        />
+                      )}
+                      <HeaderFact icon={MapPin} label="Location" value={selected.prospect?.location || "—"} />
+                      {editingField === "company" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={selected.contact?.company || ""}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== (selected.contact?.company || "")) updateContactMutation.mutate({ company: val });
+                              else setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingField(null); }}
+                          />
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                          <Briefcase className="h-4 w-4 text-muted-foreground" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Company</p>
-                          <p className="truncate text-sm font-medium">{selected.contact?.company || "—"}</p>
+                      ) : (
+                        <HeaderFact
+                          icon={Briefcase}
+                          label="Company"
+                          value={selected.contact?.company || "—"}
+                          onEdit={selected.contactId ? () => setEditingField("company") : undefined}
+                        />
+                      )}
+                      {editingField === "title" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-primary p-2">
+                          <Input
+                            autoFocus
+                            className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                            defaultValue={selected.contact?.title || ""}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== (selected.contact?.title || "")) updateContactMutation.mutate({ title: val });
+                              else setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingField(null); }}
+                          />
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2.5 rounded-lg border p-2.5">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                          <IdCard className="h-4 w-4 text-muted-foreground" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Role</p>
-                          <p className="truncate text-sm font-medium">{selected.contact?.title || "—"}</p>
-                        </div>
-                      </div>
+                      ) : (
+                        <HeaderFact
+                          icon={IdCard}
+                          label="Role"
+                          value={selected.contact?.title || "—"}
+                          onEdit={selected.contactId ? () => setEditingField("title") : undefined}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -661,71 +700,46 @@ export default function Guests() {
                   </section>
                 ) : null}
 
-                <section>
-                  <SectionHeader title="Contact information" />
-                  <div className="space-y-2.5">
-                    {selected.contact ? (
-                      <>
-                        <label className="block space-y-1.5 text-xs font-medium text-zinc-500">
-                          Email address
-                          <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                            <Input
-                              type="email"
-                              inputMode="email"
-                              autoComplete="email"
-                              className="pl-9"
-                              value={draftValue("email")}
-                              onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                              data-testid="input-guest-contact-email"
-                            />
-                          </div>
-                        </label>
-                        <div className="grid grid-cols-2 gap-2.5">
-                          <Input
-                            placeholder="First name"
-                            value={draftValue("firstName")}
-                            onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
-                          />
-                          <Input
-                            placeholder="Last name"
-                            value={draftValue("lastName")}
-                            onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
-                          />
-                        </div>
-                        <div className="relative">
-                          <Briefcase className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                          <Input
-                            placeholder="Company"
-                            className="pl-9"
-                            value={draftValue("company")}
-                            onChange={(e) => setDraft({ ...draft, company: e.target.value })}
-                          />
-                        </div>
+                {selected.contact ? (
+                  <section>
+                    {/* Email, company, and role now live as editable fields in the
+                        header above (matching EmailHub.tsx) — this section is
+                        just first/last name, which the header doesn't cover. */}
+                    <SectionHeader title="Name" />
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <Input
-                          placeholder="Role / title"
-                          value={draftValue("title")}
-                          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                          placeholder="First name"
+                          value={draftValue("firstName")}
+                          onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
                         />
-                        {Object.keys(draft).length > 0 && (
-                          <Button
-                            size="sm"
-                            className="w-full"
-                            onClick={() => updateContactMutation.mutate()}
-                            disabled={updateContactMutation.isPending}
-                          >
-                            {updateContactMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-                            Save details
-                          </Button>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-zinc-500">
-                        Add this prospect to Master Contacts to save their contact details and notes.
-                      </p>
-                    )}
-                  </div>
-                </section>
+                        <Input
+                          placeholder="Last name"
+                          value={draftValue("lastName")}
+                          onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
+                        />
+                      </div>
+                      {Object.keys(draft).length > 0 && (
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => updateContactMutation.mutate(undefined)}
+                          disabled={updateContactMutation.isPending}
+                        >
+                          {updateContactMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                          Save name
+                        </Button>
+                      )}
+                    </div>
+                  </section>
+                ) : (
+                  <section>
+                    <SectionHeader title="Contact information" />
+                    <p className="text-sm text-zinc-500">
+                      Add this prospect to Master Contacts to save their contact details and notes.
+                    </p>
+                  </section>
+                )}
 
                 {selected.prospect?.providerPersonId ? (
                   <GuestAppearanceHistory
