@@ -318,6 +318,7 @@ export default function AdminDashboard() {
     profileSlots: { used: number; total: number } | null;
     openaiCosts: { monthToDateUsd: number } | null;
     podchaserQuota: { tier: string; quota: number | null; used: number; remaining: number | null; cycleEnd: string | null } | null;
+    podchaserUsageBreakdown: Array<{ action: string; count: number; lastOccurredAt: string }>;
     estimatedMonthlyUsd: number;
   }
 
@@ -1817,6 +1818,16 @@ export default function AdminDashboard() {
                             used={financials.podchaserQuota.used}
                             total={financials.podchaserQuota.quota}
                           />
+                        )}
+                        {financials.podchaserUsageBreakdown?.length > 0 && (
+                          <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                            {financials.podchaserUsageBreakdown.slice(0, 6).map((row) => (
+                              <li key={row.action} className="flex justify-between gap-2">
+                                <span className="truncate">{row.action.replace(/_/g, " ")}</span>
+                                <span className="font-medium text-foreground">{row.count}</span>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </CardContent>
                     </Card>

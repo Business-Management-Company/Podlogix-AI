@@ -20,6 +20,12 @@ import { db } from "../db";
  * Search results are cached 24h (metadata like this barely changes minute
  * to minute); podcast/creator records themselves never expire — a stale
  * follower count is a fine trade for not re-buying data we already have.
+ *
+ * podchaser_usage_log records every REAL request that actually left our
+ * server and hit Podchaser (i.e. every cache miss) — one row per request
+ * against the 1,000/month budget, tagged with which action triggered it.
+ * This is what lets us answer "what used up our requests this month"
+ * instead of only ever seeing the remaining balance.
  */
 
 const SEARCH_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -55,6 +61,22 @@ function ensureTables(): Promise<void> {
         payload jsonb NOT NULL,
         fetched_at timestamptz NOT NULL DEFAULT now()
       )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS podchaser_usage_log (
+        id bigserial PRIMARY KEY,
+        occurred_at timestamptz NOT NULL DEFAULT now(),
+        action varchar NOT NULL,
+        path varchar NOT NULL,
+        query jsonb,
+        status_code integer
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS podchaser_usage_log_occurred_at_idx ON podchaser_usage_log (occurred_at)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS podchaser_usage_log_action_idx ON podchaser_usage_log (action)
     `);
   })());
 }
@@ -112,4 +134,49 @@ export async function saveCachedCreators(creators: Array<{ id: string; name: str
         updated_at = now()
     `);
   }
+}
+
+/**
+ * Fire-and-forget usage log for a single real Podchaser request. Called from
+ * requestPodchaser() in podchaserGuestService.ts right after every fetch
+ * that actually reaches Podchaser (cache hits never get here, by design).
+ * Never throws — a logging failure should never take down a real request.
+ */
+export async function logPodchaserUsage(
+  action: string,
+  path: string,
+  query: Record<string, string> = {},
+  statusCode: number | null = null,
+): Promise<void> {
+  try {
+    await ensureTables();
+    await db.execute(sql`
+      INSERT INTO podchaser_usage_log (action, path, query, status_code)
+      VALUES (${action}, ${path}, ${JSON.stringify(query)}::jsonb, ${statusCode})
+    `);
+  } catch (error) {
+    console.error("Failed to write podchaser_usage_log row:", error);
+  }
+}
+
+/**
+ * Grouped counts for the Financials tab — "what used up our Podchaser
+ * requests", broken down by action, over the last N days. This is the
+ * direct answer to "I wonder what triggered those other ones."
+ */
+export async function getPodchaserUsageBreakdown(sinceDays = 30): Promise<Array<{ action: string; count: number; lastOccurredAt: string }>> {
+  await ensureTables();
+  const result = await db.execute(sql`
+    SELECT action, count(*)::int AS count, max(occurred_at) AS last_occurred_at
+    FROM podchaser_usage_log
+    WHERE occurred_at > now() - interval '1 day' * ${sinceDays}
+    GROUP BY action
+    ORDER BY count DESC
+  `);
+  const rows: any[] = (result as any).rows ?? [];
+  return rows.map((row) => ({
+    action: row.action,
+    count: Number(row.count),
+    lastOccurredAt: row.last_occurred_at,
+  }));
 }
