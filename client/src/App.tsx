@@ -32,6 +32,8 @@ import ResetPassword from "@/pages/ResetPassword";
 // ─── New architecture pages ───────────────────────────────────────────────────
 import Activity from "@/pages/Activity";
 import Shows from "@/pages/Shows";
+import CreateShowChoice from "@/pages/CreateShowChoice";
+import CreateShowScratch from "@/pages/CreateShowScratch";
 import ShowSettings from "@/pages/ShowSettings";
 import AccountSettings from "@/pages/AccountSettings";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -155,6 +157,9 @@ function AuthenticatedRoutes() {
         {/* ── Workspace ── */}
         <Route path="/today" component={Activity} />
         <Route path="/shows" component={Shows} />
+        {/* Must precede /shows/:id so "new" isn't captured as a show id */}
+        <Route path="/shows/new" component={CreateShowChoice} />
+        <Route path="/shows/new/create" component={CreateShowScratch} />
         <Route path="/contacts" component={ContactsPage} />
         <Route path="/email" component={EmailPage} />
         {/* TODO: filter Episodes by show — currently lists all native episodes */}
