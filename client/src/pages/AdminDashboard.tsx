@@ -319,6 +319,7 @@ export default function AdminDashboard() {
     openaiCosts: { monthToDateUsd: number } | null;
     podchaserQuota: { tier: string; quota: number | null; used: number; remaining: number | null; cycleEnd: string | null } | null;
     podchaserUsageBreakdown: Array<{ action: string; count: number; lastOccurredAt: string }>;
+    podchaserUsageByUser: Array<{ userId: string | null; email: string | null; count: number; lastOccurredAt: string }>;
     estimatedMonthlyUsd: number;
   }
 
@@ -1828,6 +1829,19 @@ export default function AdminDashboard() {
                               </li>
                             ))}
                           </ul>
+                        )}
+                        {financials.podchaserUsageByUser?.length > 0 && (
+                          <>
+                            <p className="mt-3 text-xs font-medium text-foreground">By user (30d)</p>
+                            <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                              {financials.podchaserUsageByUser.slice(0, 6).map((row) => (
+                                <li key={row.userId ?? "system"} className="flex justify-between gap-2">
+                                  <span className="truncate">{row.email ?? "System / unattributed"}</span>
+                                  <span className="font-medium text-foreground">{row.count}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
                         )}
                       </CardContent>
                     </Card>

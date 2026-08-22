@@ -39,9 +39,10 @@ export async function getGuestPodcastPlayback(
   creatorId: string,
   podcastId: string,
   guestName: string,
+  userId?: string,
 ): Promise<GuestPodcastPlaybackResult> {
   const creator = { name: guestName, informalName: null };
-  const appearances = await getPodchaserGuestAppearances(creatorId, 10);
+  const appearances = await getPodchaserGuestAppearances(creatorId, 10, userId);
   const podcast = appearances.guestPodcasts.find((item) => item.podcastId === podcastId);
   const verifiedEpisodes = appearances.guestEpisodes.filter((episode) => episode.podcastId === podcastId);
   const podcastTitle = podcast?.podcastTitle ?? verifiedEpisodes[0]?.podcastTitle ?? "Unknown podcast";
