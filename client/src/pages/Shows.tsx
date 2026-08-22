@@ -118,7 +118,7 @@ export default function Shows() {
             icon={Mic}
             title="No shows yet"
             description="Add your first show by importing its RSS feed or connecting your podcast host."
-            action={{ label: "Add a show", href: "/dashboard/rss" }}
+            action={{ label: "Add a show", href: "/shows/new" }}
           />
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:max-w-2xl">
@@ -151,7 +151,7 @@ export default function Shows() {
             ))}
 
             {/* Add a show */}
-            <Link href="/dashboard/rss">
+            <Link href="/shows/new">
               <Card
                 tone="dashed"
                 interactive
