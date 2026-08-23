@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Copy, Check } from "lucide-react";
+import { RefreshCw, Copy, Check, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/kit";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export default function ShowRssMigration() {
   const { id } = useParams<{ id: string }>();
   const [currentFeedUrl, setCurrentFeedUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showNextSteps, setShowNextSteps] = useState(false);
 
   const { data: podcast } = useQuery<Podcast>({
     queryKey: ["/api/podcasts", id],
@@ -90,10 +91,42 @@ export default function ShowRssMigration() {
           losing ratings or reviews.
         </p>
 
-        <Button className="w-full" disabled={!currentFeedUrl || !destinationUrl}>
+        <Button
+          className="w-full"
+          disabled={!currentFeedUrl || !destinationUrl}
+          onClick={() => setShowNextSteps(true)}
+        >
           Continue
         </Button>
       </Card>
+
+      {showNextSteps && (
+        <Card padding="lg" className="mt-4 space-y-3">
+          <p className="text-sm font-medium text-zinc-950">Next: redirect your old feed</p>
+          <ol className="space-y-2 text-sm text-zinc-600">
+            <li className="flex gap-2">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-zinc-300" />
+              Log in to your current podcast host ({currentFeedUrl ? new URL(currentFeedUrl).hostname : "your host"}).
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-zinc-300" />
+              Find their <strong>Feed Redirect</strong>, <strong>RSS Migration</strong>, or <strong>Podcast Import</strong> settings.
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-zinc-300" />
+              Paste your new Podlogix feed URL as the redirect destination:
+              <code className="ml-1 break-all rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700">{destinationUrl}</code>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-zinc-300" />
+              Save and confirm. Apple Podcasts, Spotify, and other apps will follow the 301 redirect automatically within 24–48 hours.
+            </li>
+          </ol>
+          <p className="text-xs text-zinc-400">
+            Need help? Most major hosts (Buzzsprout, Podbean, Anchor) have dedicated migration guides in their support docs.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }
