@@ -18,7 +18,6 @@ export default function ShowStudio() {
   const { id } = useParams<{ id: string }>();
   const [intro, setIntro] = useState("");
   const [main, setMain] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
 
   const { data: podcast, isLoading } = useQuery<Podcast>({
     queryKey: ["/api/podcasts", id],
@@ -92,20 +91,21 @@ export default function ShowStudio() {
             </div>
             <Button
               className="w-full max-w-xs"
-              onClick={() => setIsRecording((r) => !r)}
-              variant={isRecording ? "destructive" : "default"}
+              disabled
+              variant="default"
             >
               <PlayCircle size={15} className="mr-1.5" />
-              {isRecording ? "Stop Recording" : "Start Recording"}
+              Start Recording
             </Button>
             <div className="flex w-full max-w-xs items-center gap-2 text-xs text-zinc-400">
               <div className="h-px flex-1 bg-zinc-200" />
               OR UPLOAD
               <div className="h-px flex-1 bg-zinc-200" />
             </div>
-            <Button variant="outline" className="w-full max-w-xs gap-1.5">
+            <Button variant="outline" className="w-full max-w-xs gap-1.5" disabled>
               <UploadCloud size={14} /> Upload audio file
             </Button>
+            <p className="text-xs text-zinc-400">Recording and upload coming soon.</p>
           </Card>
         </section>
       </div>
