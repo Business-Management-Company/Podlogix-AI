@@ -136,8 +136,8 @@ export default function ShowOverview() {
         <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-4 sm:divide-y-0">
           <TopStat label="Episodes" value={String(episodes.length)} icon={Mic} href={`/shows/${id}/episodes`} />
           <TopStat label="Published" value={String(publishedCount)} icon={CheckCircle2} href={`/shows/${id}/episodes`} />
-          <TopStat label="Live channels" value={String(liveChannels)} icon={Radio} href={`/shows/${id}/distribution`} />
-          <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href={`/shows/${id}/promotion`} />
+          <TopStat label="Live channels" value={String(liveChannels)} icon={Radio} href={`/shows/${id}/directories`} />
+          <TopStat label="Followers" value={totalFollowers.toLocaleString()} icon={Share2} href={`/shows/${id}/stats`} />
         </Card>
       </section>
 
@@ -199,7 +199,7 @@ export default function ShowOverview() {
       </section>
 
       <section className="mt-6">
-        <SectionHeader title="Distribution" action={{ label: "Manage", href: `/shows/${id}/distribution` }} />
+        <SectionHeader title="Directories" action={{ label: "Manage", href: `/shows/${id}/directories` }} />
         {!channels || !submissions ? (
           <Skeleton className="h-24 rounded-xl" />
         ) : (

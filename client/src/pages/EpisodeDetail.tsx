@@ -361,7 +361,7 @@ function PublishTab({ episode, showId }: { episode: EpisodeView; showId?: string
       <div>
         <SectionHeader title="Destinations" />
         {showId ? (
-          <Link href={`/shows/${showId}/distribution`}>
+          <Link href={`/shows/${showId}/directories`}>
             <Card interactive padding="md" className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[13px] font-medium text-zinc-950">Manage where this show is live</p>
