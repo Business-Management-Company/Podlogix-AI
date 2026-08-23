@@ -172,6 +172,12 @@ function PodcastRedirect({ suffix = "" }: { suffix?: string }) {
   return <Redirect to={`/shows/${params.id}${suffix}`} replace />;
 }
 
+/** Redirects a removed show-scoped tab to another tab on the same show. */
+function ShowTabRedirect({ to = "" }: { to?: string }) {
+  const params = useParams<{ id: string }>();
+  return <Redirect to={`/shows/${params.id}${to}`} replace />;
+}
+
 // ─── Authenticated routes ─────────────────────────────────────────────────────
 
 function AuthenticatedRoutes() {
@@ -207,6 +213,20 @@ function AuthenticatedRoutes() {
         <Route path="/shows/:id/directories" component={ShowDirectories} />
         <Route path="/shows/:id/rss-migration" component={ShowRssMigration} />
         <Route path="/shows/:id/settings" component={ShowSettings} />
+
+        {/* ── Redirects: removed show tabs → Overview or replacement ── */}
+        <Route path="/shows/:id/promotion">
+          <ShowTabRedirect />
+        </Route>
+        <Route path="/shows/:id/distribution">
+          <ShowTabRedirect to="/directories" />
+        </Route>
+        <Route path="/shows/:id/hosting">
+          <ShowTabRedirect />
+        </Route>
+        <Route path="/shows/:id/audience">
+          <ShowTabRedirect />
+        </Route>
 
         {/* ── Unlinked placeholders (later phases) ── */}
         <Route path="/campaigns" component={CampaignsPage} />

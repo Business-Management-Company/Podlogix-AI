@@ -1697,22 +1697,24 @@ export async function registerRoutes(
 
   app.get('/api/podcasts/:id', isAuthenticated, async (req: any, res) => {
     const podcast = await storage.getPodcast(req.params.id);
-    if (!podcast) {
-      return res.status(404).json({ message: 'Podcast not found' });
-    }
+    if (!podcast) return res.status(404).json({ message: 'Podcast not found' });
+    if (podcast.userId !== req.session.userId) return res.status(403).json({ message: 'Not your podcast' });
     res.json(podcast);
   });
 
   app.patch('/api/podcasts/:id', isAuthenticated, async (req: any, res) => {
+    const podcast = await storage.getPodcast(req.params.id);
+    if (!podcast) return res.status(404).json({ message: 'Podcast not found' });
+    if (podcast.userId !== req.session.userId) return res.status(403).json({ message: 'Not your podcast' });
     const updated = await storage.updatePodcast(req.params.id, req.body);
-    if (!updated) {
-      return res.status(404).json({ message: 'Podcast not found' });
-    }
     res.json(updated);
   });
 
   // RSS endpoints
   app.get('/api/podcasts/:podcastId/rss', isAuthenticated, async (req: any, res) => {
+    const podcast = await storage.getPodcast(req.params.podcastId);
+    if (!podcast) return res.status(404).json({ message: 'Podcast not found' });
+    if (podcast.userId !== req.session.userId) return res.status(403).json({ message: 'Not your podcast' });
     const feeds = await storage.getRssFeedsByPodcast(req.params.podcastId);
     res.json(feeds);
   });
@@ -1940,12 +1942,18 @@ export async function registerRoutes(
   });
 
   app.get('/api/podcasts/:podcastId/distribution', isAuthenticated, async (req: any, res) => {
+    const podcast = await storage.getPodcast(req.params.podcastId);
+    if (!podcast) return res.status(404).json({ message: 'Podcast not found' });
+    if (podcast.userId !== req.session.userId) return res.status(403).json({ message: 'Not your podcast' });
     const submissions = await storage.getChannelSubmissions(req.params.podcastId);
     res.json(submissions);
   });
 
   app.post('/api/podcasts/:podcastId/distribution/:channelId', isAuthenticated, async (req: any, res) => {
     const { podcastId, channelId } = req.params;
+    const podcast = await storage.getPodcast(podcastId);
+    if (!podcast) return res.status(404).json({ message: 'Podcast not found' });
+    if (podcast.userId !== req.session.userId) return res.status(403).json({ message: 'Not your podcast' });
     // Create or update submission (simulated)
     const submission = await storage.createChannelSubmission({
       podcastId,
