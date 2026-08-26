@@ -42,7 +42,7 @@ export default function ShowStats() {
     retry: false,
   });
 
-  const { data: stats, isLoading: statsLoading } = useQuery<PodcastStats>({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<PodcastStats>({
     queryKey: ["/api/podcasts", id, "stats", WINDOW_DAYS],
     queryFn: async () => {
       const res = await fetch(`/api/podcasts/${id}/stats?days=${WINDOW_DAYS}`);
@@ -63,15 +63,19 @@ export default function ShowStats() {
   }, [stats]);
 
   // Fill the full window with zero-days so the chart has a continuous x-axis.
+  // Server buckets days in UTC, so keys AND labels must both be UTC — mixing
+  // in the browser zone shifts data onto the wrong label west of UTC.
   const chartData = useMemo(() => {
     const byDay = new Map((stats?.byDay ?? []).map((d) => [d.day, d.downloads]));
     const out: Array<{ date: string; downloads: number }> = [];
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
     for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+      const d = new Date(todayUtc);
+      d.setUTCDate(d.getUTCDate() - i);
       const key = d.toISOString().slice(0, 10);
       out.push({
-        date: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }),
         downloads: byDay.get(key) ?? 0,
       });
     }
@@ -105,19 +109,19 @@ export default function ShowStats() {
           <Card className="grid grid-cols-2 divide-x divide-y divide-zinc-100 overflow-hidden sm:grid-cols-4 sm:divide-y-0">
             <StatCell
               label="Downloads"
-              value={(totals?.downloads ?? 0).toLocaleString()}
-              delta={deltaLabel}
+              value={statsError ? "—" : (totals?.downloads ?? 0).toLocaleString()}
+              delta={statsError ? "Stats unavailable right now" : deltaLabel}
               icon={Download}
             />
             <StatCell
               label="Unique Listeners"
-              value={(totals?.uniqueListeners ?? 0).toLocaleString()}
-              delta="Distinct devices, last 30 days"
+              value={statsError ? "—" : (totals?.uniqueListeners ?? 0).toLocaleString()}
+              delta="Unique listener-days, last 30 days"
               icon={Users}
             />
             <StatCell
               label="Feed Requests"
-              value={(totals?.feedHits ?? 0).toLocaleString()}
+              value={statsError ? "—" : (totals?.feedHits ?? 0).toLocaleString()}
               delta="Apps polling your RSS feed"
               icon={Rss}
             />

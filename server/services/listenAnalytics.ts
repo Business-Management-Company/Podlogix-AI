@@ -72,7 +72,9 @@ export function recordListenEvent(event: {
       kind: event.kind,
       app: parseListeningApp(ua),
       userAgent: ua || null,
-      listenerHash: listenerHash(event.ip, ua),
+      // Only downloads feed unique-listener counts; skip the derived
+      // identifier for feed polls so we retain no more than we use.
+      listenerHash: event.kind === "download" ? listenerHash(event.ip, ua) : null,
     })
     .catch((err: unknown) => console.error("listen_events insert failed:", err));
 }
@@ -129,7 +131,8 @@ export async function getPodcastStats(podcastId: string, windowDays: number): Pr
     await db.execute(sql`
       SELECT episode_id, count(*)::int AS downloads, count(DISTINCT listener_hash)::int AS unique_listeners
       FROM listen_events
-      WHERE podcast_id = ${podcastId} AND kind = 'download' AND episode_id IS NOT NULL
+      WHERE podcast_id = ${podcastId} AND kind = 'download'
+        AND episode_id IS NOT NULL AND created_at >= ${since}
       GROUP BY 1
     `)
   ).rows as any[];
