@@ -40,6 +40,22 @@ function absoluteUrl(pathOrUrl: string | null | undefined, baseUrl: string): str
   return `${baseUrl.replace(/\/$/, "")}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
 }
 
+/** Apple requires enclosure URLs to end in a real file extension. */
+function enclosureFilename(mimeType: string | null | undefined): string {
+  const ext =
+    {
+      "audio/mpeg": "mp3",
+      "audio/mp3": "mp3",
+      "audio/mp4": "m4a",
+      "audio/x-m4a": "m4a",
+      "audio/aac": "aac",
+      "audio/wav": "wav",
+      "audio/x-wav": "wav",
+      "audio/ogg": "ogg",
+    }[mimeType || "audio/mpeg"] || "mp3";
+  return `media.${ext}`;
+}
+
 export function generatePodcastFeedXml(
   podcast: Podcast,
   publishedEpisodes: Episode[],
@@ -54,7 +70,9 @@ export function generatePodcastFeedXml(
   const itemsXml = publishedEpisodes
     .filter((ep) => ep.audioUrl) // an item without an enclosure is invalid
     .map((ep) => {
-      const audio = absoluteUrl(ep.audioUrl, baseUrl)!;
+      // Enclosures route through /e/:episodeId so every download is counted
+      // before a 302 to the actual file (see the tracked enclosure route).
+      const audio = `${baseUrl.replace(/\/$/, "")}/e/${ep.id}/${enclosureFilename(ep.mimeType)}`;
       const epArtwork = absoluteUrl(ep.artworkUrl, baseUrl);
       const duration = formatDuration(ep.durationSeconds);
       const pubDate = (ep.publishedAt ?? ep.createdAt ?? new Date()).toUTCString();
