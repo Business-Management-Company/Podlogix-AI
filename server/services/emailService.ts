@@ -1,9 +1,17 @@
-// Email service using Resend integration (connection:conn_resend_01KFE51C5FCFKKVDNWAZ87Q7TS)
+// Email service via Resend. Credentials come from RESEND_API_KEY (Vercel and
+// local .env); the legacy Replit connector below is only a fallback for the
+// old Replit deployment and is unreachable everywhere else.
 import { Resend } from 'resend';
 
 let connectionSettings: any;
 
 async function getCredentials() {
+  if (process.env.RESEND_API_KEY) {
+    return {
+      apiKey: process.env.RESEND_API_KEY,
+      fromEmail: process.env.RESEND_FROM_EMAIL || 'Podlogix <notifications@podlogix.io>',
+    };
+  }
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 

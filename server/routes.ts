@@ -5,7 +5,6 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
 import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession } from "./services/livekitService";
-import bcrypt from "bcryptjs";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -430,35 +429,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: error.errors[0]?.message || "Invalid request" });
       }
       return sendPodchaserRouteError(res, error);
-    }
-  });
-
-  // POST /api/user/change-password — change own password (requires current password)
-  app.post("/api/user/change-password", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
-      if (!userId) return res.status(401).json({ message: "Unauthorized" });
-      const { currentPassword, newPassword } = req.body ?? {};
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ message: "currentPassword and newPassword are required" });
-      }
-      if (newPassword.length < 8) {
-        return res.status(400).json({ message: "Password must be at least 8 characters" });
-      }
-      const user = await authStorage.getUser(userId);
-      if (!user?.passwordHash) {
-        return res.status(400).json({ message: "No password set on this account" });
-      }
-      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-      if (!valid) {
-        return res.status(401).json({ message: "Current password is incorrect" });
-      }
-      const newHash = await bcrypt.hash(newPassword, 10);
-      await authStorage.setPassword(userId, newHash);
-      res.json({ message: "Password changed successfully" });
-    } catch (err) {
-      console.error("Error changing password:", err);
-      res.status(500).json({ message: "Failed to change password" });
     }
   });
 

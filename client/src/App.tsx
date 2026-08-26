@@ -28,8 +28,6 @@ import Terms from "@/pages/Terms";
 import PublicProfile from "@/pages/PublicProfile";
 import StudioGuest from "@/pages/StudioGuest";
 import Facet from "@/pages/Facet";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
 
 // ─── New architecture pages ───────────────────────────────────────────────────
 import Activity from "@/pages/Activity";
@@ -337,8 +335,6 @@ function PublicRoutes() {
       <Route path="/certificate/:id" component={Certificate} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
-      <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/reset-password" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -360,8 +356,6 @@ function Router() {
     "/voice-certification",
     "/privacy",
     "/terms",
-    "/forgot-password",
-    "/reset-password",
     "/studio/guest",
   ];
 

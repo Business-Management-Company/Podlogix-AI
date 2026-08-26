@@ -312,6 +312,22 @@ export const episodes = pgTable("episodes", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// One-time login codes for passwordless email sign-in. Only the sha256 of the
+// code is stored; rows are single-use and expire after 10 minutes.
+export const loginCodes = pgTable(
+  "login_codes",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    email: varchar("email").notNull(),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => [index("login_codes_email_idx").on(t.email, t.createdAt)],
+);
+
 // Listen events — one row per tracked feed fetch or audio download on hosted
 // feeds. Raw IPs are never stored; listener_hash is a daily-salted digest so
 // unique-listener counts work without retaining anything identifying.

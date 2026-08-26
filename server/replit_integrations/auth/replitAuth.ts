@@ -2,11 +2,10 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "../../db";
-import { adminDevDocuments } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { adminDevDocuments, loginCodes } from "@shared/schema";
+import { eq, and, gte, desc, isNull, sql as dsql } from "drizzle-orm";
 import crypto from "crypto";
 import { Resend } from "resend";
 
@@ -41,7 +40,9 @@ export function getSession() {
 
 const SUPERADMIN_EMAIL = "andrew@podlogix.co";
 
-async function ensureSuperadminPassword() {
+// Auth is passwordless (email codes + OAuth) — this only guarantees the
+// superadmin account exists and holds the superadmin role.
+async function ensureSuperadminAccount() {
   try {
     let superadmin = await authStorage.getUserByEmail(SUPERADMIN_EMAIL);
 
@@ -55,32 +56,21 @@ async function ensureSuperadminPassword() {
     }
 
     if (superadmin) {
-      if (!superadmin.passwordHash) {
-        const hash = await bcrypt.hash("Podlogix2024!", 10);
-        await authStorage.setPassword(superadmin.id, hash);
-        console.log("[Auth] Set default password for superadmin account");
-      }
       if (superadmin.role !== "superadmin") {
         await authStorage.updateUserRole(superadmin.id, "superadmin");
         console.log("[Auth] Restored superadmin role");
       }
     } else {
-      // Create fresh superadmin account at .co address
-      const hash = await bcrypt.hash("Podlogix2024!", 10);
-      await authStorage.createUserWithPassword({
+      const created = await authStorage.createUserWithEmail({
         email: SUPERADMIN_EMAIL,
-        passwordHash: hash,
         firstName: "Andrew",
         lastName: "Appleton",
       });
-      const created = await authStorage.getUserByEmail(SUPERADMIN_EMAIL);
-      if (created) {
-        await authStorage.updateUserRole(created.id, "superadmin");
-        console.log("[Auth] Created superadmin account for", SUPERADMIN_EMAIL);
-      }
+      await authStorage.updateUserRole(created.id, "superadmin");
+      console.log("[Auth] Created superadmin account for", SUPERADMIN_EMAIL);
     }
   } catch (err) {
-    console.error("[Auth] Failed to ensure superadmin password:", err);
+    console.error("[Auth] Failed to ensure superadmin account:", err);
   }
 }
 
@@ -355,117 +345,169 @@ export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
 
-  await ensureSuperadminPassword();
+  await ensureSuperadminAccount();
   await seedBuildPlanDocument();
 
-  const signupSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(6),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
+  // ── Passwordless email sign-in ─────────────────────────────────────────────
+  // One flow for login AND account creation: enter email → receive a 6-digit
+  // code → verify. OAuth (Google) bypasses the code entirely. Passwords are
+  // gone — the old /signup, /login, /forgot-password, /reset-password
+  // endpoints were removed with them.
+
+  const CODE_TTL_MS = 10 * 60 * 1000; // codes live 10 minutes
+  const CODE_RATE_WINDOW_MS = 15 * 60 * 1000;
+  const CODE_RATE_MAX = 5; // max codes per email per window
+  const CODE_MAX_ATTEMPTS = 5; // wrong guesses before the code is dead
+
+  const hashLoginCode = (code: string) =>
+    crypto.createHash("sha256").update(code).digest("hex");
+
+  const publicUser = (user: any) => ({
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    profileImageUrl: user.profileImageUrl,
+    phone: user.phone,
+    zipCode: user.zipCode,
+    bio: user.bio,
+    podchaserPersonId: user.podchaserPersonId,
+    role: user.role,
   });
 
-  const loginSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(1),
-  });
-
-  app.post("/api/auth/signup", async (req, res) => {
+  async function sendLoginCodeEmail(to: string, code: string): Promise<boolean> {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      if (process.env.NODE_ENV !== "production") {
+        // Dev fallback: print the code to server logs
+        console.log(`[Auth] Login code for ${to}: ${code}`);
+        return true;
+      }
+      console.error("[Auth] RESEND_API_KEY not set — cannot send login codes");
+      return false;
+    }
     try {
-      const parsed = signupSchema.safeParse(req.body);
+      const resend = new Resend(apiKey);
+      await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || "Podlogix <no-reply@podlogix.io>",
+        to,
+        subject: `${code} is your Podlogix sign-in code`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+            <img src="https://podlogix.io/favicon.ico" width="40" style="margin-bottom:16px;border-radius:8px;" />
+            <h2 style="margin:0 0 8px;color:#111;font-size:22px;">Your sign-in code</h2>
+            <p style="color:#555;margin:0 0 24px;">Enter this code to sign in to Podlogix. It expires in 10 minutes.</p>
+            <div style="font-size:34px;font-weight:700;letter-spacing:8px;color:#111;background:#f4f4f5;border-radius:8px;padding:16px 24px;text-align:center;">${code}</div>
+            <p style="color:#999;font-size:12px;margin:24px 0 0;">If you didn't request this, you can safely ignore this email — no one can sign in without the code.</p>
+          </div>
+        `,
+        text: `Your Podlogix sign-in code is ${code}. It expires in 10 minutes. If you didn't request this, ignore this email.`,
+      });
+      return true;
+    } catch (err) {
+      console.error("[Auth] Failed to send login code email:", err);
+      return false;
+    }
+  }
+
+  app.post("/api/auth/request-code", async (req, res) => {
+    try {
+      const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid input", details: parsed.error.format() });
+        return res.status(400).json({ message: "Please enter a valid email address" });
+      }
+      const email = parsed.data.email.toLowerCase().trim();
+
+      const windowStart = new Date(Date.now() - CODE_RATE_WINDOW_MS);
+      const [{ count }] = (
+        await db
+          .select({ count: dsql<number>`count(*)::int` })
+          .from(loginCodes)
+          .where(and(eq(loginCodes.email, email), gte(loginCodes.createdAt, windowStart)))
+      ) as any[];
+      if (count >= CODE_RATE_MAX) {
+        return res.status(429).json({ message: "Too many codes requested. Please wait a few minutes and try again." });
       }
 
-      const { email, password, firstName, lastName } = parsed.data;
-
-      const existingUser = await authStorage.getUserByEmail(email);
-      if (existingUser) {
-        if (existingUser.passwordHash) {
-          return res.status(409).json({ message: "An account with this email already exists. Please log in." });
-        }
-        const passwordHash = await bcrypt.hash(password, 10);
-        const updatedUser = await authStorage.setPassword(existingUser.id, passwordHash);
-        req.session.userId = existingUser.id;
-        return res.json({
-          id: updatedUser!.id,
-          email: updatedUser!.email,
-          firstName: updatedUser!.firstName,
-          lastName: updatedUser!.lastName,
-          profileImageUrl: updatedUser!.profileImageUrl,
-          phone: updatedUser!.phone,
-          zipCode: updatedUser!.zipCode,
-          bio: updatedUser!.bio,
-          role: updatedUser!.role,
-        });
-      }
-
-      const passwordHash = await bcrypt.hash(password, 10);
-      const user = await authStorage.createUserWithPassword({
+      const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+      await db.insert(loginCodes).values({
         email,
-        passwordHash,
-        firstName,
-        lastName,
+        codeHash: hashLoginCode(code),
+        expiresAt: new Date(Date.now() + CODE_TTL_MS),
       });
 
-      req.session.userId = user.id;
-      res.json({
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        profileImageUrl: user.profileImageUrl,
-        phone: user.phone,
-        zipCode: user.zipCode,
-        bio: user.bio,
-        podchaserPersonId: user.podchaserPersonId,
-        role: user.role,
-      });
+      const sent = await sendLoginCodeEmail(email, code);
+      if (!sent) {
+        return res.status(500).json({ message: "Couldn't send the code. Please try again." });
+      }
+
+      const user = await authStorage.getUserByEmail(email);
+      res.json({ message: "Code sent", isNewUser: !user });
     } catch (error) {
-      console.error("Signup error:", error);
-      res.status(500).json({ message: "Failed to create account" });
+      console.error("Request code error:", error);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/verify-code", async (req, res) => {
     try {
-      const parsed = loginSchema.safeParse(req.body);
+      const parsed = z
+        .object({
+          email: z.string().email(),
+          code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
+          firstName: z.string().trim().min(1).max(80).optional(),
+          lastName: z.string().trim().min(1).max(80).optional(),
+        })
+        .safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid input" });
       }
+      const email = parsed.data.email.toLowerCase().trim();
+      const { code, firstName, lastName } = parsed.data;
 
-      const { email, password } = parsed.data;
+      const [row] = await db
+        .select()
+        .from(loginCodes)
+        .where(
+          and(
+            eq(loginCodes.email, email),
+            isNull(loginCodes.consumedAt),
+            gte(loginCodes.expiresAt, new Date()),
+          ),
+        )
+        .orderBy(desc(loginCodes.createdAt))
+        .limit(1);
 
-      const user = await authStorage.getUserByEmail(email);
-      if (!user || !user.passwordHash) {
-        return res.status(401).json({ message: "Invalid email or password" });
+      if (!row) {
+        return res.status(400).json({ message: "That code has expired. Request a new one." });
+      }
+      if (row.attempts >= CODE_MAX_ATTEMPTS) {
+        return res.status(429).json({ message: "Too many incorrect attempts. Request a new code." });
+      }
+      if (row.codeHash !== hashLoginCode(code)) {
+        await db
+          .update(loginCodes)
+          .set({ attempts: row.attempts + 1 })
+          .where(eq(loginCodes.id, row.id));
+        return res.status(401).json({ message: "Incorrect code. Please check and try again." });
       }
 
-      if (user.isActive === "false") {
-        return res.status(403).json({ message: "Your account has been suspended" });
-      }
+      await db.update(loginCodes).set({ consumedAt: new Date() }).where(eq(loginCodes.id, row.id));
 
-      const valid = await bcrypt.compare(password, user.passwordHash);
-      if (!valid) {
-        return res.status(401).json({ message: "Invalid email or password" });
+      let user = await authStorage.getUserByEmail(email);
+      if (user) {
+        if (user.isActive === "false") {
+          return res.status(403).json({ message: "Your account has been suspended" });
+        }
+      } else {
+        user = await authStorage.createUserWithEmail({ email, firstName, lastName });
       }
 
       req.session.userId = user.id;
-      res.json({
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        profileImageUrl: user.profileImageUrl,
-        phone: user.phone,
-        zipCode: user.zipCode,
-        bio: user.bio,
-        podchaserPersonId: user.podchaserPersonId,
-        role: user.role,
-      });
+      res.json(publicUser(user));
     } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Failed to log in" });
+      console.error("Verify code error:", error);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
 
@@ -494,115 +536,6 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
-
-  // ── Forgot / reset password ───────────────────────────────────────────────
-  const RESET_SECRET = process.env.SESSION_SECRET || "reset-secret-change-me";
-  const RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
-
-  function generateResetToken(userId: string, email: string): string {
-    const expiry = Date.now() + RESET_EXPIRY_MS;
-    // Use | as separator — dots appear in email domains and break split-based parsing.
-    const payload = `${userId}|${email}|${expiry}`;
-    const sig = crypto.createHmac("sha256", RESET_SECRET).update(payload).digest("hex");
-    return Buffer.from(`${payload}|${sig}`).toString("base64url");
-  }
-
-  function verifyResetToken(token: string): { userId: string; email: string } | null {
-    try {
-      const decoded = Buffer.from(token, "base64url").toString("utf8");
-      // Split on | — avoids collisions with dots in email domains.
-      const parts = decoded.split("|");
-      if (parts.length !== 4) return null;
-      const [userId, email, expiryStr, sig] = parts;
-      const expiry = Number(expiryStr);
-      if (isNaN(expiry) || Date.now() > expiry) return null;
-      const payload = `${userId}|${email}|${expiry}`;
-      const expected = crypto.createHmac("sha256", RESET_SECRET).update(payload).digest("hex");
-      if (sig !== expected) return null;
-      return { userId, email };
-    } catch {
-      return null;
-    }
-  }
-
-  async function sendResetEmail(to: string, token: string): Promise<boolean> {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      // Dev fallback: print the reset link to server logs
-      const link = `${process.env.APP_URL || "https://podlogix.io"}/reset-password?token=${token}`;
-      console.log(`[Auth] Password reset link for ${to}: ${link}`);
-      return true;
-    }
-    const from = "Podlogix <no-reply@podlogix.io>";
-    try {
-      const resend = new Resend(apiKey);
-      const link = `${process.env.APP_URL || "https://podlogix.io"}/reset-password?token=${token}`;
-      const result = await resend.emails.send({
-        from,
-        to,
-        subject: "Reset your Podlogix password",
-        html: `
-          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-            <img src="https://podlogix.io/favicon.ico" width="40" style="margin-bottom:16px;border-radius:8px;" />
-            <h2 style="margin:0 0 8px;color:#111;font-size:22px;">Reset your password</h2>
-            <p style="color:#555;margin:0 0 24px;">Click the button below to set a new password. This link expires in 1 hour.</p>
-            <a href="${link}" style="display:inline-block;background:#e85d26;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Reset password</a>
-            <p style="color:#999;font-size:12px;margin:24px 0 0;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
-          </div>
-        `,
-        text: `Reset your Podlogix password by visiting this link (expires in 1 hour):\n\n${link}`,
-      });
-      return true;
-    } catch (err: any) {
-      console.error("[Auth] Failed to send reset email:", err);
-      return false;
-    }
-  }
-
-  app.post("/api/auth/forgot-password", async (req, res) => {
-    try {
-      const { email } = req.body ?? {};
-      if (!email || typeof email !== "string") {
-        return res.status(400).json({ message: "Email is required" });
-      }
-      // Always respond with success to prevent email enumeration
-      const user = await authStorage.getUserByEmail(email.toLowerCase().trim());
-      if (user) {
-        const token = generateResetToken(user.id, user.email!);
-        await sendResetEmail(user.email!, token);
-      }
-      res.json({ message: "If an account with that email exists, a reset link has been sent." });
-    } catch (err) {
-      console.error("Forgot password error:", err);
-      res.status(500).json({ message: "Something went wrong. Please try again." });
-    }
-  });
-
-  app.post("/api/auth/reset-password", async (req, res) => {
-    try {
-      const { token, password } = req.body ?? {};
-      if (!token || !password) {
-        return res.status(400).json({ message: "Token and password are required" });
-      }
-      if (password.length < 8) {
-        return res.status(400).json({ message: "Password must be at least 8 characters" });
-      }
-      const payload = verifyResetToken(token);
-      if (!payload) {
-        return res.status(400).json({ message: "This reset link is invalid or has expired. Please request a new one." });
-      }
-      const user = await authStorage.getUser(payload.userId);
-      if (!user) {
-        return res.status(400).json({ message: "Account not found" });
-      }
-      const hash = await bcrypt.hash(password, 10);
-      await authStorage.setPassword(user.id, hash);
-      res.json({ message: "Password updated successfully. You can now log in." });
-    } catch (err) {
-      console.error("Reset password error:", err);
-      res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
 
