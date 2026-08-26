@@ -13,6 +13,7 @@
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/auth/(.*)", "destination": "/api/index" },
     { "source": "/feeds/(.*)", "destination": "/api/index" },
+    { "source": "/e/(.*)", "destination": "/api/index" },
     { "source": "/objects/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
