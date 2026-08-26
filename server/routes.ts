@@ -33,6 +33,7 @@ import {
 } from "./services/googleCalendarService";
 import { parseFeed, validateFeed, getLatestEpisodes } from "./services/rssService";
 import { generatePodcastFeedXml } from "./services/feedService";
+import { recordListenEvent, isCountableDownload, getPodcastStats } from "./services/listenAnalytics";
 import { insertEpisodeSchema } from "@shared/schema";
 import { insertProfileSectionSchema } from "@shared/schema";
 import { insertPodcastSubscriptionSchema, insertUserInterestSchema, insertEpisodeBriefingSchema, insertNotificationSchema } from "@shared/schema";
@@ -1835,11 +1836,43 @@ export async function registerRoutes(
     if (!podcast) {
       return res.status(404).type('text/plain').send('Feed not found');
     }
+    recordListenEvent({
+      podcastId: podcast.id,
+      kind: 'feed',
+      ip: req.ip || '',
+      userAgent: req.headers['user-agent'],
+    });
     const publishedEpisodes = await storage.getPublishedEpisodesByPodcast(podcast.id);
     const xml = generatePodcastFeedXml(podcast, publishedEpisodes, getPublicBaseUrl(req));
     res.set('Content-Type', 'application/rss+xml; charset=utf-8');
     res.set('Cache-Control', 'public, max-age=300'); // 5 min — podcast apps poll feeds
     res.send(xml);
+  });
+
+  // Tracked enclosure URL — feeds point audio here so every download is logged
+  // before redirecting to the actual file. HEAD probes and mid-file range
+  // requests from streaming apps are served but not counted.
+  app.get('/e/:episodeId/:filename', async (req, res) => {
+    const episode = await storage.getEpisode(req.params.episodeId);
+    if (!episode?.audioUrl) {
+      return res.status(404).type('text/plain').send('Not found');
+    }
+    if (isCountableDownload(req.method, req.headers.range)) {
+      recordListenEvent({
+        podcastId: episode.podcastId,
+        episodeId: episode.id,
+        kind: 'download',
+        ip: req.ip || '',
+        userAgent: req.headers['user-agent'],
+      });
+    }
+    if (/^https?:\/\//i.test(episode.audioUrl)) {
+      return res.redirect(302, episode.audioUrl);
+    }
+    if (episode.audioUrl.startsWith('/objects/') && isSupabaseStorageConfigured()) {
+      return res.redirect(302, publicUrlForKey(episode.audioUrl.slice('/objects/'.length)));
+    }
+    return res.redirect(302, episode.audioUrl);
   });
 
   // ============ CREATOR EPISODES (hosted) ============
@@ -1861,6 +1894,19 @@ export async function registerRoutes(
     if (!podcast) return;
     const list = await storage.getEpisodesByPodcast(podcast.id);
     res.json(list);
+  });
+
+  app.get('/api/podcasts/:podcastId/stats', isAuthenticated, async (req: any, res) => {
+    const podcast = await requirePodcastOwnership(req, res);
+    if (!podcast) return;
+    const days = Number.parseInt(String(req.query.days), 10) || 30;
+    try {
+      const stats = await getPodcastStats(podcast.id, days);
+      res.json(stats);
+    } catch (error) {
+      console.error('Error computing podcast stats:', error);
+      res.status(500).json({ message: 'Failed to load stats' });
+    }
   });
 
   app.post('/api/podcasts/:podcastId/episodes', isAuthenticated, async (req: any, res) => {

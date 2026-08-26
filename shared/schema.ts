@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real, uniqueIndex, index } from "drizzle-orm/pg-core";
 export { serial };
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -311,6 +311,29 @@ export const episodes = pgTable("episodes", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Listen events — one row per tracked feed fetch or audio download on hosted
+// feeds. Raw IPs are never stored; listener_hash is a daily-salted digest so
+// unique-listener counts work without retaining anything identifying.
+export const listenEvents = pgTable(
+  "listen_events",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    podcastId: varchar("podcast_id").notNull(),
+    episodeId: varchar("episode_id"), // null for feed fetches
+    kind: varchar("kind").notNull(), // download | feed
+    app: varchar("app"), // parsed listening app ("Apple Podcasts", "Spotify", …)
+    userAgent: text("user_agent"),
+    listenerHash: varchar("listener_hash", { length: 64 }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => [
+    index("listen_events_podcast_created_idx").on(t.podcastId, t.createdAt),
+    index("listen_events_episode_idx").on(t.episodeId),
+  ],
+);
+
+export type ListenEvent = typeof listenEvents.$inferSelect;
 
 // RSS Feeds
 export const rssFeeds = pgTable("rss_feeds", {
