@@ -1,0 +1,56 @@
+language: en-US
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_instructions:
+    - path: "server/**"
+      instructions: |
+        - Every route that reads or mutates a podcast, episode, guest, or campaign must verify that the resource belongs to the requesting user. Look for a userId/podcastId ownership check before any DB read or write. Flag any route that skips this check or resolves userId inconsistently (the codebase has several patterns: req.session?.userId, req.dbUser?.id, req.user?.id, req.user?.claims?.sub — flag if more than one path is used in the same route handler without a null-safe fallback).
+        - Flag missing input validation on POST/PUT request bodies. External data (strings, IDs, enum fields) should be validated before hitting the DB.
+        - Flag any query that could leak another user's records — e.g., a SELECT with only a resource ID but no userId WHERE clause.
+        - Flag routes that return 500 where a 403/404 would be semantically correct.
+
+    - path: "server/services/**"
+      instructions: |
+        - Services that accept userId must propagate it through every query they issue, not just the first. Flag if a service function resolves userId from a parameter for the first query but falls back to a different source mid-function.
+        - Flag any cache read/write (engagementCache, socialAnalyticsCache, podchaserCache) that doesn't scope the cache key by userId or podcastId — a cache miss scoped only to an external ID can silently serve another user's data.
+        - For OAuth service files (facebookOAuth, instagramOAuth, linkedinOAuth) flag token storage or retrieval that doesn't verify the token belongs to the requesting user before use.
+
+    - path: "client/src/pages/**"
+      instructions: |
+        - Flag UI controls (buttons, toggles, menu items) that render in an enabled/interactive state but have no wired onClick handler or mutation call.
+        - Flag mutation onSuccess/onError handlers that call setState or invalidate queries on fields unrelated to the mutation — a common cause of silent field-wipe bugs (e.g., saving an email field resetting an unsaved name edit).
+        - Flag any fetch or mutation that constructs a URL from a user-controlled value without encoding it.
+        - Flag optimistic update patterns where the rollback in onError is missing or restores stale data.
+
+    - path: "client/src/components/**"
+      instructions: |
+        - Flag form components that don't call e.preventDefault() on submit.
+        - Flag file upload inputs that don't validate type and size client-side before posting to the server.
+        - Flag image/video src values built from user-supplied strings without sanitization.
+
+    - path: "shared/schema.ts"
+      instructions: |
+        - Flag new columns added without a corresponding migration file in /migrations.
+        - Flag nullable columns on tables that have existing rows where null would be semantically invalid.
+
+    - path: "migrations/**"
+      instructions: |
+        - Flag migrations that ALTER or DROP columns without a data-safety comment explaining what happens to existing rows.
+        - Flag missing IF NOT EXISTS / IF EXISTS guards on CREATE TABLE / DROP TABLE.
+
+    - path: "server/index.ts"
+      instructions: |
+        - Flag any new middleware registration that bypasses the existing auth middleware chain.
+        - Flag environment variable reads (process.env.X) that have no fallback and would silently evaluate to undefined in production.
+
+  finishing_touches:
+    docstrings: false
+
+chat:
+  auto_reply: true
