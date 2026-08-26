@@ -27,15 +27,6 @@ export default function AccountSettings() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // Password form state
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordSaving, setPasswordSaving] = useState(false);
-  const [showCurrentPw, setShowCurrentPw] = useState(false);
-  const [showNewPw, setShowNewPw] = useState(false);
-  const [showConfirmPw, setShowConfirmPw] = useState(false);
-
   const { uploadFile, isUploading } = useUpload({
     onSuccess: async (response) => {
       const updateRes = await fetch("/api/user/profile", {
@@ -99,39 +90,6 @@ export default function AccountSettings() {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
       setProfileSaving(false);
-    }
-  }
-
-  // ── Password change ───────────────────────────────────────────────────────────
-  async function handlePasswordChange(e: React.FormEvent) {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      toast({ title: "Passwords don't match", variant: "destructive" });
-      return;
-    }
-    if (newPassword.length < 8) {
-      toast({ title: "Password must be at least 8 characters", variant: "destructive" });
-      return;
-    }
-    setPasswordSaving(true);
-    try {
-      const res = await fetch("/api/user/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? "Could not change password");
-      }
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      toast({ title: "Password changed successfully" });
-    } catch (err: any) {
-      toast({ title: "Password change failed", description: err.message, variant: "destructive" });
-    } finally {
-      setPasswordSaving(false);
     }
   }
 
@@ -342,112 +300,24 @@ export default function AccountSettings() {
             </Card>
           </div>
 
-          {/* ── Right column: password + danger zone ───────────────────────── */}
+          {/* ── Right column: sign-in method + danger zone ─────────────────── */}
           <div className="space-y-6">
 
-            {/* Password card */}
+            {/* Sign-in method card — passwordless, nothing to manage */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Lock className="h-4 w-4" />
-                  Change Password
+                  Sign-in Method
                 </CardTitle>
-                <CardDescription>Use a strong password of at least 8 characters.</CardDescription>
+                <CardDescription>Your account is passwordless.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="currentPassword">Current password</Label>
-                    <div className="relative">
-                      <Input
-                        id="currentPassword"
-                        type={showCurrentPw ? "text" : "password"}
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="••••••••"
-                        autoComplete="current-password"
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPw((v) => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showCurrentPw ? "Hide password" : "Show password"}
-                      >
-                        {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="newPassword">New password</Label>
-                    <div className="relative">
-                      <Input
-                        id="newPassword"
-                        type={showNewPw ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
-                        autoComplete="new-password"
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPw((v) => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showNewPw ? "Hide password" : "Show password"}
-                      >
-                        {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword">Confirm new password</Label>
-                    <div className="relative">
-                      <Input
-                        id="confirmPassword"
-                        type={showConfirmPw ? "text" : "password"}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        autoComplete="new-password"
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPw((v) => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showConfirmPw ? "Hide password" : "Show password"}
-                      >
-                        {showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-1">
-                    <Button
-                      type="submit"
-                      disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
-                    >
-                      {passwordSaving ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                          Updating…
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="h-3 w-3 mr-1.5" />
-                          Update password
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
+                <p className="text-sm text-muted-foreground">
+                  You sign in with a one-time code sent to{" "}
+                  <span className="font-medium text-foreground">{user?.email}</span>, or with
+                  Google. There's no password to remember — or to steal.
+                </p>
               </CardContent>
             </Card>
 

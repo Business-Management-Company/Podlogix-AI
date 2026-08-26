@@ -1,18 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, MailCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import logoImg from "@assets/Seeksy_logo_1771103113779.png";
-
 
 /** Rotating auth backdrops — one world per visit, one voice per world. */
 const AUTH_SCENES = [
@@ -58,86 +53,85 @@ const AUTH_SCENES = [
   },
 ];
 
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-});
-
-const signupSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-});
-
-type LoginValues = z.infer<typeof loginSchema>;
-type SignupValues = z.infer<typeof signupSchema>;
+const RESEND_COOLDOWN_S = 30;
 
 export default function AuthPage() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [showLoginPw, setShowLoginPw] = useState(false);
-  const [showSignupPw, setShowSignupPw] = useState(false);
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [resendIn, setResendIn] = useState(0);
+  const codeInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const loginForm = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
-  });
+  // Countdown for the resend link
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendIn > 0]);
 
-  const signupForm = useForm<SignupValues>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { email: "", password: "", firstName: "", lastName: "" },
-  });
-
-  const loginMutation = useMutation({
-    mutationFn: async (values: LoginValues) => {
-      const res = await fetch("/api/auth/login", {
+  const requestCodeMutation = useMutation({
+    mutationFn: async (emailValue: string) => {
+      const res = await fetch("/api/auth/request-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(values),
+        body: JSON.stringify({ email: emailValue }),
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || "Login failed");
+        throw new Error(data.message || "Couldn't send the code");
+      }
+      return res.json() as Promise<{ isNewUser: boolean }>;
+    },
+    onSuccess: (data) => {
+      setIsNewUser(data.isNewUser);
+      setStep("code");
+      setCode("");
+      setResendIn(RESEND_COOLDOWN_S);
+      setTimeout(() => codeInputRef.current?.focus(), 50);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Couldn't send code", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const verifyCodeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email,
+          code,
+          ...(isNewUser && firstName.trim() ? { firstName: firstName.trim() } : {}),
+          ...(isNewUser && lastName.trim() ? { lastName: lastName.trim() } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Verification failed");
       }
       return res.json();
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/auth/user"], data);
-      navigate("/dashboard");
+      navigate("/today");
     },
     onError: (error: Error) => {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      toast({ title: "Sign-in failed", description: error.message, variant: "destructive" });
     },
   });
 
-  const signupMutation = useMutation({
-    mutationFn: async (values: SignupValues) => {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(values),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Signup failed");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["/api/auth/user"], data);
-      navigate("/dashboard");
-    },
-    onError: (error: Error) => {
-      toast({ title: "Signup failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const isLoading = loginMutation.isPending || signupMutation.isPending;
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const namesOk = !isNewUser || (firstName.trim().length > 0 && lastName.trim().length > 0);
+  const canVerify = /^\d{6}$/.test(code) && namesOk && !verifyCodeMutation.isPending;
 
   // Show toast for Google OAuth errors from redirect
   useEffect(() => {
@@ -172,247 +166,167 @@ export default function AuthPage() {
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle data-testid="text-auth-title">
-                {mode === "login" ? "Welcome back" : "Create your account"}
-              </CardTitle>
-              <CardDescription>
-                {mode === "login"
-                  ? "Sign in to your Podlogix account"
-                  : "Get started with Podlogix today"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Google Sign-In */}
-              <a
-                href="/auth/google"
-                className="flex items-center justify-center gap-3 w-full border border-border rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors mb-4"
-              >
-                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Continue with Google
-              </a>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground">or</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
+            {step === "email" ? (
+              <>
+                <CardHeader>
+                  <CardTitle data-testid="text-auth-title">Sign in or create your account</CardTitle>
+                  <CardDescription>
+                    No password needed — we'll email you a one-time code.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* Google Sign-In */}
+                  <a
+                    href="/auth/google"
+                    className="flex items-center justify-center gap-3 w-full border border-border rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors mb-4"
+                  >
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Continue with Google
+                  </a>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
 
-              {mode === "login" ? (
-                <Form {...loginForm} key="login">
-                  <form onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))} className="space-y-4">
-                    <FormField
-                      control={loginForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              placeholder="you@example.com"
-                              data-testid="input-email"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={loginForm.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showLoginPw ? "text" : "password"}
-                                placeholder="Your password"
-                                data-testid="input-password"
-                                className="pr-10"
-                                {...field}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowLoginPw((v) => !v)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                tabIndex={-1}
-                                aria-label={showLoginPw ? "Hide password" : "Show password"}
-                              >
-                                {showLoginPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="flex justify-end -mt-1">
-                      <button
-                        type="button"
-                        onClick={() => navigate("/forgot-password")}
-                        className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        Forgot password?
-                      </button>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (emailValid) requestCodeMutation.mutate(email.trim());
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Email</label>
+                      <Input
+                        type="email"
+                        autoComplete="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        data-testid="input-email"
+                      />
                     </div>
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={isLoading}
+                      disabled={!emailValid || requestCodeMutation.isPending}
                       data-testid="button-auth-submit"
                     >
-                      {isLoading ? (
+                      {requestCodeMutation.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          Sign In
+                          Email me a code
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </>
                       )}
                     </Button>
                   </form>
-                </Form>
-              ) : (
-                <Form {...signupForm} key="signup">
-                  <form onSubmit={signupForm.handleSubmit((values) => signupMutation.mutate(values))} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={signupForm.control}
-                        name="firstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Andrew"
-                                data-testid="input-first-name"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={signupForm.control}
-                        name="lastName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Appleton"
-                                data-testid="input-last-name"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                </CardContent>
+              </>
+            ) : (
+              <>
+                <CardHeader>
+                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                    <MailCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <CardTitle data-testid="text-auth-title">
+                    {isNewUser ? "Create your account" : "Check your email"}
+                  </CardTitle>
+                  <CardDescription>
+                    We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (canVerify) verifyCodeMutation.mutate();
+                    }}
+                    className="space-y-4"
+                  >
+                    {isNewUser && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium">First Name</label>
+                          <Input
+                            placeholder="Andrew"
+                            autoComplete="given-name"
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            data-testid="input-first-name"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium">Last Name</label>
+                          <Input
+                            placeholder="Appleton"
+                            autoComplete="family-name"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            data-testid="input-last-name"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">6-digit code</label>
+                      <Input
+                        ref={codeInputRef}
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="123456"
+                        maxLength={6}
+                        className="text-center text-xl tracking-[0.5em] font-semibold"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        data-testid="input-code"
                       />
                     </div>
-                    <FormField
-                      control={signupForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              placeholder="you@example.com"
-                              data-testid="input-email"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={signupForm.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showSignupPw ? "text" : "password"}
-                                placeholder="At least 6 characters"
-                                data-testid="input-password"
-                                className="pr-10"
-                                {...field}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowSignupPw((v) => !v)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                tabIndex={-1}
-                                aria-label={showSignupPw ? "Hide password" : "Show password"}
-                              >
-                                {showSignupPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={isLoading}
+                      disabled={!canVerify}
                       data-testid="button-auth-submit"
                     >
-                      {isLoading ? (
+                      {verifyCodeMutation.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          Create Account
+                          {isNewUser ? "Create Account" : "Sign In"}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </>
                       )}
                     </Button>
                   </form>
-                </Form>
-              )}
 
-              <div className="mt-6 text-center text-sm text-muted-foreground">
-                {mode === "login" ? (
-                  <p>
-                    Don't have an account?{" "}
+                  <div className="mt-4 flex items-center justify-between text-sm">
                     <button
                       type="button"
-                      onClick={() => { setMode("signup"); loginForm.reset(); }}
-                      className="text-primary underline-offset-4 hover:underline font-medium"
-                      data-testid="button-switch-signup"
+                      onClick={() => { setStep("email"); setCode(""); }}
+                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      Sign up
+                      <ArrowLeft className="h-3.5 w-3.5" /> Different email
                     </button>
-                  </p>
-                ) : (
-                  <p>
-                    Already have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => { setMode("login"); signupForm.reset(); }}
-                      className="text-primary underline-offset-4 hover:underline font-medium"
-                      data-testid="button-switch-login"
+                      disabled={resendIn > 0 || requestCodeMutation.isPending}
+                      onClick={() => requestCodeMutation.mutate(email.trim())}
+                      className="text-primary disabled:text-muted-foreground underline-offset-4 hover:underline disabled:no-underline font-medium"
+                      data-testid="button-resend-code"
                     >
-                      Sign in
+                      {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
                     </button>
-                  </p>
-                )}
-              </div>
-            </CardContent>
+                  </div>
+                </CardContent>
+              </>
+            )}
           </Card>
         </motion.div>
       </div>
