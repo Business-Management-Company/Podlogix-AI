@@ -3756,7 +3756,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     { name: "Podchaser (Starter)", purpose: "Guest intelligence — creator search, appearances, podcast credits", monthlyUsd: 0, notes: "Free Starter tier · 1,000 requests/month · cached to minimize spend" },
   ];
 
-  app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, async (req: any, res) => {
+  const financialsHandler = async (req: any, res: any) => {
     try {
       const financialsUserId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
       const [icCredits, ffmpegConsumption, profileSlots, openaiCosts, podchaserQuota, podchaserUsageBreakdown, podchaserUsageByUser] = await Promise.all([
@@ -3873,6 +3873,19 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       console.error('Error building admin financials:', error);
       res.status(500).json({ message: 'Failed to load financials' });
     }
+  };
+
+  app.get('/api/admin/financials', isAuthenticated, isSuperAdmin, financialsHandler);
+
+  // Server-to-server variant for the VPS Command Center dashboard — same
+  // payload, gated by a shared secret instead of a session. Disabled entirely
+  // unless INTERNAL_METRICS_KEY is set in the environment.
+  app.get('/api/internal/financials', async (req, res) => {
+    const expected = process.env.INTERNAL_METRICS_KEY;
+    if (!expected || req.headers['x-internal-key'] !== expected) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    return financialsHandler(req, res);
   });
 
   // ============ ADMIN CREATOR LIST ROUTES ============
