@@ -86,6 +86,8 @@ export const ready = (async () => {
     registerEngagementCache(app);
     const { registerAiChatRoutes } = await import("./aiChatRoutes");
     registerAiChatRoutes(app);
+    const { registerRefinerRoutes } = await import("./refinerRoutes");
+    registerRefinerRoutes(app);
     const { registerCronRoutes } = await import("./cronRoutes");
     registerCronRoutes(app);
 
