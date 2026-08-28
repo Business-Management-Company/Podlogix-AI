@@ -5439,6 +5439,13 @@ Respond in this exact JSON format:
 
   const UPLOAD_POST_API_BASE = 'https://api.upload-post.com';
 
+  // In-house FFmpeg lane — jobs run on the VPS (no 180s job timeout, no
+  // per-minute quota). Active when both env vars are set; FFMPEG_LANE=uploadpost
+  // forces the old Upload-Post lane without unsetting anything.
+  const vpsFfmpegActive = () =>
+    !!process.env.FFMPEG_VPS_URL && !!process.env.FFMPEG_VPS_KEY && process.env.FFMPEG_LANE !== 'uploadpost';
+  const vpsFfmpegHeaders = () => ({ 'x-ffmpeg-key': process.env.FFMPEG_VPS_KEY! });
+
   function getUploadPostApiKey(): string {
     const key = process.env.UPLOAD_POST_API_KEY;
     if (!key) throw new Error('UPLOAD_POST_API_KEY not configured');
@@ -7251,14 +7258,20 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       if (!Array.isArray(files) || files.length === 0 || !full_command || !output_extension) {
         return res.status(400).json({ message: 'files (array of URLs), full_command, and output_extension are required' });
       }
-      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `ApiKey ${getUploadPostApiKey()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ files, full_command, output_extension, publish: !!publish }),
-      });
+      const response = vpsFfmpegActive()
+        ? await fetch(`${process.env.FFMPEG_VPS_URL}/jobs`, {
+            method: 'POST',
+            headers: { ...vpsFfmpegHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files, full_command, output_extension }),
+          })
+        : await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/upload`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `ApiKey ${getUploadPostApiKey()}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ files, full_command, output_extension, publish: !!publish }),
+          });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         console.error('FFmpeg job submission error:', data);
@@ -7273,9 +7286,11 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
 
   app.get('/api/media-lab/ffmpeg/jobs/:jobId', isAuthenticated, isBetaTester, async (req: any, res) => {
     try {
-      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${req.params.jobId}`, {
-        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
-      });
+      const response = vpsFfmpegActive()
+        ? await fetch(`${process.env.FFMPEG_VPS_URL}/jobs/${encodeURIComponent(req.params.jobId)}`, { headers: vpsFfmpegHeaders() })
+        : await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${req.params.jobId}`, {
+            headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+          });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         return res.status(response.status).json({ message: data?.message || 'Failed to fetch job status' });
@@ -7289,9 +7304,11 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
 
   app.get('/api/media-lab/ffmpeg/jobs/:jobId/download', isAuthenticated, isBetaTester, async (req: any, res) => {
     try {
-      const response = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${req.params.jobId}/download`, {
-        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
-      });
+      const response = vpsFfmpegActive()
+        ? await fetch(`${process.env.FFMPEG_VPS_URL}/jobs/${encodeURIComponent(req.params.jobId)}/download`, { headers: vpsFfmpegHeaders() })
+        : await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${req.params.jobId}/download`, {
+            headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+          });
       if (!response.ok) {
         return res.status(response.status).json({ message: 'Failed to download result' });
       }
@@ -7316,9 +7333,11 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       if (!jobId) return res.status(400).json({ message: 'jobId is required' });
       const extension = String(req.body?.extension ?? 'mp4').toLowerCase();
       const isAudio = ['mp3', 'm4a', 'wav'].includes(extension);
-      const dl = await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${encodeURIComponent(jobId)}/download`, {
-        headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
-      });
+      const dl = vpsFfmpegActive()
+        ? await fetch(`${process.env.FFMPEG_VPS_URL}/jobs/${encodeURIComponent(jobId)}/download`, { headers: vpsFfmpegHeaders() })
+        : await fetch(`${UPLOAD_POST_API_BASE}/api/uploadposts/ffmpeg/jobs/${encodeURIComponent(jobId)}/download`, {
+            headers: { 'Authorization': `ApiKey ${getUploadPostApiKey()}` },
+          });
       if (!dl.ok) return res.status(dl.status === 404 ? 404 : 502).json({ message: `Result not ready (HTTP ${dl.status})` });
       const buffer = Buffer.from(await dl.arrayBuffer());
       // Refined VIDEOS of full shows are legitimately large — the old 80MB cap
