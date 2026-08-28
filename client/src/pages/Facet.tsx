@@ -447,14 +447,16 @@ export default function Facet() {
           });
           const sub = await submit.json().catch(() => ({}));
           if (!submit.ok || !sub.job_id) throw new Error(sub.message ?? "Couldn't start the polish");
-          for (let i = 0; i < 150; i++) {
+          // 20 min window — the in-house VPS lane encodes on CPU, so a long
+          // show legitimately takes several minutes rather than several seconds.
+          for (let i = 0; i < 300; i++) {
             await new Promise((r) => setTimeout(r, 4000));
             const st = await apiRequest("GET", `/api/media-lab/ffmpeg/jobs/${sub.job_id}`);
             const js = await st.json().catch(() => ({}));
             const status = String(js.status ?? "").toUpperCase();
             if (status === "FINISHED" || status === "COMPLETED") break;
-            if (status === "ERROR" || status === "FAILED") throw new Error("The polish failed in processing");
-            if (i === 149) throw new Error("Timed out waiting for the polish");
+            if (status === "ERROR" || status === "FAILED") throw new Error(String(js.error ?? "The polish failed in processing"));
+            if (i === 299) throw new Error("Timed out waiting for the polish");
           }
           const collect = await apiRequest("POST", "/api/media-lab/collect", {
             jobId: sub.job_id,
