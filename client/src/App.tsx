@@ -28,6 +28,7 @@ import Terms from "@/pages/Terms";
 import PublicProfile from "@/pages/PublicProfile";
 import StudioGuest from "@/pages/StudioGuest";
 import Facet from "@/pages/Facet";
+import Refiner from "@/pages/Refiner";
 
 // ─── New architecture pages ───────────────────────────────────────────────────
 import Activity from "@/pages/Activity";
@@ -303,6 +304,7 @@ function AuthenticatedRoutes() {
         <Route path="/studio/live" component={LiveStudio} />
         <Route path="/studio/guest" component={StudioGuest} />
         <Route path="/studio/facet" component={Facet} />
+        <Route path="/studio/refiner" component={Refiner} />
         <Route path="/media-library" component={MediaLibrary} />
         <Route path="/social/discover" component={SocialDiscover} />
         <Route path="/media-lab" component={MediaLab} />
