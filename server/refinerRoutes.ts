@@ -120,13 +120,26 @@ export function registerRefinerRoutes(app: Express) {
 
       // When word timestamps are present, hand the model a timestamped view so
       // its start/end land on real word boundaries rather than guesses.
-      let transcriptForModel = transcript.trim().slice(0, 24000);
+      const transcriptLimit = 24000;
+      let transcriptForModel = transcript.trim().slice(0, transcriptLimit);
       if (Array.isArray(words) && words.length > 0) {
-        const stamped = words
-          .filter((w) => typeof w.start === "number")
-          .map((w) => `[${w.start.toFixed(1)}] ${w.word}`)
-          .join(" ");
-        transcriptForModel = stamped.slice(0, 24000);
+        let stamped = "";
+        for (const w of words) {
+          if (typeof w.start !== "number") continue;
+
+          const segment = `${stamped.length > 0 ? " " : ""}[${w.start.toFixed(1)}] ${w.word}`;
+          const remaining = transcriptLimit - stamped.length;
+          if (remaining <= 0) break;
+
+          if (segment.length <= remaining) {
+            stamped += segment;
+            continue;
+          }
+
+          stamped += segment.slice(0, remaining);
+          break;
+        }
+        transcriptForModel = stamped;
       }
       const durationLine =
         typeof durationSeconds === "number" && durationSeconds > 0
