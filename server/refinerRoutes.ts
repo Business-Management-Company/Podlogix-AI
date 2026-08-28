@@ -54,7 +54,53 @@ function clamp100(n: unknown): number {
   return Math.max(0, Math.min(100, Math.round(v)));
 }
 
+// ── Clip rendering ──────────────────────────────────────────────────────────
+// Reframe a chosen span of the source into a social aspect ratio. The command
+// uses nvenc flags because the VPS FFmpeg lane translates them to libx264;
+// scale-to-fill + center-crop reframes landscape into vertical without bars.
+
+export type ClipAspect = "9:16" | "1:1" | "16:9" | "4:5";
+
+const ASPECT_DIMS: Record<ClipAspect, [number, number]> = {
+  "9:16": [1080, 1920],
+  "1:1": [1080, 1080],
+  "16:9": [1920, 1080],
+  "4:5": [1080, 1350],
+};
+
+export function buildClipCommand(opts: {
+  aspect: ClipAspect;
+  startSeconds: number;
+  endSeconds: number;
+}): { command: string; durationSeconds: number; width: number; height: number } {
+  const [w, h] = ASPECT_DIMS[opts.aspect] ?? ASPECT_DIMS["9:16"];
+  const start = Math.max(0, opts.startSeconds);
+  const end = Math.max(start + 0.5, opts.endSeconds);
+  const duration = +(end - start).toFixed(2);
+  // -ss/-to before -i = fast keyframe seek. scale increase + center crop fills
+  // the target frame and trims the overflow (standard landscape→vertical reframe).
+  const vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30,setsar=1`;
+  const command =
+    `ffmpeg -y -ss ${start.toFixed(2)} -to ${end.toFixed(2)} -i {input} ` +
+    `-vf "${vf}" -af "aresample=44100,aformat=channel_layouts=stereo,loudnorm=I=-16:TP=-1.5:LRA=11" ` +
+    `-c:v h264_nvenc -preset p1 -cq 23 -b:v 4000k -maxrate 6000k -bufsize 12M -c:a aac -b:a 160k {output}`;
+  return { command, durationSeconds: duration, width: w, height: h };
+}
+
 export function registerRefinerRoutes(app: Express) {
+  // Returns the FFmpeg command to render a clip; the client submits it through
+  // the existing /api/media-lab/ffmpeg/jobs lane (which routes to the VPS).
+  app.post("/api/refiner/clip-command", isAuthenticated, async (req: any, res) => {
+    const { aspect, startSeconds, endSeconds } = req.body ?? {};
+    if (!ASPECT_DIMS[aspect as ClipAspect]) {
+      return res.status(400).json({ message: "aspect must be one of 9:16, 1:1, 16:9, 4:5" });
+    }
+    if (typeof startSeconds !== "number" || typeof endSeconds !== "number" || endSeconds <= startSeconds) {
+      return res.status(400).json({ message: "valid startSeconds and endSeconds are required" });
+    }
+    res.json(buildClipCommand({ aspect, startSeconds, endSeconds }));
+  });
+
   app.post("/api/refiner/clip-candidates", isAuthenticated, async (req: any, res) => {
     try {
       const { transcript, words, durationSeconds } = req.body as {
