@@ -263,7 +263,11 @@ export default function LiveStudio() {
     return () => { if (canvas.parentElement === stage) stage.removeChild(canvas); };
   }, [anySource]);
 
-  useEffect(() => { compositor().setLayout(layout); }, [layout]);
+  useEffect(() => {
+    compositor().setLayout(layout);
+    // Mirror the switch to the cloud recorder (egress renderer) if it's watching.
+    void liveRoomRef.current?.broadcastLayout(layout);
+  }, [layout]);
 
   useEffect(() => {
     if (session?.vodUrl && !vodUrl) setVodUrl(session.vodUrl);

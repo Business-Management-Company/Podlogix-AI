@@ -14,9 +14,17 @@ export interface RemoteFeed {
   name: string;
 }
 
+/** Data-channel messages between host and the egress renderer. */
+export interface LayoutMessage {
+  v: 1;
+  type: "layout";
+  layout: string;
+}
+
 export class LiveRoom {
   private room: Room | null = null;
   private published: MediaStreamTrack[] = [];
+  private lastLayout: string | null = null;
 
   get connected(): boolean {
     return this.room?.state === "connected";
@@ -48,12 +56,31 @@ export class LiveRoom {
     room
       .on(RoomEvent.TrackSubscribed, rebuild)
       .on(RoomEvent.TrackUnsubscribed, rebuild)
-      .on(RoomEvent.ParticipantConnected, rebuild)
+      .on(RoomEvent.ParticipantConnected, () => {
+        rebuild();
+        // A late joiner (e.g. the egress renderer) missed earlier layout
+        // changes — replay the current one so its composition matches ours.
+        if (this.lastLayout) void this.broadcastLayout(this.lastLayout);
+      })
       .on(RoomEvent.ParticipantDisconnected, rebuild)
       .on(RoomEvent.Disconnected, () => onRemote({ stream: null, name: "" }));
 
     await room.connect(url, token);
     rebuild();
+  }
+
+  /**
+   * Tell every subscriber (the egress renderer especially) which layout the
+   * stage is showing, so the cloud recording tracks live layout switches.
+   * Reliable delivery — a dropped layout packet would desync the recording.
+   */
+  async broadcastLayout(layout: string): Promise<void> {
+    this.lastLayout = layout;
+    const room = this.room;
+    if (!room || room.state !== "connected") return;
+    const msg: LayoutMessage = { v: 1, type: "layout", layout };
+    const payload = new TextEncoder().encode(JSON.stringify(msg));
+    await room.localParticipant.publishData(payload, { reliable: true }).catch(() => {});
   }
 
   /** Publish our local tracks, replacing anything published before. */

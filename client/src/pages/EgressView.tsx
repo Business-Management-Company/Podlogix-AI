@@ -8,7 +8,11 @@ import {
   type RemoteParticipant,
 } from "livekit-client";
 import EgressHelper from "@livekit/egress-sdk";
-import { StudioCompositor } from "@/lib/studio-compositor";
+import { StudioCompositor, type StudioLayout } from "@/lib/studio-compositor";
+import type { LayoutMessage } from "@/lib/live-room";
+
+const LAYOUT_IDS: StudioLayout[] = ["fullscreen", "pip-br", "pip-bl", "pip-tr", "pip-tl", "split"];
+const isLayout = (v: string): v is StudioLayout => (LAYOUT_IDS as string[]).includes(v);
 
 /**
  * /studio/egress-view — the page LiveKit Egress records (headless Chrome).
@@ -33,8 +37,9 @@ export default function EgressView() {
     if (!url || !token) return;
 
     const comp = new StudioCompositor({ width: 1920, height: 1080 });
-    // Layout sync from the host is a follow-up; "fullscreen" adapts sensibly
-    // (solo → full, host+guest → side-by-side, +screen → screen-forward).
+    // Start on the adaptive default (solo → full, host+guest → side-by-side,
+    // +screen → screen-forward); the host broadcasts the real layout over the
+    // data channel (below), including a replay when we join mid-session.
     comp.setLayout("fullscreen");
     if (stageRef.current) {
       comp.canvas.style.width = "100vw";
@@ -90,13 +95,25 @@ export default function EgressView() {
     // EgressHelper coordinates with LiveKit's recorder; startRecording()
     // signals the page is ready so the capture doesn't include the load frames.
     EgressHelper.setRoom(room);
+    const onData = (payload: Uint8Array) => {
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload)) as LayoutMessage;
+        if (msg?.type === "layout" && typeof msg.layout === "string" && isLayout(msg.layout)) {
+          comp.setLayout(msg.layout);
+        }
+      } catch {
+        /* not our message — ignore */
+      }
+    };
+
     room
       .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) =>
         attach(track, participant),
       )
       .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) =>
         detach(track, participant),
-      );
+      )
+      .on(RoomEvent.DataReceived, onData);
 
     void room.connect(url, token).then(() => {
       // Pick up tracks published before we subscribed.
