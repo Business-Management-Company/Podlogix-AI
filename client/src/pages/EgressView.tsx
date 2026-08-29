@@ -9,7 +9,7 @@ import {
 } from "livekit-client";
 import EgressHelper from "@livekit/egress-sdk";
 import { StudioCompositor, type StudioLayout } from "@/lib/studio-compositor";
-import type { LayoutMessage } from "@/lib/live-room";
+import type { LayoutMessage, MediaMessage, StageMedia } from "@/lib/live-room";
 
 const LAYOUT_IDS: StudioLayout[] = ["fullscreen", "pip-br", "pip-bl", "pip-tr", "pip-tl", "split"];
 const isLayout = (v: string): v is StudioLayout => (LAYOUT_IDS as string[]).includes(v);
@@ -95,11 +95,38 @@ export default function EgressView() {
     // EgressHelper coordinates with LiveKit's recorder; startRecording()
     // signals the page is ready so the capture doesn't include the load frames.
     EgressHelper.setRoom(room);
+    // The media element the host is currently showing on the stage, mirrored
+    // here so the recording matches. We load the URL ourselves (display only —
+    // no captureStream — so it needn't be CORS-clean).
+    let mediaEl: HTMLVideoElement | null = null;
+    const showMedia = (media: StageMedia | null) => {
+      if (mediaEl) { mediaEl.pause(); mediaEl.remove(); mediaEl = null; }
+      comp.setMediaVideo(null);
+      comp.setMediaImage(null);
+      if (!media) return;
+      if (media.type === "video") {
+        const el = document.createElement("video");
+        el.src = media.url;
+        el.playsInline = true;
+        el.style.display = "none";
+        document.body.appendChild(el);
+        mediaEl = el;
+        comp.setMediaVideo(el);
+        void el.play().catch(() => {});
+      } else {
+        const img = new Image();
+        img.onload = () => comp.setMediaImage(img);
+        img.src = media.url;
+      }
+    };
+
     const onData = (payload: Uint8Array) => {
       try {
-        const msg = JSON.parse(new TextDecoder().decode(payload)) as LayoutMessage;
+        const msg = JSON.parse(new TextDecoder().decode(payload)) as LayoutMessage | MediaMessage;
         if (msg?.type === "layout" && typeof msg.layout === "string" && isLayout(msg.layout)) {
           comp.setLayout(msg.layout);
+        } else if (msg?.type === "media") {
+          showMedia(msg.media ?? null);
         }
       } catch {
         /* not our message — ignore */
@@ -127,6 +154,7 @@ export default function EgressView() {
 
     return () => {
       audioEls.forEach((el) => el.remove());
+      if (mediaEl) { mediaEl.pause(); mediaEl.remove(); }
       comp.dispose();
       void room.disconnect();
     };

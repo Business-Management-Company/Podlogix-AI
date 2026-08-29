@@ -424,6 +424,7 @@ export default function LiveStudio() {
     compositorRef.current?.setMediaImage(null);
     setStageMedia(null);
     setMediaPaused(false);
+    void liveRoomRef.current?.broadcastMedia(null);
   };
 
   const playOnStage = (item: { caption: string | null; mediaType: string | null; mediaUrl: string | null; platform: string }) => {
@@ -443,8 +444,10 @@ export default function LiveStudio() {
       img.onload = () => compositor().setMediaImage(img);
       img.src = item.mediaUrl;
     }
-    setStageMedia({ url: item.mediaUrl, type: item.mediaType === "video" ? "video" : "image", caption: item.caption || item.platform });
+    const mediaType = item.mediaType === "video" ? "video" : "image";
+    setStageMedia({ url: item.mediaUrl, type: mediaType, caption: item.caption || item.platform });
     setMediaPaused(false);
+    void liveRoomRef.current?.broadcastMedia({ url: item.mediaUrl, type: mediaType });
   };
 
   const toggleStageMediaPause = () => {
