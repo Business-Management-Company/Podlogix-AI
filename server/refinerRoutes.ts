@@ -228,7 +228,16 @@ export function registerRefinerRoutes(app: Express) {
   });
 
   app.patch("/api/sponsors/:id", isAuthenticated, async (req: any, res) => {
-    const { id, userId, createdAt, ...updates } = req.body ?? {};
+    // Whitelist editable fields only — never let the body set id/userId — and
+    // skip the UPDATE entirely when nothing valid was sent (empty set() throws).
+    const body = req.body ?? {};
+    const updates: Record<string, unknown> = {};
+    for (const k of ["name", "showId", "hashtags", "mentions", "creditLine", "isActive"] as const) {
+      if (k in body) updates[k] = body[k];
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No editable fields provided" });
+    }
     const [row] = await db.update(sponsors).set(updates)
       .where(and(eq(sponsors.id, req.params.id), eq(sponsors.userId, req.session.userId))).returning();
     if (!row) return res.status(404).json({ message: "Sponsor not found" });
@@ -284,14 +293,26 @@ export function registerRefinerRoutes(app: Express) {
 }
 
 /** Append a sponsor's @mention (platform-aware) and hashtags to a caption. */
+// Clip platforms don't always match handle keys — normalize the aliases so a
+// Reels caption uses the Instagram handle, a Shorts caption the YouTube one.
+const PLATFORM_HANDLE_ALIAS: Record<string, string> = {
+  reels: "instagram", ig: "instagram", shorts: "youtube", yt: "youtube", x: "twitter",
+};
+
 export function applySponsorTags(base: string, sponsor: Sponsor | undefined, platform: string) {
   if (!sponsor || !sponsor.isActive) return { line: base, hashtags: [] as string[], mention: null as string | null };
-  const handle = (sponsor.mentions ?? {})[platform] || (sponsor.mentions ?? {})[Object.keys(sponsor.mentions ?? {})[0]];
+  const mentions = sponsor.mentions ?? {};
+  const key = PLATFORM_HANDLE_ALIAS[platform] ?? platform;
+  // Only use a handle that actually matches this platform (or an explicit
+  // "default") — never fall back to another network's handle.
+  const handle = mentions[key] ?? mentions.default;
   const mention = handle ? `@${String(handle).replace(/^@/, "")}` : null;
   const hashtags = String(sponsor.hashtags ?? "")
     .split(/[\s,]+/).map((t) => t.replace(/^#/, "").trim()).filter(Boolean)
     .map((t) => `#${t}`);
-  const creditBits = [mention ? `Sponsored by ${mention}` : sponsor.creditLine ? `Sponsored by ${sponsor.name}` : null].filter(Boolean);
-  const line = [base, creditBits.join(" "), hashtags.join(" ")].filter(Boolean).join("\n\n");
+  // Prefer the sponsor's own credit-line text; else a mention/name credit.
+  const credit =
+    sponsor.creditLine?.trim() || (mention ? `Sponsored by ${mention}` : `Sponsored by ${sponsor.name}`);
+  const line = [base, credit, hashtags.join(" ")].filter(Boolean).join("\n\n");
   return { line, hashtags, mention };
 }

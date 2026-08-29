@@ -33,6 +33,19 @@ export function roomNameForSession(sessionId: string): string {
   return `live-${sessionId}`;
 }
 
+export function roomNameForStudio(studioId: string): string {
+  return `studio-${studioId}`;
+}
+
+/**
+ * The room participants actually join. The Studio flow joins studio-<studioId>
+ * (studios/:id/host-token & guest-link); only pre-studio sessions use
+ * live-<sessionId>. Egress MUST target this same room or it records nothing.
+ */
+export function roomNameForRecording(session: { id: string; studioId: string | null }): string {
+  return session.studioId ? roomNameForStudio(session.studioId) : roomNameForSession(session.id);
+}
+
 export async function mintRoomToken(
   room: string,
   identity: string,
