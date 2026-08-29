@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
-import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, isEgressConfigured, startSessionRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
+import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, startSessionRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -6725,12 +6725,24 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       const session = await storage.getLiveSession(req.params.id);
       if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
       if (!isEgressConfigured()) return res.status(503).json({ message: 'Cloud recording is not configured yet (LiveKit Egress + S3 keys).' });
-      if (session.egressId && session.recordingStatus === 'recording') return res.json({ session, alreadyRecording: true });
+      if (session.recordingStatus === 'recording' || session.recordingStatus === 'starting') {
+        return res.json({ session, alreadyRecording: true });
+      }
+      // Reserve the session before the provider call so two concurrent starts
+      // can't both spawn an Egress job (the second would orphan the first).
+      await storage.updateLiveSession(session.id, { recordingStatus: 'starting' });
       const startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : Date.now();
       const filepath = recordingFilepath(session.id, startedAtMs);
-      const { egressId } = await startSessionRecording(roomNameForSession(session.id), filepath);
-      const updated = await storage.updateLiveSession(session.id, { egressId, recordingStatus: 'recording' });
-      res.json({ session: updated, egressId });
+      try {
+        // Record the room participants actually joined (studio-<id> for studio
+        // sessions), not live-<sessionId> — otherwise the capture is empty.
+        const { egressId } = await startSessionRecording(roomNameForRecording(session), filepath);
+        const updated = await storage.updateLiveSession(session.id, { egressId, recordingStatus: 'recording' });
+        res.json({ session: updated, egressId });
+      } catch (startErr) {
+        await storage.updateLiveSession(session.id, { recordingStatus: 'failed' });
+        throw startErr;
+      }
     } catch (error: any) {
       console.error('Egress start error:', error?.message);
       res.status(502).json({ message: 'Could not start cloud recording.' });
