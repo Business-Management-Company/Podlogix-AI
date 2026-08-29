@@ -1007,6 +1007,10 @@ export const liveSessions = pgTable("live_sessions", {
   // Guest room invite code (LiveKit). Valid only while the session is open.
   guestInviteCode: varchar("guest_invite_code"),
   studioId: varchar("studio_id"), // -> studios.id (nullable: pre-studio sessions)
+  // Server-side cloud recording (LiveKit Egress). When present, the VOD is the
+  // full-res egress capture rather than the 720p browser recording.
+  egressId: varchar("egress_id"),
+  recordingStatus: varchar("recording_status"), // null | starting | recording | done | failed
   createdAt: timestamp("created_at").defaultNow(),
 });
 
