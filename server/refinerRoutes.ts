@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import OpenAI from "openai";
 import { isAuthenticated } from "./replit_integrations/auth";
+import { db } from "./db";
+import { sponsors, insertSponsorSchema, type Sponsor } from "@shared/schema";
+import { and, desc, eq } from "drizzle-orm";
 
 /**
  * Refiner — AI clip selection.
@@ -207,4 +210,88 @@ export function registerRefinerRoutes(app: Express) {
       res.status(500).json({ message: "Couldn't find clips right now — please try again." });
     }
   });
+
+  // ── Sponsors ────────────────────────────────────────────────────────────
+  app.get("/api/sponsors", isAuthenticated, async (req: any, res) => {
+    const rows = await db.select().from(sponsors).where(eq(sponsors.userId, req.session.userId)).orderBy(desc(sponsors.createdAt));
+    res.json({ sponsors: rows });
+  });
+
+  app.post("/api/sponsors", isAuthenticated, async (req: any, res) => {
+    try {
+      const input = insertSponsorSchema.parse({ ...req.body, userId: req.session.userId });
+      const [row] = await db.insert(sponsors).values(input).returning();
+      res.status(201).json(row);
+    } catch (e: any) {
+      res.status(400).json({ message: e?.errors?.[0]?.message ?? "Invalid sponsor" });
+    }
+  });
+
+  app.patch("/api/sponsors/:id", isAuthenticated, async (req: any, res) => {
+    const { id, userId, createdAt, ...updates } = req.body ?? {};
+    const [row] = await db.update(sponsors).set(updates)
+      .where(and(eq(sponsors.id, req.params.id), eq(sponsors.userId, req.session.userId))).returning();
+    if (!row) return res.status(404).json({ message: "Sponsor not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/sponsors/:id", isAuthenticated, async (req: any, res) => {
+    await db.delete(sponsors).where(and(eq(sponsors.id, req.params.id), eq(sponsors.userId, req.session.userId)));
+    res.status(204).end();
+  });
+
+  // ── Sponsor-tagged caption composer ──────────────────────────────────────
+  // Turns a clip into a platform-ready caption with the sponsor's hashtags and
+  // @mention attached. Composes only — posting stays a separate, reviewed step.
+  app.post("/api/refiner/compose-caption", isAuthenticated, async (req: any, res) => {
+    try {
+      const { clipTitle, clipHook, platform, sponsorId } = req.body as {
+        clipTitle?: string; clipHook?: string; platform?: string; sponsorId?: string;
+      };
+      if (!clipTitle) return res.status(400).json({ message: "clipTitle is required" });
+      const plat = String(platform ?? "tiktok").toLowerCase();
+
+      let sponsor: Sponsor | undefined;
+      if (sponsorId) {
+        [sponsor] = await db.select().from(sponsors)
+          .where(and(eq(sponsors.id, sponsorId), eq(sponsors.userId, req.session.userId)));
+      }
+
+      // Base caption from the model (falls back to the hook if AI is off).
+      let base = clipHook || clipTitle;
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (apiKey) {
+        try {
+          const openai = new OpenAI({ apiKey });
+          const c = await openai.chat.completions.create({
+            model: "gpt-4o", max_tokens: 160, temperature: 0.7,
+            messages: [
+              { role: "system", content: `Write one short, punchy ${plat} caption (1–2 lines, no hashtags, no emojis unless natural) for a short clip. Hook the viewer; don't describe.` },
+              { role: "user", content: `Clip: "${clipTitle}". ${clipHook ? `Moment: ${clipHook}` : ""}` },
+            ],
+          });
+          base = (c.choices[0]?.message?.content ?? base).trim();
+        } catch { /* keep fallback */ }
+      }
+
+      const { line, hashtags, mention } = applySponsorTags(base, sponsor, plat);
+      res.json({ caption: line, base, hashtags, mention, sponsor: sponsor?.name ?? null });
+    } catch (err: any) {
+      console.error("compose-caption error:", err?.message);
+      res.status(500).json({ message: "Couldn't compose the caption — try again." });
+    }
+  });
+}
+
+/** Append a sponsor's @mention (platform-aware) and hashtags to a caption. */
+export function applySponsorTags(base: string, sponsor: Sponsor | undefined, platform: string) {
+  if (!sponsor || !sponsor.isActive) return { line: base, hashtags: [] as string[], mention: null as string | null };
+  const handle = (sponsor.mentions ?? {})[platform] || (sponsor.mentions ?? {})[Object.keys(sponsor.mentions ?? {})[0]];
+  const mention = handle ? `@${String(handle).replace(/^@/, "")}` : null;
+  const hashtags = String(sponsor.hashtags ?? "")
+    .split(/[\s,]+/).map((t) => t.replace(/^#/, "").trim()).filter(Boolean)
+    .map((t) => `#${t}`);
+  const creditBits = [mention ? `Sponsored by ${mention}` : sponsor.creditLine ? `Sponsored by ${sponsor.name}` : null].filter(Boolean);
+  const line = [base, creditBits.join(" "), hashtags.join(" ")].filter(Boolean).join("\n\n");
+  return { line, hashtags, mention };
 }

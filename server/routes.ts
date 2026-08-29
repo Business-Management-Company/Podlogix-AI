@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
-import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession } from "./services/livekitService";
+import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, isEgressConfigured, startSessionRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -6709,6 +6709,50 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
     } catch (error) {
       console.error('Error ending live session:', error);
       res.status(500).json({ message: 'Failed to end the session' });
+    }
+  });
+
+  // ---- Cloud recording (LiveKit Egress → S3) ---------------------------
+  // Server-side full-res recording; the browser 720p canvas path stays as a
+  // fallback when Egress isn't configured.
+  app.get('/api/live/egress-status', isAuthenticated, async (_req: any, res) => {
+    res.json({ configured: isEgressConfigured() });
+  });
+
+  app.post('/api/live/sessions/:id/recording/start', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      if (!isEgressConfigured()) return res.status(503).json({ message: 'Cloud recording is not configured yet (LiveKit Egress + S3 keys).' });
+      if (session.egressId && session.recordingStatus === 'recording') return res.json({ session, alreadyRecording: true });
+      const startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : Date.now();
+      const filepath = recordingFilepath(session.id, startedAtMs);
+      const { egressId } = await startSessionRecording(roomNameForSession(session.id), filepath);
+      const updated = await storage.updateLiveSession(session.id, { egressId, recordingStatus: 'recording' });
+      res.json({ session: updated, egressId });
+    } catch (error: any) {
+      console.error('Egress start error:', error?.message);
+      res.status(502).json({ message: 'Could not start cloud recording.' });
+    }
+  });
+
+  app.post('/api/live/sessions/:id/recording/stop', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const session = await storage.getLiveSession(req.params.id);
+      if (!session || session.userId !== userId) return res.status(404).json({ message: 'Session not found' });
+      if (!session.egressId) return res.status(400).json({ message: 'No cloud recording is in progress' });
+      await stopSessionRecording(session.egressId);
+      const startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : Date.now();
+      const filepath = recordingFilepath(session.id, startedAtMs);
+      const bucket = process.env.EGRESS_S3_BUCKET!;
+      const vodUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${bucket}/${filepath}`;
+      const updated = await storage.updateLiveSession(session.id, { recordingStatus: 'done', vodUrl });
+      res.json({ session: updated, vodUrl });
+    } catch (error: any) {
+      console.error('Egress stop error:', error?.message);
+      res.status(502).json({ message: 'Could not stop cloud recording.' });
     }
   });
 

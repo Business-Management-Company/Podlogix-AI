@@ -1,4 +1,11 @@
-import { AccessToken } from "livekit-server-sdk";
+import {
+  AccessToken,
+  EgressClient,
+  EncodedFileOutput,
+  EncodedFileType,
+  EncodingOptionsPreset,
+  S3Upload,
+} from "livekit-server-sdk";
 
 /**
  * LiveKit guest rooms for the Live Studio.
@@ -38,4 +45,71 @@ export async function mintRoomToken(
   });
   token.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true });
   return token.toJwt();
+}
+
+// ── Server-side cloud recording (LiveKit Egress → Supabase S3) ───────────────
+//
+// Egress records the room composite in the cloud at full resolution, so the VOD
+// no longer depends on the host's browser (720p canvas) — this is the "Zoom
+// quality" path. Requires Egress enabled on the LiveKit plan plus S3 creds:
+//   EGRESS_S3_ACCESS_KEY / EGRESS_S3_SECRET  (Supabase dashboard → S3 keys)
+//   EGRESS_S3_BUCKET / EGRESS_S3_REGION / EGRESS_S3_ENDPOINT
+// Recordings land at recordings/<sessionId>/<startedAt>.mp4 in the bucket.
+
+export function isEgressConfigured(): boolean {
+  return (
+    isLiveKitConfigured() &&
+    Boolean(
+      process.env.EGRESS_S3_ACCESS_KEY &&
+        process.env.EGRESS_S3_SECRET &&
+        process.env.EGRESS_S3_BUCKET &&
+        process.env.EGRESS_S3_ENDPOINT,
+    )
+  );
+}
+
+/** Egress API uses the https host, not the wss realtime URL. */
+function egressHttpUrl(): string {
+  return liveKitUrl().replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+}
+
+function s3Output(filepath: string): EncodedFileOutput {
+  return new EncodedFileOutput({
+    fileType: EncodedFileType.MP4,
+    filepath,
+    output: {
+      case: "s3",
+      value: new S3Upload({
+        accessKey: process.env.EGRESS_S3_ACCESS_KEY!,
+        secret: process.env.EGRESS_S3_SECRET!,
+        bucket: process.env.EGRESS_S3_BUCKET!,
+        region: process.env.EGRESS_S3_REGION || "us-east-1",
+        endpoint: process.env.EGRESS_S3_ENDPOINT!,
+        // Supabase's S3 gateway (and most non-AWS stores) need path-style URLs.
+        forcePathStyle: (process.env.EGRESS_S3_FORCE_PATH_STYLE ?? "true") !== "false",
+      }),
+    },
+  });
+}
+
+export function recordingFilepath(sessionId: string, startedAtMs: number): string {
+  return `recordings/${sessionId}/${startedAtMs}.mp4`;
+}
+
+/** Start recording a room composite at 1080p. Returns the egress id + filepath. */
+export async function startSessionRecording(
+  roomName: string,
+  filepath: string,
+): Promise<{ egressId: string; filepath: string }> {
+  const client = new EgressClient(egressHttpUrl(), process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
+  const info = await client.startRoomCompositeEgress(roomName, s3Output(filepath), {
+    layout: "grid",
+    encodingOptions: EncodingOptionsPreset.H264_1080P_30,
+  });
+  return { egressId: info.egressId, filepath };
+}
+
+export async function stopSessionRecording(egressId: string): Promise<void> {
+  const client = new EgressClient(egressHttpUrl(), process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
+  await client.stopEgress(egressId);
 }

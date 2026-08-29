@@ -1007,6 +1007,10 @@ export const liveSessions = pgTable("live_sessions", {
   // Guest room invite code (LiveKit). Valid only while the session is open.
   guestInviteCode: varchar("guest_invite_code"),
   studioId: varchar("studio_id"), // -> studios.id (nullable: pre-studio sessions)
+  // Server-side cloud recording (LiveKit Egress). When present, the VOD is the
+  // full-res egress capture rather than the 720p browser recording.
+  egressId: varchar("egress_id"),
+  recordingStatus: varchar("recording_status"), // null | starting | recording | done | failed
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -1021,6 +1025,27 @@ export const liveMarks = pgTable("live_marks", {
   clipMediaId: varchar("clip_media_id"), // -> media_library_items.id
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Sponsors — a creator's active sponsors, so every clip posted from the
+// Refiner/Studio can auto-attach the sponsor's hashtags and per-platform
+// @mentions. This is the piece stock clippers don't have.
+export const sponsors = pgTable("sponsors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  showId: varchar("show_id"), // -> podcasts.id (null = applies to all shows)
+  name: varchar("name").notNull(),
+  // Space/comma-separated tags, stored without the leading #.
+  hashtags: text("hashtags").default(""),
+  // Per-platform handle for @mentions, e.g. { instagram: "acme", tiktok: "acmehq" }.
+  mentions: jsonb("mentions").$type<Record<string, string>>().default({}),
+  // Optional one-line spoken/credit note surfaced in the composer.
+  creditLine: text("credit_line"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSponsorSchema = createInsertSchema(sponsors).omit({ id: true, createdAt: true });
+export type Sponsor = typeof sponsors.$inferSelect;
+export type InsertSponsor = typeof sponsors.$inferInsert;
 
 export const insertLiveSessionSchema = createInsertSchema(liveSessions).omit({ id: true, createdAt: true });
 export const insertLiveMarkSchema = createInsertSchema(liveMarks).omit({ id: true, createdAt: true });
