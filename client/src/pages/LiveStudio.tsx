@@ -202,6 +202,10 @@ export default function LiveStudio() {
   });
   const { data: studiosData } = useQuery<{ studios: Studio[] }>({ queryKey: ["/api/studios"] });
   const studios = studiosData?.studios ?? [];
+  // When cloud recording (LiveKit Egress) is configured, the studio records
+  // server-side at 1080p instead of the browser canvas.
+  const { data: egressStatus } = useQuery<{ configured: boolean }>({ queryKey: ["/api/live/egress-status"] });
+  const cloudRecording = egressStatus?.configured === true;
   const activeStudio = studios.find((s) => s.id === activeStudioId) ?? null;
 
   const { data: sessionsData } = useQuery<{ sessions: LiveSession[] }>({
@@ -259,7 +263,11 @@ export default function LiveStudio() {
     return () => { if (canvas.parentElement === stage) stage.removeChild(canvas); };
   }, [anySource]);
 
-  useEffect(() => { compositor().setLayout(layout); }, [layout]);
+  useEffect(() => {
+    compositor().setLayout(layout);
+    // Mirror the switch to the cloud recorder (egress renderer) if it's watching.
+    void liveRoomRef.current?.broadcastLayout(layout);
+  }, [layout]);
 
   useEffect(() => {
     if (session?.vodUrl && !vodUrl) setVodUrl(session.vodUrl);
@@ -416,6 +424,7 @@ export default function LiveStudio() {
     compositorRef.current?.setMediaImage(null);
     setStageMedia(null);
     setMediaPaused(false);
+    void liveRoomRef.current?.broadcastMedia(null);
   };
 
   const playOnStage = (item: { caption: string | null; mediaType: string | null; mediaUrl: string | null; platform: string }) => {
@@ -435,8 +444,10 @@ export default function LiveStudio() {
       img.onload = () => compositor().setMediaImage(img);
       img.src = item.mediaUrl;
     }
-    setStageMedia({ url: item.mediaUrl, type: item.mediaType === "video" ? "video" : "image", caption: item.caption || item.platform });
+    const mediaType = item.mediaType === "video" ? "video" : "image";
+    setStageMedia({ url: item.mediaUrl, type: mediaType, caption: item.caption || item.platform });
     setMediaPaused(false);
+    void liveRoomRef.current?.broadcastMedia({ url: item.mediaUrl, type: mediaType });
   };
 
   const toggleStageMediaPause = () => {
@@ -614,17 +625,28 @@ export default function LiveStudio() {
       if (!res.ok) throw new Error("start failed");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: { session?: LiveSession }) => {
       refresh();
       setTitle("");
       setCaptions(null);
       // A fresh show gets a fresh pipeline.
       setTranscript(null);
       setPipeline({ transcribe: "idle", detect: "idle" });
-      if (anySource) startRecording();
+      // Cloud recording captures the room server-side at 1080p; the browser
+      // canvas recorder is the fallback when Egress isn't configured.
+      if (cloudRecording && data?.session?.id) {
+        void apiRequest("POST", `/api/live/sessions/${data.session.id}/recording/start`, {}).catch(() => {
+          toast({ title: "Cloud recording didn't start", description: "Recording the stage in the browser instead.", variant: "destructive" });
+          if (anySource) startRecording();
+        });
+      } else if (anySource) {
+        startRecording();
+      }
       toast({
         title: "You're live on the clock",
-        description: anySource ? "Recording the stage — smash CLIP when something good happens." : "Smash CLIP when something good happens.",
+        description: cloudRecording
+          ? "Recording to the cloud at full resolution — smash CLIP when something good happens."
+          : anySource ? "Recording the stage — smash CLIP when something good happens." : "Smash CLIP when something good happens.",
       });
     },
     onError: () => toast({ title: "Couldn't start the session", variant: "destructive" }),
@@ -640,10 +662,20 @@ export default function LiveStudio() {
       refresh();
       leaveGuestRoom();
       if (marks.length > 0) setView("edit");
-      if (session && recorderRef.current) void stopRecorderAndAttach(session.id);
+      // Stop whichever recorder ran: cloud egress (sets the VOD server-side) or
+      // the browser canvas recorder (uploads + attaches the VOD here).
+      if (session && cloudRecording && session.recordingStatus === "recording") {
+        void apiRequest("POST", `/api/live/sessions/${session.id}/recording/stop`, {})
+          .then(() => refresh())
+          .catch(() => toast({ title: "Couldn't stop cloud recording cleanly", variant: "destructive" }));
+      } else if (session && recorderRef.current) {
+        void stopRecorderAndAttach(session.id);
+      }
       toast({
         title: `Show ended — ${marks.length} moment${marks.length === 1 ? "" : "s"} marked`,
-        description: recorderRef.current ? "Uploading your recording — the cut panel fills itself." : "Attach the VOD and they become clips.",
+        description: cloudRecording
+          ? "Finalizing your cloud recording — it lands in Media Storage shortly."
+          : recorderRef.current ? "Uploading your recording — the cut panel fills itself." : "Attach the VOD and they become clips.",
       });
     },
     onError: () => toast({ title: "Couldn't end the show", variant: "destructive" }),

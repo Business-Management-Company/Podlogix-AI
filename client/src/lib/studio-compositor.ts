@@ -23,8 +23,8 @@ export const STUDIO_LAYOUTS: Array<{ id: StudioLayout; label: string; hint: stri
   { id: "split", label: "Split Screen", hint: "Screen and camera side by side" },
 ];
 
-const W = 1280;
-const H = 720;
+const DEFAULT_W = 1280;
+const DEFAULT_H = 720;
 
 /** pip-br <-> pip-bl, pip-tr <-> pip-tl — the opposite horizontal corner. */
 function mirrorPip(layout: StudioLayout): StudioLayout {
@@ -40,6 +40,8 @@ interface CompositorState {
 
 export class StudioCompositor {
   readonly canvas: HTMLCanvasElement;
+  private readonly w: number;
+  private readonly h: number;
   private ctx: CanvasRenderingContext2D;
   private camVideo: HTMLVideoElement;
   private screenVideo: HTMLVideoElement;
@@ -54,10 +56,12 @@ export class StudioCompositor {
   private audioSources: MediaStreamAudioSourceNode[] = [];
   private running = false;
 
-  constructor() {
+  constructor(dims?: { width: number; height: number }) {
+    this.w = dims?.width ?? DEFAULT_W;
+    this.h = dims?.height ?? DEFAULT_H;
     this.canvas = document.createElement("canvas");
-    this.canvas.width = W;
-    this.canvas.height = H;
+    this.canvas.width = this.w;
+    this.canvas.height = this.h;
     this.ctx = this.canvas.getContext("2d")!;
     this.camVideo = this.makeVideo();
     this.screenVideo = this.makeVideo();
@@ -165,11 +169,11 @@ export class StudioCompositor {
   /** Small framed overlay in the corner the layout names. */
   private drawPip(video: HTMLVideoElement, layout: StudioLayout) {
     const ctx = this.ctx;
-    const pw = Math.round(W * 0.26);
+    const pw = Math.round(this.w * 0.26);
     const ph = Math.round(pw * 9 / 16);
     const pad = 24;
-    const x = layout.endsWith("r") ? W - pw - pad : pad;
-    const y = layout.startsWith("pip-b") ? H - ph - pad : pad;
+    const x = layout.endsWith("r") ? this.w - pw - pad : pad;
+    const y = layout.startsWith("pip-b") ? this.h - ph - pad : pad;
     ctx.save();
     ctx.strokeStyle = "rgba(255,255,255,0.85)";
     ctx.lineWidth = 3;
@@ -187,7 +191,7 @@ export class StudioCompositor {
     const { layout } = this.state;
     const ctx = this.ctx;
     ctx.fillStyle = "#09090b";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, this.w, this.h);
 
     const hasCam = !!this.state.camera && this.camVideo.videoWidth > 0;
     const hasGuest = !!this.state.guest && this.guestVideo.videoWidth > 0;
@@ -205,45 +209,45 @@ export class StudioCompositor {
     if (hasScreen && hasCam && hasGuest) {
       if (layout.startsWith("pip")) {
         // Screen big; host pip in the chosen corner, guest mirrored across.
-        this.drawCover(bigEl!, 0, 0, W, H);
+        this.drawCover(bigEl!, 0, 0, this.w, this.h);
         this.drawPip(this.camVideo, layout);
         this.drawPip(this.guestVideo, mirrorPip(layout));
       } else {
         // Screen left, the two people stacked on the right.
-        this.drawCover(bigEl!, 0, 0, W / 2, H);
-        this.drawCover(this.camVideo, W / 2, 0, W / 2, H / 2);
-        this.drawCover(this.guestVideo, W / 2, H / 2, W / 2, H / 2);
-        this.divider(W / 2 - 1, 0, 2, H);
-        this.divider(W / 2, H / 2 - 1, W / 2, 2);
+        this.drawCover(bigEl!, 0, 0, this.w / 2, this.h);
+        this.drawCover(this.camVideo, this.w / 2, 0, this.w / 2, this.h / 2);
+        this.drawCover(this.guestVideo, this.w / 2, this.h / 2, this.w / 2, this.h / 2);
+        this.divider(this.w / 2 - 1, 0, 2, this.h);
+        this.divider(this.w / 2, this.h / 2 - 1, this.w / 2, 2);
       }
     } else if (hasScreen && (hasCam || hasGuest)) {
       const person = hasCam ? this.camVideo : this.guestVideo;
       if (layout.startsWith("pip")) {
-        this.drawCover(bigEl!, 0, 0, W, H);
+        this.drawCover(bigEl!, 0, 0, this.w, this.h);
         this.drawPip(person, layout);
       } else if (layout === "split") {
-        this.drawCover(bigEl!, 0, 0, W / 2, H);
-        this.drawCover(person, W / 2, 0, W / 2, H);
-        this.divider(W / 2 - 1, 0, 2, H);
+        this.drawCover(bigEl!, 0, 0, this.w / 2, this.h);
+        this.drawCover(person, this.w / 2, 0, this.w / 2, this.h);
+        this.divider(this.w / 2 - 1, 0, 2, this.h);
       } else {
-        this.drawCover(bigEl!, 0, 0, W, H);
+        this.drawCover(bigEl!, 0, 0, this.w, this.h);
       }
     } else if (hasScreen) {
-      this.drawCover(bigEl!, 0, 0, W, H);
+      this.drawCover(bigEl!, 0, 0, this.w, this.h);
     } else if (hasCam && hasGuest) {
       if (layout.startsWith("pip")) {
-        this.drawCover(this.guestVideo, 0, 0, W, H);
+        this.drawCover(this.guestVideo, 0, 0, this.w, this.h);
         this.drawPip(this.camVideo, layout);
       } else {
         // Side-by-side interview — the guest is never hidden, fullscreen included.
-        this.drawCover(this.camVideo, 0, 0, W / 2, H);
-        this.drawCover(this.guestVideo, W / 2, 0, W / 2, H);
-        this.divider(W / 2 - 1, 0, 2, H);
+        this.drawCover(this.camVideo, 0, 0, this.w / 2, this.h);
+        this.drawCover(this.guestVideo, this.w / 2, 0, this.w / 2, this.h);
+        this.divider(this.w / 2 - 1, 0, 2, this.h);
       }
     } else if (hasCam) {
-      this.drawCover(this.camVideo, 0, 0, W, H);
+      this.drawCover(this.camVideo, 0, 0, this.w, this.h);
     } else if (hasGuest) {
-      this.drawCover(this.guestVideo, 0, 0, W, H);
+      this.drawCover(this.guestVideo, 0, 0, this.w, this.h);
     }
 
     if (this.running) this.raf = requestAnimationFrame(this.draw);
