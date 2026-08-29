@@ -156,14 +156,18 @@ export default function Refiner() {
     setSelected({ id: it.id, url: it.mediaUrl!, title: humanRecordingName(it), type: it.mediaType === "audio" ? "audio" : "video" });
   }, [sources, selected]);
 
-  // Reset derived state when the selection changes; probe duration.
+  // Reset derived state when the selection changes; probe duration. The probe
+  // is async, so a cancel flag keeps a stale result (from a fast re-select or
+  // an unmount) from landing on the wrong selection.
   useEffect(() => {
     setPipeline({ transcribe: "idle", polish: "idle", clips: "idle" });
     setTranscript(null); setPolishedUrl(null); setMinutesSaved(null); setFillersCut(null);
     setWordCount(null); setClips([]); setSelDuration(null);
     if (!selected) return;
-    void mediaDuration(selected.url, selected.type).then((d) => setSelDuration(d || null));
-  }, [selected?.url]);
+    let cancelled = false;
+    void mediaDuration(selected.url, selected.type).then((d) => { if (!cancelled) setSelDuration(d || null); });
+    return () => { cancelled = true; };
+  }, [selected?.id, selected?.url, selected?.type]);
 
   const pick = (it: LibraryItem) =>
     setSelected({ id: it.id, url: it.mediaUrl!, title: humanRecordingName(it), type: it.mediaType === "audio" ? "audio" : "video" });
@@ -351,12 +355,18 @@ export default function Refiner() {
         {/* Preview */}
         <section className="rf-card" style={{ overflow: "hidden" }}>
           <div className="rf-prev">
-            {polishedUrl && polishedIsVideo ? (
-              <video src={polishedUrl} controls className="rf-media" />
+            {polishedUrl ? (
+              // A finished refine always previews the refined output — as video
+              // when the picture survived, or as audio when it fell back.
+              polishedIsVideo ? (
+                <video src={polishedUrl} controls className="rf-media" />
+              ) : (
+                <div className="rf-audioframe"><WaveIcon /><audio src={polishedUrl} controls /></div>
+              )
             ) : selected?.type === "video" ? (
               <video src={selected.url} controls className="rf-media" />
             ) : selected?.type === "audio" ? (
-              <div className="rf-audioframe"><WaveIcon /><audio src={polishedUrl ?? selected.url} controls /></div>
+              <div className="rf-audioframe"><WaveIcon /><audio src={selected.url} controls /></div>
             ) : (
               <div className="rf-prev-empty">Select a recording to preview</div>
             )}
