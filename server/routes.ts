@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
-import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, startSessionRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
+import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, egressConfigReport, startSessionRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -6716,7 +6716,9 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
   // Server-side full-res recording; the browser 720p canvas path stays as a
   // fallback when Egress isn't configured.
   app.get('/api/live/egress-status', isAuthenticated, async (_req: any, res) => {
-    res.json({ configured: isEgressConfigured() });
+    // Reports which required env vars are missing (names only, no values) so a
+    // misconfigured deploy is diagnosable instead of a silent "not configured".
+    res.json(egressConfigReport());
   });
 
   app.post('/api/live/sessions/:id/recording/start', isAuthenticated, async (req: any, res) => {
