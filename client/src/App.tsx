@@ -27,6 +27,7 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import PublicProfile from "@/pages/PublicProfile";
 import StudioGuest from "@/pages/StudioGuest";
+import EgressView from "@/pages/EgressView";
 import Facet from "@/pages/Facet";
 import Refiner from "@/pages/Refiner";
 
@@ -333,6 +334,7 @@ function PublicRoutes() {
       <Route path="/signup" component={AuthPage} />
       <Route path="/p/:slug" component={PublicProfile} />
       <Route path="/studio/guest" component={StudioGuest} />
+      <Route path="/studio/egress-view" component={EgressView} />
       <Route path="/voice-certification" component={VoiceCertification} />
       <Route path="/certificate/:id" component={Certificate} />
       <Route path="/privacy" component={Privacy} />
@@ -359,6 +361,7 @@ function Router() {
     "/privacy",
     "/terms",
     "/studio/guest",
+    "/studio/egress-view",
   ];
 
   const isPublicPath =

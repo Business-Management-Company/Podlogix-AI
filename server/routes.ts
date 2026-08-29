@@ -6736,7 +6736,12 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       try {
         // Record the room participants actually joined (studio-<id> for studio
         // sessions), not live-<sessionId> — otherwise the capture is empty.
-        const { egressId } = await startSessionRecording(roomNameForRecording(session), filepath);
+        // Point Egress at our own studio-view page so the recording matches the
+        // studio composition (falls back to LiveKit's grid if the flag is off).
+        const templateBaseUrl =
+          process.env.EGRESS_TEMPLATE_URL ||
+          (process.env.EGRESS_USE_STUDIO_VIEW === 'false' ? undefined : `${getPublicBaseUrl(req)}/studio/egress-view`);
+        const { egressId } = await startSessionRecording(roomNameForRecording(session), filepath, templateBaseUrl);
         const updated = await storage.updateLiveSession(session.id, { egressId, recordingStatus: 'recording' });
         res.json({ session: updated, egressId });
       } catch (startErr) {

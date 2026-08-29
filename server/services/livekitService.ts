@@ -109,15 +109,23 @@ export function recordingFilepath(sessionId: string, startedAtMs: number): strin
   return `recordings/${sessionId}/${startedAtMs}.mp4`;
 }
 
-/** Start recording a room composite at 1080p. Returns the egress id + filepath. */
+/**
+ * Start recording a room composite at 1080p. Returns the egress id + filepath.
+ * When templateBaseUrl is given, LiveKit's egress renderer loads that page
+ * (our /studio/egress-view, which reproduces the studio composition) instead
+ * of a built-in grid — so the recording matches the studio look. Without it,
+ * falls back to the built-in grid layout.
+ */
 export async function startSessionRecording(
   roomName: string,
   filepath: string,
+  templateBaseUrl?: string,
 ): Promise<{ egressId: string; filepath: string }> {
   const client = new EgressClient(egressHttpUrl(), process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
   const info = await client.startRoomCompositeEgress(roomName, s3Output(filepath), {
-    layout: "grid",
+    layout: templateBaseUrl ? "studio" : "grid",
     encodingOptions: EncodingOptionsPreset.H264_1080P_30,
+    ...(templateBaseUrl ? { customBaseUrl: templateBaseUrl } : {}),
   });
   return { egressId: info.egressId, filepath };
 }
