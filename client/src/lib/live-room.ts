@@ -37,6 +37,7 @@ export class LiveRoom {
   // Published tracks, kept per-source so camera and screen swap independently.
   private cameraPubs: LocalTrackPublication[] = [];
   private screenPubs: LocalTrackPublication[] = [];
+  private programPubs: LocalTrackPublication[] = [];
   private lastLayout: string | null = null;
   private lastMedia: StageMedia | null = null;
 
@@ -152,11 +153,47 @@ export class LiveRoom {
     await this.republishSource(stream, Track.Source.ScreenShare, Track.Source.ScreenShareAudio, this.screenPubs);
   }
 
+  /**
+   * Publish the fully-composited stage (the studio canvas + mixed audio) as one
+   * "program" track pair, and return their SIDs so Egress can TrackComposite
+   * exactly this — the recording is then pixel-identical to the stage, with no
+   * cloud re-compositing. Simulcast off + a high bitrate so the 1080p canvas
+   * isn't quietly downscaled on the way up.
+   */
+  async publishProgram(stream: MediaStream): Promise<{ videoSid?: string; audioSid?: string }> {
+    const room = this.room;
+    if (!room) return {};
+    for (const pub of this.programPubs) {
+      if (pub.track) await room.localParticipant.unpublishTrack(pub.track, false).catch(() => {});
+    }
+    this.programPubs = [];
+    const sids: { videoSid?: string; audioSid?: string } = {};
+    for (const track of stream.getVideoTracks()) {
+      const pub = await room.localParticipant
+        .publishTrack(track, {
+          source: Track.Source.Camera,
+          simulcast: false,
+          videoEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 },
+          degradationPreference: "maintain-resolution",
+        })
+        .catch(() => null);
+      if (pub) { this.programPubs.push(pub); sids.videoSid = pub.trackSid; }
+    }
+    for (const track of stream.getAudioTracks()) {
+      const pub = await room.localParticipant
+        .publishTrack(track, { source: Track.Source.Microphone })
+        .catch(() => null);
+      if (pub) { this.programPubs.push(pub); sids.audioSid = pub.trackSid; }
+    }
+    return sids;
+  }
+
   async disconnect(): Promise<void> {
     const room = this.room;
     this.room = null;
     this.cameraPubs = [];
     this.screenPubs = [];
+    this.programPubs = [];
     await room?.disconnect().catch(() => {});
   }
 }

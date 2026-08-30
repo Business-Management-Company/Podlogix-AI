@@ -148,6 +148,28 @@ export async function startSessionRecording(
   return { egressId: info.egressId, filepath };
 }
 
+/**
+ * Record specific tracks — the host's composited "program" video + audio — muxed
+ * to one MP4. This is the faithful path: the host publishes the exact studio
+ * canvas, and Egress captures precisely that track, so the recording matches the
+ * stage with no cloud re-compositing (and a guest's raw track in the room is
+ * never double-drawn).
+ */
+export async function startTrackCompositeRecording(
+  roomName: string,
+  filepath: string,
+  videoTrackId: string,
+  audioTrackId: string | undefined,
+): Promise<{ egressId: string; filepath: string }> {
+  const client = new EgressClient(egressHttpUrl(), process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
+  const info = await client.startTrackCompositeEgress(roomName, s3Output(filepath), {
+    videoTrackId,
+    ...(audioTrackId ? { audioTrackId } : {}),
+    encodingOptions: EncodingOptionsPreset.H264_1080P_30,
+  });
+  return { egressId: info.egressId, filepath };
+}
+
 export async function stopSessionRecording(egressId: string): Promise<void> {
   const client = new EgressClient(egressHttpUrl(), process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
   await client.stopEgress(egressId);

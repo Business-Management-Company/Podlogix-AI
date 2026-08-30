@@ -251,7 +251,9 @@ export default function LiveStudio() {
 
   const compositor = () => {
     if (!compositorRef.current) {
-      compositorRef.current = new StudioCompositor();
+      // Composite at 1080p — this canvas IS the recording (published to LiveKit
+      // for cloud capture, or recorded in-browser as the fallback).
+      compositorRef.current = new StudioCompositor({ width: 1920, height: 1080 });
       compositorRef.current.canvas.className = "h-full w-full rounded-xl object-contain";
     }
     return compositorRef.current;
@@ -371,7 +373,9 @@ export default function LiveStudio() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720 },
+        // Ask for 1080p so the composite is genuinely full-res, not upscaled;
+        // the browser falls back to the best the camera actually supports.
+        video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: true,
       });
       cameraStreamRef.current = stream;
@@ -516,25 +520,28 @@ export default function LiveStudio() {
     setGuestFeed({ stream: null, name: "" });
   };
 
-  // Join the studio's LiveKit room as the host and publish our sources into it.
-  // Needed both to host a guest AND for cloud recording — Egress records the
-  // room, so the host must be a participant publishing camera + screen or the
-  // capture is empty (or fails outright with "room does not exist").
-  const ensureHostRoom = async (): Promise<LiveRoom | null> => {
-    if (liveRoomRef.current) return liveRoomRef.current;
+  // Join the studio's LiveKit room as the host and publish the fully-composited
+  // stage (camera + screen + media + guest + layout) as one "program" track.
+  // Egress TrackComposites exactly this, so the recording is pixel-identical to
+  // the stage — no cloud re-compositing, no black frames. The program track is
+  // the live canvas captureStream, so it follows every source change on its own;
+  // no per-toggle re-publish needed. Returns the program track SIDs for Egress.
+  const ensureHostRoom = async (): Promise<{ room: LiveRoom; videoSid?: string; audioSid?: string } | null> => {
     if (!activeStudio) return null;
-    const tokRes = await apiRequest("POST", `/api/studios/${activeStudio.id}/host-token`, {});
-    const tok = await tokRes.json().catch(() => ({}));
-    if (!tokRes.ok) throw new Error(tok.message || "Couldn't join the studio room");
-    const room = new LiveRoom();
-    liveRoomRef.current = room;
-    await room.connect(tok.url, tok.token, (feed) => {
-      compositor().setGuest(feed.stream);
-      setGuestFeed(feed);
-    });
-    await room.publishCamera(cameraStreamRef.current);
-    if (screenStreamRef.current) await room.publishScreen(screenStreamRef.current);
-    return room;
+    let room = liveRoomRef.current;
+    if (!room) {
+      const tokRes = await apiRequest("POST", `/api/studios/${activeStudio.id}/host-token`, {});
+      const tok = await tokRes.json().catch(() => ({}));
+      if (!tokRes.ok) throw new Error(tok.message || "Couldn't join the studio room");
+      room = new LiveRoom();
+      liveRoomRef.current = room;
+      await room.connect(tok.url, tok.token, (feed) => {
+        compositor().setGuest(feed.stream);
+        setGuestFeed(feed);
+      });
+    }
+    const sids = await room.publishProgram(compositor().start());
+    return { room, ...sids };
   };
 
   const inviteGuest = async () => {
@@ -563,17 +570,9 @@ export default function LiveStudio() {
     }
   };
 
-  // Keep our published tracks in step with the sources, so a guest and the
-  // cloud recording both follow camera/screen toggles mid-show.
-  useEffect(() => {
-    if (liveRoomRef.current?.connected) void liveRoomRef.current.publishCamera(cameraStreamRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraOn]);
-
-  useEffect(() => {
-    if (liveRoomRef.current?.connected) void liveRoomRef.current.publishScreen(screenStreamRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenOn]);
+  // No per-source republish needed: the program we publish is the live studio
+  // canvas, so camera/screen/media toggles show up in the room (and recording)
+  // on their own as the compositor redraws.
 
   useEffect(() => () => {
     stopAllSources();
@@ -657,11 +656,14 @@ export default function LiveStudio() {
         const sessionId = data.session.id;
         void (async () => {
           try {
-            // Egress records the LiveKit room, so the host must be joined and
-            // publishing sources BEFORE recording starts — otherwise the room
-            // doesn't exist (solo show) or the capture is empty.
-            await ensureHostRoom();
-            const res = await apiRequest("POST", `/api/live/sessions/${sessionId}/recording/start`, {});
+            // Join + publish the composited program BEFORE recording starts, and
+            // hand Egress the exact track SIDs to capture.
+            const hr = await ensureHostRoom();
+            if (!hr?.videoSid) throw new Error("no program track to record");
+            const res = await apiRequest("POST", `/api/live/sessions/${sessionId}/recording/start`, {
+              videoTrackId: hr.videoSid,
+              audioTrackId: hr.audioSid,
+            });
             if (!res.ok) throw new Error("recording/start failed");
             cloudRecordingActiveRef.current = true;
           } catch {
