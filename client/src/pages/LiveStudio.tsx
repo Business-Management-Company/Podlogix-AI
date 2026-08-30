@@ -171,6 +171,9 @@ export default function LiveStudio() {
 
   // ── Guest room (LiveKit) ──
   const liveRoomRef = useRef<LiveRoom | null>(null);
+  // True once server-side cloud recording is confirmed started, so ending the
+  // show stops it via the API regardless of query-refetch timing.
+  const cloudRecordingActiveRef = useRef(false);
   const [guestFeed, setGuestFeed] = useState<RemoteFeed>({ stream: null, name: "" });
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -513,6 +516,27 @@ export default function LiveStudio() {
     setGuestFeed({ stream: null, name: "" });
   };
 
+  // Join the studio's LiveKit room as the host and publish our sources into it.
+  // Needed both to host a guest AND for cloud recording — Egress records the
+  // room, so the host must be a participant publishing camera + screen or the
+  // capture is empty (or fails outright with "room does not exist").
+  const ensureHostRoom = async (): Promise<LiveRoom | null> => {
+    if (liveRoomRef.current) return liveRoomRef.current;
+    if (!activeStudio) return null;
+    const tokRes = await apiRequest("POST", `/api/studios/${activeStudio.id}/host-token`, {});
+    const tok = await tokRes.json().catch(() => ({}));
+    if (!tokRes.ok) throw new Error(tok.message || "Couldn't join the studio room");
+    const room = new LiveRoom();
+    liveRoomRef.current = room;
+    await room.connect(tok.url, tok.token, (feed) => {
+      compositor().setGuest(feed.stream);
+      setGuestFeed(feed);
+    });
+    await room.publishCamera(cameraStreamRef.current);
+    if (screenStreamRef.current) await room.publishScreen(screenStreamRef.current);
+    return room;
+  };
+
   const inviteGuest = async () => {
     if (!activeStudio) return;
     setInviteBusy(true);
@@ -523,18 +547,7 @@ export default function LiveStudio() {
 
       // Join the room ourselves (once) so the guest lands on a live stage —
       // works before the show starts: prep together, then go live.
-      if (!liveRoomRef.current) {
-        const tokRes = await apiRequest("POST", `/api/studios/${activeStudio.id}/host-token`, {});
-        const tok = await tokRes.json().catch(() => ({}));
-        if (!tokRes.ok) throw new Error(tok.message || "Couldn't join the guest room");
-        const room = new LiveRoom();
-        liveRoomRef.current = room;
-        await room.connect(tok.url, tok.token, (feed) => {
-          compositor().setGuest(feed.stream);
-          setGuestFeed(feed);
-        });
-        await room.publish(cameraStreamRef.current);
-      }
+      await ensureHostRoom();
 
       setInviteUrl(link.url);
       setInviteCopied(false);
@@ -550,11 +563,17 @@ export default function LiveStudio() {
     }
   };
 
-  // Keep our published tracks in step with the camera source.
+  // Keep our published tracks in step with the sources, so a guest and the
+  // cloud recording both follow camera/screen toggles mid-show.
   useEffect(() => {
-    if (liveRoomRef.current?.connected) void liveRoomRef.current.publish(cameraStreamRef.current);
+    if (liveRoomRef.current?.connected) void liveRoomRef.current.publishCamera(cameraStreamRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraOn]);
+
+  useEffect(() => {
+    if (liveRoomRef.current?.connected) void liveRoomRef.current.publishScreen(screenStreamRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenOn]);
 
   useEffect(() => () => {
     stopAllSources();
@@ -635,10 +654,21 @@ export default function LiveStudio() {
       // Cloud recording captures the room server-side at 1080p; the browser
       // canvas recorder is the fallback when Egress isn't configured.
       if (cloudRecording && data?.session?.id) {
-        void apiRequest("POST", `/api/live/sessions/${data.session.id}/recording/start`, {}).catch(() => {
-          toast({ title: "Cloud recording didn't start", description: "Recording the stage in the browser instead.", variant: "destructive" });
-          if (anySource) startRecording();
-        });
+        const sessionId = data.session.id;
+        void (async () => {
+          try {
+            // Egress records the LiveKit room, so the host must be joined and
+            // publishing sources BEFORE recording starts — otherwise the room
+            // doesn't exist (solo show) or the capture is empty.
+            await ensureHostRoom();
+            const res = await apiRequest("POST", `/api/live/sessions/${sessionId}/recording/start`, {});
+            if (!res.ok) throw new Error("recording/start failed");
+            cloudRecordingActiveRef.current = true;
+          } catch {
+            toast({ title: "Cloud recording didn't start", description: "Recording the stage in the browser instead.", variant: "destructive" });
+            if (anySource) startRecording();
+          }
+        })();
       } else if (anySource) {
         startRecording();
       }
@@ -660,16 +690,20 @@ export default function LiveStudio() {
     },
     onSuccess: () => {
       refresh();
-      leaveGuestRoom();
       if (marks.length > 0) setView("edit");
       // Stop whichever recorder ran: cloud egress (sets the VOD server-side) or
-      // the browser canvas recorder (uploads + attaches the VOD here).
-      if (session && cloudRecording && session.recordingStatus === "recording") {
+      // the browser canvas recorder (uploads + attaches the VOD here). Stop the
+      // egress BEFORE leaving the room so the host is still present — then drop
+      // our room connection.
+      if (session && cloudRecordingActiveRef.current) {
+        cloudRecordingActiveRef.current = false;
         void apiRequest("POST", `/api/live/sessions/${session.id}/recording/stop`, {})
           .then(() => refresh())
-          .catch(() => toast({ title: "Couldn't stop cloud recording cleanly", variant: "destructive" }));
-      } else if (session && recorderRef.current) {
-        void stopRecorderAndAttach(session.id);
+          .catch(() => toast({ title: "Couldn't stop cloud recording cleanly", variant: "destructive" }))
+          .finally(() => leaveGuestRoom());
+      } else {
+        leaveGuestRoom();
+        if (session && recorderRef.current) void stopRecorderAndAttach(session.id);
       }
       toast({
         title: `Show ended — ${marks.length} moment${marks.length === 1 ? "" : "s"} marked`,

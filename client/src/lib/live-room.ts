@@ -1,4 +1,4 @@
-import { Room, RoomEvent } from "livekit-client";
+import { Room, RoomEvent, Track, type LocalTrackPublication } from "livekit-client";
 
 /**
  * Thin wrapper around a LiveKit room for the Live Studio.
@@ -34,7 +34,9 @@ export interface MediaMessage {
 
 export class LiveRoom {
   private room: Room | null = null;
-  private published: MediaStreamTrack[] = [];
+  // Published tracks, kept per-source so camera and screen swap independently.
+  private cameraPubs: LocalTrackPublication[] = [];
+  private screenPubs: LocalTrackPublication[] = [];
   private lastLayout: string | null = null;
   private lastMedia: StageMedia | null = null;
 
@@ -111,26 +113,50 @@ export class LiveRoom {
     await room.localParticipant.publishData(payload, { reliable: true }).catch(() => {});
   }
 
-  /** Publish our local tracks, replacing anything published before. */
-  async publish(stream: MediaStream | null): Promise<void> {
+  /**
+   * Publish a source's tracks, replacing whatever was published for it before.
+   * Video and audio carry explicit LiveKit sources so the far end (the egress
+   * renderer especially) can tell camera from screen. Unpublishing never stops
+   * the underlying track — the local studio canvas is still drawing it.
+   */
+  private async republishSource(
+    stream: MediaStream | null,
+    videoSource: Track.Source,
+    audioSource: Track.Source,
+    held: LocalTrackPublication[],
+  ): Promise<void> {
     const room = this.room;
     if (!room) return;
-    for (const track of this.published) {
-      await room.localParticipant.unpublishTrack(track).catch(() => {});
+    for (const pub of held) {
+      if (pub.track) await room.localParticipant.unpublishTrack(pub.track, false).catch(() => {});
     }
-    this.published = [];
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        await room.localParticipant.publishTrack(track).catch(() => {});
-        this.published.push(track);
-      }
+    held.length = 0;
+    if (!stream) return;
+    for (const track of stream.getVideoTracks()) {
+      const pub = await room.localParticipant.publishTrack(track, { source: videoSource }).catch(() => null);
+      if (pub) held.push(pub);
     }
+    for (const track of stream.getAudioTracks()) {
+      const pub = await room.localParticipant.publishTrack(track, { source: audioSource }).catch(() => null);
+      if (pub) held.push(pub);
+    }
+  }
+
+  /** The host's camera + mic — the guest and the recording both need it. */
+  async publishCamera(stream: MediaStream | null): Promise<void> {
+    await this.republishSource(stream, Track.Source.Camera, Track.Source.Microphone, this.cameraPubs);
+  }
+
+  /** The host's screen share + its system audio, published as a distinct source. */
+  async publishScreen(stream: MediaStream | null): Promise<void> {
+    await this.republishSource(stream, Track.Source.ScreenShare, Track.Source.ScreenShareAudio, this.screenPubs);
   }
 
   async disconnect(): Promise<void> {
     const room = this.room;
     this.room = null;
-    this.published = [];
+    this.cameraPubs = [];
+    this.screenPubs = [];
     await room?.disconnect().catch(() => {});
   }
 }
