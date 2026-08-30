@@ -72,7 +72,7 @@ export default function StudioGuest() {
       const room = new LiveRoom();
       roomRef.current = room;
       await room.connect(data.url, data.token, setHost);
-      await room.publish(localStreamRef.current);
+      await room.publishCamera(localStreamRef.current);
       setRoomTitle(data.roomTitle || "Live show");
       setPhase("in");
     } catch (e) {
