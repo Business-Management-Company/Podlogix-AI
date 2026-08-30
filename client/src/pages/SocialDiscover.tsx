@@ -46,43 +46,44 @@ const DISCOVER_TABS: { key: DiscoverTab; label: string; icon: LucideIcon }[] = [
   { key: "credited", label: "Most Credited", icon: Medal },
 ];
 
-// All 15 shown at once in a 5-column grid (3 rows of 5).
+// All 15 shown at once in a 5-column grid (3 rows of 5). Each gets its own hue
+// so the grid reads as a set of distinct, scannable tiles — an icon + colour
+// beats a collage of borrowed podcast art (which repeated across tiles and read
+// as noise). The colour is the tile's whole identity: icon badge, tint, hover.
 const DISCOVERY_TOPICS = [
-  { label: "Health & wellness", query: "health wellness", icon: HeartPulse },
-  { label: "Business", query: "business entrepreneurship", icon: BriefcaseBusiness },
-  { label: "Technology", query: "technology", icon: Cpu },
-  { label: "Science", query: "science", icon: FlaskConical },
-  { label: "Education", query: "education", icon: GraduationCap },
-  { label: "Society & culture", query: "society culture", icon: MessagesSquare },
-  { label: "Comedy", query: "comedy", icon: Laugh },
-  { label: "News", query: "news", icon: Newspaper },
-  { label: "Sports", query: "sports", icon: Trophy },
-  { label: "True crime", query: "true crime", icon: ShieldAlert },
-  { label: "Music", query: "music", icon: Music },
-  { label: "History", query: "history", icon: Landmark },
-  { label: "Arts", query: "arts", icon: Palette },
-  { label: "Spirituality", query: "spirituality religion", icon: Globe2 },
+  { label: "Health & wellness", query: "health wellness", icon: HeartPulse, color: "#10b981" },
+  { label: "Business", query: "business entrepreneurship", icon: BriefcaseBusiness, color: "#2563eb" },
+  { label: "Technology", query: "technology", icon: Cpu, color: "#6366f1" },
+  { label: "Science", query: "science", icon: FlaskConical, color: "#0891b2" },
+  { label: "Education", query: "education", icon: GraduationCap, color: "#d97706" },
+  { label: "Society & culture", query: "society culture", icon: MessagesSquare, color: "#e11d48" },
+  { label: "Comedy", query: "comedy", icon: Laugh, color: "#eab308" },
+  { label: "News", query: "news", icon: Newspaper, color: "#dc2626" },
+  { label: "Sports", query: "sports", icon: Trophy, color: "#ea580c" },
+  { label: "True crime", query: "true crime", icon: ShieldAlert, color: "#475569" },
+  { label: "Music", query: "music", icon: Music, color: "#c026d3" },
+  { label: "History", query: "history", icon: Landmark, color: "#a16207" },
+  { label: "Arts", query: "arts", icon: Palette, color: "#db2777" },
+  { label: "Spirituality", query: "spirituality religion", icon: Globe2, color: "#0d9488" },
   // "veteran" alone, not "military veterans" — the combined phrase was
   // pulling in a much broader, noisier set of tangential matches.
-  { label: "Military & veterans", query: "veteran", icon: Medal },
+  { label: "Military & veterans", query: "veteran", icon: Medal, color: "#4d7c0f" },
 ] as const;
 
 
 /**
- * A topic tile shows real podcast artwork from Podchaser instead of a
- * generic icon — same idea as Podchaser's own category cards. Falls back to
- * the plain icon+label version while `images` hasn't arrived yet, or a
- * topic happens to return no artwork (e.g. Podchaser isn't configured).
- * Art for every topic is fetched together by the parent (one HTTP call —
- * see useTopicArt) rather than each tile firing its own request; 14+
- * simultaneous searches on one page load was hitting the rate limit and
- * silently dropping some tiles to their fallback.
+ * A topic tile: the category's own icon on its own hue. No fetched artwork —
+ * a colour + icon reads as a deliberate, scannable set, loads instantly, and
+ * never repeats (the old 2x2 collage borrowed real podcast covers that showed
+ * up across several tiles and looked like noise). The hue drives everything —
+ * a solid icon badge, a soft tint behind it, an oversized watermark for depth,
+ * and the hover border.
  */
-function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport }: {
+function TopicTile({ label, query, icon: TopicIcon, color, onSelect, canExport }: {
   label: string;
   query: string;
   icon: LucideIcon;
-  images: string[];
+  color: string;
   onSelect: () => void;
   canExport: boolean;
 }) {
@@ -92,7 +93,8 @@ function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport 
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onSelect()}
-      className="group relative cursor-pointer overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
+      style={{ ["--tile" as string]: color }}
+      className="group relative cursor-pointer overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-[var(--tile)] hover:shadow-sm"
     >
       {canExport ? (
         <a
@@ -104,17 +106,22 @@ function TopicTile({ label, query, icon: TopicIcon, images, onSelect, canExport 
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
       ) : null}
-      {images.length > 0 ? (
-        <div className="grid aspect-[2/1] grid-cols-2 grid-rows-2 gap-px overflow-hidden bg-zinc-100">
-          {Array.from({ length: 4 }, (_, i) => images[i % images.length]).map((src, i) => (
-            <img key={i} src={src} alt="" className="h-full w-full object-cover" />
-          ))}
-        </div>
-      ) : (
-        <div className="flex aspect-[2/1] items-center justify-center bg-zinc-50">
-          <TopicIcon className="h-6 w-6 text-zinc-300" aria-hidden="true" />
-        </div>
-      )}
+      <div
+        className="relative flex aspect-[2/1] items-center justify-center overflow-hidden"
+        style={{ backgroundColor: `${color}14` }}
+      >
+        <TopicIcon
+          className="pointer-events-none absolute -bottom-5 -right-4 h-24 w-24 transition-transform duration-300 group-hover:scale-110"
+          style={{ color, opacity: 0.1 }}
+          aria-hidden="true"
+        />
+        <span
+          className="relative flex h-11 w-11 items-center justify-center rounded-xl shadow-sm transition-transform duration-300 group-hover:-translate-y-0.5"
+          style={{ backgroundColor: color }}
+        >
+          <TopicIcon className="h-5 w-5 text-white" aria-hidden="true" />
+        </span>
+      </div>
       <div className="px-2.5 py-2">
         <span className="block truncate text-sm font-semibold text-zinc-800">{label}</span>
       </div>
@@ -325,15 +332,6 @@ export default function SocialDiscover() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [activeTab, setActiveTab] = useState<DiscoverTab>("search");
   const resultsRef = useRef<HTMLDivElement>(null);
-  // One call for every topic tile's art, not one call per tile — see the
-  // comment on TopicTile.
-  const { data: topicArtData } = useQuery<{ art: Record<string, string[]> }>({
-    queryKey: ["/api/guest-discovery/topic-art", DISCOVERY_TOPICS.map((t) => t.query).join(",")],
-    queryFn: () => fetchJson(`/api/guest-discovery/topic-art?${new URLSearchParams({ topics: DISCOVERY_TOPICS.map((t) => t.query).join(",") })}`),
-    staleTime: 60 * 60 * 1000,
-    retry: false,
-  });
-  const topicArt = topicArtData?.art ?? {};
   const [searchInput, setSearchInput] = useState(() => queryParam("person"));
   const [debouncedSearchInput, setDebouncedSearchInput] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -530,8 +528,8 @@ export default function SocialDiscover() {
       <section className="mb-6">
         <h1 className="text-lg font-bold tracking-tight text-zinc-950">Categories</h1>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {DISCOVERY_TOPICS.map(({ label, query, icon }) => (
-            <TopicTile key={label} label={label} query={query} icon={icon} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
+          {DISCOVERY_TOPICS.map(({ label, query, icon, color }) => (
+            <TopicTile key={label} label={label} query={query} icon={icon} color={color} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
           ))}
         </div>
       </section>
