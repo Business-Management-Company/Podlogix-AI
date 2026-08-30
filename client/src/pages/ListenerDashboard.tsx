@@ -1038,20 +1038,15 @@ export default function ListenerDashboard() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => addToPlaylistMutation.mutate({
-                                episodeId: episode.id,
-                                podcastName: subscription.title,
-                                episodeTitle: episode.title
-                              })}
-                              disabled={addToPlaylistMutation.isPending}
-                              data-testid={`button-add-playlist-${briefing.id}`}
-                            >
-                              {addToPlaylistMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                              ) : (
-                                <SiSpotify className="h-4 w-4 mr-1" />
+                              onClick={() => window.open(
+                                `https://open.spotify.com/search/${encodeURIComponent(`${subscription.title} ${episode.title}`)}`,
+                                "_blank",
+                                "noopener,noreferrer",
                               )}
-                              Add to Playlist
+                              data-testid={`button-open-spotify-${briefing.id}`}
+                            >
+                              <SiSpotify className="h-4 w-4 mr-1" />
+                              Open in Spotify
                             </Button>
                           )}
                         </div>
@@ -1360,41 +1355,13 @@ export default function ListenerDashboard() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="w-full bg-green-500 text-white"
-                      onClick={() => createPlaylistMutation.mutate()}
-                      disabled={createPlaylistMutation.isPending}
-                      data-testid="button-create-playlist"
-                    >
-                      {createPlaylistMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <SiSpotify className="h-4 w-4 mr-2" />
-                      )}
-                      Create Playlist
-                    </Button>
-                    <div className="space-y-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => syncSmartPlaylistMutation.mutate([...spotifyPlaylistPodcasts])}
-                        disabled={syncSmartPlaylistMutation.isPending || spotifyPlaylistPodcasts.size === 0}
-                        data-testid="button-sync-smart-playlist"
-                      >
-                        {syncSmartPlaylistMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <ListMusic className="h-4 w-4 mr-2" />
-                        )}
-                        Sync Smart Playlist
-                      </Button>
-                      <p className="text-xs text-muted-foreground text-center">
-                        {spotifyPlaylistPodcasts.size === 0
-                          ? 'Mark podcasts in the Podcasts tab'
-                          : `${spotifyPlaylistPodcasts.size} podcast${spotifyPlaylistPodcasts.size !== 1 ? 's' : ''} selected — adds latest episode from each`}
+                    <div className="rounded-lg border border-border p-3 space-y-1.5">
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        <ListMusic className="h-4 w-4 text-green-500" />
+                        Add episodes to Spotify
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Spotify no longer lets apps build playlists for you. Hit <span className="font-medium text-foreground">Open in Spotify</span> on any recommended episode — it opens in Spotify so you can add it to your own playlist in a tap.
                       </p>
                     </div>
                     <Button 

@@ -313,12 +313,9 @@ export async function createOrGetBriefingsPlaylist(userId: string): Promise<Spot
     };
   }
 
-  const connection = await storage.getSpotifyConnection(userId);
-  if (!connection?.spotifyUserId) {
-    throw new Error('Spotify user ID not stored — please disconnect and reconnect Spotify');
-  }
-
-  const createResponse = await fetch(`https://api.spotify.com/v1/users/${connection.spotifyUserId}/playlists`, {
+  // Create via /me/playlists, NOT /users/{id}/playlists — the user-id-in-path
+  // form returns 403 for our app even for the token's own user, while /me works.
+  const createResponse = await fetch('https://api.spotify.com/v1/me/playlists', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -333,7 +330,7 @@ export async function createOrGetBriefingsPlaylist(userId: string): Promise<Spot
 
   if (!createResponse.ok) {
     const body = await createResponse.text();
-    console.error(`Spotify POST /users/.../playlists failed (${createResponse.status}):`, body);
+    console.error(`Spotify POST /me/playlists failed (${createResponse.status}):`, body);
     throw new Error(`Spotify playlist creation failed (${createResponse.status}): ${body.slice(0, 200)}`);
   }
 
