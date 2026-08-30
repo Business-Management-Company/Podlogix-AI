@@ -69,16 +69,34 @@ export async function mintRoomToken(
 //   EGRESS_S3_BUCKET / EGRESS_S3_REGION / EGRESS_S3_ENDPOINT
 // Recordings land at recordings/<sessionId>/<startedAt>.mp4 in the bucket.
 
+/** The env vars cloud recording needs, beyond the LiveKit trio. */
+const EGRESS_REQUIRED_ENV = [
+  "EGRESS_S3_ACCESS_KEY",
+  "EGRESS_S3_SECRET",
+  "EGRESS_S3_BUCKET",
+  "EGRESS_S3_ENDPOINT",
+] as const;
+
 export function isEgressConfigured(): boolean {
-  return (
-    isLiveKitConfigured() &&
-    Boolean(
-      process.env.EGRESS_S3_ACCESS_KEY &&
-        process.env.EGRESS_S3_SECRET &&
-        process.env.EGRESS_S3_BUCKET &&
-        process.env.EGRESS_S3_ENDPOINT,
-    )
-  );
+  return isLiveKitConfigured() && EGRESS_REQUIRED_ENV.every((k) => Boolean(process.env[k]));
+}
+
+/**
+ * A no-secrets diagnostic for the status endpoint: which required vars are
+ * present, so a misconfigured deploy names the exact missing key instead of a
+ * silent "not configured". Reports presence (boolean) only — never a value.
+ */
+export function egressConfigReport(): {
+  configured: boolean;
+  livekit: boolean;
+  missing: string[];
+} {
+  const livekit = isLiveKitConfigured();
+  const missing = [
+    ...(livekit ? [] : ["LIVEKIT_URL/LIVEKIT_API_KEY/LIVEKIT_API_SECRET"]),
+    ...EGRESS_REQUIRED_ENV.filter((k) => !process.env[k]),
+  ];
+  return { configured: livekit && missing.length === 0, livekit, missing };
 }
 
 /** Egress API uses the https host, not the wss realtime URL. */
