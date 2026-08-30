@@ -699,8 +699,16 @@ export default function LiveStudio() {
       // our room connection.
       if (session && cloudRecordingActiveRef.current) {
         cloudRecordingActiveRef.current = false;
-        void apiRequest("POST", `/api/live/sessions/${session.id}/recording/stop`, {})
-          .then(() => refresh())
+        const endedId = session.id;
+        void apiRequest("POST", `/api/live/sessions/${endedId}/recording/stop`, {})
+          .then(async (res) => {
+            // Load the cloud VOD into the editor directly — after the show ends
+            // it's no longer the "current" session, so session.vodUrl won't
+            // flow in on its own.
+            const data = await res.json().catch(() => ({}));
+            if (data?.vodUrl) { setVodUrl(data.vodUrl); setView("edit"); }
+            refresh();
+          })
           .catch(() => toast({ title: "Couldn't stop cloud recording cleanly", variant: "destructive" }))
           .finally(() => leaveGuestRoom());
       } else {

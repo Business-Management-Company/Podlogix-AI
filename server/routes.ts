@@ -6776,6 +6776,24 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       const bucket = process.env.EGRESS_S3_BUCKET!;
       const vodUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${bucket}/${filepath}`;
       const updated = await storage.updateLiveSession(session.id, { recordingStatus: 'done', vodUrl });
+
+      // File the cloud recording in the Media Library too (the browser-recording
+      // path does the same on PATCH), so the Editing Room, Lab, and composer see
+      // it. Best-effort + idempotent-ish via a stable externalId.
+      try {
+        await storage.createMediaLibraryItem({
+          userId,
+          platform: 'live',
+          externalId: `recording-${session.id}`,
+          caption: `${session.title} — full recording`,
+          mediaType: 'video',
+          mediaUrl: vodUrl,
+          thumbnailUrl: null,
+          permalink: null,
+          postedAt: new Date(),
+        });
+      } catch { /* library filing is best-effort */ }
+
       res.json({ session: updated, vodUrl });
     } catch (error: any) {
       console.error('Egress stop error:', error?.message);
