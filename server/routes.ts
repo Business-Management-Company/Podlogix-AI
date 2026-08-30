@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
-import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, egressConfigReport, startSessionRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
+import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, egressConfigReport, startSessionRecording, startTrackCompositeRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -6736,14 +6736,22 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       const startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : Date.now();
       const filepath = recordingFilepath(session.id, startedAtMs);
       try {
-        // Record the room participants actually joined (studio-<id> for studio
-        // sessions), not live-<sessionId> — otherwise the capture is empty.
-        // Point Egress at our own studio-view page so the recording matches the
-        // studio composition (falls back to LiveKit's grid if the flag is off).
-        const templateBaseUrl =
-          process.env.EGRESS_TEMPLATE_URL ||
-          (process.env.EGRESS_USE_STUDIO_VIEW === 'false' ? undefined : `${getPublicBaseUrl(req)}/studio/egress-view`);
-        const { egressId } = await startSessionRecording(roomNameForRecording(session), filepath, templateBaseUrl);
+        const roomName = roomNameForRecording(session);
+        const videoTrackId = typeof req.body?.videoTrackId === 'string' ? req.body.videoTrackId : undefined;
+        const audioTrackId = typeof req.body?.audioTrackId === 'string' ? req.body.audioTrackId : undefined;
+        let egressId: string;
+        if (videoTrackId) {
+          // Preferred path: the host publishes the composited studio canvas as a
+          // "program" track and hands us its SID — record exactly that, so the
+          // MP4 is pixel-identical to the stage.
+          ({ egressId } = await startTrackCompositeRecording(roomName, filepath, videoTrackId, audioTrackId));
+        } else {
+          // Fallback (older client): room composite via the studio-view template.
+          const templateBaseUrl =
+            process.env.EGRESS_TEMPLATE_URL ||
+            (process.env.EGRESS_USE_STUDIO_VIEW === 'false' ? undefined : `${getPublicBaseUrl(req)}/studio/egress-view`);
+          ({ egressId } = await startSessionRecording(roomName, filepath, templateBaseUrl));
+        }
         const updated = await storage.updateLiveSession(session.id, { egressId, recordingStatus: 'recording' });
         res.json({ session: updated, egressId });
       } catch (startErr) {
@@ -6768,6 +6776,24 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       const bucket = process.env.EGRESS_S3_BUCKET!;
       const vodUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${bucket}/${filepath}`;
       const updated = await storage.updateLiveSession(session.id, { recordingStatus: 'done', vodUrl });
+
+      // File the cloud recording in the Media Library too (the browser-recording
+      // path does the same on PATCH), so the Editing Room, Lab, and composer see
+      // it. Best-effort + idempotent-ish via a stable externalId.
+      try {
+        await storage.createMediaLibraryItem({
+          userId,
+          platform: 'live',
+          externalId: `recording-${session.id}`,
+          caption: `${session.title} — full recording`,
+          mediaType: 'video',
+          mediaUrl: vodUrl,
+          thumbnailUrl: null,
+          permalink: null,
+          postedAt: new Date(),
+        });
+      } catch { /* library filing is best-effort */ }
+
       res.json({ session: updated, vodUrl });
     } catch (error: any) {
       console.error('Egress stop error:', error?.message);

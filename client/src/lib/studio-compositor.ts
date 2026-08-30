@@ -55,6 +55,7 @@ export class StudioCompositor {
   private audioDest: MediaStreamAudioDestinationNode | null = null;
   private audioSources: MediaStreamAudioSourceNode[] = [];
   private running = false;
+  private composed: MediaStream | null = null;
 
   constructor(dims?: { width: number; height: number }) {
     this.w = dims?.width ?? DEFAULT_W;
@@ -253,8 +254,15 @@ export class StudioCompositor {
     if (this.running) this.raf = requestAnimationFrame(this.draw);
   };
 
-  /** Builds the audio graph and returns the composed stream to record. */
+  /**
+   * Builds the audio graph and returns the composed A/V stream — the exact
+   * stage, camera + screen + media + guest + layout. Used both by the browser
+   * recorder and (for cloud recording) published to LiveKit so Egress records
+   * this program directly. Idempotent: the canvas captureStream and the audio
+   * destination stay live as sources change, so callers publish/record it once.
+   */
   start(): MediaStream {
+    if (this.composed) return this.composed;
     this.ensureLoop();
     this.audioCtx = new AudioContext();
     this.audioDest = this.audioCtx.createMediaStreamDestination();
@@ -262,6 +270,7 @@ export class StudioCompositor {
 
     const composed = this.canvas.captureStream(30);
     for (const track of this.audioDest.stream.getAudioTracks()) composed.addTrack(track);
+    this.composed = composed;
     return composed;
   }
 
@@ -272,6 +281,8 @@ export class StudioCompositor {
     void this.audioCtx?.close().catch(() => {});
     this.audioCtx = null;
     this.audioDest = null;
+    // Drop the cached program so the next start() rebuilds a live audio graph.
+    this.composed = null;
   }
 
   /** Full teardown on unmount. */
