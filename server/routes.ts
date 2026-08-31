@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import crypto from "crypto";
 import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, egressConfigReport, startSessionRecording, startTrackCompositeRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
+import { searchTranscripts, detectCrisis, CRISIS_RESOURCES } from "./services/transcriptSearchService";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -3747,13 +3748,13 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   // usage pulled from each provider's API.
 
   const FIXED_PLATFORM_SERVICES = [
-    { name: "influencers.club (Pro)", purpose: "Guest research & social analytics (credit-based)", monthlyUsd: 299, notes: "Includes 500 export credits/mo · extra credits $0.60 each · full enrich = 1 credit (~$0.60/lookup)" },
-    { name: "Upload-Post", purpose: "Social posting + FFmpeg 1,000 min/mo + 300 video analyses/mo", monthlyUsd: 50, notes: "25 profiles · unlimited uploads · 2 seats" },
-    { name: "Supabase (Pro)", purpose: "Postgres + storage", monthlyUsd: 25 },
+    { name: "influencers.club (Pro)", purpose: "Guest research & social analytics (credit-based)", monthlyUsd: 299, notes: "Includes 500 export credits/mo · extra credits $0.60 each · full enrich = 1 credit (~$0.60/lookup)", linkUrl: "https://app.influencers.club/account/credits" },
+    { name: "Upload-Post", purpose: "Social posting + FFmpeg 1,000 min/mo + 300 video analyses/mo", monthlyUsd: 50, notes: "25 profiles · unlimited uploads · 2 seats", linkUrl: "https://app.upload-post.com/" },
+    { name: "Supabase (Pro)", purpose: "Postgres + storage", monthlyUsd: 25, linkUrl: "https://supabase.com/dashboard" },
     { name: "Vercel (Pro)", purpose: "Hosting (podlogix.io)", monthlyUsd: 20, notes: "Per seat · on-demand build/bandwidth overages bill separately (no public billing API — watch the dashboard)", linkUrl: "https://vercel.com/podlogix" },
     { name: "Resend (Pro)", purpose: "Transactional email", monthlyUsd: 20, notes: "No public spend API — overage visible in their dashboard", linkUrl: "https://resend.com/overview" },
     { name: "OpenAI API", purpose: "AI Write, AI images, AI Studio, transcription", monthlyUsd: null, notes: "Usage-based — month-to-date pulls live once OPENAI_ADMIN_KEY is set (platform.openai.com → Admin keys)", linkUrl: "https://platform.openai.com/usage" },
-    { name: "Podchaser (Starter)", purpose: "Guest intelligence — creator search, appearances, podcast credits", monthlyUsd: 0, notes: "Free Starter tier · 1,000 requests/month · cached to minimize spend" },
+    { name: "Podchaser (Starter)", purpose: "Guest intelligence — creator search, appearances, podcast credits", monthlyUsd: 0, notes: "Free Starter tier · 1,000 requests/month · cached to minimize spend", linkUrl: "https://www.podchaser.com/dashboard" },
   ];
 
   const financialsHandler = async (req: any, res: any) => {
@@ -4428,6 +4429,22 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   // Search is intentionally separate from appearances: an unconfirmed search
   // spends one provider request, and the two history requests run only after the
   // user chooses the correct person.
+  // Cross-transcript keyword search: "which shows have talked about this?".
+  // Crisis-aware — a self-harm query returns help resources up top, always.
+  app.post('/api/transcript-search', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
+      const query = String(req.body?.query ?? '').trim();
+      if (!query) return res.status(400).json({ message: 'Type what you want to search for.' });
+      const crisis = detectCrisis(query);
+      const { terms, matches } = await searchTranscripts(userId, query);
+      res.json({ query, crisis, resources: crisis ? CRISIS_RESOURCES : null, terms, matches });
+    } catch (error: any) {
+      console.error('Transcript search error:', error?.message);
+      res.status(500).json({ message: 'Search failed — try again.' });
+    }
+  });
+
   app.get('/api/guest-discovery/search', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session?.userId ?? req.dbUser?.id ?? req.user?.id ?? req.user?.claims?.sub;
