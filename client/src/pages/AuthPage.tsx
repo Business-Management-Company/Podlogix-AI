@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowRight, ArrowLeft, MailCheck } from "lucide-react";
 import { motion } from "framer-motion";
-import logoImg from "@assets/Seeksy_logo_1771103113779.png";
+import logoImg from "@assets/podlogix-logo-dark.png";
 
 /** Rotating auth backdrops — one world per visit, one voice per world. */
 const AUTH_SCENES = [
