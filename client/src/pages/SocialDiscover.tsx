@@ -72,21 +72,22 @@ const DISCOVERY_TOPICS = [
 
 
 /**
- * A topic tile: the category's own icon on its own hue. No fetched artwork —
- * a colour + icon reads as a deliberate, scannable set, loads instantly, and
- * never repeats (the old 2x2 collage borrowed real podcast covers that showed
- * up across several tiles and looked like noise). The hue drives everything —
- * a solid icon badge, a soft tint behind it, an oversized watermark for depth,
- * and the hover border.
+ * A topic row: a compact list item — a small stack of real podcast covers, the
+ * category name, and a chevron. The covers are what the collage grid had, just
+ * dialled way down so they read as an accent, not a wall of art. Each category
+ * keeps its hue for the hover border and the fallback icon badge (shown while
+ * art is loading, or when Podchaser returns none).
  */
-function TopicTile({ label, query, icon: TopicIcon, color, onSelect, canExport }: {
+function TopicTile({ label, query, icon: TopicIcon, color, images, onSelect, canExport }: {
   label: string;
   query: string;
   icon: LucideIcon;
   color: string;
+  images: string[];
   onSelect: () => void;
   canExport: boolean;
 }) {
+  const covers = images.slice(0, 3);
   return (
     <div
       role="button"
@@ -94,37 +95,43 @@ function TopicTile({ label, query, icon: TopicIcon, color, onSelect, canExport }
       onClick={onSelect}
       onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onSelect()}
       style={{ ["--tile" as string]: color }}
-      className="group relative cursor-pointer overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-[var(--tile)] hover:shadow-sm"
+      className="group relative flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left transition-all hover:border-[var(--tile)] hover:shadow-sm"
     >
+      {covers.length > 0 ? (
+        <div className="flex shrink-0 -space-x-4">
+          {covers.map((src, i) => (
+            <img
+              key={i}
+              src={src}
+              alt=""
+              className="h-10 w-10 rounded-md border-2 border-white object-cover shadow-sm"
+              style={{ zIndex: covers.length - i }}
+            />
+          ))}
+        </div>
+      ) : (
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: color }}
+        >
+          <TopicIcon className="h-5 w-5 text-white" aria-hidden="true" />
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-800">{label}</span>
       {canExport ? (
         <a
           href={`/api/admin/podcast-export?${new URLSearchParams({ q: query, pages: "10" })}`}
           onClick={(event) => event.stopPropagation()}
           title={`Download ${label} podcasts as CSV (admin only)`}
-          className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 group-hover:opacity-100"
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
       ) : null}
-      <div
-        className="relative flex aspect-[2/1] items-center justify-center overflow-hidden"
-        style={{ backgroundColor: `${color}14` }}
-      >
-        <TopicIcon
-          className="pointer-events-none absolute -bottom-5 -right-4 h-24 w-24 transition-transform duration-300 group-hover:scale-110"
-          style={{ color, opacity: 0.1 }}
-          aria-hidden="true"
-        />
-        <span
-          className="relative flex h-11 w-11 items-center justify-center rounded-xl shadow-sm transition-transform duration-300 group-hover:-translate-y-0.5"
-          style={{ backgroundColor: color }}
-        >
-          <TopicIcon className="h-5 w-5 text-white" aria-hidden="true" />
-        </span>
-      </div>
-      <div className="px-2.5 py-2">
-        <span className="block truncate text-sm font-semibold text-zinc-800">{label}</span>
-      </div>
+      <ChevronRight
+        className="h-4 w-4 shrink-0 text-zinc-300 transition-colors group-hover:text-[var(--tile)]"
+        aria-hidden="true"
+      />
     </div>
   );
 }
@@ -343,6 +350,15 @@ export default function SocialDiscover() {
   const [selectedCreator, setSelectedCreator] = useState<CreatorCandidate | null>(null);
   const [selectedPodcast, setSelectedPodcast] = useState<PodcastCandidate | null>(null);
   const [selectedTargetShowId, setSelectedTargetShowId] = useState(() => queryParam("showId"));
+  // One call for every topic row's cover art, not one per row (14+ parallel
+  // searches on load hit the rate limit and dropped rows to their icon badge).
+  const { data: topicArtData } = useQuery<{ art: Record<string, string[]> }>({
+    queryKey: ["/api/guest-discovery/topic-art", DISCOVERY_TOPICS.map((t) => t.query).join(",")],
+    queryFn: () => fetchJson(`/api/guest-discovery/topic-art?${new URLSearchParams({ topics: DISCOVERY_TOPICS.map((t) => t.query).join(",") })}`),
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  const topicArt = topicArtData?.art ?? {};
   const [pipelineStage, setPipelineStage] = useState<GuestStage>("prospect");
   const [addedToPodcastId, setAddedToPodcastId] = useState<string | null>(null);
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
@@ -527,9 +543,9 @@ export default function SocialDiscover() {
       {/* ── Categories hero ── */}
       <section className="mb-6">
         <h1 className="text-lg font-bold tracking-tight text-zinc-950">Categories</h1>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {DISCOVERY_TOPICS.map(({ label, query, icon, color }) => (
-            <TopicTile key={label} label={label} query={query} icon={icon} color={color} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
+            <TopicTile key={label} label={label} query={query} icon={icon} color={color} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
           ))}
         </div>
       </section>
