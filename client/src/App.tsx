@@ -60,6 +60,7 @@ import ShowDirectories from "@/pages/ShowDirectories";
 import ShowRssMigration from "@/pages/ShowRssMigration";
 import SocialAnalytics from "@/pages/SocialAnalytics";
 import SocialDiscover from "@/pages/SocialDiscover";
+import TranscriptSearch from "@/pages/TranscriptSearch";
 import SocialPosts from "@/pages/SocialPosts";
 import Engagement from "@/pages/Engagement";
 import LiveStudio from "@/pages/LiveStudio";
@@ -308,6 +309,7 @@ function AuthenticatedRoutes() {
         <Route path="/studio/refiner" component={Refiner} />
         <Route path="/media-library" component={MediaLibrary} />
         <Route path="/social/discover" component={SocialDiscover} />
+        <Route path="/transcript-search" component={TranscriptSearch} />
         <Route path="/media-lab" component={MediaLab} />
         <Route path="/dashboard/social-analytics" component={SocialAnalytics} />
         <Route path="/dashboard/certify" component={DashboardCertify} />
