@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import logoImg from "@assets/Seeksy_logo_1771103113779.png";
+import logoImg from "@assets/podlogix-logo-dark.png";
 import {
   LayoutDashboard,
   Headphones,

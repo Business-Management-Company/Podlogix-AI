@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { LogIn, User, Headphones, Shield, Fingerprint, ShieldCheck, ChevronDown } from "lucide-react";
-import logoImg from "@assets/Seeksy_logo_1771103113779.png";
+import logoImg from "@assets/podlogix-logo-dark.png";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";

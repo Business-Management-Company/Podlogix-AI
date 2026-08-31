@@ -394,7 +394,7 @@ export async function setupAuth(app: Express) {
         subject: `${code} is your Podlogix sign-in code`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-            <img src="https://podlogix.io/favicon.ico" width="40" style="margin-bottom:16px;border-radius:8px;" />
+            <img src="https://podlogix.io/favicon.png" width="40" style="margin-bottom:16px;border-radius:8px;" />
             <h2 style="margin:0 0 8px;color:#111;font-size:22px;">Your sign-in code</h2>
             <p style="color:#555;margin:0 0 24px;">Enter this code to sign in to Podlogix. It expires in 10 minutes.</p>
             <div style="font-size:34px;font-weight:700;letter-spacing:8px;color:#111;background:#f4f4f5;border-radius:8px;padding:16px 24px;text-align:center;">${code}</div>
