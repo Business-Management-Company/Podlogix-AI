@@ -37,8 +37,10 @@ type CreatorSort = "relevance" | "appearance_count" | "alphabetical" | "recent_e
 type PodcastSort = "relevance" | "alphabetical" | "date_of_first_episode" | "power_score";
 type DiscoverTab = "search" | "guests" | "podcasts" | "latest" | "active" | "credited";
 
+// No "Search" tab — typing in the box already surfaces results and suggestions,
+// so the tabs are lenses over that query (default view = combined people +
+// shows, no tab highlighted).
 const DISCOVER_TABS: { key: DiscoverTab; label: string; icon: LucideIcon }[] = [
-  { key: "search", label: "Search", icon: Search },
   { key: "guests", label: "By Guest", icon: Users },
   { key: "podcasts", label: "Podcast Shows", icon: Mic2 },
   { key: "latest", label: "Latest Episodes", icon: CalendarDays },
@@ -543,7 +545,7 @@ export default function SocialDiscover() {
       {/* ── Categories hero ── */}
       <section className="mb-6">
         <h1 className="text-lg font-bold tracking-tight text-zinc-950">Categories</h1>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {DISCOVERY_TOPICS.map(({ label, query, icon, color }) => (
             <TopicTile key={label} label={label} query={query} icon={icon} color={color} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
           ))}
@@ -672,7 +674,13 @@ export default function SocialDiscover() {
 
           {peopleTotal > 0 ? <section>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <SectionHeader title={`People · ${formatCount(peopleTotal)} results`} />
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900">
+                  <Users className="h-4 w-4 text-white" aria-hidden="true" />
+                </span>
+                <h2 className="text-base font-bold text-zinc-950">People</h2>
+                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600">{formatCount(peopleTotal)}</span>
+              </div>
               <Select value={creatorSort} onValueChange={(value) => { setCreatorSort(value as CreatorSort); setPeoplePage(1); }}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="appearance_count">Most credited episodes</SelectItem><SelectItem value="relevance">Best match</SelectItem><SelectItem value="recent_episode">Recently active</SelectItem><SelectItem value="alphabetical">Name A–Z</SelectItem></SelectContent>
@@ -685,7 +693,13 @@ export default function SocialDiscover() {
 
           {podcastTotal > 0 ? <section>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <SectionHeader title={`Podcast shows · ${formatCount(podcastTotal)} results`} />
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900">
+                  <Mic2 className="h-4 w-4 text-white" aria-hidden="true" />
+                </span>
+                <h2 className="text-base font-bold text-zinc-950">Podcast shows</h2>
+                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600">{formatCount(podcastTotal)}</span>
+              </div>
               <Select value={podcastSort} onValueChange={(value) => { setPodcastSort(value as PodcastSort); setPodcastPage(1); }}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="relevance">Best match</SelectItem><SelectItem value="power_score">Podchaser rating</SelectItem><SelectItem value="date_of_first_episode">Newest shows</SelectItem><SelectItem value="alphabetical">Title A–Z</SelectItem></SelectContent>
