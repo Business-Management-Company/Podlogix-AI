@@ -35,9 +35,16 @@ export const metadata: Metadata = {
   },
 };
 
+/** RB2B visitor identification, the same pixel the app carries in its index.html. */
+const RB2B =
+  '!function(key){if(window.reb2b)return;window.reb2b={loaded:true};var s=document.createElement("script");s.async=true;s.src="https://ddwl4m2hdecbv.cloudfront.net/b/"+key+"/"+key+".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s,document.getElementsByTagName("script")[0]);}("GOYPYH44EYOX");';
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${anton.variable} ${satoshi.variable} h-full`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: RB2B }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

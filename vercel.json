@@ -27,6 +27,10 @@
       "dest": "https://podlogix-landing.vercel.app/$1"
     },
     {
+      "src": "/api/waitlist",
+      "dest": "https://podlogix-landing.vercel.app/api/waitlist"
+    },
+    {
       "handle": "filesystem"
     },
     {

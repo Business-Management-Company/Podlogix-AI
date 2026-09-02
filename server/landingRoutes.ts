@@ -26,7 +26,7 @@ const CHART_HOSTS = 10;
 const HOST_SOURCES = 6;
 const HOSTS_PER_SHOW = 2;
 const CHART_QUERY = process.env.LANDING_PODCHASER_QUERY?.trim() || "podcast";
-const CHART_CACHE_KEY = "landing::podchaser";
+const CHART_CACHE_KEY = "landing::podchaser:v2";
 const CHART_CACHE_DAYS = 7;
 const CHART_MEMO_MS = 6 * 60 * 60 * 1000;
 
