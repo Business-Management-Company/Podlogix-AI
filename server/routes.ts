@@ -99,6 +99,7 @@ import { generateEmailWithAI, improveEmailWithAI, generateSubjectLines } from ".
 import { sendEmail, isEmailConfigured } from "./services/emailService";
 import { analyzeLink, generateBioAndHeadlines, suggestLinksForPodcast, improveBio, quickLinkTemplates } from "./services/aiProfileService";
 import { registerConnectorRoutes } from "./connectorRoutes";
+import { registerLandingRoutes } from "./landingRoutes";
 import { getConnection as getBuzzsproutConnection } from "./services/buzzsproutSyncService";
 import { exchangeYouTubeCode, getOwnedChannel, getOwnedVideo, getYouTubeAuthUrl, listOwnedVideos } from "./services/youtubeContentSource";
 import {
@@ -439,6 +440,7 @@ export async function registerRoutes(
 
   // Register connector routes (Buzzsprout, etc.)
   registerConnectorRoutes(app);
+  registerLandingRoutes(app);
   
   // Register object storage routes for file uploads
   // ============ MEDIA UPLOADS (Supabase Storage) ============

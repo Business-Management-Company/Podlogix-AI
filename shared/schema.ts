@@ -290,6 +290,13 @@ export const podcasts = pgTable("podcasts", {
 });
 
 // Creator Episodes (episodes hosted by Podlogix for creator podcasts)
+// Shows an admin has chosen to feature on the marketing landing page. Kept
+// apart from `podcasts` so the feed can ship without altering that table.
+export const landingFeaturedPodcasts = pgTable("landing_featured_podcasts", {
+  podcastId: varchar("podcast_id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const episodes = pgTable("episodes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   podcastId: varchar("podcast_id").notNull(),

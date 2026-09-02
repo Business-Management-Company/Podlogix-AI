@@ -10,14 +10,63 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/auth/(.*)", "destination": "/api/index" },
-    { "source": "/feeds/(.*)", "destination": "/api/index" },
-    { "source": "/e/(.*)", "destination": "/api/index" },
-    { "source": "/objects/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/",
+      "destination": "https://podlogix-landing.vercel.app/"
+    },
+    {
+      "source": "/l/:path*",
+      "destination": "https://podlogix-landing.vercel.app/l/:path*"
+    },
+    {
+      "source": "/_next/:path*",
+      "destination": "https://podlogix-landing.vercel.app/_next/:path*"
+    },
+    {
+      "source": "/icon.png",
+      "destination": "https://podlogix-landing.vercel.app/icon.png"
+    },
+    {
+      "source": "/apple-icon.png",
+      "destination": "https://podlogix-landing.vercel.app/apple-icon.png"
+    },
+    {
+      "source": "/favicon.ico",
+      "destination": "https://podlogix-landing.vercel.app/favicon.ico"
+    },
+    {
+      "source": "/opengraph-image.jpg",
+      "destination": "https://podlogix-landing.vercel.app/opengraph-image.jpg"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/auth/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/feeds/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/e/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/objects/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/cron/enrich-creators", "schedule": "0 13 * * *" }
+    {
+      "path": "/api/cron/enrich-creators",
+      "schedule": "0 13 * * *"
+    }
   ]
 }
