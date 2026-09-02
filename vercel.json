@@ -9,15 +9,59 @@
       "includeFiles": "dist/index.cjs"
     }
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/auth/(.*)", "destination": "/api/index" },
-    { "source": "/feeds/(.*)", "destination": "/api/index" },
-    { "source": "/e/(.*)", "destination": "/api/index" },
-    { "source": "/objects/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    {
+      "src": "/",
+      "dest": "https://podlogix-landing.vercel.app/"
+    },
+    {
+      "src": "/l/(.*)",
+      "dest": "https://podlogix-landing.vercel.app/l/$1"
+    },
+    {
+      "src": "/_next/(.*)",
+      "dest": "https://podlogix-landing.vercel.app/_next/$1"
+    },
+    {
+      "src": "/(icon\\.png|apple-icon\\.png|favicon\\.ico|opengraph-image\\.jpg)",
+      "dest": "https://podlogix-landing.vercel.app/$1"
+    },
+    {
+      "src": "/api/waitlist",
+      "dest": "https://podlogix-landing.vercel.app/api/waitlist"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/feeds/(.*)",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/e/(.*)",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/objects/(.*)",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/cron/enrich-creators", "schedule": "0 13 * * *" }
+    {
+      "path": "/api/cron/enrich-creators",
+      "schedule": "0 13 * * *"
+    }
   ]
 }

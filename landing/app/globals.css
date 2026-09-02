@@ -1,0 +1,393 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #1f0a09;
+  --color-card: #2a1615;
+  --color-cream: #fefcfa;
+  --color-paper: #f9f7f1;
+  --color-orange: #ef5027;
+  --color-sand: #fdaf5b;
+  --color-mint: #b6dccf;
+  --color-cta: #110000;
+
+  --font-display: var(--font-anton), Impact, "Arial Narrow Bold", sans-serif;
+  --font-sans: var(--font-satoshi), "Helvetica Neue", Arial, sans-serif;
+
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out-cubic: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@layer base {
+  html {
+    background: var(--color-ink);
+    color-scheme: dark;
+    /* The design is drawn at 1440x900. Every length in the compiled CSS is rem
+       (postcss-pxtorem), so scaling the root font-size scales the whole
+       layout. From 1024 up the page scales to the screen: by width, or by
+       height when that is the tighter fit, so the hero always fills the
+       viewport without being cut. Below 1024 the mobile layout takes over and
+       the root settles between 14 and 18px. */
+    font-size: 16px;
+  }
+  @media (min-width: 1024px) {
+    html { font-size: clamp(11px, min(calc(100vw / 90), calc(100vh / 56.25)), 26px); }
+  }
+  @media (max-width: 1023px) {
+    html { font-size: clamp(14px, calc(100vw / 24.5625), 18px); }
+  }
+  body {
+    background: var(--color-ink);
+    color: #ffffff;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: clip;
+  }
+  ::selection {
+    background: var(--color-orange);
+    color: var(--color-cream);
+  }
+}
+
+@layer components {
+  /* Anton display face. Figma sets every display string in caps. */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  /* Section title: Anton 40 / 1.2 / -0.4px, cream. */
+  .h-section {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 40px;
+    line-height: 1.2;
+    letter-spacing: -0.4px;
+    color: var(--color-cream);
+  }
+
+  /* Eyebrow label: Satoshi Medium 14 / 1.4 / +1.4px caps. */
+  .eyebrow-label {
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.4;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Figma inside strokes paint over the padding and add nothing to the box.
+     A CSS border would grow every auto-sized element by 2px, so strokes are
+     inset shadows here. */
+  .stroke-3 { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03); }
+  .stroke-5 { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
+  .stroke-10 { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+  .stroke-20 { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+  .stroke-white { box-shadow: inset 0 0 0 1px #ffffff; }
+
+  .pill-cta {
+    display: inline-flex;
+    align-items: center;
+    height: 48px;
+    padding: 4px 4px 4px 8px;
+    border-radius: 57.6px;
+    background: var(--color-cta);
+    color: var(--color-cream);
+  }
+}
+
+@layer utilities {
+  /* Tailwind 4 writes rounded-full as calc(infinity * 1px); some Chromium
+     builds turn that into two rounded corners instead of a circle. */
+  .rounded-full { border-radius: 9999px; }
+  .text-balance { text-wrap: balance; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+}
+
+/* Hero entrance, after the Whispr reference by the same design team:
+   1. the mint field rises and the gradient rings sweep in from the left while
+      the brand letters fly through the frame with echo trails,
+   2. the field collapses into the gradient card,
+   3. the headline appears dim word by word and brightens line by line while
+      the portrait rises with delayed copies trailing and merging into it,
+   4. the buttons and the nav settle last.
+   Times below are from the moment the page is ready (fonts and portrait). */
+@keyframes hero-bloom {
+  0% { transform: translate3d(-118%, 0, 0) scale(1.22); animation-timing-function: cubic-bezier(0.33, 0, 0.2, 1); }
+  76% { transform: translate3d(-8%, 0, 0) scale(1.22); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+/* The full-bleed field behind the bloom is the mint from the gradient; it
+   only gives way to the card's own fill once the rings have covered it. */
+@keyframes hero-field {
+  0%, 76% { background-color: #b6dccf; }
+  100% { background-color: rgba(254, 252, 250, 0.1); }
+}
+/* The field collapses into the card's drawn position. It keeps the card's
+   corner radius throughout: on wide screens the field sits inside the 1440
+   stage, so square corners would show against the page. */
+@keyframes hero-settle {
+  from { inset: 0; border-radius: 32px; }
+  to { inset: 404px 16px 16px 16px; border-radius: 32px; }
+}
+@keyframes hero-settle-m {
+  from { inset: 0; border-radius: 32px; }
+  to { inset: 360px 16px 24px 16px; border-radius: 32px; }
+}
+/* Headline line one: the whole line appears dim, then brightens left to right. */
+@keyframes hero-dim {
+  from { opacity: 0; }
+  to { opacity: 0.3; }
+}
+@keyframes hero-bright {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+/* The portrait rises from below, drifting slightly right as it comes, and
+   fades in over its first frames. Each copy runs the same path a beat later. */
+@keyframes hero-rise {
+  0% { transform: translate3d(var(--dx), var(--rise), 0); opacity: 0; }
+  9% { opacity: 1; }
+  100% { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+/* The copies are solid from their first frame: they sit in front of her, so
+   any fade would show her through them. Before their beat they stay hidden. */
+@keyframes hero-rise-copy {
+  0% { transform: translate3d(var(--dx), var(--rise), 0); opacity: 0; }
+  1% { opacity: 1; }
+  100% { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+@keyframes hero-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* The rings keep their exact geometry; a soft brightness pulse travels
+   outward through the stack instead, which is the "sound-like" motion. */
+@keyframes ring-ripple {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.045); }
+}
+@keyframes marquee-left {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(var(--loop), 0, 0); }
+}
+@keyframes marquee-right {
+  from { transform: translate3d(var(--loop), 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+/* Timeline, seconds after the page is ready:
+   0.0  mint field up, ring arcs sweep in from the left, dotted leader
+   0.25 letter chains fly the arc, the last clears by 2.3
+   1.6  field eases into the card (0.55s)
+   2.05 headline line one appears dim word by word and brightens at 2.55;
+        line two does the same from 2.65, brightening at 3.0
+   2.25 portrait rises and lands by 3.2; four copies follow 120ms apart and merge into it
+   2.5  buttons    2.6 nav */
+.hero-portrait,
+.hero-echo { --rise: 326px; --dx: -25px; }
+.hero-ready .hero-card {
+  border-radius: 32px;
+  animation:
+    hero-field 2.1s var(--ease-soft) both,
+    hero-settle 0.55s cubic-bezier(0.65, 0, 0.35, 1) 1.6s both;
+}
+.hero-ready .hero-rings { animation: hero-bloom 2.1s linear both; }
+.hero-ready .hero-word {
+  animation:
+    hero-dim 0.2s var(--ease-soft) var(--d, 0ms) both,
+    hero-bright 0.45s var(--ease-soft) var(--b, 2550ms) forwards;
+}
+.hero-ready .hero-portrait { animation: hero-rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) 2250ms both; }
+.hero-ready .hero-echo { animation: hero-rise-copy 0.95s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 2370ms) both; }
+.hero-ready .hero-copy { animation: hero-fade 0.5s var(--ease-soft) 2.5s both; }
+.hero-ready .hero-nav { animation: hero-fade 0.5s var(--ease-soft) 2.6s both; }
+.hero-ready .hero-rings,
+.hero-ready .hero-echo,
+.hero-ready .hero-portrait { will-change: transform; }
+/* The mobile hero runs the same choreography on its own card geometry. */
+@media (max-width: 1023px) {
+  .hero-portrait,
+  .hero-echo { --rise: 190px; --dx: -14px; }
+  .hero-ready .hero-card {
+    animation:
+      hero-field 2.1s var(--ease-soft) both,
+      hero-settle-m 0.55s cubic-bezier(0.65, 0, 0.35, 1) 1.6s both;
+  }
+}
+.hero-idle .hero-rings,
+.hero-idle .hero-card,
+.hero-idle .hero-title,
+.hero-idle .hero-word,
+.hero-idle .hero-portrait,
+.hero-idle .hero-nav,
+.hero-idle .hero-copy { opacity: 0; }
+.hero-idle .hero-echo,
+.hero-static .hero-echo { opacity: 0; }
+
+/* Closing banner, after the reference: the card sits as a flat mint field until
+   it scrolls into view, then the rings sweep in from the bottom-left corner
+   they radiate from and settle, and keep a slow breathe afterwards. */
+@keyframes cta-field {
+  0%, 55% { background-color: #b6dccf; }
+  100% { background-color: rgba(255, 255, 255, 0.1); }
+}
+@keyframes cta-bloom {
+  0% { transform: translate3d(-118%, 0, 0) scale(1.22); animation-timing-function: cubic-bezier(0.33, 0, 0.2, 1); }
+  78% { transform: translate3d(-8%, 0, 0) scale(1.22); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes cta-breathe {
+  from { transform: scale(1); }
+  to { transform: scale(1.035); }
+}
+[data-reveal="wait"] .cta-field { background-color: #b6dccf; }
+[data-reveal="wait"] .cta-rings { transform: translate3d(-118%, 0, 0) scale(1.22); }
+[data-reveal="live"] .cta-field { animation: cta-field 1.4s var(--ease-soft) both; }
+[data-reveal="live"] .cta-rings {
+  will-change: transform;
+  animation:
+    cta-bloom 1.4s linear both,
+    cta-breathe 10s ease-in-out 1.4s infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal="live"] .cta-field, [data-reveal="live"] .cta-rings { animation: none !important; }
+}
+
+/* Why choose us cards. Reveal in the page's own moves, then a quiet loop:
+   the player plays, the platforms light up in turn, the chart breathes and
+   pings, the cursor tours the team. */
+@property --played {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 21.6;
+}
+@keyframes why-rise {
+  from { opacity: 0; transform: translate3d(0, 36px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes why-wave {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes why-play {
+  0% { --played: 21.6; }
+  43.2% { --played: 38; }
+  43.21% { --played: 0; }
+  100% { --played: 21.6; }
+}
+@keyframes why-pop {
+  from { opacity: 0; transform: translate3d(var(--fx, 0px), var(--fy, 0px), 0) scale(0.9); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes why-hub {
+  0% { opacity: 0; transform: scale(0.8); }
+  60% { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes why-light {
+  0%, 12%, 100% { opacity: 0; }
+  4%, 8% { opacity: 1; }
+}
+@keyframes why-light-text {
+  0%, 12%, 100% { color: #2a1615; }
+  4%, 8% { color: #ffffff; }
+}
+@keyframes why-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes why-breathe {
+  0%, 100% { transform: scaleY(1); }
+  35% { transform: scaleY(var(--s1, 1)); }
+  70% { transform: scaleY(var(--s2, 1)); }
+}
+@keyframes why-draw {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes why-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes why-ping {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.7; }
+  54%, 100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+}
+@keyframes why-row {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.why-bar { opacity: var(--a, 1); }
+.why-live .why-rise { animation: why-rise 0.62s var(--ease-soft) var(--d, 0ms) both; }
+.why-live .why-wave { animation: why-wave 0.38s var(--ease-soft) var(--d, 0ms) both; }
+.why-live .why-play { animation: why-play 14s linear var(--d, 0ms) infinite; }
+.why-live .why-play .why-bar { opacity: calc(0.1 + 0.9 * clamp(0, (var(--played) - var(--i) + 1) / 2, 1)); }
+.why-live .why-pop { animation: why-pop 0.42s var(--ease-soft) var(--d, 0ms) both; }
+.why-live .why-hub { animation: why-hub 0.48s cubic-bezier(0.34, 1.3, 0.64, 1) var(--d, 0ms) both; }
+.why-live .why-light { animation: why-light 7.7s var(--ease-soft) var(--d, 0ms) infinite; }
+.why-live .why-light-text { animation: why-light-text 7.7s var(--ease-soft) var(--d, 0ms) infinite; }
+.why-live .why-grow {
+  transform-origin: 50% 100%;
+  animation: why-grow 0.56s var(--ease-soft) var(--d, 0ms) both, why-breathe 9s ease-in-out calc(var(--d, 0ms) + 2000ms) infinite;
+}
+.why-live .why-grow-hi { transform-origin: 50% 100%; animation: why-grow 0.62s cubic-bezier(0.34, 1.2, 0.64, 1) var(--d, 0ms) both; }
+.why-live .why-draw { animation: why-draw 0.5s var(--ease-soft) var(--d, 0ms) both; }
+.why-live .why-fade { animation: why-fade 0.5s var(--ease-soft) var(--d, 0ms) both; }
+.why-live .why-ping { animation: why-ping 2.6s var(--ease-soft) var(--d, 0ms) infinite; }
+.why-live .why-row { animation: why-row 0.3s var(--ease-soft) var(--d, 0ms) both; }
+@media (prefers-reduced-motion: reduce) {
+  .why-live .why-rise, .why-live .why-wave, .why-live .why-play, .why-live .why-pop, .why-live .why-hub,
+  .why-live .why-light, .why-live .why-light-text, .why-live .why-grow, .why-live .why-grow-hi,
+  .why-live .why-draw, .why-live .why-fade, .why-live .why-ping, .why-live .why-row { animation: none !important; }
+  .why-live .why-play .why-bar { opacity: var(--a, 1); }
+}
+
+/* Features board: "one stream in, everything else out". Cards pop in at the
+   end of their connector, connectors draw themselves from the hub, rows
+   cascade inside the tool cards, and the dashes keep flowing outward. */
+@keyframes feat-card {
+  from { opacity: 0; transform: translate3d(var(--fx, 0px), var(--fy, 0px), 0) scale(0.94); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes feat-hub {
+  0% { opacity: 0; transform: scale(0.8); }
+  60% { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes feat-row {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes feat-draw {
+  from { clip-path: inset(var(--from)); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes feat-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: var(--cycle, -12px); }
+}
+.feat-flow { animation: feat-flow 0.8s linear infinite; }
+.feat-live .feat-card { animation: feat-card 0.42s var(--ease-soft) var(--d, 0ms) both; }
+.feat-live .feat-hub { animation: feat-hub 0.48s cubic-bezier(0.34, 1.3, 0.64, 1) var(--d, 0ms) both; }
+.feat-live .feat-row { animation: feat-row 0.3s var(--ease-soft) var(--d, 0ms) both; }
+.feat-live .feat-draw { animation: feat-draw 0.32s var(--ease-soft) var(--d, 0ms) both; }
+.feat-fade { display: block; animation: feat-row 0.32s var(--ease-soft) both; }
+@media (prefers-reduced-motion: reduce) {
+  .feat-live .feat-card,
+  .feat-live .feat-hub,
+  .feat-live .feat-row,
+  .feat-live .feat-draw,
+  .feat-flow,
+  .feat-fade { animation: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-ready * { animation: none !important; }
+  .hero-ready .hero-echo { opacity: 0; }
+  .hero-idle * { opacity: 1; }
+  .hero-idle .hero-echo { opacity: 0; }
+}
