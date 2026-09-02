@@ -2750,6 +2750,37 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // Read a finished transcript — JSON for the in-app viewer, or ?format=txt
+  // to download it as a plain-text file.
+  app.get('/api/listener/episodes/:id/transcript', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const episode = await storage.getSubscriptionEpisode(req.params.id);
+      if (!episode || episode.userId !== userId) {
+        return res.status(404).json({ message: 'Episode not found' });
+      }
+      if (!episode.transcript) {
+        return res.status(404).json({ message: 'This episode has no transcript yet' });
+      }
+      if (req.query.format === 'txt') {
+        const safeName = episode.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'transcript';
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}-transcript.txt"`);
+        return res.send(`${episode.title}\n\n${episode.transcript}`);
+      }
+      res.json({
+        id: episode.id,
+        title: episode.title,
+        publishedAt: episode.publishedAt,
+        transcript: episode.transcript,
+        wordCount: episode.transcript.split(/\s+/).filter(Boolean).length,
+      });
+    } catch (error: any) {
+      console.error('Error reading transcript:', error);
+      res.status(500).json({ message: 'Failed to load transcript' });
+    }
+  });
+
   // Generate briefing for episode
   app.post('/api/listener/episodes/:id/briefing', isAuthenticated, async (req: any, res) => {
     try {

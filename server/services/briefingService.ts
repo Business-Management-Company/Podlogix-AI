@@ -152,33 +152,69 @@ export async function transcribeEpisode(episodeId: string, userId: string): Prom
     // Update status to processing
     await storage.updateSubscriptionEpisode(episodeId, { transcriptStatus: 'processing' });
 
-    // Download audio file
+    // Download audio file. Podcast enclosures sit behind tracking redirects
+    // (podtrac → swap.fm → omny…) and CDNs that reject bare fetches, so send a
+    // real UA and follow the chain; then say *why* a download failed instead of
+    // a generic message — "failed" on a 5-minute episode was usually a dead URL.
     console.log(`Downloading audio from: ${episode.audioUrl}`);
-    const audioResponse = await fetch(episode.audioUrl);
+    const audioResponse = await fetch(episode.audioUrl, {
+      redirect: 'follow',
+      headers: { 'User-Agent': 'Podlogix/1.0 (+https://podlogix.io)', Accept: 'audio/*,*/*;q=0.8' },
+    });
     if (!audioResponse.ok) {
       console.error(`Failed to download audio: ${audioResponse.status} ${audioResponse.statusText}`);
-      throw new Error('Failed to download audio');
+      if (audioResponse.status === 404 || audioResponse.status === 410) {
+        throw new Error('The audio is no longer available at the source (the feed points to a file that was removed).');
+      }
+      throw new Error(`Couldn't download the audio (source returned HTTP ${audioResponse.status}).`);
+    }
+    const contentType = (audioResponse.headers.get('content-type') || '').toLowerCase();
+    if (contentType.startsWith('text/html')) {
+      throw new Error('The audio link returned a web page instead of an audio file.');
     }
 
     const audioBuffer = await audioResponse.arrayBuffer();
-    console.log(`Audio downloaded, size: ${audioBuffer.byteLength} bytes`);
-    
-    // Check file size - Whisper has a 25MB limit
-    const maxSize = 25 * 1024 * 1024; // 25MB
-    if (audioBuffer.byteLength > maxSize) {
-      console.error(`Audio file too large: ${audioBuffer.byteLength} bytes (max: ${maxSize})`);
-      throw new Error('Audio file too large for transcription (max 25MB)');
+    console.log(`Audio downloaded, size: ${audioBuffer.byteLength} bytes (${contentType || 'unknown type'})`);
+
+    // Whisper takes at most 25MB per request. A 40-minute MP3 at 128kbps is
+    // ~38MB, so most full episodes used to fail here outright. MP3 frames are
+    // self-synchronising, so a plain byte split transcribes cleanly (a word at
+    // each boundary can smear; acceptable for search). Other containers (m4a)
+    // can't be split this way, so those stay capped.
+    const WHISPER_MAX = 25 * 1024 * 1024;
+    const CHUNK_BYTES = 20 * 1024 * 1024;
+    const HARD_CAP = 250 * 1024 * 1024;
+    if (audioBuffer.byteLength > HARD_CAP) {
+      throw new Error('Audio is over 250MB — too large to transcribe in one job.');
+    }
+    const looksLikeMp3 = contentType.includes('mpeg') || contentType.includes('mp3') || /\.mp3(\?|$)/i.test(episode.audioUrl);
+    if (audioBuffer.byteLength > WHISPER_MAX && !looksLikeMp3) {
+      throw new Error('Audio is over 25MB and not an MP3, so it can\'t be split for transcription.');
     }
 
-    const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mpeg' });
+    const chunks: ArrayBuffer[] = [];
+    if (audioBuffer.byteLength <= WHISPER_MAX) {
+      chunks.push(audioBuffer);
+    } else {
+      for (let offset = 0; offset < audioBuffer.byteLength; offset += CHUNK_BYTES) {
+        chunks.push(audioBuffer.slice(offset, Math.min(offset + CHUNK_BYTES, audioBuffer.byteLength)));
+      }
+    }
 
-    // Transcribe using OpenAI Whisper
-    console.log('Starting OpenAI Whisper transcription...');
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      response_format: 'text',
-    });
+    // Transcribe using OpenAI Whisper — sequentially, so one episode can't
+    // fan out into a burst of parallel uploads and trip the rate limit.
+    console.log(`Starting OpenAI Whisper transcription (${chunks.length} part${chunks.length === 1 ? '' : 's'})...`);
+    const parts: string[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const audioFile = new File([chunks[i]], `audio-${i + 1}.mp3`, { type: 'audio/mpeg' });
+      const text = await openai.audio.transcriptions.create({
+        file: audioFile,
+        model: 'whisper-1',
+        response_format: 'text',
+      });
+      parts.push(String(text).trim());
+    }
+    const transcription = parts.join('\n');
     console.log('Transcription completed successfully');
 
     // Save transcript
@@ -211,6 +247,10 @@ export async function transcribeEpisode(episodeId: string, userId: string): Prom
     }
     
     await storage.updateSubscriptionEpisode(episodeId, { transcriptStatus: 'failed' });
+    // The route relays this message to the UI toast — make it say something a
+    // person can act on rather than an SDK status code.
+    if (error?.status === 429) throw new Error('OpenAI is rate-limiting or out of quota — try again in a few minutes.');
+    if (error?.status === 401) throw new Error('The OpenAI API key is invalid or missing.');
     throw error;
   }
 }

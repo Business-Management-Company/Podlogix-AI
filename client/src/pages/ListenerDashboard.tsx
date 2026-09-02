@@ -51,7 +51,9 @@ import {
   ListMusic,
   MessageCircle,
   X,
-  Send
+  Send,
+  Download,
+  Copy
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SiSpotify } from "react-icons/si";
@@ -130,6 +132,14 @@ export default function ListenerDashboard() {
   const [isAddInterestOpen, setIsAddInterestOpen] = useState(false);
   const [newInterest, setNewInterest] = useState({ topic: "", keywords: "", priority: "medium" });
   const [selectedEpisode, setSelectedEpisode] = useState<SubscriptionEpisode | null>(null);
+  // The transcript viewer: opened per episode, fetched on demand (transcripts
+  // are long; the episode list query deliberately doesn't carry them).
+  const [transcriptEpisode, setTranscriptEpisode] = useState<SubscriptionEpisode | null>(null);
+  const transcriptQuery = useQuery<{ id: string; title: string; transcript: string; wordCount: number }>({
+    queryKey: ['/api/listener/episodes', transcriptEpisode?.id, 'transcript'],
+    queryFn: async () => (await apiRequest('GET', `/api/listener/episodes/${transcriptEpisode!.id}/transcript`)).json(),
+    enabled: !!transcriptEpisode,
+  });
   const [playingEpisodeId, setPlayingEpisodeId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [episodeSort, setEpisodeSort] = useState<'newest' | 'oldest' | 'unread'>('newest');
@@ -297,7 +307,14 @@ export default function ListenerDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
-      toast({ title: "Transcription started", description: "This may take a few minutes" });
+      toast({ title: "Transcript ready", description: "Open it, download it, or search across all your transcripts." });
+    },
+    onError: (error: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/listener/episodes'] });
+      // apiRequest surfaces the server message as "500: {json}" — pull the reason out.
+      let reason = String(error?.message || "Transcription failed");
+      try { reason = JSON.parse(reason.replace(/^\d{3}:\s*/, "")).message || reason; } catch { reason = reason.replace(/^\d{3}:\s*/, ""); }
+      toast({ title: "Couldn't transcribe this episode", description: reason, variant: "destructive" });
     },
   });
 
@@ -968,6 +985,12 @@ export default function ListenerDashboard() {
                               {episode.description}
                             </p>
                             <div className="flex items-center gap-2 mt-3">
+                              {episode.transcriptStatus === 'completed' && (
+                                <Button size="sm" variant="outline" onClick={() => setTranscriptEpisode(episode)} data-testid={`button-view-transcript-${episode.id}`}>
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Transcript
+                                </Button>
+                              )}
                               {episode.transcriptStatus === 'completed' ? (
                                 episode.briefingStatus === 'completed' ? (
                                   <Button size="sm" variant="outline" onClick={() => setSelectedEpisode(episode)} data-testid={`button-view-briefing-${episode.id}`}>
@@ -1210,6 +1233,11 @@ export default function ListenerDashboard() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 flex-shrink-0">
+                                        {ep.transcriptStatus === 'completed' && (
+                                          <Button size="sm" variant="ghost" className="h-7 px-2" title="View transcript" onClick={() => setTranscriptEpisode(ep)}>
+                                            <FileText className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
                                         {ep.transcriptStatus === 'completed' && ep.briefingStatus === 'completed' ? (
                                           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setSelectedEpisode(ep)}>
                                             <BookOpen className="h-3.5 w-3.5" />
@@ -1414,6 +1442,53 @@ export default function ListenerDashboard() {
 
           </div>
         </div>
+
+          <Dialog open={!!transcriptEpisode} onOpenChange={(open) => { if (!open) setTranscriptEpisode(null); }}>
+            <DialogContent className="max-w-2xl overflow-hidden">
+              <DialogHeader>
+                <DialogTitle className="pr-6 leading-snug">{transcriptEpisode?.title}</DialogTitle>
+                <DialogDescription>
+                  {transcriptQuery.data ? `Transcript · ${transcriptQuery.data.wordCount.toLocaleString()} words` : "Transcript"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" asChild>
+                  <a href={`/api/listener/episodes/${transcriptEpisode?.id}/transcript?format=txt`} download data-testid="button-download-transcript">
+                    <Download className="h-4 w-4 mr-1" />
+                    Download .txt
+                  </a>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!transcriptQuery.data}
+                  onClick={async () => {
+                    if (!transcriptQuery.data) return;
+                    await navigator.clipboard.writeText(transcriptQuery.data.transcript);
+                    toast({ title: "Transcript copied" });
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copy
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <Link href="/transcript-search">
+                    <Search className="h-4 w-4 mr-1" />
+                    Search all transcripts
+                  </Link>
+                </Button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto rounded-md border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
+                {transcriptQuery.isLoading ? (
+                  <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading transcript…</span>
+                ) : transcriptQuery.error ? (
+                  <span className="text-destructive">Couldn't load this transcript. Close and try again.</span>
+                ) : (
+                  transcriptQuery.data?.transcript
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
         {selectedEpisode && (
           <Dialog open={!!selectedEpisode} onOpenChange={() => setSelectedEpisode(null)}>
