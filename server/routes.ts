@@ -6,6 +6,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { isLiveKitConfigured, liveKitUrl, mintRoomToken, roomNameForSession, roomNameForRecording, isEgressConfigured, egressConfigReport, startSessionRecording, startTrackCompositeRecording, stopSessionRecording, recordingFilepath } from "./services/livekitService";
 import { searchTranscripts, detectCrisis, CRISIS_RESOURCES } from "./services/transcriptSearchService";
+import { chargeCredits, getCreditSummary } from "./services/credits";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isSuperAdmin, isBetaTester, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { createUploadUrl, publicUrlForKey, isSupabaseStorageConfigured, mirrorExternalMedia, storeImageBuffer, storeVideoBuffer, storeAudioBuffer } from "./services/supabaseStorageService";
@@ -1607,6 +1608,7 @@ export async function registerRoutes(
     try {
       const { podcastName, podcastTopic, hostName, existingBio } = req.body;
       const result = await generateBioAndHeadlines({ podcastName, podcastTopic, hostName, existingBio });
+      await chargeCredits(req.session.userId, 'ai_profile', { label: 'Bio & headlines' });
       res.json(result);
     } catch (error) {
       console.error('Error generating bio:', error);
@@ -1618,6 +1620,7 @@ export async function registerRoutes(
     try {
       const { bio, hostName } = req.body;
       const improved = await improveBio(bio, hostName);
+      await chargeCredits(req.session.userId, 'ai_profile', { label: 'Improve bio' });
       res.json({ bio: improved });
     } catch (error) {
       console.error('Error improving bio:', error);
@@ -1629,6 +1632,7 @@ export async function registerRoutes(
     try {
       const { podcastName, podcastTopic } = req.body;
       const suggestions = await suggestLinksForPodcast(podcastName, podcastTopic);
+      await chargeCredits(req.session.userId, 'ai_profile', { label: 'Link suggestions' });
       res.json({ suggestions });
     } catch (error) {
       console.error('Error suggesting links:', error);
@@ -2747,6 +2751,20 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     } catch (error: any) {
       console.error('Error transcribing episode:', error);
       res.status(500).json({ message: error?.message || 'Failed to transcribe episode' });
+    }
+  });
+
+  // Credits — this month's usage, per-action breakdown, and recent receipts.
+  // Admins also get our estimated vendor cost so spend can be reconciled.
+  app.get('/api/credits/summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const me = await authStorage.getUser(userId).catch(() => null);
+      const includeCost = me?.role === 'admin' || me?.role === 'superadmin';
+      res.json(await getCreditSummary(userId, { includeCost }));
+    } catch (error: any) {
+      console.error('Error loading credit summary:', error);
+      res.status(500).json({ message: 'Failed to load credits' });
     }
   });
 
@@ -4238,7 +4256,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
       const enriched = await enrichHandleCached(apiKey, platform, handle, {
         email_required: 'preferred',
         include_lookalikes: false,
-      });
+      }, { userId: req.session.userId });
       if (!enriched) {
         return res.status(icEnrichmentEnabled() ? 502 : 400).json({
           error: icEnrichmentEnabled() ? 'Enrichment failed' : 'Creator enrichment is currently disabled',
@@ -5182,6 +5200,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
   app.post('/api/email/generate', isAuthenticated, async (req: any, res) => {
     try {
       const email = await generateEmailWithAI(req.body);
+      await chargeCredits(req.session.userId, 'ai_email', { label: 'Draft email' });
       res.json(email);
     } catch (error) {
       console.error('Error generating email:', error);
@@ -5194,6 +5213,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     try {
       const { subject, body, instruction } = req.body;
       const improved = await improveEmailWithAI(subject, body, instruction);
+      await chargeCredits(req.session.userId, 'ai_email', { label: 'Improve email' });
       res.json(improved);
     } catch (error) {
       console.error('Error improving email:', error);
@@ -5206,6 +5226,7 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     try {
       const { body, count } = req.body;
       const subjects = await generateSubjectLines(body, count || 5);
+      await chargeCredits(req.session.userId, 'ai_email', { label: 'Subject lines' });
       res.json({ subjects });
     } catch (error) {
       console.error('Error generating subjects:', error);
@@ -5318,6 +5339,7 @@ Respond with JSON: {"presenceScore": 1-100, "speakingAbilityScore": 1-100, "fill
         ],
       });
       const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      await chargeCredits(userId, 'speech_analysis', { label: `${words.toLocaleString()} words · ${Math.round(seconds / 60)} min` });
       const clamp = (n: unknown) => Math.max(1, Math.min(100, Math.round(Number(n) || 0))) || null;
       const presence = clamp(parsed.presenceScore);
       const speaking = clamp(parsed.speakingAbilityScore);
@@ -5453,6 +5475,9 @@ Respond in this exact JSON format:
       });
 
       const result = JSON.parse(completion.choices[0].message.content || '{}');
+      // This runs detached from the request, so bill the analysis's owner.
+      const owner = await storage.getVideoAnalysis(analysisId);
+      if (owner?.userId) await chargeCredits(owner.userId, 'video_analysis', { label: videoTitle || videoId, resourceType: 'video_analysis', resourceId: analysisId });
 
       await storage.updateVideoAnalysis(analysisId, {
         videoTitle,
@@ -6324,6 +6349,7 @@ Respond with JSON: {"post": "<the post text, no hashtags in it>", "hashtags": ["
         ],
       });
       const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+      await chargeCredits(userId, 'social_post_ai', { label: String(direction || customFocus || focus || 'social post').slice(0, 80) });
       res.json({
         post: typeof parsed.post === 'string' ? parsed.post : '',
         hashtags: Array.isArray(parsed.hashtags)
@@ -6423,6 +6449,7 @@ Respond with JSON: {"posts":[{"slot":1,"title":"<short internal label>","post":"
       });
       const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
       const generated = Array.isArray(parsed.posts) ? parsed.posts : [];
+      await chargeCredits(userId, 'social_batch_ai', { label: `${generated.length} posts · ${String(mode)}`, meta: { posts: generated.length } });
       const posts = slots.map((s: any, i: number) => {
         const g = generated.find((p: any) => p?.slot === i + 1) ?? generated[i] ?? {};
         return {
@@ -7136,6 +7163,7 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
       });
       const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
       const moments = (Array.isArray(parsed.moments) ? parsed.moments : []).slice(0, 5);
+      await chargeCredits(userId, 'detect_moments', { label: session.title, resourceType: 'live_session', resourceId: session.id, meta: { moments: moments.length } });
       const created = [];
       for (const m of moments) {
         const startSeconds = Math.max(0, Math.floor(Number(m.startSeconds) || 0));
@@ -7558,7 +7586,7 @@ Order by confidence, best first. If nothing is clip-worthy, return an empty arra
         return res.status(400).json({ error: 'Analytics API not configured' });
       }
 
-      const enriched = await enrichHandleCached(apiKey, platform.toLowerCase(), handle);
+      const enriched = await enrichHandleCached(apiKey, platform.toLowerCase(), handle, {}, { userId: req.session.userId });
       if (!enriched) {
         return res.status(icEnrichmentEnabled() ? 502 : 400).json({
           error: icEnrichmentEnabled() ? 'Failed to fetch analytics' : 'Creator enrichment is currently disabled',

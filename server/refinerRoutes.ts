@@ -2,6 +2,7 @@ import type { Express } from "express";
 import OpenAI from "openai";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { db } from "./db";
+import { chargeCredits } from "./services/credits";
 import { sponsors, insertSponsorSchema, type Sponsor } from "@shared/schema";
 import { and, desc, eq } from "drizzle-orm";
 
@@ -165,6 +166,7 @@ export function registerRefinerRoutes(app: Express) {
       });
 
       const raw = completion.choices[0]?.message?.content ?? "{}";
+      await chargeCredits(req.session.userId, "clip_candidates", { label: `${transcript.split(/\s+/).length.toLocaleString()}-word transcript` });
       let parsed: { clips?: any[] };
       try {
         parsed = JSON.parse(raw);
@@ -280,6 +282,7 @@ export function registerRefinerRoutes(app: Express) {
             ],
           });
           base = (c.choices[0]?.message?.content ?? base).trim();
+          await chargeCredits(req.session.userId, "ai_caption", { label: clipTitle.slice(0, 80) });
         } catch { /* keep fallback */ }
       }
 
