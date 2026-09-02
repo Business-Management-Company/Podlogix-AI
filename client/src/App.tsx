@@ -42,6 +42,8 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import SaaSAdminPortal from "@/pages/SaaSAdminPortal";
 import IntegrationStatus from "@/pages/IntegrationStatus";
 import KnowledgeBase from "@/pages/KnowledgeBase";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
 
 // ─── Legacy pages (kept for backward compat during migration) ─────────────────
 import ProfileEditor from "@/pages/ProfileEditor";
@@ -332,6 +334,8 @@ function PublicRoutes() {
       <Route path="/features" component={Features} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/about" component={About} />
+      <Route path="/blog" component={Blog} />
+      <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/login" component={AuthPage} />
       <Route path="/signup" component={AuthPage} />
       <Route path="/p/:slug" component={PublicProfile} />
@@ -369,6 +373,8 @@ function Router() {
   const isPublicPath =
     publicPaths.includes(location) ||
     location.startsWith("/p/") ||
+    location === "/blog" ||
+    location.startsWith("/blog/") ||
     location.startsWith("/certificate/");
 
   if (isLoading) {
