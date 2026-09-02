@@ -1013,7 +1013,14 @@ export default function ListenerDashboard() {
                                   </Button>
                                 )
                               ) : episode.transcriptStatus === 'processing' ? (
-                                <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Transcribing...</Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Transcribing...</Badge>
+                                  {/* A job can die mid-flight (tab closed, request cut off) and leave the
+                                      episode marked processing forever — give the user a way out. */}
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" title="Stuck? Run the transcription again" onClick={() => transcribeMutation.mutate(episode.id)} disabled={transcribeMutation.isPending}>
+                                    Restart
+                                  </Button>
+                                </div>
                               ) : episode.transcriptStatus === 'failed' ? (
                                 <div className="flex items-center gap-2">
                                   <Badge variant="destructive">Transcription Failed</Badge>
@@ -1243,8 +1250,12 @@ export default function ListenerDashboard() {
                                             <BookOpen className="h-3.5 w-3.5" />
                                           </Button>
                                         ) : ep.transcriptStatus !== 'completed' && ep.transcriptStatus !== 'processing' ? (
-                                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => transcribeMutation.mutate(ep.id)} disabled={!ep.audioUrl || transcribeMutation.isPending}>
+                                          <Button size="sm" variant="ghost" className="h-7 px-2" title="Transcribe" onClick={() => transcribeMutation.mutate(ep.id)} disabled={!ep.audioUrl || transcribeMutation.isPending}>
                                             <FileText className="h-3.5 w-3.5" />
+                                          </Button>
+                                        ) : ep.transcriptStatus === 'processing' ? (
+                                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" title="Transcribing… click to restart if it's stuck" onClick={() => transcribeMutation.mutate(ep.id)} disabled={transcribeMutation.isPending}>
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                           </Button>
                                         ) : null}
                                       </div>
