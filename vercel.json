@@ -9,58 +9,49 @@
       "includeFiles": "dist/index.cjs"
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/",
-      "destination": "https://podlogix-landing.vercel.app/"
+      "src": "/",
+      "dest": "https://podlogix-landing.vercel.app/"
     },
     {
-      "source": "/l/:path*",
-      "destination": "https://podlogix-landing.vercel.app/l/:path*"
+      "src": "/l/(.*)",
+      "dest": "https://podlogix-landing.vercel.app/l/$1"
     },
     {
-      "source": "/_next/:path*",
-      "destination": "https://podlogix-landing.vercel.app/_next/:path*"
+      "src": "/_next/(.*)",
+      "dest": "https://podlogix-landing.vercel.app/_next/$1"
     },
     {
-      "source": "/icon.png",
-      "destination": "https://podlogix-landing.vercel.app/icon.png"
+      "src": "/(icon\\.png|apple-icon\\.png|favicon\\.ico|opengraph-image\\.jpg)",
+      "dest": "https://podlogix-landing.vercel.app/$1"
     },
     {
-      "source": "/apple-icon.png",
-      "destination": "https://podlogix-landing.vercel.app/apple-icon.png"
+      "handle": "filesystem"
     },
     {
-      "source": "/favicon.ico",
-      "destination": "https://podlogix-landing.vercel.app/favicon.ico"
+      "src": "/api/(.*)",
+      "dest": "/api/index"
     },
     {
-      "source": "/opengraph-image.jpg",
-      "destination": "https://podlogix-landing.vercel.app/opengraph-image.jpg"
+      "src": "/auth/(.*)",
+      "dest": "/api/index"
     },
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
+      "src": "/feeds/(.*)",
+      "dest": "/api/index"
     },
     {
-      "source": "/auth/(.*)",
-      "destination": "/api/index"
+      "src": "/e/(.*)",
+      "dest": "/api/index"
     },
     {
-      "source": "/feeds/(.*)",
-      "destination": "/api/index"
+      "src": "/objects/(.*)",
+      "dest": "/api/index"
     },
     {
-      "source": "/e/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/objects/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
   "crons": [

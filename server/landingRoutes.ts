@@ -4,7 +4,7 @@ import { db } from "./db";
 import { storage } from "./storage";
 import { isAdmin, isAuthenticated } from "./replit_integrations/auth";
 import { episodes, landingFeaturedPodcasts, listenEvents, podcasts, profiles } from "@shared/schema";
-import { getCachedSearch, saveCachedSearch } from "./services/podchaserCache";
+import { saveCachedSearch } from "./services/podchaserCache";
 import {
   getPodchaserPodcastCredits,
   isPodchaserConfigured,
@@ -18,13 +18,16 @@ import {
  * shows with their hosts, so the page carries real artwork from day one. The
  * feature list lives in its own table, so this ships without touching
  * `podcasts`. The edge caches the response for an hour and the Podchaser part
- * is kept for a day, which holds the feed to a handful of API calls per day.
+ * is kept for a week, which holds the feed to a handful of API calls a week.
  */
 const LIMIT = 10;
-const CHART_SHOWS = 5;
 const CHART_HOSTS = 10;
+/** Hosts come from the first few shows, at most two per show, so the list reads as a mix. */
+const HOST_SOURCES = 6;
+const HOSTS_PER_SHOW = 2;
 const CHART_QUERY = process.env.LANDING_PODCHASER_QUERY?.trim() || "podcast";
 const CHART_CACHE_KEY = "landing::podchaser";
+const CHART_CACHE_DAYS = 7;
 const CHART_MEMO_MS = 6 * 60 * 60 * 1000;
 
 type FeedItem = Record<string, string>;
@@ -121,10 +124,22 @@ function chartShow(p: PodchaserPodcastCandidate): FeedItem {
 
 let chartMemo: { at: number; value: Feed } | null = null;
 
+/** The stored chart, read with a longer window than the search cache's day. */
+async function readChartCache(): Promise<Feed | null> {
+  if (!db) return null;
+  const result = await db.execute(sql`
+    SELECT payload FROM podchaser_search_cache
+    WHERE cache_key = ${CHART_CACHE_KEY} AND fetched_at > now() - interval '1 day' * ${CHART_CACHE_DAYS}
+  `);
+  const row = (result as { rows?: Array<{ payload: unknown }> }).rows?.[0];
+  if (!row) return null;
+  return (typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload) as Feed;
+}
+
 async function podchaserFeed(): Promise<Feed> {
   if (!isPodchaserConfigured()) return EMPTY;
   if (chartMemo && Date.now() - chartMemo.at < CHART_MEMO_MS) return chartMemo.value;
-  const cached = await getCachedSearch<Feed>(CHART_CACHE_KEY).catch(() => null);
+  const cached = await readChartCache().catch(() => null);
   if (cached) {
     chartMemo = { at: Date.now(), value: cached };
     return cached;
@@ -135,11 +150,12 @@ async function podchaserFeed(): Promise<Feed> {
   const shows = result.podcastCandidates.filter((p) => p.id && p.title && p.imageUrl);
   const trending = shows.map(chartShow);
   const creators = new Map<string, FeedItem>();
-  for (const show of shows.slice(0, CHART_SHOWS)) {
+  for (const show of shows.slice(0, HOST_SOURCES)) {
     if (creators.size >= CHART_HOSTS) break;
     try {
       const { credits } = await getPodchaserPodcastCredits(show.id, 10);
       const hosts = credits.filter((c) => /host/i.test(`${c.roleCode} ${c.roleTitle}`));
+      let added = 0;
       for (const { creator } of hosts.length ? hosts : credits) {
         if (!creator.imageUrl || creators.has(creator.id)) continue;
         creators.set(creator.id, {
@@ -153,7 +169,7 @@ async function podchaserFeed(): Promise<Feed> {
           photo: creator.imageUrl,
           url: creator.profileUrl || `https://www.podchaser.com/creators/${creator.id}`,
         });
-        if (creators.size >= CHART_HOSTS) break;
+        if (++added >= HOSTS_PER_SHOW || creators.size >= CHART_HOSTS) break;
       }
     } catch (error) {
       console.error("Landing feed: podcast credits failed:", error);
