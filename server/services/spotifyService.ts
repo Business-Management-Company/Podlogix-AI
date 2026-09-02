@@ -201,7 +201,10 @@ export async function searchPodcastsForUser(userId: string, query: string): Prom
     const spotify = await getSpotifyClientForUser(userId);
     if (!spotify) return [];
 
-    const response = await spotify.search(query, ['show'], undefined, 20);
+    // Spotify's Development Mode caps /search at 10 results; anything above
+    // returns 400 "Invalid limit" (verified empirically), which used to be
+    // swallowed below and surfaced as an empty, "broken" search.
+    const response = await spotify.search(query, ['show'], undefined, 10);
 
     return (response.shows?.items || []).map((show: any) => ({
       id: show.id,
