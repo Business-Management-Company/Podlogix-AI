@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean, jsonb, real, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
 export { serial };
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -509,6 +509,23 @@ export const episodeBriefings = pgTable("episode_briefings", {
 });
 
 // User Spotify Connections (per-user OAuth tokens)
+// Credit ledger — one row per action that costs Podlogix money. Users see
+// credits; admins also see our estimated vendor cost. Append-only; balances are
+// derived. Written by server/services/credits.ts.
+export const creditLedger = pgTable("credit_ledger", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  action: varchar("action").notNull(),
+  credits: numeric("credits", { precision: 10, scale: 2 }).notNull(),
+  costCents: integer("cost_cents").notNull().default(0),
+  label: varchar("label"),
+  resourceType: varchar("resource_type"),
+  resourceId: varchar("resource_id"),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+export type CreditLedgerEntry = typeof creditLedger.$inferSelect;
+
 export const spotifyConnections = pgTable("spotify_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique(),

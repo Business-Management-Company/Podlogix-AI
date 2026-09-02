@@ -8,14 +8,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Loader2, User, Mail, Lock, CheckCircle, Phone, MapPin, FileText, Eye, EyeOff } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Camera, Loader2, User, Mail, Lock, CheckCircle, Phone, MapPin, FileText, Eye, EyeOff, Coins } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useUpload } from "@/hooks/use-upload";
 
 export default function AccountSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Credits: this month's usage + receipts for every action that costs us money.
+  const { data: credits } = useQuery<{
+    allowance: number; usedThisMonth: number; remaining: number; costCentsThisMonth: number;
+    byAction: Array<{ action: string; label: string; count: number; credits: number }>;
+    recent: Array<{ id: string; action: string; label: string | null; credits: number; createdAt: string }>;
+    pricing: Array<{ action: string; label: string; credits: number }>;
+  }>({ queryKey: ["/api/credits/summary"], staleTime: 30_000 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile form state
@@ -302,6 +309,87 @@ export default function AccountSettings() {
 
           {/* ── Right column: sign-in method + danger zone ─────────────────── */}
           <div className="space-y-6">
+
+            {/* Credits & usage — every action that costs Podlogix money leaves a receipt here */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Coins className="h-4 w-4" />
+                  Credits &amp; Usage
+                </CardTitle>
+                <CardDescription>
+                  Transcripts and AI tools use credits. Here's what you've used this month.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!credits ? (
+                  <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Loading…</p>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-semibold tabular-nums">{credits.remaining.toLocaleString()}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">{credits.usedThisMonth.toLocaleString()} of {credits.allowance.toLocaleString()} used</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">credits remaining this month</p>
+                      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${Math.min(100, (credits.usedThisMonth / Math.max(1, credits.allowance)) * 100)}%` }}
+                        />
+                      </div>
+                      {credits.costCentsThisMonth > 0 && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">Est. vendor cost this month: ${(credits.costCentsThisMonth / 100).toFixed(2)} (admin view)</p>
+                      )}
+                    </div>
+
+                    {credits.byAction.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">This month by action</p>
+                        <ul className="divide-y rounded-md border text-sm">
+                          {credits.byAction.map((row) => (
+                            <li key={row.action} className="flex items-center justify-between px-3 py-1.5">
+                              <span>{row.label} <span className="text-muted-foreground">× {row.count}</span></span>
+                              <span className="tabular-nums font-medium">{row.credits.toLocaleString()}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">Recent</p>
+                      {credits.recent.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No credits used yet. Transcribe an episode or use an AI tool and it shows up here.</p>
+                      ) : (
+                        <ul className="max-h-56 overflow-y-auto divide-y rounded-md border text-sm">
+                          {credits.recent.map((row) => (
+                            <li key={row.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                              <div className="min-w-0">
+                                <p className="truncate">{row.label || row.action}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {credits.pricing.find((p) => p.action === row.action)?.label ?? row.action} · {new Date(row.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                </p>
+                              </div>
+                              <span className="shrink-0 tabular-nums text-muted-foreground">−{row.credits}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="cursor-pointer select-none">What costs credits?</summary>
+                      <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                        {credits.pricing.map((p) => (
+                          <li key={p.action} className="flex justify-between"><span>{p.label}</span><span className="tabular-nums">{p.credits}</span></li>
+                        ))}
+                      </ul>
+                    </details>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Sign-in method card — passwordless, nothing to manage */}
             <Card>

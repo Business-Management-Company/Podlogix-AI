@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { storage } from '../storage';
+import { chargeCredits } from './credits';
 import type { SubscriptionEpisode, UserInterest, InsertEpisodeBriefing } from '@shared/schema';
 
 const openai = new OpenAI({
@@ -95,6 +96,7 @@ export async function processEpisodeBriefing(episodeId: string, userId: string):
 
     // Generate briefing
     const briefingContent = await generateBriefing(episode, userInterests, episode.transcript);
+    await chargeCredits(episode.userId, 'briefing', { label: episode.title, resourceType: 'episode', resourceId: episodeId });
 
     // Save briefing
     await storage.createEpisodeBriefing({
@@ -221,6 +223,13 @@ export async function transcribeEpisode(episodeId: string, userId: string): Prom
     await storage.updateSubscriptionEpisode(episodeId, {
       transcript: transcription,
       transcriptStatus: 'completed',
+    });
+    await chargeCredits(userId, 'transcript', {
+      label: episode.title,
+      resourceType: 'episode',
+      resourceId: episodeId,
+      minutes: episode.duration ? episode.duration / 60 : Math.round(audioBuffer.byteLength / (16 * 1024 * 60)),
+      meta: { parts: chunks.length, bytes: audioBuffer.byteLength },
     });
 
     // Create notification

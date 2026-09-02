@@ -102,12 +102,15 @@ export function extractIcAnalytics(data: any, platform: string, fallbackHandle: 
   };
 }
 
+import { chargeCredits } from "./credits";
+
 export async function enrichHandleCached(
   apiKey: string,
   platform: string,
   handle: string,
   extra: Record<string, any> = {},
-  opts: { force?: boolean } = {}
+  // userId: who to bill. Only a fresh lookup costs anything — cache hits are free.
+  opts: { force?: boolean; userId?: string } = {}
 ): Promise<{ data: any; fromCache: boolean } | null> {
   const normalized = normalizeSocialHandle(handle);
   if (!opts.force) {
@@ -126,5 +129,8 @@ export async function enrichHandleCached(
 
   const data = await response.json();
   await saveEnrichment(platform, normalized, data);
+  if (opts.userId) {
+    await chargeCredits(opts.userId, "enrichment", { label: `@${normalized} · ${platform}`, resourceType: "handle", resourceId: `${platform}:${normalized}` });
+  }
   return { data, fromCache: false };
 }

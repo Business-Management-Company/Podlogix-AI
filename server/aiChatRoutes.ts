@@ -2,6 +2,7 @@ import type { Express } from "express";
 import OpenAI from "openai";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { storage } from "./storage";
+import { chargeCredits } from "./services/credits";
 
 const SYSTEM_PROMPT = `You are Podlogix AI, a helpful assistant built into the Podlogix podcast platform. You are talking directly to the podcast host who owns this workspace.
 
@@ -65,6 +66,7 @@ export function registerAiChatRoutes(app: Express) {
       const text =
         completion.choices[0]?.message?.content ??
         "I'm having trouble right now — please try again.";
+      await chargeCredits(userId, "ai_chat", { label: trimmed[trimmed.length - 1]?.content?.slice(0, 80) });
 
       res.json({ text });
     } catch (err: any) {
