@@ -671,7 +671,7 @@ export default function ListenerDashboard() {
                   Add Podcast
                 </Button>
               </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg overflow-hidden">
                   <DialogHeader>
                     <DialogTitle>Add Podcast</DialogTitle>
                     <DialogDescription>
@@ -715,46 +715,62 @@ export default function ListenerDashboard() {
                         <>
                           <div className="space-y-2">
                             <Label>Search Spotify</Label>
-                            <div className="flex gap-2">
+                            <div className="flex min-w-0 gap-2">
                               <Input
                                 placeholder="Search podcasts..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && searchQuery && !searchSpotifyMutation.isPending) searchSpotifyMutation.mutate(searchQuery);
+                                }}
+                                className="min-w-0 flex-1"
                                 data-testid="input-spotify-search"
                               />
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
+                                className="shrink-0"
                                 onClick={() => searchSpotifyMutation.mutate(searchQuery)}
                                 disabled={!searchQuery || searchSpotifyMutation.isPending}
                               >
-                                <Search className="h-4 w-4" />
+                                {searchSpotifyMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                               </Button>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                              {searchSpotifyMutation.data ? "Search results" : "Shows you follow on Spotify — or search for any show"}
+                            </p>
                           </div>
-                          <ScrollArea className="h-64">
-                            <div className="space-y-2">
-                              {(searchSpotifyMutation.data as SpotifyShow[] || spotifyShows).map((show: SpotifyShow) => (
-                                <div key={show.id} className="flex items-center gap-3 p-2 rounded-lg border hover-elevate">
-                                  <Avatar className="h-10 w-10 rounded">
-                                    <AvatarImage src={show.imageUrl || undefined} />
-                                    <AvatarFallback><Mic className="h-4 w-4" /></AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{show.name}</p>
-                                    <p className="text-xs text-muted-foreground truncate">{show.publisher}</p>
-                                  </div>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => importFromSpotifyMutation.mutate(show.id)}
-                                    disabled={importFromSpotifyMutation.isPending}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
+                          {/* Plain overflow container, not Radix ScrollArea: its viewport
+                              wrapper sizes to the content's intrinsic width, which let long
+                              titles push rows past the dialog's edge. */}
+                          <div className="max-h-64 min-w-0 space-y-2 overflow-y-auto overflow-x-hidden pr-1">
+                            {((searchSpotifyMutation.data as SpotifyShow[] | undefined) ?? spotifyShows).length === 0 && (
+                              <p className="py-8 text-center text-sm text-muted-foreground">
+                                {searchSpotifyMutation.data ? "No shows matched — try another name." : "No followed shows yet. Search for one above."}
+                              </p>
+                            )}
+                            {((searchSpotifyMutation.data as SpotifyShow[] | undefined) ?? spotifyShows).map((show: SpotifyShow) => (
+                              <div key={show.id} className="flex min-w-0 items-center gap-3 rounded-lg border p-2">
+                                <Avatar className="h-10 w-10 shrink-0 rounded">
+                                  <AvatarImage src={show.imageUrl || undefined} />
+                                  <AvatarFallback><Mic className="h-4 w-4" /></AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium">{show.name}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{show.publisher}</p>
                                 </div>
-                              ))}
-                            </div>
-                          </ScrollArea>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="shrink-0"
+                                  onClick={() => importFromSpotifyMutation.mutate(show.id)}
+                                  disabled={importFromSpotifyMutation.isPending}
+                                  aria-label={`Add ${show.name}`}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
                         </>
                       ) : (
                         <div className="text-center py-8">
