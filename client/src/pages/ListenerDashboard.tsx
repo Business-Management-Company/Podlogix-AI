@@ -53,8 +53,11 @@ import {
   X,
   Send,
   Download,
-  Copy
+  Copy,
+  MoreHorizontal
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { EpisodeAskSheet } from "@/components/listener/EpisodeAskSheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SiSpotify } from "react-icons/si";
 
@@ -135,6 +138,7 @@ export default function ListenerDashboard() {
   // The transcript viewer: opened per episode, fetched on demand (transcripts
   // are long; the episode list query deliberately doesn't carry them).
   const [transcriptEpisode, setTranscriptEpisode] = useState<SubscriptionEpisode | null>(null);
+  const [askEpisode, setAskEpisode] = useState<SubscriptionEpisode | null>(null);
   const transcriptQuery = useQuery<{ id: string; title: string; transcript: string; wordCount: number }>({
     queryKey: ['/api/listener/episodes', transcriptEpisode?.id, 'transcript'],
     queryFn: async () => (await apiRequest('GET', `/api/listener/episodes/${transcriptEpisode!.id}/transcript`)).json(),
@@ -986,10 +990,19 @@ export default function ListenerDashboard() {
                             </p>
                             <div className="flex items-center gap-2 mt-3">
                               {episode.transcriptStatus === 'completed' && (
-                                <Button size="sm" variant="outline" onClick={() => setTranscriptEpisode(episode)} data-testid={`button-view-transcript-${episode.id}`}>
-                                  <FileText className="h-4 w-4 mr-1" />
-                                  Transcript
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="sm" variant="outline" data-testid={`button-episode-menu-${episode.id}`}>
+                                      <MoreHorizontal className="h-4 w-4 mr-1" />
+                                      Episode
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start">
+                                    <DropdownMenuItem onSelect={() => setTranscriptEpisode(episode)}><FileText className="h-4 w-4 mr-2" />Transcript</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => (episode.briefingStatus === 'completed' ? setSelectedEpisode(episode) : generateBriefingMutation.mutate(episode.id))}><BookOpen className="h-4 w-4 mr-2" />{episode.briefingStatus === 'completed' ? 'Brief' : 'Generate brief'}</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setAskEpisode(episode)}><Search className="h-4 w-4 mr-2" />Ask &amp; search</DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               )}
                               {episode.transcriptStatus === 'completed' ? (
                                 episode.briefingStatus === 'completed' ? (
@@ -1241,9 +1254,18 @@ export default function ListenerDashboard() {
                                       </div>
                                       <div className="flex items-center gap-1 flex-shrink-0">
                                         {ep.transcriptStatus === 'completed' && (
-                                          <Button size="sm" variant="ghost" className="h-7 px-2" title="View transcript" onClick={() => setTranscriptEpisode(ep)}>
-                                            <FileText className="h-3.5 w-3.5" />
-                                          </Button>
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                              <Button size="sm" variant="ghost" className="h-7 px-2" title="Transcript, brief, ask & search">
+                                                <MoreHorizontal className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                              <DropdownMenuItem onSelect={() => setTranscriptEpisode(ep)}><FileText className="h-4 w-4 mr-2" />Transcript</DropdownMenuItem>
+                                              <DropdownMenuItem onSelect={() => (ep.briefingStatus === 'completed' ? setSelectedEpisode(ep) : generateBriefingMutation.mutate(ep.id))}><BookOpen className="h-4 w-4 mr-2" />{ep.briefingStatus === 'completed' ? 'Brief' : 'Generate brief'}</DropdownMenuItem>
+                                              <DropdownMenuItem onSelect={() => setAskEpisode(ep)}><Search className="h-4 w-4 mr-2" />Ask &amp; search</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
                                         )}
                                         {ep.transcriptStatus === 'completed' && ep.briefingStatus === 'completed' ? (
                                           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setSelectedEpisode(ep)}>
@@ -1453,6 +1475,8 @@ export default function ListenerDashboard() {
 
           </div>
         </div>
+
+          <EpisodeAskSheet episode={askEpisode} onOpenChange={(open) => { if (!open) setAskEpisode(null); }} />
 
           <Dialog open={!!transcriptEpisode} onOpenChange={(open) => { if (!open) setTranscriptEpisode(null); }}>
             <DialogContent className="max-w-2xl overflow-hidden">

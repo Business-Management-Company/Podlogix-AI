@@ -2801,6 +2801,84 @@ Keep responses concise and conversational (2-4 sentences max unless more detail 
     }
   });
 
+  // Ask one episode a question. The model answers from the transcript only and
+  // returns verbatim passages so the client can highlight where in the episode
+  // it happened. Crisis language in the question surfaces the resources block
+  // first, same as the cross-transcript search.
+  app.post('/api/listener/episodes/:id/ask', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const episode = await storage.getSubscriptionEpisode(req.params.id);
+      if (!episode || episode.userId !== userId) return res.status(404).json({ message: 'Episode not found' });
+      if (!episode.transcript) return res.status(400).json({ message: 'Transcribe this episode first.' });
+      const question = String(req.body?.question ?? '').trim();
+      if (question.length < 3) return res.status(400).json({ message: 'Ask a question.' });
+      if (!process.env.OPENAI_API_KEY) return res.status(503).json({ message: 'AI is not configured.' });
+
+      const crisis = detectCrisis(question) ? CRISIS_RESOURCES : null;
+      const transcript = episode.transcript;
+      // gpt-4o's context comfortably holds our longest transcripts (~55k chars); cap defensively.
+      const excerpt = transcript.slice(0, 120_000);
+      const history: Array<{ role: 'user' | 'assistant'; content: string }> = Array.isArray(req.body?.history)
+        ? req.body.history.filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string').slice(-6)
+        : [];
+
+      const OpenAI = (await import('openai')).default;
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        temperature: 0.2,
+        max_tokens: 900,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `You help a listener find things in ONE podcast episode. Answer only from the transcript below; if it isn't there, say so plainly.
+Respond with JSON: {"answer": "<2-4 sentences, specific, in plain language>", "passages": ["<verbatim excerpt copied EXACTLY from the transcript, 15-60 words, that supports the answer>", ...up to 4]}
+Passages must be exact substrings of the transcript — do not paraphrase, fix grammar, or add ellipses.
+
+EPISODE: "${episode.title}"
+TRANSCRIPT:
+${excerpt}`,
+          },
+          ...history,
+          { role: 'user', content: question },
+        ],
+      });
+
+      let parsed: { answer?: string; passages?: string[] } = {};
+      try { parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}'); } catch { parsed = {}; }
+
+      // Verify every passage really appears (the client highlights by string match),
+      // and turn its position into an approximate minute mark.
+      const lower = transcript.toLowerCase();
+      const durationSec = Number(episode.duration) || 0;
+      const passages = (parsed.passages ?? [])
+        .map((p) => String(p ?? '').trim())
+        .filter((p) => p.length >= 20)
+        .map((p) => {
+          let idx = lower.indexOf(p.toLowerCase());
+          let quote = p;
+          if (idx < 0) {
+            // The model sometimes trims punctuation — fall back to the first ~50 chars.
+            const head = p.slice(0, 50).toLowerCase();
+            idx = lower.indexOf(head);
+            if (idx >= 0) quote = transcript.slice(idx, idx + p.length);
+          }
+          if (idx < 0) return null;
+          const position = idx / Math.max(1, transcript.length);
+          return { quote, position, approxMinute: durationSec ? Math.round((position * durationSec) / 60) : null };
+        })
+        .filter((p): p is { quote: string; position: number; approxMinute: number | null } => p !== null)
+        .slice(0, 4);
+
+      res.json({ answer: parsed.answer || "I couldn't find that in this episode.", passages, crisis });
+    } catch (error: any) {
+      console.error('Error answering episode question:', error?.message || error);
+      res.status(500).json({ message: 'The AI could not answer right now — try again.' });
+    }
+  });
+
   // Generate briefing for episode
   app.post('/api/listener/episodes/:id/briefing', isAuthenticated, async (req: any, res) => {
     try {
