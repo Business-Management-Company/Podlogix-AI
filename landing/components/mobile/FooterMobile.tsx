@@ -29,7 +29,7 @@ function Column({ col, className = "" }: { col: (typeof footerColumns)[number]; 
 
 export function FooterMobile() {
   return (
-    <footer className="relative flex min-h-[720px] flex-col gap-8 overflow-hidden px-6 pt-8" style={{ paddingBottom: "calc(min(100vw - 48px, 520px) / 4.2717 + 22px)" }}>
+    <footer className="relative flex min-h-[560px] flex-col gap-8 overflow-hidden px-6 pt-8" style={{ paddingBottom: "calc(min(100vw - 48px, 400px) / 4.2717 + 22px)" }}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <h2 className="display whitespace-pre-wrap text-[32px] leading-[1.2] tracking-[-0.32px] text-cream">{"Ready to level up \nyour business podcast?"}</h2>
@@ -53,7 +53,7 @@ export function FooterMobile() {
       <WaitlistForm size="sm" />
 
       <div className="pointer-events-none absolute bottom-[-10px] left-1/2 -translate-x-1/2" aria-hidden>
-        <Image src="/l/brand/logo-lockup-cream.svg" alt="" width={870} height={204} unoptimized className="h-auto max-w-none" style={{ width: "min(calc(100vw - 48px), 520px)" }} />
+        <Image src="/l/brand/logo-lockup-cream.svg" alt="" width={870} height={204} unoptimized className="h-auto max-w-none" style={{ width: "min(calc(100vw - 48px), 400px)" }} />
       </div>
       <Image src="/l/images/footer-fade.png" alt="" width={1645} height={24} unoptimized className="pointer-events-none absolute bottom-0 left-1/2 h-[24px] w-[1645px] max-w-none -translate-x-1/2 object-cover" aria-hidden />
     </footer>
