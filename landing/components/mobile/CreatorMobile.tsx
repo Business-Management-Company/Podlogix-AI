@@ -20,24 +20,8 @@ const BARS = [
   { off: 3, h: 102, bg: "bg-white/5" },
 ];
 
-function Bar({ bar, items, index }: { bar: (typeof BARS)[number]; items: Creator[]; index: number }) {
-  const n = items.length;
-  const target = n ? (((index + bar.off) % n) + n) % n : -1;
-  return (
-    <span className={`relative w-12 shrink-0 overflow-hidden rounded-[16px] ${bar.bg}`} style={{ height: `${bar.h / 16}rem` }} aria-hidden>
-      {items.map((c, i) => (
-        <Image
-          key={c.id}
-          src={c.photo}
-          alt=""
-          fill
-          sizes="48px"
-          className="object-cover transition-opacity duration-700 ease-soft"
-          style={{ objectPosition: c.photoPosition ?? "50% 20%", opacity: i === target ? 0.35 : 0 }}
-        />
-      ))}
-    </span>
-  );
+function Bar({ bar }: { bar: (typeof BARS)[number] }) {
+  return <span className={`w-12 shrink-0 rounded-[16px] ${bar.bg}`} style={{ height: `${bar.h / 16}rem` }} aria-hidden />;
 }
 
 export function CreatorMobile({ items }: { items: Creator[] }) {
@@ -62,7 +46,7 @@ export function CreatorMobile({ items }: { items: Creator[] }) {
       <div className="flex flex-col items-center gap-4">
         <div className="flex h-[420px] w-full items-center justify-center gap-4">
           {BARS.slice(0, 3).map((b) => (
-            <Bar key={b.off} bar={b} items={items} index={index} />
+            <Bar key={b.off} bar={b} />
           ))}
           <div className="relative h-full w-[200px] shrink-0 overflow-hidden rounded-[32px]" style={{ backgroundImage: cardGrad, backgroundSize: "100% 100%" }}>
             {items.map((c, i) => (
@@ -79,7 +63,7 @@ export function CreatorMobile({ items }: { items: Creator[] }) {
             ))}
           </div>
           {BARS.slice(3).map((b) => (
-            <Bar key={b.off} bar={b} items={items} index={index} />
+            <Bar key={b.off} bar={b} />
           ))}
         </div>
         <div className="flex w-[220px] flex-col gap-1 px-1 text-center leading-[1.2]" aria-live="polite">

@@ -86,6 +86,18 @@ export function Category({ items }: { items: CategoryT[] }) {
     setActive((a) => (a + delta + items.length) % items.length);
   };
 
+  /** Dragging the rail with the mouse flips it too. */
+  const dragX = useRef<number | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragX.current = e.clientX;
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (dragX.current === null) return;
+    const dx = e.clientX - dragX.current;
+    dragX.current = null;
+    if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+  };
+
   const transition = reduced ? "none" : "620ms var(--ease-soft)";
 
   return (
@@ -113,7 +125,15 @@ export function Category({ items }: { items: CategoryT[] }) {
         </div>
       </div>
 
-      <div ref={viewportRef} className="-mt-5 w-full overflow-hidden">
+      <div
+        ref={viewportRef}
+        className="-mt-5 w-full cursor-grab touch-pan-y select-none overflow-hidden active:cursor-grabbing"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => (dragX.current = null)}
+        onPointerLeave={() => (dragX.current = null)}
+        onDragStart={(e) => e.preventDefault()}
+      >
         <div
           className="flex h-[360px] w-max items-center gap-4"
           style={{ transform: `translate3d(${offset}px,0,0)`, transition: `transform ${transition}`, willChange: "transform" }}
@@ -126,7 +146,11 @@ export function Category({ items }: { items: CategoryT[] }) {
                   <article
                     key={c.slug}
                     className="relative flex w-[220px] shrink-0 flex-col justify-between overflow-hidden rounded-[24px] bg-white/5 p-4"
-                    style={{ height: `${h / 16}rem`, transition: `height ${transition}` }}
+                    style={{
+                      height: `${h / 16}rem`,
+                      boxShadow: isActive ? "inset 0 0 0 1.5px rgba(254,252,250,0.85)" : "inset 0 0 0 0 rgba(254,252,250,0)",
+                      transition: `height ${transition}, box-shadow ${transition}`,
+                    }}
                     aria-current={isActive ? "true" : undefined}
                   >
                     {c.art && (
@@ -135,16 +159,6 @@ export function Category({ items }: { items: CategoryT[] }) {
                         <span className="absolute inset-0" style={{ backgroundImage: CATEGORY_WASH }} />
                       </span>
                     )}
-                    <span
-                      className="pointer-events-none absolute inset-0 rounded-[24px]"
-                      style={{
-                        backgroundImage: grad.card220x320,
-                        backgroundSize: "100% 100%",
-                        opacity: isActive ? 0.95 : 0,
-                        transition: `opacity ${transition}`,
-                      }}
-                      aria-hidden
-                    />
                     <span
                       className="relative flex h-10 w-10 items-center justify-center rounded-full"
                       style={{

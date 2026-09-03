@@ -147,7 +147,7 @@ const rem = (n: number) => `${n / 16}rem`;
  */
 type Conn = { d: string; vb: [number, number]; w: number; h: number; left: number; top: string; rank: number; stroke: string; opacity: number; dash: string; cycle: number; from: string; shift?: boolean };
 const OUT = { stroke: "#FFD7A5", opacity: 1, dash: "6 6", cycle: 12, from: "0 100% 0 0" };
-const PT = { stroke: "#ffffff", opacity: 0.5, dash: "5 5", cycle: 10 };
+const PT = { stroke: "#ffffff", opacity: 0.95, dash: "6 5", cycle: 11 };
 const R = "0 100% 0 0"; // reveal left to right (right-hand connectors)
 const L = "0 0 0 100%"; // reveal right to left (left-hand connectors)
 
@@ -177,7 +177,7 @@ function Connector({ c, delay }: { c: Conn; delay: number }) {
       className={`feat-draw absolute max-w-none overflow-visible ${c.shift ? "-translate-y-1/2" : ""}`}
       style={{ left: rem(c.left), top: c.top, width: rem(c.w), height: rem(c.h), "--from": c.from, "--d": `${delay}ms` } as React.CSSProperties}
     >
-      <path d={c.d} fill="none" stroke={c.stroke} strokeOpacity={c.opacity} strokeDasharray={c.dash} strokeLinejoin="round" className="feat-flow" style={{ "--cycle": `${-c.cycle}px` } as React.CSSProperties} />
+      <path d={c.d} fill="none" stroke={c.stroke} strokeOpacity={c.opacity} strokeWidth={1.5} strokeDasharray={c.dash} strokeLinejoin="round" className="feat-flow" style={{ "--cycle": `${-c.cycle}px` } as React.CSSProperties} />
     </svg>
   );
 }

@@ -26,9 +26,9 @@ The site lives in the `landing` folder of the Podlogix repository and deploys as
 ## Motion
 
 - Loading screen and hero entrance: `components/PageIntro.tsx` and the keyframes in `app/globals.css`. Plays on every load; `?intro=0` skips it.
-- Nothing pins the page. Category advances its rail one card every 2.2s while on screen (the arrows step it by hand and hold the cycle for 8s), Trending deals its five cards once it comes into view, Workspace raises the real dashboard once when it enters, and Features flips views every 7s starting on Platform tools (a click holds for 12s). All of it rests when the section is off screen.
+- Nothing pins the page. Category advances its rail one card every 2.2s while on screen (arrows or a mouse drag step it by hand and hold the cycle for 8s), Trending deals its five cards once it comes into view (click a buried card or use the arrows to bring it forward), Workspace cycles its four real product screens every 3.2s (tabs, or drag the panel), and Features flips views every 7s starting on Platform tools (a click holds for 12s). All of it rests when the section is off screen.
 - The Features board plays its choreography whenever a view becomes active: the input lands, its line draws into the hub, the hub pops, the connectors draw outward and each card pops in at the end of its line, nearest first; the dashes keep flowing away from the hub. The integrations view carries a live recording card whose timer ticks while it is on stage. Connectors are inline SVG in `components/sections/Features.tsx`, keyframes in `app/globals.css`.
-- Creator of the month rotates ten creators through the equalizer every three seconds; the bars between the cards carry dimmed slivers of their portraits, so every shape holds an image.
+- Creator of the month rotates ten creators through the equalizer every three seconds, with plain bars between the cards as in the reference shot.
 - How it works cycles the highlighted stage; hovering a stage holds it.
 - Why choose us: each card's illustration wakes when a third of it is on screen (the player rises through its stack and plays, the platforms pop out from the mark and light up in turn, the chart grows in, counts up, breathes and pings, the cursor tours the team on the creator beat). Keyframes in `app/globals.css` under `why-`.
 - Everything respects `prefers-reduced-motion`.

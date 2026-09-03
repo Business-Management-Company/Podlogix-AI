@@ -246,14 +246,14 @@ export function Trending({ items }: { items: Podcast[] }) {
                 }}
                 onClick={() => bringToFront(i)}
                 title={frontState >= 0 && frontState !== i ? `Read about ${p.title}` : undefined}
-                className={`stroke-3 pointer-events-auto absolute left-1/2 top-[402px] flex h-[296px] w-[844px] items-center gap-4 rounded-[24px] bg-card py-2 pl-2 pr-6 opacity-0 will-change-[transform,opacity] [backface-visibility:hidden] ${frontState >= 0 && frontState !== i ? "cursor-pointer" : ""}`}
+                className={`stroke-3 pointer-events-auto absolute left-1/2 top-[402px] flex h-[296px] w-[844px] items-center gap-6 overflow-hidden rounded-[24px] bg-card pr-6 opacity-0 will-change-[transform,opacity] [backface-visibility:hidden] ${frontState >= 0 && frontState !== i ? "cursor-pointer" : ""}`}
                 style={{
                   zIndex: i + 1,
                   transform: `translate(-50%, ${ENTER_Y / 16}rem) scale(1)`,
                   boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03), 0 -10px 15px rgba(31,10,9,0.3)",
                 }}
               >
-                <div className="relative h-[280px] w-[320px] shrink-0 overflow-hidden rounded-[16px] bg-white/[0.04]">
+                <div className="relative h-full w-[320px] shrink-0 self-stretch overflow-hidden bg-white/[0.04]">
                   <Image
                     src={p.artwork}
                     alt=""

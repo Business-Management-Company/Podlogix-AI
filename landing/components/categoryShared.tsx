@@ -36,4 +36,4 @@ export const categoryIcons: Record<string, React.ComponentType<{ size?: number; 
 };
 
 /** The cover sits under an ink wash so the label stays the loudest thing on the card. */
-export const CATEGORY_WASH = "linear-gradient(180deg, rgba(31,10,9,0.38) 0%, rgba(31,10,9,0.62) 52%, rgba(31,10,9,0.94) 88%)";
+export const CATEGORY_WASH = "linear-gradient(180deg, rgba(31,10,9,0.08) 0%, rgba(31,10,9,0.16) 45%, rgba(31,10,9,0.88) 96%)";

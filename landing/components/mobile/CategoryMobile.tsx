@@ -20,20 +20,13 @@ export function CategoryMobile({ items }: { items: Category[] }) {
             <article
               key={c.slug}
               className="relative flex w-[180px] shrink-0 snap-start flex-col justify-between overflow-hidden rounded-[24px] bg-white/5 p-4"
-              style={{ height: `${(active ? 320 : c.height) / 16}rem` }}
+              style={{ height: `${(active ? 320 : c.height) / 16}rem`, boxShadow: active ? "inset 0 0 0 1.5px rgba(254,252,250,0.85)" : undefined }}
             >
               {c.art && (
                 <span className="pointer-events-none absolute inset-0" aria-hidden>
                   <Image src={c.art} alt="" fill sizes="180px" className="object-cover" />
                   <span className="absolute inset-0" style={{ backgroundImage: CATEGORY_WASH }} />
                 </span>
-              )}
-              {active && (
-                <span
-                  className="pointer-events-none absolute inset-0 rounded-[24px]"
-                  style={{ backgroundImage: grad.card220x320, backgroundSize: "100% 100%", opacity: 0.95 }}
-                  aria-hidden
-                />
               )}
               <span
                 className="relative flex h-10 w-10 items-center justify-center rounded-full"
