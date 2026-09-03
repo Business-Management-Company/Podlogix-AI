@@ -29,7 +29,7 @@ const linkHref: Record<string, string> = {
 
 export function Footer() {
   return (
-    <footer className="relative mx-auto flex h-[720px] w-[1440px] flex-col items-start gap-10 overflow-hidden p-10">
+    <footer className="relative mx-auto flex h-[540px] w-[1440px] flex-col items-start gap-10 overflow-hidden p-10">
       <div className="flex h-[240px] w-full items-start justify-between">
         <div className="flex h-full w-[502px] flex-col items-start justify-between">
           <div className="flex w-full flex-col items-start gap-4">
@@ -75,11 +75,11 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Giant lockup, bleeding off the bottom edge as the wordmark did in the file. */}
-      <div className="pointer-events-none absolute bottom-[-40px] left-1/2 -translate-x-1/2" aria-hidden>
-        <Image src="/l/brand/logo-lockup-cream.svg" alt="" width={870} height={204} unoptimized className="h-[304.3px] w-[1300px] max-w-none" />
+      {/* Lockup bleeding off the bottom edge — sized to sit under the columns rather than dominate the block. */}
+      <div className="pointer-events-none absolute bottom-[-28px] left-1/2 -translate-x-1/2" aria-hidden>
+        <Image src="/l/brand/logo-lockup-cream.svg" alt="" width={870} height={204} unoptimized className="h-[210.7px] w-[900px] max-w-none" />
       </div>
-      <Image src="/l/images/footer-fade.png" alt="" width={1645} height={72} unoptimized className="pointer-events-none absolute bottom-0 left-[calc(50%-0.5px)] h-[72px] w-[1645px] max-w-none -translate-x-1/2 object-cover" aria-hidden />
+      <Image src="/l/images/footer-fade.png" alt="" width={1645} height={72} unoptimized className="pointer-events-none absolute bottom-0 left-[calc(50%-0.5px)] h-[48px] w-[1645px] max-w-none -translate-x-1/2 object-cover" aria-hidden />
     </footer>
   );
 }
