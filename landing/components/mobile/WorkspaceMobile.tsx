@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Eyebrow } from "@/components/ui/SectionHeader";
 import { GradientRings } from "@/components/ui/GradientRings";
 import { remScale } from "@/lib/useRem";
-import { IconHome, IconMicrophone, IconSignalStream, IconSparkles } from "@/components/icons";
+import { IconCompass, IconHome, IconMicrophone, IconSignalStream } from "@/components/icons";
 import { ROOM_W, STROKE_COLOR, rem, rooms } from "@/lib/workspace";
 import { site } from "@/lib/site";
 
@@ -13,7 +13,7 @@ const icons = {
   dashboard: <IconHome size={14} />,
   live: <IconSignalStream size={16} />,
   podcast: <IconMicrophone size={14} />,
-  refiner: <IconSparkles size={16} />,
+  discovery: <IconCompass size={14} />,
 };
 
 /* The browser window is 311px wide on the 345px panel; stroke and radius scale with it. */
@@ -45,7 +45,7 @@ export function WorkspaceMobile() {
         <Eyebrow>The workspace</Eyebrow>
         <h2 className="display whitespace-nowrap text-[32px] leading-[1.2] tracking-[-0.32px] text-cream">Every room, one roof.</h2>
         <p className="text-[14px] leading-[1.4] text-white/80">
-          Flip through the rooms: dashboard, studio, podcast and Refiner. These are real product screens, one signup away.
+          Flip through the rooms: dashboard, studio, podcast and Discovery. These are real product screens, one signup away.
         </p>
       </div>
       <div role="tablist" aria-label="Workspace rooms" className="no-scrollbar -mx-6 flex items-start overflow-x-auto px-6 text-[14px]">
