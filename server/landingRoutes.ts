@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { isAdmin, isAuthenticated } from "./replit_integrations/auth";
 import { episodes, landingFeaturedPodcasts, listenEvents, podcasts, profiles } from "@shared/schema";
 import { saveCachedSearch } from "./services/podchaserCache";
+import { getCategoryCounts } from "./services/categoryCounts";
 import {
   getPodchaserPodcastCredits,
   isPodchaserConfigured,
@@ -198,6 +199,20 @@ export function registerLandingRoutes(app: Express) {
       trending: [...featured.trending, ...chart.trending],
       creators: [...featured.creators, ...chart.creators],
     });
+  });
+
+  // Podcast categories with real show counts (Podchaser totals, cached a week)
+  // for the landing page's category section. Same shape everywhere: slug, label,
+  // Lucide icon name, hex colour, and `shows` (null when a count is unavailable).
+  app.get("/api/public/categories", async (_req: Request, res: Response) => {
+    res.set("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+    try {
+      const categories = await getCategoryCounts();
+      res.json({ categories, total: categories.length });
+    } catch (error) {
+      console.error("Category counts failed:", error);
+      res.status(500).json({ message: "Categories are unavailable right now." });
+    }
   });
 
   /** Admins choose which hosted shows the landing page may feature. Body: { featured: boolean }. */
