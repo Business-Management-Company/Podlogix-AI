@@ -53,23 +53,23 @@ const DISCOVER_TABS: { key: DiscoverTab; label: string; icon: LucideIcon }[] = [
 // beats a collage of borrowed podcast art (which repeated across tiles and read
 // as noise). The colour is the tile's whole identity: icon badge, tint, hover.
 const DISCOVERY_TOPICS = [
-  { label: "Health & wellness", query: "health wellness", icon: HeartPulse, color: "#10b981" },
+  { label: "Health & Wellness", query: "health wellness", icon: HeartPulse, color: "#10b981" },
   { label: "Business", query: "business entrepreneurship", icon: BriefcaseBusiness, color: "#2563eb" },
   { label: "Technology", query: "technology", icon: Cpu, color: "#6366f1" },
   { label: "Science", query: "science", icon: FlaskConical, color: "#0891b2" },
   { label: "Education", query: "education", icon: GraduationCap, color: "#d97706" },
-  { label: "Society & culture", query: "society culture", icon: MessagesSquare, color: "#e11d48" },
+  { label: "Society & Culture", query: "society culture", icon: MessagesSquare, color: "#e11d48" },
   { label: "Comedy", query: "comedy", icon: Laugh, color: "#eab308" },
   { label: "News", query: "news", icon: Newspaper, color: "#dc2626" },
   { label: "Sports", query: "sports", icon: Trophy, color: "#ea580c" },
-  { label: "True crime", query: "true crime", icon: ShieldAlert, color: "#475569" },
+  { label: "True Crime", query: "true crime", icon: ShieldAlert, color: "#475569" },
   { label: "Music", query: "music", icon: Music, color: "#c026d3" },
   { label: "History", query: "history", icon: Landmark, color: "#a16207" },
   { label: "Arts", query: "arts", icon: Palette, color: "#db2777" },
   { label: "Spirituality", query: "spirituality religion", icon: Globe2, color: "#0d9488" },
   // "veteran" alone, not "military veterans" — the combined phrase was
   // pulling in a much broader, noisier set of tangential matches.
-  { label: "Military & veterans", query: "veteran", icon: Medal, color: "#4d7c0f" },
+  { label: "Military & Veterans", query: "veteran", icon: Medal, color: "#4d7c0f" },
 ] as const;
 
 
@@ -97,29 +97,29 @@ function TopicTile({ label, query, icon: TopicIcon, color, images, onSelect, can
       onClick={onSelect}
       onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onSelect()}
       style={{ ["--tile" as string]: color }}
-      className="group relative flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left transition-all hover:border-[var(--tile)] hover:shadow-sm"
+      className="group relative flex cursor-pointer items-center gap-4 rounded-xl border border-zinc-200 bg-white px-5 py-3 text-left transition-all hover:border-[var(--tile)] hover:shadow-sm"
     >
       {covers.length > 0 ? (
-        <div className="flex shrink-0 -space-x-4">
+        <div className="flex shrink-0 -space-x-5">
           {covers.map((src, i) => (
             <img
               key={i}
               src={src}
               alt=""
-              className="h-10 w-10 rounded-md border-2 border-white object-cover shadow-sm"
+              className="h-12 w-12 rounded-md border-2 border-white object-cover shadow-sm"
               style={{ zIndex: covers.length - i }}
             />
           ))}
         </div>
       ) : (
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
           style={{ backgroundColor: color }}
         >
-          <TopicIcon className="h-5 w-5 text-white" aria-hidden="true" />
+          <TopicIcon className="h-6 w-6 text-white" aria-hidden="true" />
         </span>
       )}
-      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-800">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-[17px] font-semibold leading-tight text-zinc-900">{label}</span>
       {canExport ? (
         <a
           href={`/api/admin/podcast-export?${new URLSearchParams({ q: query, pages: "10" })}`}
@@ -306,7 +306,7 @@ function hasEnrichmentProfile(socialLinks?: Record<string, string | null | undef
 }
 
 function PersonAvatar({ candidate, size = "md" }: { candidate: CreatorCandidate; size?: "md" | "lg" }) {
-  const classes = size === "lg" ? "h-32 w-32" : "h-11 w-11";
+  const classes = size === "lg" ? "h-32 w-32" : "h-12 w-12";
   if (candidate.imageUrl) {
     return <img src={candidate.imageUrl} alt="" className={`${classes} shrink-0 rounded-full border border-zinc-200 object-cover`} />;
   }
@@ -314,7 +314,7 @@ function PersonAvatar({ candidate, size = "md" }: { candidate: CreatorCandidate;
 }
 
 function PodcastArtwork({ podcast, size = "md" }: { podcast: PodcastCandidate; size?: "md" | "lg" }) {
-  const classes = size === "lg" ? "h-20 w-20" : "h-11 w-11";
+  const classes = size === "lg" ? "h-20 w-20" : "h-12 w-12";
   if (podcast.imageUrl) {
     return <img src={podcast.imageUrl} alt="" className={`${classes} shrink-0 rounded-lg border border-zinc-200 object-cover`} />;
   }
@@ -543,9 +543,9 @@ export default function SocialDiscover() {
   return (
     <div className="w-full max-w-7xl px-6 py-8">
       {/* ── Categories hero ── */}
-      <section className="mb-6">
-        <h1 className="text-lg font-bold tracking-tight text-zinc-950">Categories</h1>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="mb-8">
+        <h1 className="text-[22px] font-bold tracking-tight text-zinc-950">Categories</h1>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {DISCOVERY_TOPICS.map(({ label, query, icon, color }) => (
             <TopicTile key={label} label={label} query={query} icon={icon} color={color} images={topicArt[query] ?? []} onSelect={() => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }} canExport={canExportTopics} />
           ))}
@@ -567,20 +567,20 @@ export default function SocialDiscover() {
                   else if (key === "active") { setCreatorSort("recent_episode"); submitSearch(submittedQuery || searchInput); }
                   else if (key === "credited") { setCreatorSort("appearance_count"); submitSearch(submittedQuery || searchInput); }
                 }}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-[14.5px] font-medium transition-colors ${
                   activeTab === key
                     ? "bg-zinc-950 text-white"
                     : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
                 }`}
               >
-                <TabIcon className="h-3.5 w-3.5" />
+                <TabIcon className="h-4 w-4" />
                 {label}
               </button>
             ))}
             {/* Categories dropdown — quick-jump back to a topic */}
             <Select value="" onValueChange={(query) => { submitSearch(query); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }}>
-              <SelectTrigger className="h-auto gap-1 border-0 bg-transparent px-3 py-1.5 text-xs font-medium text-zinc-500 shadow-none hover:bg-zinc-100 hover:text-zinc-700 focus:ring-0">
-                <LayoutGrid className="h-3.5 w-3.5" />
+              <SelectTrigger className="h-auto gap-1.5 border-0 bg-transparent px-3.5 py-2 text-[14.5px] font-medium text-zinc-500 shadow-none hover:bg-zinc-100 hover:text-zinc-700 focus:ring-0">
+                <LayoutGrid className="h-4 w-4" />
                 <span>Categories</span>
               </SelectTrigger>
               <SelectContent>
@@ -591,7 +591,7 @@ export default function SocialDiscover() {
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            {totalResults > 0 && <span className="whitespace-nowrap text-xs text-zinc-400">{formatCount(totalResults)} results</span>}
+            {totalResults > 0 && <span className="whitespace-nowrap text-[15px] font-semibold tabular-nums text-zinc-500">{formatCount(totalResults)} results</span>}
             <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as ViewMode)} variant="outline" size="sm" aria-label="Result layout">
               <ToggleGroupItem value="table" aria-label="Table view"><List className="h-4 w-4" /></ToggleGroupItem>
               <ToggleGroupItem value="cards" aria-label="Card view"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
@@ -607,7 +607,7 @@ export default function SocialDiscover() {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSuggestionsOpen(false);
         }}
       >
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        <Search className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-zinc-400" />
         <Input
           role="combobox"
           aria-label="Search people or podcast shows"
@@ -622,7 +622,7 @@ export default function SocialDiscover() {
             if (event.key === "Enter") submitSearch();
             if (event.key === "Escape") setSuggestionsOpen(false);
           }}
-          className="pl-9"
+          className="h-[52px] pl-11 text-base"
         />
         {showSuggestions ? (
           <div id="guest-search-suggestions" role="listbox" className="absolute inset-x-0 top-full z-40 mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 shadow-xl">
@@ -675,18 +675,18 @@ export default function SocialDiscover() {
           {peopleTotal > 0 ? <section>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900">
                   <Users className="h-4 w-4 text-white" aria-hidden="true" />
                 </span>
-                <h2 className="text-base font-bold text-zinc-950">People</h2>
-                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600">{formatCount(peopleTotal)}</span>
+                <h2 className="text-[22px] font-bold tracking-tight text-zinc-950">People</h2>
+                <span className="rounded-full bg-zinc-100 px-3 py-0.5 text-[15px] font-semibold tabular-nums text-zinc-600">{formatCount(peopleTotal)}</span>
               </div>
               <Select value={creatorSort} onValueChange={(value) => { setCreatorSort(value as CreatorSort); setPeoplePage(1); }}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="appearance_count">Most credited episodes</SelectItem><SelectItem value="relevance">Best match</SelectItem><SelectItem value="recent_episode">Recently active</SelectItem><SelectItem value="alphabetical">Name A–Z</SelectItem></SelectContent>
               </Select>
             </div>
-            <p className="mb-3 text-xs text-zinc-500">Credited episodes can include host, guest, producer, and other roles. Open a person for guest-only totals and history.</p>
+            <p className="mb-4 text-[14.5px] text-zinc-500">Credited episodes can include host, guest, producer, and other roles. Open a person for guest-only totals and history.</p>
             {viewMode === "table" ? <PeopleTable people={people} onChoose={chooseCreator} /> : <PeopleCards people={people} onChoose={chooseCreator} />}
             {peoplePagination ? <PaginationControls pagination={peoplePagination} onPage={setPeoplePage} /> : null}
           </section> : null}
@@ -694,11 +694,11 @@ export default function SocialDiscover() {
           {podcastTotal > 0 ? <section>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900">
                   <Mic2 className="h-4 w-4 text-white" aria-hidden="true" />
                 </span>
-                <h2 className="text-base font-bold text-zinc-950">Podcast shows</h2>
-                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600">{formatCount(podcastTotal)}</span>
+                <h2 className="text-[22px] font-bold tracking-tight text-zinc-950">Podcast shows</h2>
+                <span className="rounded-full bg-zinc-100 px-3 py-0.5 text-[15px] font-semibold tabular-nums text-zinc-600">{formatCount(podcastTotal)}</span>
               </div>
               <Select value={podcastSort} onValueChange={(value) => { setPodcastSort(value as PodcastSort); setPodcastPage(1); }}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
@@ -752,25 +752,25 @@ function PeopleTable({ people, onChoose }: { people: CreatorCandidate[]; onChoos
   return (
     <Card padding="none" className="overflow-hidden"><Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-[30%]">Guest</TableHead><TableHead className="hidden w-[38%] md:table-cell">Description</TableHead><TableHead className="hidden w-[17%] lg:table-cell">Location</TableHead><TableHead className="w-[15%] text-right">Credited episodes</TableHead></TableRow></TableHeader><TableBody>
       {people.map((candidate) => <TableRow key={candidate.id} tabIndex={0} role="button" aria-label={`Open ${candidate.name}`} className="cursor-pointer" onClick={() => onChoose(candidate)} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onChoose(candidate)}>
-        <TableCell><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} /><div className="min-w-0"><p className="font-semibold text-zinc-950">{candidate.name}</p><p className="truncate text-xs text-zinc-500 md:hidden">{candidate.subtitle || "Guest profile"}</p></div></div></TableCell>
-        <TableCell className="hidden md:table-cell"><p className="line-clamp-2 break-words text-zinc-600">{candidate.subtitle || candidate.bio || "Guest profile"}</p></TableCell>
-        <TableCell className="hidden text-zinc-500 lg:table-cell">{candidate.location || "—"}</TableCell>
-        <TableCell className="text-right"><span className="font-semibold text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
+        <TableCell><div className="flex items-center gap-3"><PersonAvatar candidate={candidate} /><div className="min-w-0"><p className="text-[17px] font-semibold leading-tight text-zinc-950">{candidate.name}</p><p className="truncate text-[14.5px] text-zinc-500 md:hidden">{candidate.subtitle || "Guest profile"}</p></div></div></TableCell>
+        <TableCell className="hidden md:table-cell"><p className="line-clamp-2 break-words text-[14.5px] text-zinc-600">{candidate.subtitle || candidate.bio || "Guest profile"}</p></TableCell>
+        <TableCell className="hidden text-[14.5px] text-zinc-500 lg:table-cell">{candidate.location || "—"}</TableCell>
+        <TableCell className="text-right"><span className="text-[15px] font-semibold tabular-nums text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
       </TableRow>)}
     </TableBody></Table></Card>
   );
 }
 
 function PeopleCards({ people, onChoose }: { people: CreatorCandidate[]; onChoose: (candidate: CreatorCandidate) => void }) {
-  return <div className="grid gap-3 md:grid-cols-2">{people.map((candidate) => <button key={candidate.id} type="button" onClick={() => onChoose(candidate)} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-zinc-400"><PersonAvatar candidate={candidate} /><span className="min-w-0 flex-1"><span className="block font-semibold text-zinc-950">{candidate.name}</span><span className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.bio || "Guest profile"}</span></span><span className="shrink-0 text-right text-sm font-semibold text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}<span className="block text-[10px] font-normal text-zinc-400">credited episodes</span></span></button>)}</div>;
+  return <div className="grid gap-3 md:grid-cols-2">{people.map((candidate) => <button key={candidate.id} type="button" onClick={() => onChoose(candidate)} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-zinc-400"><PersonAvatar candidate={candidate} /><span className="min-w-0 flex-1"><span className="block text-[17px] font-semibold leading-tight text-zinc-950">{candidate.name}</span><span className="mt-1 line-clamp-2 text-sm text-zinc-500">{candidate.subtitle || candidate.bio || "Guest profile"}</span></span><span className="shrink-0 text-right text-sm font-semibold text-zinc-950">{formatCount(candidate.episodeAppearanceCount)}<span className="block text-[10px] font-normal text-zinc-400">credited episodes</span></span></button>)}</div>;
 }
 
 function PodcastTable({ podcasts, onChoose }: { podcasts: PodcastCandidate[]; onChoose: (podcast: PodcastCandidate) => void }) {
   return (
     <Card padding="none" className="overflow-hidden"><Table className="table-fixed"><TableHeader><TableRow><TableHead className="w-[30%]">Podcast</TableHead><TableHead className="hidden w-[38%] md:table-cell">Description</TableHead><TableHead className="hidden w-[17%] lg:table-cell">Categories</TableHead><TableHead className="w-[15%] text-right">Episodes</TableHead></TableRow></TableHeader><TableBody>
       {podcasts.map((podcast) => <TableRow key={podcast.id} tabIndex={0} role="button" aria-label={`Open ${podcast.title}`} className="cursor-pointer" onClick={() => onChoose(podcast)} onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onChoose(podcast)}>
-        <TableCell><div className="flex items-center gap-3"><PodcastArtwork podcast={podcast} /><div className="min-w-0"><p className="truncate font-semibold text-zinc-950">{podcast.title}</p><p className="truncate text-xs text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</p></div></div></TableCell>
-        <TableCell className="hidden md:table-cell"><p className="line-clamp-2 break-words text-zinc-600">{podcast.description || "No description available"}</p></TableCell>
+        <TableCell><div className="flex items-center gap-3"><PodcastArtwork podcast={podcast} /><div className="min-w-0"><p className="truncate text-[17px] font-semibold leading-tight text-zinc-950">{podcast.title}</p><p className="truncate text-[14.5px] text-zinc-500">{podcast.author.name || podcast.status || "Podcast show"}</p></div></div></TableCell>
+        <TableCell className="hidden md:table-cell"><p className="line-clamp-2 break-words text-[14.5px] text-zinc-600">{podcast.description || "No description available"}</p></TableCell>
         <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1">{podcast.categories.slice(0, 3).map((category) => <span key={category.slug} className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">{category.title}</span>)}</div></TableCell>
         <TableCell className="text-right"><span className="font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}</span><ChevronRight className="ml-2 inline h-4 w-4 text-zinc-300" /></TableCell>
       </TableRow>)}
@@ -779,7 +779,7 @@ function PodcastTable({ podcasts, onChoose }: { podcasts: PodcastCandidate[]; on
 }
 
 function PodcastCards({ podcasts, onChoose }: { podcasts: PodcastCandidate[]; onChoose: (podcast: PodcastCandidate) => void }) {
-  return <div className="grid gap-3 md:grid-cols-2">{podcasts.map((podcast) => <button key={podcast.id} type="button" onClick={() => onChoose(podcast)} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-zinc-400"><PodcastArtwork podcast={podcast} /><span className="min-w-0 flex-1"><span className="block font-semibold text-zinc-950">{podcast.title}</span><span className="mt-1 line-clamp-2 text-sm text-zinc-500">{podcast.description || podcast.author.name || "Podcast show"}</span></span><span className="shrink-0 text-right text-sm font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}<span className="block text-[10px] font-normal text-zinc-400">episodes</span></span></button>)}</div>;
+  return <div className="grid gap-3 md:grid-cols-2">{podcasts.map((podcast) => <button key={podcast.id} type="button" onClick={() => onChoose(podcast)} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-zinc-400"><PodcastArtwork podcast={podcast} /><span className="min-w-0 flex-1"><span className="block text-[17px] font-semibold leading-tight text-zinc-950">{podcast.title}</span><span className="mt-1 line-clamp-2 text-sm text-zinc-500">{podcast.description || podcast.author.name || "Podcast show"}</span></span><span className="shrink-0 text-right text-sm font-semibold text-zinc-950">{formatCount(podcast.numberOfEpisodes)}<span className="block text-[10px] font-normal text-zinc-400">episodes</span></span></button>)}</div>;
 }
 
 interface PersonDrawerProps {
