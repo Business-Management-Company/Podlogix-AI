@@ -90,11 +90,11 @@ function ensureTables(): Promise<void> {
   })());
 }
 
-export async function getCachedSearch<T>(cacheKey: string): Promise<T | null> {
+export async function getCachedSearch<T>(cacheKey: string, maxAgeHours = 24): Promise<T | null> {
   await ensureTables();
   const result = await db.execute(sql`
     SELECT payload FROM podchaser_search_cache
-    WHERE cache_key = ${cacheKey} AND fetched_at > now() - interval '24 hours'
+    WHERE cache_key = ${cacheKey} AND fetched_at > now() - (${maxAgeHours} * interval '1 hour')
   `);
   const row: any = (result as any).rows?.[0];
   if (!row) return null;
