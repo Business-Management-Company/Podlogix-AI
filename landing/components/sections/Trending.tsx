@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eyebrow, SectionTitle } from "@/components/ui/SectionHeader";
 import { WhitePill } from "@/components/ui/Buttons";
 import { IconClock, IconHeadphones, IconPlay, IconSearch } from "@/components/icons";
@@ -32,6 +32,10 @@ export function Trending({ items }: { items: Podcast[] }) {
   const wrapRef = useRef<HTMLElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const count = items.length;
+  /** Which card sits in front once the stack is dealt; -1 while dealing. */
+  const front = useRef(-1);
+  const busy = useRef(false);
+  const [, force] = useState(0);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -67,13 +71,16 @@ export function Trending({ items }: { items: Podcast[] }) {
       const u = Math.min(count, (now - start) / DEAL);
       draw(u);
       if (u < count) frame = requestAnimationFrame(tick);
+      else front.current = count - 1;
     };
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
         io.disconnect();
-        if (reduced) draw(count);
-        else frame = requestAnimationFrame(tick);
+        if (reduced) {
+          draw(count);
+          front.current = count - 1;
+        } else frame = requestAnimationFrame(tick);
       },
       { threshold: 0.35 },
     );
@@ -84,6 +91,69 @@ export function Trending({ items }: { items: Podcast[] }) {
       cancelAnimationFrame(frame);
     };
   }, [count]);
+
+  /** Where a card rests at a given depth in the stack (0 is the front). */
+  const restAt = (el: HTMLElement, depth: number) => {
+    const s = remScale();
+    const scale = (CARD_W - STEP_W * depth) / CARD_W;
+    const ty = (-STEP_Y * depth - ((1 - scale) * CARD_H) / 2) * s;
+    el.style.transform = `translate(-50%, ${ty.toFixed(2)}px) scale(${scale.toFixed(5)})`;
+    el.style.zIndex = String(count - depth);
+  };
+
+  /**
+   * The arrows rotate the dealt stack: next sends the front card to the back
+   * and the row steps forward; previous deals the back card up to the front
+   * again. Both reuse the deal's own motion, so nothing new is invented.
+   */
+  const rotate = (dir: 1 | -1) => {
+    if (front.current < 0 || busy.current || count < 2) return;
+    busy.current = true;
+    const soft = "var(--ease-soft)";
+    const f = front.current;
+    const next = (((f - dir) % count) + count) % count;
+    const mover = cardRefs.current[dir === 1 ? f : next];
+    front.current = next;
+    force((v) => v + 1);
+    cardRefs.current.forEach((el, i) => {
+      if (!el || el === mover) return;
+      const depth = (((next - i) % count) + count) % count;
+      el.style.transition = `transform 620ms ${soft}`;
+      restAt(el, depth);
+    });
+    if (!mover) {
+      busy.current = false;
+      return;
+    }
+    const s = remScale();
+    if (dir === 1) {
+      // Front card slides down and away, then reappears at the back of the stack.
+      mover.style.transition = `transform 460ms ${soft}, opacity 320ms ${soft} 80ms`;
+      mover.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
+      mover.style.opacity = "0";
+      window.setTimeout(() => {
+        mover.style.transition = "none";
+        restAt(mover, count - 1);
+        void mover.offsetWidth;
+        mover.style.transition = `opacity 260ms ${soft}`;
+        mover.style.opacity = "1";
+        busy.current = false;
+      }, 470);
+    } else {
+      // The back card dives under the stack and deals itself up to the front.
+      mover.style.transition = "none";
+      mover.style.opacity = "0";
+      mover.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
+      mover.style.zIndex = String(count);
+      void mover.offsetWidth;
+      mover.style.transition = `transform 620ms ${soft}, opacity 260ms ${soft}`;
+      restAt(mover, 0);
+      mover.style.opacity = "1";
+      window.setTimeout(() => {
+        busy.current = false;
+      }, 640);
+    }
+  };
 
   return (
     <section ref={wrapRef} className="relative mx-auto h-[800px] w-[1440px] overflow-hidden">
@@ -117,6 +187,23 @@ export function Trending({ items }: { items: Podcast[] }) {
                 <IconSearch size={14} />
               </button>
             </form>
+          </div>
+
+          <div className="absolute right-10 top-[102px] flex items-center gap-2" role="group" aria-label="Browse trending shows">
+            {[
+              { label: "Previous show", dir: -1 as const, src: "/l/icons/arrow-left-circle.svg" },
+              { label: "Next show", dir: 1 as const, src: "/l/icons/arrow-right-circle.svg" },
+            ].map(({ label, dir, src }) => (
+              <button
+                key={label}
+                type="button"
+                aria-label={label}
+                onClick={() => rotate(dir)}
+                className="h-10 w-10 transition-[scale] duration-200 ease-soft hover:scale-105 active:scale-95"
+              >
+                <Image src={src} alt="" width={40} height={40} unoptimized className="h-10 w-10" />
+              </button>
+            ))}
           </div>
 
           <div className="pointer-events-none absolute inset-0">

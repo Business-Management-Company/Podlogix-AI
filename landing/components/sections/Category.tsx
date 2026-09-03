@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Eyebrow, SectionTitle } from "@/components/ui/SectionHeader";
-import { IconChevronLeft, IconChevronRight, IconRocket } from "@/components/icons";
+import { IconRocket } from "@/components/icons";
 import { CATEGORY_WASH, categoryIcons } from "@/components/categoryShared";
 import { grad } from "@/lib/gradient";
 import type { Category as CategoryT } from "@/lib/types";
@@ -95,19 +95,19 @@ export function Category({ items }: { items: CategoryT[] }) {
           <Eyebrow tone="90">Our category</Eyebrow>
           <SectionTitle>15+ podcast &amp; show category</SectionTitle>
         </div>
-        <div className="flex items-center gap-3" role="group" aria-label="Browse categories">
+        <div className="flex items-center gap-2" role="group" aria-label="Browse categories">
           {[
-            { label: "Previous category", delta: -1, Icon: IconChevronLeft },
-            { label: "Next category", delta: 1, Icon: IconChevronRight },
-          ].map(({ label, delta, Icon }) => (
+            { label: "Previous category", delta: -1, src: "/l/icons/arrow-left-circle.svg" },
+            { label: "Next category", delta: 1, src: "/l/icons/arrow-right-circle.svg" },
+          ].map(({ label, delta, src }) => (
             <button
               key={label}
               type="button"
               aria-label={label}
               onClick={() => step(delta)}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 active:bg-white/15"
+              className="h-10 w-10 transition-[scale] duration-200 ease-soft hover:scale-105 active:scale-95"
             >
-              <Icon size={14} />
+              <Image src={src} alt="" width={40} height={40} unoptimized className="h-10 w-10" />
             </button>
           ))}
         </div>
