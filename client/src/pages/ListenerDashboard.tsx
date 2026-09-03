@@ -695,7 +695,7 @@ export default function ListenerDashboard() {
                       Import from Spotify or subscribe via RSS feed
                     </DialogDescription>
                   </DialogHeader>
-                  <Tabs defaultValue="rss" className="mt-4">
+                  <Tabs defaultValue="rss" className="mt-4 min-w-0 w-full">
                     <TabsList className="grid grid-cols-2 w-full">
                       <TabsTrigger value="rss">
                         <Rss className="h-4 w-4 mr-2" />
@@ -706,7 +706,7 @@ export default function ListenerDashboard() {
                         Spotify
                       </TabsTrigger>
                     </TabsList>
-                    <TabsContent value="rss" className="space-y-4 mt-4">
+                    <TabsContent value="rss" className="space-y-4 mt-4 min-w-0">
                       <div className="space-y-2">
                         <Label htmlFor="rss-url">RSS Feed URL</Label>
                         <Input
@@ -727,7 +727,7 @@ export default function ListenerDashboard() {
                         Subscribe
                       </Button>
                     </TabsContent>
-                    <TabsContent value="spotify" className="space-y-4 mt-4">
+                    <TabsContent value="spotify" className="space-y-4 mt-4 min-w-0">
                       {spotifyStatus?.connected ? (
                         <>
                           <div className="space-y-2">
