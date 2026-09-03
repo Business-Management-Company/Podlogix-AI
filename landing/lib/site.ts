@@ -5,6 +5,8 @@ export const site = {
   /** Passwordless sign-in on the live app: Google or an emailed code. */
   signup: "https://podlogix.io/signup",
   login: "https://podlogix.io/login",
+  /** Perspectives page, served by the app. */
+  blog: "https://podlogix.io/blog",
   /** The hero's "Explore workspace" scrolls to the rooms, as on the live site. */
   workspaceTour: "#workspace",
   workspace: "https://podlogix.io/signup",

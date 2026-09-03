@@ -349,6 +349,18 @@
 /* Features board: "one stream in, everything else out". Cards pop in at the
    end of their connector, connectors draw themselves from the hub, rows
    cascade inside the tool cards, and the dashes keep flowing outward. */
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.feat-rec {
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
 @keyframes feat-card {
   from { opacity: 0; transform: translate3d(var(--fx, 0px), var(--fy, 0px), 0) scale(0.94); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }

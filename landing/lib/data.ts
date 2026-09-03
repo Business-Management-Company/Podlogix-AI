@@ -7,22 +7,27 @@ import type { Category, Creator, Podcast, Testimonial } from "./types";
  * is filling up.
  */
 
+/**
+ * Fallback categories, refreshed by lib/content when the live feed answers:
+ * labels and counts from the app's categories feed, artwork from Apple's
+ * per-genre charts, both as they stood on 3 Sep 2026.
+ */
 export const categories: Category[] = [
-  { slug: "health", name: "Health & Wellness", showsLabel: "30 Shows", icon: "suitcase-medical", height: 320 },
-  { slug: "business", name: "Business", showsLabel: "30 Shows", icon: "suitcase", height: 240 },
-  { slug: "technology", name: "Technology", showsLabel: "30 Shows", icon: "rocket", height: 280 },
-  { slug: "science", name: "Science", showsLabel: "30 Shows", icon: "flask", height: 200 },
-  { slug: "education", name: "Education", showsLabel: "30 Shows", icon: "graduation-cap", height: 240 },
-  { slug: "science-culture", name: "Science & Culture", showsLabel: "30 Shows", icon: "atom", height: 320 },
-  { slug: "comedy", name: "Comedy", showsLabel: "30 Shows", icon: "smile", height: 280 },
-  { slug: "news", name: "News", showsLabel: "30 Shows", icon: "newspaper", height: 200 },
-  { slug: "sports", name: "Sports", showsLabel: "30 Shows", icon: "football", height: 240 },
-  { slug: "true-crime", name: "True crime", showsLabel: "30 Shows", icon: "warning", height: 200 },
-  { slug: "music", name: "Music", showsLabel: "30 Shows", icon: "music", height: 240 },
-  { slug: "history", name: "History", showsLabel: "30 Shows", icon: "map", height: 320 },
-  { slug: "arts", name: "Arts", showsLabel: "30 Shows", icon: "palette", height: 240 },
-  { slug: "spirituality", name: "Spirituality", showsLabel: "30 Shows", icon: "users", height: 280 },
-  { slug: "military", name: "Military & Veterans", showsLabel: "30 Shows", icon: "jet-fighter", height: 320 },
+  { slug: "health-wellness", name: "Health & wellness", showsLabel: "132K Shows", icon: "heart-pulse", height: 320, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/4a/f4/654af4a7-d5cd-2317-91a1-b5913de83e6f/mza_12950421134232165951.jpeg/600x600bb.jpg" },
+  { slug: "business", name: "Business", showsLabel: "176.2K Shows", icon: "suitcase", height: 240, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/55/21/67/55216775-731a-1a0b-6c2a-81923902f058/mza_11706571282358600140.jpeg/600x600bb.jpg" },
+  { slug: "technology", name: "Technology", showsLabel: "48.3K Shows", icon: "chip", height: 280, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/b2/b4/80/b2b48020-11e7-92a9-db46-b7d475a19757/mza_619091211434212889.jpg/600x600bb.jpg" },
+  { slug: "science", name: "Science", showsLabel: "47.8K Shows", icon: "flask", height: 200, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/96/57/ca/9657caf6-6375-d5ba-585b-eb2f5c9fbf8e/mza_3992023160251207455.jpeg/600x600bb.jpg" },
+  { slug: "education", name: "Education", showsLabel: "49.9K Shows", icon: "graduation-cap", height: 240, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/f8/75/0c/f8750cf1-ca31-5d55-00a1-ce86329309d5/mza_11785095184998327365.jpeg/600x600bb.jpg" },
+  { slug: "society-culture", name: "Society & culture", showsLabel: "148.9K Shows", icon: "comments", height: 320, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/63/95/85/63958592-550c-9c6c-8319-2818cd10a3ad/mza_15908877599917864646.jpg/600x600bb.jpg" },
+  { slug: "comedy", name: "Comedy", showsLabel: "30.3K Shows", icon: "smile", height: 280, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/28/ef/d3/28efd382-e0cf-7dd6-99c7-7b74b30a616f/mza_3890332495421370376.jpg/600x600bb.jpg" },
+  { slug: "news", name: "News", showsLabel: "141.1K Shows", icon: "newspaper", height: 200, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/ab/64/66/ab6466a9-9a7d-e20e-7a3d-bc5be37d29ce/mza_15084852813176276273.jpg/600x600bb.jpg" },
+  { slug: "sports", name: "Sports", showsLabel: "87.7K Shows", icon: "trophy", height: 240, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/35/74/6a/35746a0c-7687-7dde-ff04-338d93e78303/mza_10377078556009223546.jpg/600x600bb.jpg" },
+  { slug: "true-crime", name: "True crime", showsLabel: "67.4K Shows", icon: "shield", height: 200, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/8c/35/04/8c350430-2fbf-98d0-0a25-00b76550ffeb/mza_13445204151221888086.jpg/600x600bb.jpg" },
+  { slug: "music", name: "Music", showsLabel: "199.1K Shows", icon: "music", height: 240, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/b5/2c/5f/b52c5f0b-e193-a9e2-fde1-295925d5419c/mza_12616703772719032641.jpg/600x600bb.jpg" },
+  { slug: "history", name: "History", showsLabel: "72.2K Shows", icon: "landmark", height: 320, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/a3/05/8f/a3058ff1-eff9-036b-f412-8c4e96aad380/mza_221907431660085079.jpg/600x600bb.jpg" },
+  { slug: "arts", name: "Arts", showsLabel: "19K Shows", icon: "palette", height: 240, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/68/35/32/683532c0-dd91-676a-eeef-3ace951cd6e9/mza_6896198885971355473.jpg/600x600bb.jpg" },
+  { slug: "spirituality", name: "Spirituality", showsLabel: "35.2K Shows", icon: "globe", height: 280, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/ca/87/e0/ca87e07d-9d97-a433-1dc9-55dcfbd54f17/mza_9875864189557480350.jpg/600x600bb.jpg" },
+  { slug: "military-veterans", name: "Military & veterans", showsLabel: "10.3K Shows", icon: "medal", height: 320, art: "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/fe/0c/18/fe0c1878-2d5f-4f57-7725-860fa7f660dc/mza_2281502722003748202.jpg/600x600bb.jpg" },
 ];
 
 export const trendingSeed: Podcast[] = [

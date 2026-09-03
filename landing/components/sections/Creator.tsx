@@ -81,7 +81,8 @@ export function Creator({ items }: { items: CreatorT[] }) {
       meta.style.transition = fade;
       photo.style.transition = fade;
       meta.style.opacity = String(on);
-      photo.style.opacity = String(on);
+      // Bars keep a dimmed sliver of their portrait, so every shape carries an image.
+      photo.style.opacity = String(p.card ? 1 : 0.35);
       el.setAttribute("aria-hidden", p.card ? "false" : "true");
       return delay;
     };

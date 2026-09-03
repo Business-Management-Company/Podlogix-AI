@@ -257,8 +257,8 @@ export function Features() {
             </div>
             <div role="tablist" aria-label="Feature views" className="flex items-center rounded-[40px] bg-white/5 p-1">
               {[
-                { label: "Integrations", icon: <IconRocket size={16} /> },
                 { label: "Platform tools", icon: <IconSignalStream size={18} /> },
+                { label: "Integrations", icon: <IconRocket size={16} /> },
               ].map((t, i) => {
                 const on = tab === i;
                 return (
@@ -289,7 +289,7 @@ export function Features() {
             <GradientRings set="feat" />
 
             {/* Integrations */}
-            <div {...view(0)}>
+            <div {...view(1)}>
               <div
                 className="feat-card absolute left-[226px] top-[calc(50%+4px)] flex h-12 w-[200px] -translate-y-1/2 items-center gap-1 rounded-[16px] bg-white px-[10px] text-[16px] text-ink drop-shadow-[0_2px_3px_rgba(0,0,0,0.05)]"
                 style={{ ...d(0), "--fx": "-16px" } as React.CSSProperties}
@@ -317,6 +317,8 @@ export function Features() {
                   </span>
                 ))}
               </div>
+
+              <RecCard on={live && tab === 1} />
 
               <Connector c={inputConnector} delay={220} />
 
@@ -349,7 +351,7 @@ export function Features() {
             </div>
 
             {/* Platform tools */}
-            <div {...view(1)}>
+            <div {...view(0)}>
               <div className="absolute left-1/2 top-1/2 h-[598px] w-[874px] -translate-x-1/2 -translate-y-1/2">
                 {toolGroups.map((g) => {
                   const start = 320 + g.rank * 90;
@@ -388,5 +390,39 @@ export function Features() {
             </div>
           </div>
     </section>
+  );
+}
+
+/**
+ * The card Andrew missed from the old homepage: the incoming stream, live.
+ * The timer ticks while the view is on stage and rests with it.
+ */
+function RecCard({ on }: { on: boolean }) {
+  const [t, setT] = useState(861);
+  useEffect(() => {
+    if (!on) return;
+    const id = window.setInterval(() => setT((v) => v + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [on]);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const text = `${pad(Math.floor(t / 3600))}:${pad(Math.floor(t / 60) % 60)}:${pad(t % 60)}`;
+  return (
+    <div
+      className="feat-card absolute left-[226px] top-[79px] flex w-[200px] flex-col gap-1 rounded-[16px] bg-white p-[10px] drop-shadow-[0_2px_3px_rgba(0,0,0,0.05)]"
+      style={{ ...d(40), "--fx": "-16px" } as React.CSSProperties}
+    >
+      <span className="flex items-center gap-2 text-[14px] font-medium leading-[1.4] tracking-[-0.14px] text-ink/80">
+        <span className="feat-rec h-2 w-2 shrink-0 rounded-full bg-[#e5484d]" aria-hidden />
+        Recording in session
+      </span>
+      <span className="display flex text-[24px] leading-[1.1] text-ink" aria-label={`Recording for ${text}`}>
+        {text.split("").map((ch, i) => (
+          <span key={i} className="text-center" style={{ width: ch === ":" ? "0.34em" : "0.62em" }}>
+            {ch}
+          </span>
+        ))}
+      </span>
+      <span className="text-[12px] leading-[1.4] text-ink/60">Podlogix Studio or your current setup</span>
+    </div>
   );
 }
