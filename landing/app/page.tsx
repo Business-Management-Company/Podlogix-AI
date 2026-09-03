@@ -4,11 +4,9 @@ import { Hero } from "@/components/sections/Hero";
 import { Category } from "@/components/sections/Category";
 import { Trending } from "@/components/sections/Trending";
 import { Workspace } from "@/components/sections/Workspace";
-import { HowItWorks } from "@/components/sections/HowItWorks";
 import { Features } from "@/components/sections/Features";
 import { Connect } from "@/components/sections/Connect";
 import { WhyChooseUs } from "@/components/sections/WhyChooseUs";
-import { Creator } from "@/components/sections/Creator";
 import { SocialProof } from "@/components/sections/SocialProof";
 import { Pricing } from "@/components/sections/Pricing";
 import { Cta } from "@/components/sections/Cta";
@@ -17,9 +15,7 @@ import { HeroMobile } from "@/components/mobile/HeroMobile";
 import { CategoryMobile } from "@/components/mobile/CategoryMobile";
 import { TrendingMobile } from "@/components/mobile/TrendingMobile";
 import { WorkspaceMobile } from "@/components/mobile/WorkspaceMobile";
-import { HowItWorksMobile } from "@/components/mobile/HowItWorksMobile";
 import { WhyChooseUsMobile } from "@/components/mobile/WhyChooseUsMobile";
-import { CreatorMobile } from "@/components/mobile/CreatorMobile";
 import { SocialProofMobile } from "@/components/mobile/SocialProofMobile";
 import { PricingMobile } from "@/components/mobile/PricingMobile";
 import { CtaMobile } from "@/components/mobile/CtaMobile";
@@ -36,7 +32,7 @@ const D = "hidden lg:block";
 const M = "lg:hidden";
 
 export default async function Home() {
-  const [{ trending, creators }, categories] = await Promise.all([getHomeContent(), getCategories()]);
+  const [{ trending }, categories] = await Promise.all([getHomeContent(), getCategories()]);
   return (
     <main className="w-full overflow-x-clip bg-ink">
       <GradientDefs />
@@ -58,20 +54,26 @@ export default async function Home() {
         <div className={D}><Trending items={trending} /></div>
         <div className={M}><TrendingMobile items={trending} /></div>
       </div>
+      {/* How it works is hidden for now at the client's request (3 Sep 2026).
+          Restore it by re-adding this block and its imports:
       <div id="how-it-works">
         <div className={D}><HowItWorks /></div>
         <div className={M}><HowItWorksMobile /></div>
       </div>
+      */}
       <div id="features" className={D}><Features /></div>
       <div id="integrations" className={D}><Connect /></div>
       <div id="why">
         <div className={D}><WhyChooseUs /></div>
         <div className={M}><WhyChooseUsMobile /></div>
       </div>
+      {/* Creator of the month is hidden for now at the client's request (3 Sep 2026).
+          Restore it by re-adding this block and its imports:
       <div id="creators">
         <div className={D}><Creator items={creators} /></div>
         <div className={M}><CreatorMobile items={creators} /></div>
       </div>
+      */}
       <div id="testimonials">
         <div className={D}><SocialProof items={testimonials} /></div>
         <div className={M}><SocialProofMobile items={testimonials} /></div>
