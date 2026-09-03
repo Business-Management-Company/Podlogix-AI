@@ -3,10 +3,11 @@
 import { useEffect, useRef } from "react";
 import { useIntroReady } from "@/components/IntroContext";
 
-const WORD = "pod".split("");
-const GHOSTS = 4;
-const GHOST_ALPHA = [1, 0.6, 0.4, 0.24];
-const GHOST_STAGGER = 75;
+/* The train hushes the room on its way out: a long sssshhhh along the arc. */
+const WORD = "sssshhhh".split("");
+const GHOSTS = 3;
+const GHOST_ALPHA = [1, 0.55, 0.3];
+const GHOST_STAGGER = 60;
 /* Each letter's train finishes before the next letter sets off. */
 const LETTER_STAGGER = GHOSTS * GHOST_STAGGER;
 const FLIGHT = 1250;
@@ -58,7 +59,10 @@ export function HeroLetters({ size = 120 }: { size?: number }) {
       const g = Number(el.dataset.ghost);
       const alpha = GHOST_ALPHA[g];
       const kf = frames.map((f) => ({ transform: f.transform, opacity: f.alpha * alpha, offset: f.offset }));
-      animations.push(el.animate(kf, { duration: FLIGHT, delay: START + i * LETTER_STAGGER + g * GHOST_STAGGER, easing, fill: "both" }));
+      // The last letter launches first, so the train reads the word forwards
+      // along the arc: trailing letters sit at the start, leaders at the end.
+      const order = WORD.length - 1 - i;
+      animations.push(el.animate(kf, { duration: FLIGHT, delay: START + order * LETTER_STAGGER + g * GHOST_STAGGER, easing, fill: "both" }));
     });
     stage.querySelectorAll<HTMLElement>("[data-dot]").forEach((el) => {
       const i = Number(el.dataset.dot);
