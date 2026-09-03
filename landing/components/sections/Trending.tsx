@@ -35,7 +35,7 @@ export function Trending({ items }: { items: Podcast[] }) {
   /** Which card sits in front once the stack is dealt; -1 while dealing. */
   const front = useRef(-1);
   const busy = useRef(false);
-  const [, force] = useState(0);
+  const [frontState, setFrontState] = useState(-1);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -71,7 +71,10 @@ export function Trending({ items }: { items: Podcast[] }) {
       const u = Math.min(count, (now - start) / DEAL);
       draw(u);
       if (u < count) frame = requestAnimationFrame(tick);
-      else front.current = count - 1;
+      else {
+        front.current = count - 1;
+        setFrontState(count - 1);
+      }
     };
     const io = new IntersectionObserver(
       (entries) => {
@@ -80,6 +83,7 @@ export function Trending({ items }: { items: Podcast[] }) {
         if (reduced) {
           draw(count);
           front.current = count - 1;
+          setFrontState(count - 1);
         } else frame = requestAnimationFrame(tick);
       },
       { threshold: 0.35 },
@@ -102,49 +106,43 @@ export function Trending({ items }: { items: Podcast[] }) {
   };
 
   /**
-   * The arrows rotate the dealt stack: next sends the front card to the back
-   * and the row steps forward; previous deals the back card up to the front
-   * again. Both reuse the deal's own motion, so nothing new is invented.
+   * Any card can be brought to the front: the cards ahead of it slide down
+   * and away together (the deal in reverse) and reappear at the back, while
+   * the chosen card and everything behind it step forward. The deepest card
+   * instead deals itself up from below, the same move the stack arrived with.
+   * The arrows walk the same path one card at a time.
    */
-  const rotate = (dir: 1 | -1) => {
+  const bringToFront = (target: number) => {
     if (front.current < 0 || busy.current || count < 2) return;
+    const n = count;
+    const f = front.current;
+    const d = (((f - target) % n) + n) % n;
+    if (d === 0) return;
     busy.current = true;
     const soft = "var(--ease-soft)";
-    const f = front.current;
-    const next = (((f - dir) % count) + count) % count;
-    const mover = cardRefs.current[dir === 1 ? f : next];
-    front.current = next;
-    force((v) => v + 1);
-    cardRefs.current.forEach((el, i) => {
-      if (!el || el === mover) return;
-      const depth = (((next - i) % count) + count) % count;
-      el.style.transition = `transform 620ms ${soft}`;
-      restAt(el, depth);
-    });
-    if (!mover) {
-      busy.current = false;
-      return;
-    }
+    front.current = target;
+    setFrontState(target);
     const s = remScale();
-    if (dir === 1) {
-      // Front card slides down and away, then reappears at the back of the stack.
-      mover.style.transition = `transform 460ms ${soft}, opacity 320ms ${soft} 80ms`;
-      mover.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
-      mover.style.opacity = "0";
-      window.setTimeout(() => {
-        mover.style.transition = "none";
-        restAt(mover, count - 1);
-        void mover.offsetWidth;
-        mover.style.transition = `opacity 260ms ${soft}`;
-        mover.style.opacity = "1";
+    const depthAfter = (i: number) => {
+      const before = (((f - i) % n) + n) % n;
+      return (((before - d) % n) + n) % n;
+    };
+    if (d === n - 1) {
+      // The deepest card dives under the stack and deals itself up to the front.
+      const mover = cardRefs.current[target];
+      cardRefs.current.forEach((el, i) => {
+        if (!el || el === mover) return;
+        el.style.transition = `transform 620ms ${soft}`;
+        restAt(el, depthAfter(i));
+      });
+      if (!mover) {
         busy.current = false;
-      }, 470);
-    } else {
-      // The back card dives under the stack and deals itself up to the front.
+        return;
+      }
       mover.style.transition = "none";
       mover.style.opacity = "0";
       mover.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
-      mover.style.zIndex = String(count);
+      mover.style.zIndex = String(n);
       void mover.offsetWidth;
       mover.style.transition = `transform 620ms ${soft}, opacity 260ms ${soft}`;
       restAt(mover, 0);
@@ -152,7 +150,40 @@ export function Trending({ items }: { items: Podcast[] }) {
       window.setTimeout(() => {
         busy.current = false;
       }, 640);
+      return;
     }
+    // The cards ahead of the chosen one leave together and rejoin at the back.
+    const leavers: HTMLElement[] = [];
+    cardRefs.current.forEach((el, i) => {
+      if (!el) return;
+      const before = (((f - i) % n) + n) % n;
+      if (before < d) {
+        leavers.push(el);
+        el.style.transition = `transform 460ms ${soft}, opacity 320ms ${soft} 80ms`;
+        el.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
+        el.style.opacity = "0";
+      } else {
+        el.style.transition = `transform 620ms ${soft}`;
+        restAt(el, depthAfter(i));
+      }
+    });
+    window.setTimeout(() => {
+      cardRefs.current.forEach((el, i) => {
+        if (!el || !leavers.includes(el)) return;
+        el.style.transition = "none";
+        restAt(el, depthAfter(i));
+        void el.offsetWidth;
+        el.style.transition = `opacity 260ms ${soft}`;
+        el.style.opacity = "1";
+      });
+      busy.current = false;
+    }, 470);
+  };
+
+  /** The arrows walk the stack one card at a time. */
+  const rotate = (dir: 1 | -1) => {
+    if (front.current < 0) return;
+    bringToFront((((front.current - dir) % count) + count) % count);
   };
 
   return (
@@ -213,7 +244,9 @@ export function Trending({ items }: { items: Podcast[] }) {
                 ref={(el) => {
                   cardRefs.current[i] = el;
                 }}
-                className="stroke-3 pointer-events-auto absolute left-1/2 top-[402px] flex h-[296px] w-[844px] items-center gap-4 rounded-[24px] bg-card py-2 pl-2 pr-6 opacity-0 will-change-[transform,opacity] [backface-visibility:hidden]"
+                onClick={() => bringToFront(i)}
+                title={frontState >= 0 && frontState !== i ? `Read about ${p.title}` : undefined}
+                className={`stroke-3 pointer-events-auto absolute left-1/2 top-[402px] flex h-[296px] w-[844px] items-center gap-4 rounded-[24px] bg-card py-2 pl-2 pr-6 opacity-0 will-change-[transform,opacity] [backface-visibility:hidden] ${frontState >= 0 && frontState !== i ? "cursor-pointer" : ""}`}
                 style={{
                   zIndex: i + 1,
                   transform: `translate(-50%, ${ENTER_Y / 16}rem) scale(1)`,
