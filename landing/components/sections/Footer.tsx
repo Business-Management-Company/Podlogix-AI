@@ -75,11 +75,23 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Lockup bleeding off the bottom edge — sized to sit under the columns rather than dominate the block. */}
+      {/* Lockup bleeding off the bottom edge, sized to sit under the columns. The
+          glyph fades itself out just above the cut, so the dissolve scales with
+          the wordmark instead of relying on an overlay strip. */}
       <div className="pointer-events-none absolute bottom-[-28px] left-1/2 -translate-x-1/2" aria-hidden>
-        <Image src="/l/brand/logo-lockup-cream.svg" alt="" width={870} height={204} unoptimized className="h-[210.7px] w-[900px] max-w-none" />
+        <Image
+          src="/l/brand/logo-lockup-cream.svg"
+          alt=""
+          width={870}
+          height={204}
+          unoptimized
+          className="h-[210.7px] w-[900px] max-w-none"
+          style={{
+            WebkitMaskImage: "linear-gradient(180deg, #000 58%, transparent 97%)",
+            maskImage: "linear-gradient(180deg, #000 58%, transparent 97%)",
+          }}
+        />
       </div>
-      <Image src="/l/images/footer-fade.png" alt="" width={1645} height={72} unoptimized className="pointer-events-none absolute bottom-0 left-[calc(50%-0.5px)] h-[48px] w-[1645px] max-w-none -translate-x-1/2 object-cover" aria-hidden />
     </footer>
   );
 }

@@ -53,9 +53,20 @@ export function FooterMobile() {
       <WaitlistForm size="sm" />
 
       <div className="pointer-events-none absolute bottom-[-10px] left-1/2 -translate-x-1/2" aria-hidden>
-        <Image src="/l/brand/logo-lockup-cream.svg" alt="" width={870} height={204} unoptimized className="h-auto max-w-none" style={{ width: "min(calc(100vw - 48px), 400px)" }} />
+        <Image
+          src="/l/brand/logo-lockup-cream.svg"
+          alt=""
+          width={870}
+          height={204}
+          unoptimized
+          className="h-auto max-w-none"
+          style={{
+            width: "min(calc(100vw - 48px), 400px)",
+            WebkitMaskImage: "linear-gradient(180deg, #000 62%, transparent 97%)",
+            maskImage: "linear-gradient(180deg, #000 62%, transparent 97%)",
+          }}
+        />
       </div>
-      <Image src="/l/images/footer-fade.png" alt="" width={1645} height={24} unoptimized className="pointer-events-none absolute bottom-0 left-1/2 h-[24px] w-[1645px] max-w-none -translate-x-1/2 object-cover" aria-hidden />
     </footer>
   );
 }
