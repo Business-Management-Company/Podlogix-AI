@@ -61,7 +61,19 @@ export function Workspace() {
     window.setTimeout(() => {
       paused.current = false;
     }, PAUSE);
-    setActive(index);
+    setActive(((index % rooms.length) + rooms.length) % rooms.length);
+  };
+
+  /** Dragging the panel with the mouse flips between the rooms. */
+  const dragX = useRef<number | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragX.current = e.clientX;
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (dragX.current === null) return;
+    const dx = e.clientX - dragX.current;
+    dragX.current = null;
+    if (Math.abs(dx) > 40) go(active + (dx < 0 ? 1 : -1));
   };
 
   const transition = reduced ? "none" : "620ms var(--ease-soft)";
@@ -74,7 +86,7 @@ export function Workspace() {
                 <Eyebrow>The workspace</Eyebrow>
                 <SectionTitle className="whitespace-nowrap">Every room, one roof.</SectionTitle>
                 <p className="w-full text-[16px] leading-[1.4] tracking-[-0.16px] text-white/80">
-                  Click through the rooms dashboard, studio, podcast, Refiner. Demo data the real thing is one signup away.
+                  Flip through the rooms: dashboard, studio, podcast and Refiner. These are real product screens, one signup away.
                 </p>
               </div>
 
@@ -112,7 +124,14 @@ export function Workspace() {
             </a>
           </div>
 
-          <div className="relative h-full min-w-0 flex-1 overflow-hidden rounded-[32px]">
+          <div
+            className="relative h-full min-w-0 flex-1 cursor-grab touch-pan-y select-none overflow-hidden rounded-[32px] active:cursor-grabbing"
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={() => (dragX.current = null)}
+            onPointerLeave={() => (dragX.current = null)}
+            onDragStart={(e) => e.preventDefault()}
+          >
             <GradientRings set="ws" />
             <div className="absolute inset-0">
               {rooms.map((r, i) => (

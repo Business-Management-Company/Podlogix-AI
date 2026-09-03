@@ -25,6 +25,8 @@ const CARD_H = 280;
 
 export function WorkspaceMobile() {
   const [active, setActive] = useState(0);
+  const dragX = useRef<number | null>(null);
+  const flip = (delta: number) => setActive((a) => (((a + delta) % rooms.length) + rooms.length) % rooms.length);
   const cardRef = useRef<HTMLDivElement>(null);
   const [k, setK] = useState(1);
   useEffect(() => {
@@ -43,7 +45,7 @@ export function WorkspaceMobile() {
         <Eyebrow>The workspace</Eyebrow>
         <h2 className="display whitespace-nowrap text-[32px] leading-[1.2] tracking-[-0.32px] text-cream">Every room, one roof.</h2>
         <p className="text-[14px] leading-[1.4] text-white/80">
-          Click through the rooms dashboard, studio, podcast, Refiner. Demo data the real thing is one signup away.
+          Flip through the rooms: dashboard, studio, podcast and Refiner. These are real product screens, one signup away.
         </p>
       </div>
       <div role="tablist" aria-label="Workspace rooms" className="no-scrollbar -mx-6 flex items-start overflow-x-auto px-6 text-[14px]">
@@ -64,7 +66,21 @@ export function WorkspaceMobile() {
           );
         })}
       </div>
-      <div ref={cardRef} className="relative w-full overflow-hidden rounded-[32px]" style={{ height: `${(CARD_H * Math.min(k, 1.7)) / 16}rem` }}>
+      <div
+        ref={cardRef}
+        className="relative w-full touch-pan-y select-none overflow-hidden rounded-[32px]"
+        style={{ height: `${(CARD_H * Math.min(k, 1.7)) / 16}rem` }}
+        onPointerDown={(e) => (dragX.current = e.clientX)}
+        onPointerUp={(e) => {
+          if (dragX.current === null) return;
+          const dx = e.clientX - dragX.current;
+          dragX.current = null;
+          if (Math.abs(dx) > 40) flip(dx < 0 ? 1 : -1);
+        }}
+        onPointerCancel={() => (dragX.current = null)}
+        onPointerLeave={() => (dragX.current = null)}
+        onDragStart={(e) => e.preventDefault()}
+      >
         <div className="absolute bottom-0 left-0" style={{ width: rem(CARD_W), height: rem(CARD_H), transformOrigin: "0 100%", transform: `scale(${k.toFixed(4)})` }}>
           <GradientRings set="wsMobile" />
         </div>

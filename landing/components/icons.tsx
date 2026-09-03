@@ -8,6 +8,16 @@ import type { ComponentProps } from "react";
 import type { IconType } from "react-icons";
 import {
   FaAnglesRight,
+  FaChevronLeft,
+  FaChevronRight,
+  FaComments,
+  FaEarthAmericas,
+  FaHeartPulse,
+  FaLandmark,
+  FaMedal,
+  FaMicrochip,
+  FaShieldHalved,
+  FaTrophy,
   FaArrowUp,
   FaAtom,
   FaBackward,
@@ -77,6 +87,16 @@ export const IconNewspaper = make(FaNewspaper);
 export const IconFootball = make(FaFootball);
 export const IconWarning = make(FaTriangleExclamation);
 export const IconMusic = make(FaMusic);
+export const IconHeartPulse = make(FaHeartPulse);
+export const IconChip = make(FaMicrochip);
+export const IconComments = make(FaComments);
+export const IconTrophy = make(FaTrophy);
+export const IconShield = make(FaShieldHalved);
+export const IconLandmark = make(FaLandmark);
+export const IconGlobe = make(FaEarthAmericas);
+export const IconMedal = make(FaMedal);
+export const IconChevronLeft = make(FaChevronLeft);
+export const IconChevronRight = make(FaChevronRight);
 export const IconMap = make(FaMap);
 export const IconPalette = make(FaPalette);
 export const IconUsers = make(FaUsers);

@@ -10,6 +10,20 @@ import { usePrefersReducedMotion } from "@/lib/useRem";
 const cardGrad = radial(200, 420, [-15.47, 29.959, -23.343, -10.158, 200, -25.934], STOPS_B);
 const HOLD = 3000;
 
+/** The equalizer bars flanking the card, each showing the neighbour that many steps away. */
+const BARS = [
+  { off: -3, h: 102, bg: "bg-white/5" },
+  { off: -2, h: 172, bg: "bg-white/5" },
+  { off: -1, h: 240, bg: "bg-white/10" },
+  { off: 1, h: 320, bg: "bg-white/10" },
+  { off: 2, h: 172, bg: "bg-white/5" },
+  { off: 3, h: 102, bg: "bg-white/5" },
+];
+
+function Bar({ bar }: { bar: (typeof BARS)[number] }) {
+  return <span className={`w-12 shrink-0 rounded-[16px] ${bar.bg}`} style={{ height: `${bar.h / 16}rem` }} aria-hidden />;
+}
+
 export function CreatorMobile({ items }: { items: Creator[] }) {
   const [index, setIndex] = useState(0);
   const reduced = usePrefersReducedMotion();
@@ -31,9 +45,9 @@ export function CreatorMobile({ items }: { items: Creator[] }) {
       </div>
       <div className="flex flex-col items-center gap-4">
         <div className="flex h-[420px] w-full items-center justify-center gap-4">
-          <span className="h-[102px] w-12 shrink-0 rounded-[16px] bg-white/5" />
-          <span className="h-[172px] w-12 shrink-0 rounded-[16px] bg-white/5" />
-          <span className="h-[240px] w-12 shrink-0 rounded-[16px] bg-white/10" />
+          {BARS.slice(0, 3).map((b) => (
+            <Bar key={b.off} bar={b} />
+          ))}
           <div className="relative h-full w-[200px] shrink-0 overflow-hidden rounded-[32px]" style={{ backgroundImage: cardGrad, backgroundSize: "100% 100%" }}>
             {items.map((c, i) => (
               <Image
@@ -48,9 +62,9 @@ export function CreatorMobile({ items }: { items: Creator[] }) {
               />
             ))}
           </div>
-          <span className="h-[320px] w-12 shrink-0 rounded-[16px] bg-white/10" />
-          <span className="h-[172px] w-12 shrink-0 rounded-[16px] bg-white/5" />
-          <span className="h-[102px] w-12 shrink-0 rounded-[16px] bg-white/5" />
+          {BARS.slice(3).map((b) => (
+            <Bar key={b.off} bar={b} />
+          ))}
         </div>
         <div className="flex w-[220px] flex-col gap-1 px-1 text-center leading-[1.2]" aria-live="polite">
           <span className="display text-[20px] tracking-[-0.2px] text-paper">{current?.name}</span>

@@ -24,8 +24,8 @@ import { SocialProofMobile } from "@/components/mobile/SocialProofMobile";
 import { PricingMobile } from "@/components/mobile/PricingMobile";
 import { CtaMobile } from "@/components/mobile/CtaMobile";
 import { FooterMobile } from "@/components/mobile/FooterMobile";
-import { categories, testimonials } from "@/lib/data";
-import { getHomeContent } from "@/lib/content";
+import { testimonials } from "@/lib/data";
+import { getCategories, getHomeContent } from "@/lib/content";
 
 /**
  * Desktop (1024px and up) follows the 1440 frame; below that the 393 mobile
@@ -36,7 +36,7 @@ const D = "hidden lg:block";
 const M = "lg:hidden";
 
 export default async function Home() {
-  const { trending, creators } = await getHomeContent();
+  const [{ trending, creators }, categories] = await Promise.all([getHomeContent(), getCategories()]);
   return (
     <main className="w-full overflow-x-clip bg-ink">
       <GradientDefs />
@@ -46,6 +46,10 @@ export default async function Home() {
           <div className={M}><HeroMobile /></div>
         </PageIntro>
       </div>
+      <div id="workspace">
+        <div className={D}><Workspace /></div>
+        <div className={M}><WorkspaceMobile /></div>
+      </div>
       <div id="category">
         <div className={D}><Category items={categories} /></div>
         <div className={M}><CategoryMobile items={categories} /></div>
@@ -53,10 +57,6 @@ export default async function Home() {
       <div id="trending">
         <div className={D}><Trending items={trending} /></div>
         <div className={M}><TrendingMobile items={trending} /></div>
-      </div>
-      <div id="workspace">
-        <div className={D}><Workspace /></div>
-        <div className={M}><WorkspaceMobile /></div>
       </div>
       <div id="how-it-works">
         <div className={D}><HowItWorks /></div>

@@ -27,10 +27,13 @@ export type Creator = {
 export type Category = {
   slug: string;
   name: string;
-  showsLabel: string;
+  /** Real show count, formatted; null hides the count line. */
+  showsLabel: string | null;
   icon: string;
   /** Resting card height in the staggered row (px at 1440). */
   height: 200 | 240 | 280 | 320;
+  /** Cover artwork of a leading show in the genre. */
+  art?: string;
 };
 
 export type Testimonial = {

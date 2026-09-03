@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Eyebrow, SectionTitle } from "@/components/ui/SectionHeader";
 import { IconChevronsRight, IconMicrophone, IconPlus, IconScreencast, IconUsers, IconVideo } from "@/components/icons";
@@ -13,6 +14,19 @@ const icons: Record<string, React.ReactNode> = {
   video: <IconVideo size={20} />,
   microphone: <IconMicrophone size={20} />,
   users: <IconUsers size={20} />,
+};
+
+/**
+ * A real product screen behind every stage: a cropped detail of the room
+ * that does that job, so the pipeline reads as the actual software.
+ */
+const shots: Record<string, { src: string; pos: string; zoom: number }> = {
+  create: { src: "/l/images/workspace/room-live-studio.png", pos: "18% 12%", zoom: 1.9 },
+  stream: { src: "/l/images/workspace/room-live-studio.png", pos: "97% 22%", zoom: 2.1 },
+  transform: { src: "/l/images/workspace/room-refiner.png", pos: "50% 28%", zoom: 1.7 },
+  distribute: { src: "/l/images/workspace/room-podcast.png", pos: "50% 4%", zoom: 1.7 },
+  grow: { src: "/l/images/workspace/room-dashboard.png", pos: "96% 28%", zoom: 2.1 },
+  monetize: { src: "/l/images/workspace/room-dashboard.png", pos: "4% 60%", zoom: 2.1 },
 };
 
 const HOLD_MS = 2800;
@@ -80,8 +94,24 @@ export function HowItWorks() {
                   {icons[step.icon]}
                 </span>
               </span>
+              {shots[step.key] && (
+                <span className="relative mt-4 w-full min-h-0 flex-1 self-stretch overflow-hidden rounded-[12px] bg-white/5" aria-hidden>
+                  <Image
+                    src={shots[step.key].src}
+                    alt=""
+                    fill
+                    sizes="220px"
+                    className="object-cover"
+                    style={{
+                      objectPosition: shots[step.key].pos,
+                      transform: `scale(${shots[step.key].zoom})`,
+                      transformOrigin: shots[step.key].pos,
+                    }}
+                  />
+                </span>
+              )}
               {/* The file gives the first card a 12px gap and the rest 10px. */}
-              <span className={`relative flex w-full flex-col ${i === 0 ? "gap-3" : "gap-[10px]"}`}>
+              <span className={`relative mt-4 flex w-full flex-col ${i === 0 ? "gap-3" : "gap-[10px]"}`}>
                 <span className="display w-full text-[24px] leading-[1.2] tracking-[-0.24px] text-cream">{step.title}</span>
                 <span className="w-full text-[16px] font-medium leading-[1.4] tracking-[-0.16px] text-cream/60">{step.sub}</span>
               </span>

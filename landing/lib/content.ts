@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
-import { creatorsSeed, trendingSeed } from "./data";
-import type { Creator, Podcast } from "./types";
+import { categories as categoriesSeed, creatorsSeed, trendingSeed } from "./data";
+import type { Category, Creator, Podcast } from "./types";
 
 const TRENDING_COUNT = 5;
 const CREATOR_COUNT = 10;
@@ -112,4 +112,125 @@ function toPodcast(row: PodchaserPodcast): Podcast | null {
     artwork: p.imageUrl,
     url: p.webUrl,
   };
+}
+
+/* ---------- Categories ---------- */
+
+/** The app's categories feed row, as shipped in the public API. */
+type CategoryRow = { slug?: string; label?: string; icon?: string; shows?: number | null };
+
+/** Their Lucide icon names, mapped onto the site's icon set. */
+const ICONS: Record<string, string> = {
+  "heart-pulse": "heart-pulse",
+  "briefcase-business": "suitcase",
+  cpu: "chip",
+  "flask-conical": "flask",
+  "graduation-cap": "graduation-cap",
+  "messages-square": "comments",
+  laugh: "smile",
+  newspaper: "newspaper",
+  trophy: "trophy",
+  "shield-alert": "shield",
+  music: "music",
+  landmark: "landmark",
+  palette: "palette",
+  "globe-2": "globe",
+  medal: "medal",
+};
+
+/** Apple's podcast genre ids, keyed by the feed's category slugs. */
+const GENRES: Record<string, number> = {
+  "health-wellness": 1512,
+  business: 1321,
+  technology: 1318,
+  science: 1533,
+  education: 1304,
+  "society-culture": 1324,
+  comedy: 1303,
+  news: 1489,
+  sports: 1545,
+  "true-crime": 1488,
+  music: 1310,
+  history: 1487,
+  arts: 1301,
+  spirituality: 1314,
+};
+
+const formatK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
+
+const publicApi = () => (process.env.PODLOGIX_CONTENT_URL ?? "https://podlogix.io/api/public/landing").replace(/\/landing$/, "");
+
+/**
+ * The category rail: labels and real show counts from the app's feed, cover
+ * artwork from the top of Apple's chart for each genre (skipping explicit
+ * shows and covers already used). Card heights stay the design's stagger,
+ * and the seed carries a full snapshot, so the rail never renders bare.
+ */
+export const getCategories = unstable_cache(
+  async (): Promise<Category[]> => {
+    const rows = await fetchCategoryRows();
+    const merged = categoriesSeed.map((seed, i) => {
+      const row = rows[i];
+      if (!row) return seed;
+      return {
+        ...seed,
+        slug: row.slug ?? seed.slug,
+        name: row.label ?? seed.name,
+        showsLabel: row.shows == null ? (rows.length ? null : seed.showsLabel) : `${formatK(row.shows)} Shows`,
+        icon: (row.icon && ICONS[row.icon]) || seed.icon,
+      };
+    });
+    const art = await fetchCategoryArt(merged.map((c) => c.slug));
+    return merged.map((c) => ({ ...c, art: art.get(c.slug) ?? c.art }));
+  },
+  ["home-categories"],
+  { revalidate: 86400 },
+);
+
+async function fetchCategoryRows(): Promise<CategoryRow[]> {
+  try {
+    const res = await fetch(`${publicApi()}/categories`, { next: { revalidate: 86400 } });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { categories?: CategoryRow[] };
+    const rows = json.categories ?? [];
+    return rows.length === categoriesSeed.length ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+type ChartRow = { collectionId?: number; collectionExplicitness?: string; artworkUrl600?: string };
+
+async function fetchCategoryArt(slugs: string[]): Promise<Map<string, string>> {
+  const art = new Map<string, string>();
+  const headers = { "user-agent": "Mozilla/5.0" };
+  const charts = await Promise.all(
+    slugs.map(async (slug): Promise<[string, ChartRow[]]> => {
+      const genre = GENRES[slug];
+      if (!genre) return [slug, []];
+      try {
+        const feed = await fetch(`https://itunes.apple.com/us/rss/toppodcasts/limit=8/genre=${genre}/json`, { headers, next: { revalidate: 86400 } });
+        if (!feed.ok) return [slug, []];
+        const json = (await feed.json()) as { feed?: { entry?: Array<{ id?: { attributes?: { "im:id"?: string } } }> } };
+        const ids = (json.feed?.entry ?? []).map((e) => e.id?.attributes?.["im:id"]).filter(Boolean) as string[];
+        if (!ids.length) return [slug, []];
+        const look = await fetch(`https://itunes.apple.com/lookup?id=${ids.join(",")}`, { headers, next: { revalidate: 86400 } });
+        if (!look.ok) return [slug, []];
+        const found = (await look.json()) as { results?: ChartRow[] };
+        const by = new Map((found.results ?? []).map((r) => [String(r.collectionId), r]));
+        return [slug, ids.map((id) => by.get(id)).filter(Boolean) as ChartRow[]];
+      } catch {
+        return [slug, []];
+      }
+    }),
+  );
+  const used = new Set<string>(categoriesSeed.filter((c) => !GENRES[c.slug] && c.art).map((c) => c.art as string));
+  for (const [slug, rows] of charts) {
+    const pick = rows.find((r) => r.artworkUrl600 && r.collectionExplicitness !== "explicit" && !used.has(r.artworkUrl600));
+    if (pick?.artworkUrl600) {
+      art.set(slug, pick.artworkUrl600);
+      used.add(pick.artworkUrl600);
+    }
+  }
+  return art;
 }

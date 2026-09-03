@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eyebrow, SectionTitle } from "@/components/ui/SectionHeader";
 import { WhitePill } from "@/components/ui/Buttons";
 import { IconClock, IconHeadphones, IconPlay, IconSearch } from "@/components/icons";
@@ -32,6 +32,10 @@ export function Trending({ items }: { items: Podcast[] }) {
   const wrapRef = useRef<HTMLElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const count = items.length;
+  /** Which card sits in front once the stack is dealt; -1 while dealing. */
+  const front = useRef(-1);
+  const busy = useRef(false);
+  const [frontState, setFrontState] = useState(-1);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -67,13 +71,20 @@ export function Trending({ items }: { items: Podcast[] }) {
       const u = Math.min(count, (now - start) / DEAL);
       draw(u);
       if (u < count) frame = requestAnimationFrame(tick);
+      else {
+        front.current = count - 1;
+        setFrontState(count - 1);
+      }
     };
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
         io.disconnect();
-        if (reduced) draw(count);
-        else frame = requestAnimationFrame(tick);
+        if (reduced) {
+          draw(count);
+          front.current = count - 1;
+          setFrontState(count - 1);
+        } else frame = requestAnimationFrame(tick);
       },
       { threshold: 0.35 },
     );
@@ -84,6 +95,96 @@ export function Trending({ items }: { items: Podcast[] }) {
       cancelAnimationFrame(frame);
     };
   }, [count]);
+
+  /** Where a card rests at a given depth in the stack (0 is the front). */
+  const restAt = (el: HTMLElement, depth: number) => {
+    const s = remScale();
+    const scale = (CARD_W - STEP_W * depth) / CARD_W;
+    const ty = (-STEP_Y * depth - ((1 - scale) * CARD_H) / 2) * s;
+    el.style.transform = `translate(-50%, ${ty.toFixed(2)}px) scale(${scale.toFixed(5)})`;
+    el.style.zIndex = String(count - depth);
+  };
+
+  /**
+   * Any card can be brought to the front: the cards ahead of it slide down
+   * and away together (the deal in reverse) and reappear at the back, while
+   * the chosen card and everything behind it step forward. The deepest card
+   * instead deals itself up from below, the same move the stack arrived with.
+   * The arrows walk the same path one card at a time.
+   */
+  const bringToFront = (target: number) => {
+    if (front.current < 0 || busy.current || count < 2) return;
+    const n = count;
+    const f = front.current;
+    const d = (((f - target) % n) + n) % n;
+    if (d === 0) return;
+    busy.current = true;
+    const soft = "var(--ease-soft)";
+    front.current = target;
+    setFrontState(target);
+    const s = remScale();
+    const depthAfter = (i: number) => {
+      const before = (((f - i) % n) + n) % n;
+      return (((before - d) % n) + n) % n;
+    };
+    if (d === n - 1) {
+      // The deepest card dives under the stack and deals itself up to the front.
+      const mover = cardRefs.current[target];
+      cardRefs.current.forEach((el, i) => {
+        if (!el || el === mover) return;
+        el.style.transition = `transform 620ms ${soft}`;
+        restAt(el, depthAfter(i));
+      });
+      if (!mover) {
+        busy.current = false;
+        return;
+      }
+      mover.style.transition = "none";
+      mover.style.opacity = "0";
+      mover.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
+      mover.style.zIndex = String(n);
+      void mover.offsetWidth;
+      mover.style.transition = `transform 620ms ${soft}, opacity 260ms ${soft}`;
+      restAt(mover, 0);
+      mover.style.opacity = "1";
+      window.setTimeout(() => {
+        busy.current = false;
+      }, 640);
+      return;
+    }
+    // The cards ahead of the chosen one leave together and rejoin at the back.
+    const leavers: HTMLElement[] = [];
+    cardRefs.current.forEach((el, i) => {
+      if (!el) return;
+      const before = (((f - i) % n) + n) % n;
+      if (before < d) {
+        leavers.push(el);
+        el.style.transition = `transform 460ms ${soft}, opacity 320ms ${soft} 80ms`;
+        el.style.transform = `translate(-50%, ${(ENTER_Y * s).toFixed(2)}px) scale(1)`;
+        el.style.opacity = "0";
+      } else {
+        el.style.transition = `transform 620ms ${soft}`;
+        restAt(el, depthAfter(i));
+      }
+    });
+    window.setTimeout(() => {
+      cardRefs.current.forEach((el, i) => {
+        if (!el || !leavers.includes(el)) return;
+        el.style.transition = "none";
+        restAt(el, depthAfter(i));
+        void el.offsetWidth;
+        el.style.transition = `opacity 260ms ${soft}`;
+        el.style.opacity = "1";
+      });
+      busy.current = false;
+    }, 470);
+  };
+
+  /** The arrows walk the stack one card at a time. */
+  const rotate = (dir: 1 | -1) => {
+    if (front.current < 0) return;
+    bringToFront((((front.current - dir) % count) + count) % count);
+  };
 
   return (
     <section ref={wrapRef} className="relative mx-auto h-[800px] w-[1440px] overflow-hidden">
@@ -119,6 +220,23 @@ export function Trending({ items }: { items: Podcast[] }) {
             </form>
           </div>
 
+          <div className="absolute right-10 top-[102px] flex items-center gap-2" role="group" aria-label="Browse trending shows">
+            {[
+              { label: "Previous show", dir: -1 as const, src: "/l/icons/arrow-left-circle.svg" },
+              { label: "Next show", dir: 1 as const, src: "/l/icons/arrow-right-circle.svg" },
+            ].map(({ label, dir, src }) => (
+              <button
+                key={label}
+                type="button"
+                aria-label={label}
+                onClick={() => rotate(dir)}
+                className="h-10 w-10 transition-[scale] duration-200 ease-soft hover:scale-105 active:scale-95"
+              >
+                <Image src={src} alt="" width={40} height={40} unoptimized className="h-10 w-10" />
+              </button>
+            ))}
+          </div>
+
           <div className="pointer-events-none absolute inset-0">
             {items.map((p, i) => (
               <article
@@ -126,14 +244,16 @@ export function Trending({ items }: { items: Podcast[] }) {
                 ref={(el) => {
                   cardRefs.current[i] = el;
                 }}
-                className="stroke-3 pointer-events-auto absolute left-1/2 top-[402px] flex h-[296px] w-[844px] items-center gap-4 rounded-[24px] bg-card py-2 pl-2 pr-6 opacity-0 will-change-[transform,opacity] [backface-visibility:hidden]"
+                onClick={() => bringToFront(i)}
+                title={frontState >= 0 && frontState !== i ? `Read about ${p.title}` : undefined}
+                className={`stroke-3 pointer-events-auto absolute left-1/2 top-[402px] flex h-[296px] w-[844px] items-center gap-6 overflow-hidden rounded-[24px] bg-card pr-6 opacity-0 will-change-[transform,opacity] [backface-visibility:hidden] ${frontState >= 0 && frontState !== i ? "cursor-pointer" : ""}`}
                 style={{
                   zIndex: i + 1,
                   transform: `translate(-50%, ${ENTER_Y / 16}rem) scale(1)`,
                   boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03), 0 -10px 15px rgba(31,10,9,0.3)",
                 }}
               >
-                <div className="relative h-[280px] w-[320px] shrink-0 overflow-hidden rounded-[16px] bg-white/[0.04]">
+                <div className="relative h-full w-[320px] shrink-0 self-stretch overflow-hidden bg-white/[0.04]">
                   <Image
                     src={p.artwork}
                     alt=""
