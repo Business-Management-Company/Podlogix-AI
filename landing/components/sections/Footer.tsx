@@ -15,7 +15,7 @@ const linkHref: Record<string, string> = {
   Dashboard: "#workspace",
   "Live studio": "#workspace",
   Podcast: "#workspace",
-  Refiner: "#workspace",
+  Discovery: "#workspace",
   Livestream: "#features",
   Conference: "#features",
   "Live event": "#features",

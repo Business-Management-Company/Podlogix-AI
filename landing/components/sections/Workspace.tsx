@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Eyebrow, SectionTitle } from "@/components/ui/SectionHeader";
 import { GradientRings } from "@/components/ui/GradientRings";
-import { IconHome, IconMicrophone, IconSignalStream, IconSparkles } from "@/components/icons";
+import { IconCompass, IconHome, IconMicrophone, IconSignalStream } from "@/components/icons";
 import { ROOM_W, STROKE_COLOR, rem, rooms } from "@/lib/workspace";
 import { site } from "@/lib/site";
 import { usePrefersReducedMotion } from "@/lib/useRem";
@@ -13,7 +13,7 @@ const icons = {
   dashboard: <IconHome size={16} />,
   live: <IconSignalStream size={18} />,
   podcast: <IconMicrophone size={16} />,
-  refiner: <IconSparkles size={18} />,
+  discovery: <IconCompass size={16} />,
 };
 
 /** The rooms cycle on their own while the section is on screen; a click
@@ -86,7 +86,7 @@ export function Workspace() {
                 <Eyebrow>The workspace</Eyebrow>
                 <SectionTitle className="whitespace-nowrap">Every room, one roof.</SectionTitle>
                 <p className="w-full text-[16px] leading-[1.4] tracking-[-0.16px] text-white/80">
-                  Flip through the rooms: dashboard, studio, podcast and Refiner. These are real product screens, one signup away.
+                  Flip through the rooms: dashboard, studio, podcast and Discovery. These are real product screens, one signup away.
                 </p>
               </div>
 

@@ -176,7 +176,7 @@ export const plans = [
 ] as const;
 
 export const footerColumns = [
-  { heading: "Workspace", links: ["Dashboard", "Live studio", "Podcast", "Refiner"] },
+  { heading: "Workspace", links: ["Dashboard", "Live studio", "Podcast", "Discovery"] },
   { heading: "Content engine", links: ["Podcast", "Livestream", "Conference", "Live event"] },
   { heading: "Navigation", links: ["Features", "Integrations", "Pricing", "About"] },
   { heading: "Company", links: ["Privacy policy", "Terms of services"] },

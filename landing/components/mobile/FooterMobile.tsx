@@ -10,7 +10,7 @@ const socials = [
   { label: "X", href: site.social.x, icon: <IconX size={20} /> },
   { label: "GitHub", href: site.social.github, icon: <IconGithub size={20} /> },
 ];
-const linkHref: Record<string, string> = { Dashboard: "#workspace", "Live studio": "#workspace", Podcast: "#workspace", Refiner: "#workspace", Livestream: "#features", Conference: "#features", "Live event": "#features", Features: "#features", Integrations: "#integrations", Pricing: "#pricing", About: "#about", "Privacy policy": site.privacy, "Terms of services": site.terms };
+const linkHref: Record<string, string> = { Dashboard: "#workspace", "Live studio": "#workspace", Podcast: "#workspace", Discovery: "#workspace", Livestream: "#features", Conference: "#features", "Live event": "#features", Features: "#features", Integrations: "#integrations", Pricing: "#pricing", About: "#about", "Privacy policy": site.privacy, "Terms of services": site.terms };
 
 function Column({ col, className = "" }: { col: (typeof footerColumns)[number]; className?: string }) {
   return (

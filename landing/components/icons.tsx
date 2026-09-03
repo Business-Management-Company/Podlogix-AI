@@ -11,6 +11,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaComments,
+  FaCompass,
   FaEarthAmericas,
   FaHeartPulse,
   FaLandmark,
@@ -95,6 +96,7 @@ export const IconShield = make(FaShieldHalved);
 export const IconLandmark = make(FaLandmark);
 export const IconGlobe = make(FaEarthAmericas);
 export const IconMedal = make(FaMedal);
+export const IconCompass = make(FaCompass);
 export const IconChevronLeft = make(FaChevronLeft);
 export const IconChevronRight = make(FaChevronRight);
 export const IconMap = make(FaMap);
